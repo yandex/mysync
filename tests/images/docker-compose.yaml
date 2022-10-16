@@ -1,0 +1,168 @@
+version: '2.3'
+
+services:
+  zoo1:
+    build:
+      context: ./zookeeper
+    hostname: zoo1
+    ports:
+        - 2181
+    privileged: true
+    environment:
+      ZK_SERVERS: server.1=zoo1:2888:3888, server.2=zoo2:2888:3888, server.3=zoo3:2888:3888
+      ZK_MYID: 1
+    healthcheck:
+      test: "nc -z localhost 2181"
+      start_period: 30s
+      timeout: 5s
+      interval: 10s
+      retries: 3
+    networks:
+      mysync_net:
+        ipv4_address: 192.168.233.10
+
+  zoo2:
+    build:
+      context: ./zookeeper
+    hostname: zoo2
+    ports:
+        - 2181
+    privileged: true
+    environment:
+      ZK_SERVERS: server.1=zoo1:2888:3888, server.2=zoo2:2888:3888, server.3=zoo3:2888:3888
+      ZK_MYID: 2
+    networks:
+      mysync_net:
+        ipv4_address: 192.168.233.11
+
+  zoo3:
+    build:
+      context: ./zookeeper
+    hostname: zoo3
+    ports:
+        - 2181
+    privileged: true
+    environment:
+      ZK_SERVERS: server.1=zoo1:2888:3888, server.2=zoo2:2888:3888, server.3=zoo3:2888:3888
+      ZK_MYID: 3
+    networks:
+      mysync_net:
+        ipv4_address: 192.168.233.12
+
+  mysql1:
+    build:
+      context: ./mysql
+    hostname: mysql1
+    ports:
+        - 3306
+    privileged: true
+    environment:
+      MYSQL_SERVER_ID: 1
+      MYSQL_ADMIN_USER: admin
+      MYSQL_ADMIN_PASSWORD: admin_pwd
+      MYSQL_MASTER: ''
+      MYSYNC_FAILOVER:
+      MYSYNC_FAILOVER_DELAY:
+      MYSYNC_FAILOVER_COOLDOWN:
+      MYSYNC_INACTIVATION_DELAY:
+      ZK_SERVERS: zoo1:2181, zoo2:2181, zoo3:2181
+      MYSQL_PORT: 3306
+      MYSYNC_DISABLE_REPLICATION_ON_MAINT: "true"
+      MYSYNC_SEMISYNC:
+      MYSYNC_CRITICAL_DISK_USAGE:
+      MYSYNC_KEEP_SUPER_WRITABLE_ON_CRITICAL_DISK_USAGE:
+      MYSYNC_WAIT_FOR_SLAVE_COUNT:
+      MYSYNC_STREAM_FROM_REASONABLE_LAG:
+      MYSYNC_RESETUP_CRASHED_HOSTS:
+      MYSYNC_REPLICATION_REPAIR_AGGRESSIVE_MODE:
+      MYSYNC_SET_RO_TIMEOUT:
+    healthcheck:
+      test: "mysql --user=admin --password=admin_pwd -e 'SELECT 1'"
+      start_period: 30s
+      timeout: 5s
+      interval: 10s
+      retries: 3
+    depends_on:
+      zoo1:
+        condition: service_healthy
+    networks:
+      mysync_net:
+        ipv4_address: 192.168.233.13
+
+  mysql2:
+    build:
+      context: ./mysql
+    hostname: mysql2
+    ports:
+        - 3306
+    privileged: true
+    environment:
+      MYSQL_SERVER_ID: 2
+      MYSQL_ADMIN_USER: admin
+      MYSQL_ADMIN_PASSWORD: admin_pwd
+      MYSQL_MASTER: mysql1
+      MYSYNC_FAILOVER:
+      MYSYNC_FAILOVER_DELAY:
+      MYSYNC_FAILOVER_COOLDOWN:
+      MYSYNC_INACTIVATION_DELAY:
+      ZK_SERVERS: zoo1:2181, zoo2:2181, zoo3:2181
+      MYSQL_PORT: 3306
+      MYSYNC_DISABLE_REPLICATION_ON_MAINT: "true"
+      MYSYNC_SEMISYNC:
+      MYSYNC_CRITICAL_DISK_USAGE:
+      MYSYNC_KEEP_SUPER_WRITABLE_ON_CRITICAL_DISK_USAGE:
+      MYSYNC_WAIT_FOR_SLAVE_COUNT:
+      MYSYNC_STREAM_FROM_REASONABLE_LAG:
+      MYSYNC_RESETUP_CRASHED_HOSTS:
+      MYSYNC_REPLICATION_REPAIR_AGGRESSIVE_MODE:
+      MYSYNC_SET_RO_TIMEOUT:
+    depends_on:
+      mysql1:
+        condition: service_healthy
+    networks:
+      mysync_net:
+        ipv4_address: 192.168.233.14
+
+  mysql3:
+    build:
+      context: ./mysql
+    hostname: mysql3
+    ports:
+        - 3306
+    privileged: true
+    environment:
+      MYSQL_SERVER_ID: 3
+      MYSQL_ADMIN_USER: admin
+      MYSQL_ADMIN_PASSWORD: admin_pwd
+      MYSQL_MASTER: mysql1
+      MYSYNC_FAILOVER:
+      MYSYNC_FAILOVER_DELAY:
+      MYSYNC_FAILOVER_COOLDOWN:
+      MYSYNC_INACTIVATION_DELAY:
+      ZK_SERVERS: zoo1:2181, zoo2:2181, zoo3:2181
+      MYSQL_PORT: 3306
+      MYSYNC_DISABLE_REPLICATION_ON_MAINT: "true"
+      MYSYNC_SEMISYNC:
+      MYSYNC_CRITICAL_DISK_USAGE:
+      MYSYNC_KEEP_SUPER_WRITABLE_ON_CRITICAL_DISK_USAGE:
+      MYSYNC_WAIT_FOR_SLAVE_COUNT:
+      MYSYNC_STREAM_FROM_REASONABLE_LAG:
+      MYSYNC_RESETUP_CRASHED_HOSTS:
+      MYSYNC_REPLICATION_REPAIR_AGGRESSIVE_MODE:
+      MYSYNC_SET_RO_TIMEOUT:
+    depends_on:
+      mysql1:
+        condition: service_healthy
+    networks:
+      mysync_net:
+        ipv4_address: 192.168.233.15
+
+
+networks:
+  mysync_net:
+    driver: bridge
+    ipam:
+      driver: default
+      config:
+       - subnet: 192.168.233.0/24
+         gateway: 192.168.233.1
