@@ -21,6 +21,8 @@ const (
 	FATAL
 )
 
+const timeFormat = "2006-01-02T15:04:05Z07:00"
+
 func parseLevel(level string) (LogLevel, error) {
 	switch strings.ToLower(level) {
 	case "debug":
@@ -83,12 +85,16 @@ func Open(path, level string) (*Logger, error) {
 func (l *Logger) ReOpen() error {
 	l.m.Lock()
 	defer l.m.Unlock()
+	if l.path == "" || l.path == "/dev/stderr" {
+		l.fh = os.Stderr
+		return nil
+	}
 	if l.fh != nil {
 		_ = l.fh.Close()
 	}
 	fh, err := os.OpenFile(l.path, os.O_WRONLY|os.O_CREATE|os.O_APPEND, 0644)
 	if err != nil {
-		return err
+		return fmt.Errorf("failed to open log: %w", l.path, err)
 	}
 	l.fh = fh
 	return nil
@@ -110,7 +116,7 @@ func (l *Logger) printf(lvl LogLevel, msg string, args ...interface{}) {
 	if lvl < l.lvl {
 		return
 	}
-	data := fmt.Sprintf("%s %s: ", time.Now(), lvl) + fmt.Sprintf(msg, args...) + "\n"
+	data := fmt.Sprintf("%s %s: ", time.Now().Format(timeFormat), lvl) + fmt.Sprintf(msg, args...) + "\n"
 	l.m.Lock()
 	l.fh.Write([]byte(data))
 	l.m.Unlock()

@@ -1,4 +1,4 @@
-FROM registry.yandex.net/dbaas/mysync-test-base:latest
+FROM mysync-test-base:latest
 RUN (yes | ssh-keygen -t rsa -N '' -f /root/test_ssh_key -C jepsen || true) && \
          eval `ssh-agent -s` && cp /root/test_ssh_key.pub /root/.ssh/authorized_keys && \
                                 cp /root/test_ssh_key.pub /root/.ssh/id_rsa.pub && \

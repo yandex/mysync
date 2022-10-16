@@ -1,4 +1,4 @@
-FROM registry.yandex.net/dbaas/mysync-jepsen-test-base:latest
+FROM mysync-jepsen-test-base:latest
 COPY . /var/lib/dist/mysql
 COPY ./sh-scripts/my-wait-started.sh /usr/bin/my-wait-started
 COPY ./mysync /usr/bin/mysync

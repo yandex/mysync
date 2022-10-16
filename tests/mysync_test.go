@@ -3,6 +3,7 @@ package tests
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"io/ioutil"
@@ -27,8 +28,6 @@ import (
 	"github.com/yandex/mysync/tests/testutil"
 	"github.com/yandex/mysync/tests/testutil/matchers"
 )
-
-//"database/sql"
 
 const (
 	yes                        = "Yes"
@@ -105,24 +104,35 @@ func (tctx *testContext) saveLogs(scenario string) error {
 		if err != nil {
 			return err
 		}
+		var errs []error
 		for remotePath, localPath := range logsToSave {
 			if strings.Contains(remotePath, "%") {
 				remotePath = fmt.Sprintf(remotePath, service)
 			}
 			remoteFile, err := tctx.composer.GetFile(service, remotePath)
 			if err != nil {
-				return err
+				errs = append(errs, err)
+				continue
 			}
 			defer func() { _ = remoteFile.Close() }()
 			localFile, err := os.OpenFile(filepath.Join(logdir, localPath), os.O_RDWR|os.O_CREATE, 0644)
 			if err != nil {
-				return err
+				errs = append(errs, err)
+				continue
 			}
 			defer func() { _ = localFile.Close() }()
 			_, err = io.Copy(localFile, remoteFile)
 			if err != nil {
-				return err
+				errs = append(errs, err)
+				continue
 			}
+		}
+		if len(errs) > 0 {
+			msg := ""
+			for _, err := range errs {
+				msg += err.Error() + "\n"
+			}
+			return errors.New(msg)
 		}
 	}
 	return nil
@@ -135,20 +145,22 @@ func (tctx *testContext) templateStep(step *godog.Step) error {
 		return err
 	}
 
-	if v, ok := step.Argument.(*godog.DocString); ok {
-		v.Content, err = tctx.templateString(v.Content)
-		if err != nil {
-			return err
+	if step.Argument != nil {
+		if step.Argument.DocString != nil {
+			newContent, err := tctx.templateString(step.Argument.DocString.Content)
+			if err != nil {
+				return err
+			}
+			step.Argument.DocString.Content = newContent
 		}
-		step.Argument = v
-	}
-	if v, ok := step.Argument.(*godog.DataTable); ok {
-		if v.Rows != nil {
-			for _, row := range v.Rows {
-				for _, cell := range row.Cells {
-					cell.Value, err = tctx.templateString(cell.Value)
-					if err != nil {
-						return err
+		if step.Argument.DataTable != nil {
+			if step.Argument.DataTable.Rows != nil {
+				for _, row := range step.Argument.DataTable.Rows {
+					for _, cell := range row.Cells {
+						cell.Value, err = tctx.templateString(cell.Value)
+						if err != nil {
+							return err
+						}
 					}
 				}
 			}
@@ -1151,56 +1163,41 @@ func (tctx *testContext) stepInfoFileOnHostMatch(filepath, host, matcher string,
 }
 
 // nolint: unused
-func FeatureContext(s *godog.Suite) {
+func InitializeScenario(s *godog.ScenarioContext) {
 	tctx, err := newTestContext()
 	if err != nil {
 		// TODO: how to report errors in godog
 		panic(err)
 	}
 
-	s.BeforeStep(func(step *godog.Step) {
-		tctx.templateErr = tctx.templateStep(step)
-		log.Printf("STEP %d: %s %s\n", step.Node.Location.Line, step.Keyword, step.Text)
+	s.Before(func(ctx context.Context, scenario *godog.Scenario) (context.Context, error) {
+		tctx.cleanup()
+		return ctx, nil
 	})
-	s.AfterStep(func(step *godog.Step, err error) {
+	s.StepContext().Before(func(ctx context.Context, step *godog.Step) (context.Context, error) {
+		tctx.templateErr = tctx.templateStep(step)
+		return ctx, nil
+	})
+	s.StepContext().After(func(ctx context.Context, step *godog.Step, status godog.StepResultStatus, err error) (context.Context, error) {
 		if tctx.templateErr != nil {
 			log.Fatalf("Error in templating %s: %v\n", step.Text, tctx.templateErr)
 		}
-		if err != nil {
-			log.Printf("ERROR %d: %s\n", step.Node.Location.Line, err)
-		} else {
-			log.Printf("OK\n")
-		}
+		return ctx, nil
 	})
-	s.BeforeScenario(func(scenario interface{}) {
-		switch s := scenario.(type) {
-		case *godog.Scenario:
-			log.Printf("SCENARIO: %s %s\n", s.Name, s.Description)
-		case *godog.ScenarioOutline:
-			log.Printf("OUTLINE: %s\n", s.Name)
-		default:
-			panic("unexpected type")
-		}
-		tctx.cleanup()
-	})
-	s.AfterScenario(func(scenario interface{}, err error) {
+	s.After(func(ctx context.Context, scenario *godog.Scenario, err error) (context.Context, error) {
 		if err != nil {
-			var name string
-			switch s := scenario.(type) {
-			case *godog.Scenario:
-				name = s.Name
-			case *godog.ScenarioOutline:
-				name = s.Name
-			default:
-				panic("unexpected type")
-			}
+			name := scenario.Name
 			name = strings.Replace(name, " ", "_", -1)
 			err2 := tctx.saveLogs(name)
 			if err2 != nil {
 				log.Printf("failed to save logs: %v", err2)
 			}
+			if v, _ := os.LookupEnv("GODOG_NO_CLEANUP"); v != "" {
+				return ctx, nil
+			}
 		}
 		tctx.cleanup()
+		return ctx, nil
 	})
 
 	// host manipulation
@@ -1300,15 +1297,18 @@ func TestMysync(t *testing.T) {
 	if feauterEnv, ok := os.LookupEnv("GODOG_FEATURE"); ok {
 		features = fmt.Sprintf("features/%s.feature", feauterEnv)
 	}
-	status := godog.RunWithOptions("godog", func(s *godog.Suite) {
-		FeatureContext(s)
-	}, godog.Options{
-		Format:   "progress",
-		Strict:   true,
-		NoColors: true,
-		Paths:    []string{features},
-	})
-	if status > 0 {
+	suite := godog.TestSuite{
+		ScenarioInitializer: InitializeScenario,
+		Options: &godog.Options{
+			Format:        "pretty",
+			Paths:         []string{features},
+			Strict:        true,
+			NoColors:      true,
+			StopOnFailure: true,
+			Concurrency:   1,
+		},
+	}
+	if suite.Run() != 0 {
 		t.Fail()
 	}
 }

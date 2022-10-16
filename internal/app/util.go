@@ -5,9 +5,9 @@ import (
 	"time"
 
 	"github.com/yandex/mysync/internal/log"
-	"github.com/yandex/mysync/internal/util"
 	"github.com/yandex/mysync/internal/mysql"
 	"github.com/yandex/mysync/internal/mysql/gtids"
+	"github.com/yandex/mysync/internal/util"
 )
 
 type nodePosition struct {

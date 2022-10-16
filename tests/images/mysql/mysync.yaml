@@ -1,4 +1,4 @@
-log: stderr
+log: /dev/stderr
 loglevel: Debug
 db_timeout: 5s
 db_lost_check_timeout: 1s

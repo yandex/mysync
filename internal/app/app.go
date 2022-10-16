@@ -46,8 +46,7 @@ func NewApp(configFile, logLevel string, interactive bool) (*App, error) {
 	if err != nil {
 		return nil, err
 	}
-	const stderr = "/dev/stderr"
-	logPath := stderr
+	logPath := ""
 	if !interactive {
 		logLevel = config.LogLevel
 		logPath = config.Log
@@ -56,9 +55,9 @@ func NewApp(configFile, logLevel string, interactive bool) (*App, error) {
 	if err != nil {
 		return nil, err
 	}
-    if logPath != stderr {
-        logger.ReOpenOnSignal(syscall.SIGUSR2)
-    }
+	if logPath != "" {
+		logger.ReOpenOnSignal(syscall.SIGUSR2)
+	}
 	app := &App{
 		state:              stateFirstRun,
 		config:             config,
@@ -94,7 +93,7 @@ func (app *App) baseContext() context.Context {
 		<-sigs
 		cancel()
 	}()
-    return ctx
+	return ctx
 }
 
 func (app *App) connectDCS() error {
