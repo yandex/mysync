@@ -89,6 +89,7 @@ func newTestContext() (*testContext, error) {
 }
 
 func (tctx *testContext) saveLogs(scenario string) error {
+	var errs []error
 	for _, service := range tctx.composer.Services() {
 		var logsToSave map[string]string
 		switch {
@@ -104,7 +105,6 @@ func (tctx *testContext) saveLogs(scenario string) error {
 		if err != nil {
 			return err
 		}
-		var errs []error
 		for remotePath, localPath := range logsToSave {
 			if strings.Contains(remotePath, "%") {
 				remotePath = fmt.Sprintf(remotePath, service)
@@ -127,13 +127,13 @@ func (tctx *testContext) saveLogs(scenario string) error {
 				continue
 			}
 		}
-		if len(errs) > 0 {
-			msg := ""
-			for _, err := range errs {
-				msg += err.Error() + "\n"
-			}
-			return errors.New(msg)
+	}
+	if len(errs) > 0 {
+		msg := ""
+		for _, err := range errs {
+			msg += err.Error() + "\n"
 		}
+		return errors.New(msg)
 	}
 	return nil
 }

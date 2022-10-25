@@ -27,9 +27,9 @@ Feature: mysync use keys in zk properly
       """
     Then command return code should be "1"
     And command output should match regexp
-    """
-     msg='no HA-nodes matching 'mysql2''
-    """
+      """
+      .*no HA-nodes matching 'mysql2'.*
+      """
 
   Scenario: mysync does not perform changes on not HA nodes
     Given cluster environment is
