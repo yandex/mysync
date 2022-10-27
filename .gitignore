@@ -1,0 +1,16 @@
+# ide
+.DS_Store
+.idea/
+.vscode/
+*.vsix
+
+
+# ext code
+vendor/
+
+# binaries
+cmd/mysync/mysync
+tests/images/mysql/mysync
+
+# tests
+tests/logs/
