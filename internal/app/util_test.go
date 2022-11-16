@@ -7,13 +7,13 @@ import (
 
 	"github.com/stretchr/testify/require"
 
+	gomysql "github.com/go-mysql-org/go-mysql/mysql"
 	"github.com/yandex/mysync/internal/log"
 	"github.com/yandex/mysync/internal/mysql"
-	"github.com/yandex/mysync/internal/mysql/gtids"
 )
 
-func mustGTIDSet(s string) gtids.GTIDSet {
-	gtid, err := gtids.ParseGTIDSet(gtids.MySQLFlavor, s)
+func mustGTIDSet(s string) gomysql.GTIDSet {
+	gtid, err := gomysql.ParseGTIDSet(gomysql.MySQLFlavor, s)
 	if err != nil {
 		panic(err)
 	}
