@@ -72,11 +72,11 @@ var DefaultQueries = map[string]string{
 	querySemiSyncSetSlave:          `SET GLOBAL rpl_semi_sync_slave_enabled = 1, rpl_semi_sync_master_enabled = 0`,
 	querySemiSyncDisable:           `SET GLOBAL rpl_semi_sync_slave_enabled = 0, rpl_semi_sync_master_enabled = 0`,
 	querySetSemiSyncWaitSlaveCount: `SET GLOBAL rpl_semi_sync_master_wait_for_slave_count = :wait_slave_count`,
-	queryListSlavesideDisabledEvents: `SELECT EVENT_SCHEMA, EVENT_NAME
+	queryListSlavesideDisabledEvents: `SELECT EVENT_SCHEMA, EVENT_NAME, DEFINER
 										FROM information_schema.EVENTS
 										WHERE STATUS = 'SLAVESIDE_DISABLED'`,
 
-	queryEnableEvent:           `ALTER EVENT :schema.:name ENABLE`,
+	queryEnableEvent:           `ALTER DEFINER = :user@:host EVENT :schema.:name ENABLE`,
 	querySetLockTimeout:        `SET SESSION lock_wait_timeout = ?`,
 	queryKillQuery:             `KILL :kill_id`,
 	queryGetProcessIds:         `SELECT ID FROM information_schema.PROCESSLIST p WHERE USER NOT IN (?) AND COMMAND != 'Killed'`,

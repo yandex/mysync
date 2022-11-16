@@ -915,6 +915,21 @@ func (tctx *testContext) stepMysqlHostShouldHaveEventInStatusWithin(host string,
 	return err
 }
 
+func (tctx *testContext) stepMysqlHostShouldHaveEventDefiner(host string, event string, definer string) error {
+	res, err := tctx.queryMysql(host, fmt.Sprintf("SELECT DEFINER FROM information_schema.EVENTS WHERE CONCAT(EVENT_SCHEMA, '.', EVENT_NAME) = '%s'", event), nil)
+	if err != nil {
+		return err
+	}
+	if len(res) == 0 {
+		return fmt.Errorf("event %s was not found on %s", event, host)
+	}
+	actual := res[0]["DEFINER"].(string)
+	if actual != definer {
+		return fmt.Errorf("event %s has definer %s, while expected definer of %s", event, actual, definer)
+	}
+	return nil
+}
+
 func (tctx *testContext) stepMysqlHostShouldBeReplicaOf(host, master string) error {
 	res, err := tctx.queryMysql(host, "SHOW SLAVE STATUS", nil)
 	if err != nil {
@@ -1266,6 +1281,7 @@ func InitializeScenario(s *godog.ScenarioContext) {
 	s.Step(`^mysql host "([^"]*)" should have variable "([^"]*)" set to "([^"]*)" within "(\d+)" seconds$`, tctx.stepMysqlHostShouldHaveVariableSetWithin)
 	s.Step(`^mysql host "([^"]*)" should have event "([^"]*)" in status "([^"]*)"$`, tctx.stepMysqlHostShouldHaveEventInStatus)
 	s.Step(`^mysql host "([^"]*)" should have event "([^"]*)" in status "([^"]*)" within "(\d+)" seconds$`, tctx.stepMysqlHostShouldHaveEventInStatusWithin)
+	s.Step(`^mysql host "([^"]*)" should have event "([^"]*)" of definer "([^"]*)"$`, tctx.stepMysqlHostShouldHaveEventDefiner)
 
 	// mysql manipulation
 	s.Step(`^mysql on host "([^"]*)" is killed$`, tctx.stepMysqlOnHostKilled)

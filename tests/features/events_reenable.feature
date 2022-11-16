@@ -27,8 +27,24 @@ Feature: mysync reenables slaveside disabled events
         ON SCHEDULE EVERY 1 SECOND
         DO UPDATE mysql.mdb_repl_mon SET ts = CURRENT_TIMESTAMP(3);
     """
+    And I run SQL on mysql host "mysql1"
+    """
+        CREATE DEFINER = "user123" EVENT mysql.event_test_definer
+        ON SCHEDULE EVERY 1 SECOND
+        DO UPDATE mysql.mdb_repl_mon SET ts = CURRENT_TIMESTAMP(3);
+    """
+    And I run SQL on mysql host "mysql1"
+    """
+        CREATE DEFINER = "user456@host789" EVENT mysql.event_test_definer_with_host
+        ON SCHEDULE EVERY 1 SECOND
+        DO UPDATE mysql.mdb_repl_mon SET ts = CURRENT_TIMESTAMP(3);
+    """
     Then mysql host "mysql1" should have event "mysql.mdb_repl_mon_event" in status "ENABLED"
+    And mysql host "mysql1" should have event "mysql.event_test_definer" in status "ENABLED"
+    And mysql host "mysql1" should have event "mysql.event_test_definer_with_host" in status "ENABLED"
     And mysql host "mysql2" should have event "mysql.mdb_repl_mon_event" in status "SLAVESIDE_DISABLED" within "10" seconds
+    And mysql host "mysql2" should have event "mysql.event_test_definer" in status "SLAVESIDE_DISABLED" within "10" seconds
+    And mysql host "mysql2" should have event "mysql.event_test_definer_with_host" in status "SLAVESIDE_DISABLED" within "10" seconds
     When I run command on host "mysql1"
       """
       mysync switch --to mysql2 --wait=0s
@@ -49,4 +65,10 @@ Feature: mysync reenables slaveside disabled events
     And mysql host "mysql1" should be replica of "mysql2"
 
     Then mysql host "mysql2" should have event "mysql.mdb_repl_mon_event" in status "ENABLED"
+    And mysql host "mysql2" should have event "mysql.event_test_definer" in status "ENABLED"
+    And mysql host "mysql2" should have event "mysql.event_test_definer_with_host" in status "ENABLED"
     And mysql host "mysql1" should have event "mysql.mdb_repl_mon_event" in status "SLAVESIDE_DISABLED" within "10" seconds
+    And mysql host "mysql1" should have event "mysql.event_test_definer" in status "SLAVESIDE_DISABLED" within "10" seconds
+    And mysql host "mysql1" should have event "mysql.event_test_definer_with_host" in status "SLAVESIDE_DISABLED" within "10" seconds
+    And mysql host "mysql2" should have event "mysql.event_test_definer" of definer "user123@%"
+    And mysql host "mysql2" should have event "mysql.event_test_definer_with_host" of definer "user456@host789"

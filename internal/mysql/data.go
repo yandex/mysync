@@ -98,8 +98,9 @@ type replicationLag struct {
 }
 
 type Event struct {
-	Schema string `db:"EVENT_SCHEMA"`
-	Name   string `db:"EVENT_NAME"`
+	Schema  string `db:"EVENT_SCHEMA"`
+	Name    string `db:"EVENT_NAME"`
+	Definer string `db:"DEFINER"`
 }
 
 // offlineModeStatus contains OfflineMode variable
