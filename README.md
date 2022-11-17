@@ -1,7 +1,7 @@
 ## MySync
 
 MySync is mysql high-availability and cluster configuration tool.
-MySync is designed to switch master in heterogeneous MySQL cluster in manual and automatic mode without data loose.
+MySync is designed to switch master in homogeneous MySQL cluster in manual and automatic mode without data loose.
 
 #### Project status
 
@@ -15,7 +15,7 @@ We appreciate any kind of feedback and contribution to the project.
 ### Limitations and requirements
 
 * MySQL 5.7+ with GTID's enabled
-* MySQL cluster is heterogeneous - all nodes have exactly the same data
+* MySQL cluster is homogeneous - all nodes have exactly the same data
 * ZooKeeper database to keep state and locks
 
 ### MySQL configuration
