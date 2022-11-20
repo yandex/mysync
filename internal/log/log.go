@@ -94,7 +94,7 @@ func (l *Logger) ReOpen() error {
 	}
 	fh, err := os.OpenFile(l.path, os.O_WRONLY|os.O_CREATE|os.O_APPEND, 0644)
 	if err != nil {
-		return fmt.Errorf("failed to open log: %w", l.path, err)
+        return fmt.Errorf("failed to open log %s: %w", l.path, err)
 	}
 	l.fh = fh
 	return nil
