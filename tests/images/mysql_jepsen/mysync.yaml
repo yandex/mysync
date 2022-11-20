@@ -20,4 +20,5 @@ mysql:
   replication_user: repl
   replication_password: repl_pwd
   port: $MYSQL_PORT
+  pid_file: /tmp/mysqld.pid
 disable_semi_sync_replication_on_maintenance: ${MYSYNC_DISABLE_REPLICATION_ON_MAINT:-false}

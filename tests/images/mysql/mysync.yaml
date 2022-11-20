@@ -22,7 +22,7 @@ mysql:
   replication_user: repl
   replication_password: repl_pwd
   port: $MYSQL_PORT
-  pid_file: /var/run/mysql/mysqld.pid
+  pid_file: /tmp/mysqld.pid
   error_log: /var/log/mysql/error.log
 disable_semi_sync_replication_on_maintenance: ${MYSYNC_DISABLE_REPLICATION_ON_MAINT:-false}
 rpl_semi_sync_master_wait_for_slave_count: ${MYSYNC_WAIT_FOR_SLAVE_COUNT:-1}
