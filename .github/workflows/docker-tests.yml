@@ -1,0 +1,78 @@
+name: Docker tests
+
+on:
+  push:
+    branches: [ master ]
+  pull_request:
+    branches: [ master ]
+
+env:
+  GO_VERSION: 1.19
+
+jobs:
+  buildimages:
+    name: Build images
+    runs-on: ubuntu-20.04
+    steps:
+      - name: Docker images caching
+        id: cache-images
+        uses: actions/cache@v3
+        with:
+          path: ~/mysync-base-img.tgz
+          key: mysync-base-img
+
+      - name: Check out code into the Go module directory
+        if: steps.cache-images.outputs.cache-hit != 'true'
+        uses: actions/checkout@v3
+
+      - name: Build images
+        if: steps.cache-images.outputs.cache-hit != 'true'
+        run: make base_img
+      
+      - name: Export image
+        if: steps.cache-images.outputs.cache-hit != 'true'
+        run: docker save mysync-test-base | gzip -c > ~/mysync-base-img.tgz
+    
+  test:
+    name: test
+    runs-on: ubuntu-20.04
+    needs: [ buildimages ]
+    strategy:
+      matrix:
+        command:
+          - 'GODOG_FEATURE=CLI.feature make test'
+          - 'GODOG_FEATURE=failover.feature make test'    
+      fail-fast: false
+
+    steps:
+      - name: Set up Go 1.x
+        uses: actions/setup-go@v3
+        with:
+          go-version: ${{ env.GO_VERSION }}
+        id: go
+
+      - name: Check out code into the Go module directory
+        uses: actions/checkout@v3
+
+      - name: Get dependencies
+        run: |
+          go get -v -t -d ./...
+
+      - name: Load docker images
+        id: cache-images
+        uses: actions/cache@v3
+        with:
+          path: ~/mysync-base-img.tgz
+          key: mysync-base-img
+
+      - name: Fail if no cached images
+        if: steps.cache-images.outputs.cache-hit != 'true'
+        run: |
+          echo "Failed to fetch cached docker images. Will now exit..."
+          exit 1
+      
+      - name: Import image
+        run: docker load -i ~/mysync-base-img.tgz
+        
+      - name: Run test
+        run: ${{ matrix.command }}
