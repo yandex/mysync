@@ -9,7 +9,6 @@ import (
 	"io/ioutil"
 	"log"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"strings"
 	"sync"
@@ -1305,13 +1304,12 @@ func InitializeScenario(s *godog.ScenarioContext) {
 }
 
 func TestMysync(t *testing.T) {
-	cmd := exec.Command("cp", "../cmd/mysync/mysync", "images/mysql/mysync")
-	if out, err := cmd.CombinedOutput(); err != nil {
-		log.Fatalf("%s\nfailed to copy cloud/mdb/mysync/cmd/mysync/mysync: %s", out, err)
-	}
 	features := "features"
 	if feauterEnv, ok := os.LookupEnv("GODOG_FEATURE"); ok {
-		features = fmt.Sprintf("features/%s.feature", feauterEnv)
+		if !strings.HasSuffix(feauterEnv, ".feature") {
+			feauterEnv += ".feature"
+		}
+		features = fmt.Sprintf("features/%s", feauterEnv)
 	}
 	suite := godog.TestSuite{
 		ScenarioInitializer: InitializeScenario,

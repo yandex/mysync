@@ -3,6 +3,8 @@
 .idea/
 .vscode/
 *.vsix
+*.swp
+*.swo
 
 
 # ext code
@@ -11,6 +13,7 @@ vendor/
 # binaries
 cmd/mysync/mysync
 tests/images/mysql/mysync
+tests/images/mysql_jepsen/mysync
 
 # tests
 tests/logs/
