@@ -1,3 +1,6 @@
+![Unit-tests-status](https://github.com/yandex/mysync/workflows/Unit%20tests/badge.svg)
+![Docker-tests-status](https://github.com/yandex/mysync/workflows/Docker%20tests/badge.svg)
+
 ## MySync
 
 MySync is mysql high-availability and cluster configuration tool.
