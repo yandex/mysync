@@ -6,7 +6,6 @@ Feature: mysync should work without semi-sync replication
       MYSYNC_SEMISYNC=false
       """
     Given cluster is up and running
-    When I wait for "10" seconds
     Then zookeeper node "/test/active_nodes" should match json_exactly within "20" seconds
       """
       ["mysql1","mysql2","mysql3"]
@@ -89,11 +88,10 @@ Feature: mysync should work without semi-sync replication
       """
       MYSYNC_FAILOVER=true
       MYSYNC_SEMISYNC=false
-      MYSYNC_FAILOVER_DELAY=0s
+      MYSYNC_FAILOVER_DELAY=3s
       MYSYNC_FAILOVER_COOLDOWN=0s
       """
     Given cluster is up and running
-    When I wait for "10" seconds
     Then zookeeper node "/test/active_nodes" should match json_exactly within "20" seconds
       """
       ["mysql1","mysql2","mysql3"]

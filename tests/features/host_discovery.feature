@@ -35,6 +35,7 @@ Feature: mysync use keys in zk properly
     Given cluster environment is
       """
       MYSYNC_FAILOVER=true
+      MYSYNC_FAILOVER_DELAY=3s
       """
     Given cluster is up and running
     Then zookeeper node "/test/active_nodes" should match json_exactly within "30" seconds

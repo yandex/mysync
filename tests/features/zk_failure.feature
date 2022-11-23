@@ -2,6 +2,10 @@ Feature: mysync handles zookeeper lost
 
   Scenario: mysync handles single rack network issue that could lead to split brain
     Given cluster is up and running
+    And zookeeper node "/test/active_nodes" should match json_exactly within "30" seconds
+    """
+    ["mysql1","mysql2","mysql3"]
+    """
     Then mysql host "mysql1" should be master
     And mysql host "mysql1" should be writable
     And mysql host "mysql2" should be replica of "mysql1"
@@ -37,6 +41,10 @@ Feature: mysync handles zookeeper lost
 
   Scenario: mysync handles ZK failure - do nothing
     Given cluster is up and running
+    And zookeeper node "/test/active_nodes" should match json_exactly within "30" seconds
+    """
+    ["mysql1","mysql2","mysql3"]
+    """
     Then mysql host "mysql1" should be master
     And mysql host "mysql1" should be writable
     And mysql host "mysql2" should be replica of "mysql1"
@@ -65,6 +73,10 @@ Feature: mysync handles zookeeper lost
     MYSYNC_DB_LOST_CHECK_TIMEOUT=3s
     """
     Given cluster is up and running
+    And zookeeper node "/test/active_nodes" should match json_exactly within "30" seconds
+    """
+    ["mysql1","mysql2","mysql3"]
+    """
 
     Then mysql host "mysql1" should be master
     And mysql host "mysql1" should become writable within "5" seconds

@@ -60,7 +60,7 @@ Feature: mysync saves quorum hosts in zk
     Given cluster environment is
     """
     MYSYNC_FAILOVER=true
-    MYSYNC_FAILOVER_DELAY=0s
+    MYSYNC_FAILOVER_DELAY=3s
     MYSYNC_FAILOVER_COOLDOWN=0s
     """
     Given cluster is up and running
@@ -102,7 +102,7 @@ Feature: mysync saves quorum hosts in zk
     Given cluster environment is
     """
     MYSYNC_FAILOVER=true
-    MYSYNC_FAILOVER_DELAY=0s
+    MYSYNC_FAILOVER_DELAY=3s
     MYSYNC_FAILOVER_COOLDOWN=0s
     """
     Given cluster is up and running

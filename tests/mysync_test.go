@@ -501,7 +501,8 @@ func (tctx *testContext) stepRunHeavyUserRequests(host string, sleepTime int) er
 			"sleep_time": sleepTime,
 		}, timeout)
 		if err != nil {
-			fmt.Printf("error while running heavy requests %v\n", err)
+			fmt.Printf("error while running heavy requests: %v\n", err)
+			tctx.sqlUserQueryError.Store(host, err)
 		}
 	}()
 
@@ -526,7 +527,8 @@ func (tctx *testContext) stepRunHeavyReadUserRequests(host string, sleepTime int
 			"sleep_time": sleepTime,
 		}, timeout)
 		if err != nil {
-			fmt.Printf("error while running long read requests %v\n", err)
+			fmt.Printf("error while running long read requests: %v\n", err)
+			tctx.sqlUserQueryError.Store(host, err)
 		}
 	}()
 
