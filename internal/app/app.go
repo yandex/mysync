@@ -670,13 +670,17 @@ func (app *App) approveFailover(clusterState, clusterStateDcs map[string]*NodeSt
 		}
 	}
 
+	app.logger.Infof("approve failover: active nodes are %v", activeNodes)
+	// number of active slaves that we can use to perform switchover
+	permissibleSlaves := countAliveHASlavesWithinNodes(activeNodes, clusterState)
 	if app.config.SemiSync {
-		app.logger.Infof("approve failover: active nodes are %v", activeNodes)
-		// number of active slaves that we can use to perform switchover
-		permissibleSlaves := countAliveHASlavesWithinNodes(activeNodes, clusterState)
 		failoverQuorum := app.getFailoverQuorum(activeNodes)
 		if permissibleSlaves < failoverQuorum {
 			return fmt.Errorf("no quorum, have %d replics while %d is required", permissibleSlaves, failoverQuorum)
+		}
+	} else {
+		if permissibleSlaves == 0 {
+			return fmt.Errorf("no alive active replica found")
 		}
 	}
 
