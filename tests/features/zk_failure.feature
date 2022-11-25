@@ -6,6 +6,10 @@ Feature: mysync handles zookeeper lost
     And mysql host "mysql1" should be writable
     And mysql host "mysql2" should be replica of "mysql1"
     And mysql host "mysql3" should be replica of "mysql1"
+    And zookeeper node "/test/active_nodes" should match json_exactly within "20" seconds
+      """
+      ["mysql1","mysql2","mysql3"]
+      """
 
     And I run heavy user requests on host "mysql1" for "300" seconds
     When host "mysql1" is detached from the network
@@ -41,6 +45,10 @@ Feature: mysync handles zookeeper lost
     And mysql host "mysql1" should be writable
     And mysql host "mysql2" should be replica of "mysql1"
     And mysql host "mysql3" should be replica of "mysql1"
+    And zookeeper node "/test/active_nodes" should match json_exactly within "20" seconds
+      """
+      ["mysql1","mysql2","mysql3"]
+      """
 
     When I run heavy user requests on host "mysql1" for "300" seconds
     And I run long read user requests on host "mysql2" for "300" seconds
