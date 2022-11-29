@@ -56,22 +56,22 @@ type SemiSyncStatus struct {
 }
 
 // ReplicationIORunning ...
-func (ss SlaveStatus) ReplicationIORunning() bool {
+func (ss *SlaveStatus) ReplicationIORunning() bool {
 	return ss.SlaveIORunning == yes
 }
 
 // ReplicationSQLRunning ...
-func (ss SlaveStatus) ReplicationSQLRunning() bool {
+func (ss *SlaveStatus) ReplicationSQLRunning() bool {
 	return ss.SlaveSQLRunning == yes
 }
 
 // ReplicationRunning is true when both IO and SQL threads running
-func (ss SlaveStatus) ReplicationRunning() bool {
+func (ss *SlaveStatus) ReplicationRunning() bool {
 	return ss.ReplicationIORunning() && ss.ReplicationSQLRunning()
 }
 
 // ReplicationState ...
-func (ss SlaveStatus) ReplicationState() string {
+func (ss *SlaveStatus) ReplicationState() string {
 	switch {
 	case ss.SlaveIORunning == yes && ss.SlaveSQLRunning == yes:
 		return ReplicationRunning

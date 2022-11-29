@@ -6,7 +6,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"log"
 	"os"
 	"path/filepath"
@@ -214,7 +213,9 @@ func (tctx *testContext) connectZookeeper(addrs []string, timeout time.Duration)
 		return nil, err
 	}
 	go func() {
-		for range ec {
+		ok := true
+		for ok {
+			_, ok = <-ec
 		}
 	}()
 	testutil.Retry(func() bool {
@@ -550,7 +551,6 @@ func (tctx *testContext) stepHostShouldHaveFileWithin(node string, path string, 
 	testutil.Retry(func() bool {
 		err = tctx.stepHostShouldHaveFile(node, path)
 		return err == nil
-
 	}, time.Duration(timeout*int(time.Second)), time.Second)
 	return err
 }
@@ -610,7 +610,6 @@ func (tctx *testContext) stepIRunCommandOnHostUntilResultMatch(host string, patt
 		}
 		lastError = matcher(tctx.commandOutput, strings.TrimSpace(pattern))
 		return lastError == nil
-
 	}, time.Duration(timeout)*time.Second, time.Second)
 
 	return lastError
@@ -1157,7 +1156,7 @@ func (tctx *testContext) stepInfoFileOnHostMatch(filepath, host, matcher string,
 		if err != nil {
 			return true
 		}
-		content, err := ioutil.ReadAll(remoteFile)
+		content, err := io.ReadAll(remoteFile)
 		if err != nil {
 			return true
 		}
@@ -1170,7 +1169,6 @@ func (tctx *testContext) stepInfoFileOnHostMatch(filepath, host, matcher string,
 			return true
 		}
 		return false
-
 	}, time.Second*10, time.Second)
 
 	return err

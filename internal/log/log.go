@@ -11,10 +11,10 @@ import (
 	"time"
 )
 
-type LogLevel int
+type Level int
 
 const (
-	DEBUG LogLevel = iota
+	DEBUG Level = iota
 	INFO
 	WARN
 	ERROR
@@ -23,7 +23,7 @@ const (
 
 const timeFormat = "2006-01-02T15:04:05Z07:00"
 
-func parseLevel(level string) (LogLevel, error) {
+func parseLevel(level string) (Level, error) {
 	switch strings.ToLower(level) {
 	case "debug":
 		return DEBUG, nil
@@ -44,7 +44,7 @@ func parseLevel(level string) (LogLevel, error) {
 	}
 }
 
-func (lvl LogLevel) String() string {
+func (lvl Level) String() string {
 	switch lvl {
 	case DEBUG:
 		return "DEBUG"
@@ -65,7 +65,7 @@ type Logger struct {
 	path string
 	fh   *os.File
 	m    sync.Mutex
-	lvl  LogLevel
+	lvl  Level
 }
 
 func Open(path, level string) (*Logger, error) {
@@ -94,7 +94,7 @@ func (l *Logger) ReOpen() error {
 	}
 	fh, err := os.OpenFile(l.path, os.O_WRONLY|os.O_CREATE|os.O_APPEND, 0644)
 	if err != nil {
-        return fmt.Errorf("failed to open log %s: %w", l.path, err)
+		return fmt.Errorf("failed to open log %s: %w", l.path, err)
 	}
 	l.fh = fh
 	return nil
@@ -104,7 +104,7 @@ func (l *Logger) ReOpenOnSignal(sig syscall.Signal) {
 	sigs := make(chan os.Signal, 1)
 	signal.Notify(sigs, sig)
 	go func() {
-		_ = <-sigs
+		<-sigs
 		err := l.ReOpen()
 		if err != nil {
 			log.Printf("failed to reopen log file: %v", err)
@@ -112,13 +112,13 @@ func (l *Logger) ReOpenOnSignal(sig syscall.Signal) {
 	}()
 }
 
-func (l *Logger) printf(lvl LogLevel, msg string, args ...interface{}) {
+func (l *Logger) printf(lvl Level, msg string, args ...interface{}) {
 	if lvl < l.lvl {
 		return
 	}
 	data := fmt.Sprintf("%s %s: ", time.Now().Format(timeFormat), lvl) + fmt.Sprintf(msg, args...) + "\n"
 	l.m.Lock()
-	l.fh.Write([]byte(data))
+	_, _ = l.fh.Write([]byte(data))
 	l.m.Unlock()
 }
 

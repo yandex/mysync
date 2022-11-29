@@ -9,6 +9,7 @@
 
 # ext code
 vendor/
+buildtools/
 
 # binaries
 cmd/mysync/mysync

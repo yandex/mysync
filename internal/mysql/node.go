@@ -8,7 +8,6 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
-	"io/ioutil"
 	"math"
 	"os"
 	"os/exec"
@@ -70,7 +69,7 @@ func RegisterTLSConfig(config *config.Config) error {
 	if config.MySQL.SslCA != "" {
 		var pem []byte
 		rootCertPool := x509.NewCertPool()
-		pem, err := ioutil.ReadFile(config.MySQL.SslCA)
+		pem, err := os.ReadFile(config.MySQL.SslCA)
 		if err != nil {
 			return err
 		}
@@ -144,6 +143,7 @@ func (n *Node) traceQuery(query string, arg interface{}, result interface{}, err
 	n.logger.Debug(msg)
 }
 
+//nolint:unparam
 func (n *Node) queryRow(queryName string, arg interface{}, result interface{}) error {
 	return n.queryRowWithTimeout(queryName, arg, result, n.config.DBTimeout)
 }
@@ -305,7 +305,7 @@ func (n *Node) IsRunning() (bool, error) {
 }
 
 func (n *Node) getTestDiskUsage(f string) (used uint64, total uint64, err error) {
-	data, err := ioutil.ReadFile(f)
+	data, err := os.ReadFile(f)
 	if err != nil {
 		return 0, 0, err
 	}
@@ -334,7 +334,7 @@ func (n *Node) GetDiskUsage() (used uint64, total uint64, err error) {
 }
 
 func (n *Node) isTestFileSystemReadonly(f string) (bool, error) {
-	data, err := ioutil.ReadFile(f)
+	data, err := os.ReadFile(f)
 	if err != nil {
 		return false, err
 	}
@@ -374,7 +374,7 @@ func (n *Node) IsFileSystemReadonly() (bool, error) {
 		return false, ErrNotLocalNode
 	}
 
-	data, err := ioutil.ReadFile("/proc/mounts")
+	data, err := os.ReadFile("/proc/mounts")
 	if err != nil {
 		return false, err
 	}
@@ -396,7 +396,7 @@ func (n *Node) GetDaemonStartTime() (time.Time, error) {
 	if !n.IsLocal() {
 		return time.Time{}, ErrNotLocalNode
 	}
-	pidB, err := ioutil.ReadFile(n.config.MySQL.PidFile)
+	pidB, err := os.ReadFile(n.config.MySQL.PidFile)
 	if err != nil {
 		if os.IsNotExist(err) {
 			err = nil
