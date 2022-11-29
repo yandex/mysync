@@ -1,9 +1,15 @@
 build:
 	go build -o ./cmd/mysync/mysync ./cmd/mysync/...
 
+format:
+	gofmt -s -w `find . -name '*.go'`
+	goimports -w `find . -name '*.go'`
+
+lint:
+	docker run --rm -v ${CURDIR}:/app -w /app golangci/golangci-lint:v1.50.1 golangci-lint run -v 
+
 unittests:
-	go test ./cmd/...
-	go test ./internal/...
+	go test ./cmd/... ./internal/...
 
 base_img:
 	docker build --tag=mysync-test-base tests/images/base

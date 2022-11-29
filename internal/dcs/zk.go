@@ -238,6 +238,7 @@ func (z *zkDCS) retryRequest(code func() error) {
 	}
 }
 
+//nolint:unparam
 func (z *zkDCS) retryChildren(path string) (children []string, stat *zk.Stat, err error) {
 	z.retryRequest(func() error {
 		children, stat, err = z.conn.Children(path)

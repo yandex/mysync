@@ -5,7 +5,6 @@ import (
 	"context"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"net"
 	"os"
 	"os/exec"
@@ -91,8 +90,7 @@ func NewDockerComposer(project, config string) (*DockerComposer, error) {
 
 func (dc *DockerComposer) runCompose(args []string, env []string) error {
 	args2 := []string{}
-	args2 = append(args2, "-f", dc.config)
-	args2 = append(args2, "-p", dc.projectName)
+	args2 = append(args2, "-f", dc.config, "-p", dc.projectName)
 	args2 = append(args2, args...)
 	cmd := exec.Command("docker-compose", args2...)
 	cmd.Env = append(os.Environ(), env...)
@@ -108,7 +106,7 @@ func (dc *DockerComposer) fillContainers() error {
 	if err != nil {
 		return err
 	}
-	for _, c := range containers {
+	for _, c := range containers { // nolint: gocritic
 		prj := c.Labels["com.docker.compose.project"]
 		srv := c.Labels["com.docker.compose.service"]
 		if prj != dc.projectName || srv == "" {
@@ -199,7 +197,7 @@ func (dc *DockerComposer) RunCommand(service string, cmd string, timeout time.Du
 	if err != nil {
 		return 0, "", err
 	}
-	output, err := ioutil.ReadAll(attachResp.Reader)
+	output, err := io.ReadAll(attachResp.Reader)
 	attachResp.Close()
 	if err != nil {
 		return 0, "", err

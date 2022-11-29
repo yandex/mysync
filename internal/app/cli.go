@@ -178,7 +178,7 @@ func (app *App) CliState(short bool) int {
 }
 
 // CliSwitch performs manual switch-over of the master node
-// nolint: gocyclo
+// nolint: gocyclo, funlen
 func (app *App) CliSwitch(switchFrom, switchTo string, waitTimeout time.Duration) int {
 	ctx := app.baseContext()
 	if switchFrom == "" && switchTo == "" {
@@ -274,7 +274,7 @@ func (app *App) CliSwitch(switchFrom, switchTo string, waitTimeout time.Duration
 			fromHost = notDesired[0]
 		} else {
 			// there are multiple hosts matching --from pattern
-			// to avoid switching from one to another, use switch to behaviour
+			// to avoid switching from one to another, use switch to behavior
 			positions, err := app.getNodePositions(candidates)
 			if err != nil {
 				app.logger.Errorf(err.Error())
@@ -726,7 +726,7 @@ func (app *App) processReplicationSource(streamFrom string, dryRun bool, host st
 			return false, err
 		}
 		if master == host {
-			fmt.Printf("Master host cannot be converted to cascade replica.\nIf you really whant to convert this host to cascade one execute\n   mysync switch --from %s\n", master)
+			fmt.Printf("Master host cannot be converted to cascade replica.\nIf you really want to convert this host to cascade one execute\n   mysync switch --from %s\n", master)
 			return false, fmt.Errorf("master host cannot be converted to cascade replica")
 		}
 		if host == streamFrom {

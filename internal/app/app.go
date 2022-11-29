@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"io/ioutil"
 	"os"
 	"os/signal"
 	"sort"
@@ -116,14 +115,14 @@ func (app *App) newDBCluster() error {
 }
 
 func (app *App) writeEmergeFile(msg string) {
-	err := ioutil.WriteFile(app.config.Emergefile, []byte(msg), 0644)
+	err := os.WriteFile(app.config.Emergefile, []byte(msg), 0644)
 	if err != nil {
 		app.logger.Errorf("failed to write emerge file: %v", err)
 	}
 }
 
 func (app *App) writeResetupFile(msg string) {
-	err := ioutil.WriteFile(app.config.Resetupfile, []byte(msg), 0644)
+	err := os.WriteFile(app.config.Resetupfile, []byte(msg), 0644)
 	if err != nil {
 		app.logger.Errorf("failed to write resetup file: %v", err)
 	}
@@ -135,7 +134,7 @@ func (app *App) doesResetupFileExist() bool {
 }
 
 func (app *App) writeMaintenanceFile() {
-	err := ioutil.WriteFile(app.config.Maintenancefile, []byte(""), 0644)
+	err := os.WriteFile(app.config.Maintenancefile, []byte(""), 0644)
 	if err != nil {
 		app.logger.Errorf("failed to write maintenance file: %v", err)
 	}
@@ -210,7 +209,7 @@ func (app *App) stateFileHandler(ctx context.Context) {
 				_ = os.Remove(app.config.InfoFile)
 				continue
 			}
-			err = ioutil.WriteFile(app.config.InfoFile, data, 0666)
+			err = os.WriteFile(app.config.InfoFile, data, 0666)
 			if err != nil {
 				app.logger.Errorf("stateFileHandler: failed to write info file %v", err)
 				_ = os.Remove(app.config.InfoFile)
@@ -482,7 +481,7 @@ func (app *App) stateMaintenance() appState {
 	return stateMaintenance
 }
 
-// nolint: gocyclo
+// nolint: gocyclo, funlen
 func (app *App) stateManager() appState {
 	if !app.dcs.IsConnected() {
 		return stateLost
@@ -616,7 +615,7 @@ func (app *App) stateManager() appState {
 	}
 
 	// set hosts online or offline depending on replication lag
-	app.repairOfflineMode(clusterState, clusterStateDcs, master)
+	app.repairOfflineMode(clusterState, master)
 
 	// analyze and repair cluster
 	app.repairCluster(clusterState, clusterStateDcs, master)
@@ -1109,7 +1108,7 @@ func (app *App) disableSemiSyncIfNonNeeded(node *mysql.Node, state *NodeState) {
 	}
 }
 
-// nolint: gocyclo
+// nolint: gocyclo, funlen
 func (app *App) performSwitchover(clusterState map[string]*NodeState, activeNodes []string, switchover *Switchover, oldMaster string) error {
 	if switchover.To != "" {
 		if !util.ContainsString(activeNodes, switchover.To) {
@@ -1184,7 +1183,7 @@ func (app *App) performSwitchover(clusterState map[string]*NodeState, activeNode
 		}
 	}
 	if len(frozenActiveNodes) < failoverQuorum {
-		return fmt.Errorf("no failoverQuorum: has %d frozen active nodes, while %d is requried", len(frozenActiveNodes), failoverQuorum)
+		return fmt.Errorf("no failoverQuorum: has %d frozen active nodes, while %d is required", len(frozenActiveNodes), failoverQuorum)
 	}
 
 	// setting server read-only may take a while so we need to ensure we are still a manager
@@ -1375,7 +1374,7 @@ func (app *App) ensureCurrentMaster(clusterState map[string]*NodeState) (string,
 	return master, nil
 }
 
-func (app *App) repairOfflineMode(clusterState, clusterStateDcs map[string]*NodeState, master string) {
+func (app *App) repairOfflineMode(clusterState map[string]*NodeState, master string) {
 	for host, state := range clusterState {
 		if !state.PingOk {
 			continue
@@ -1429,6 +1428,7 @@ func (app *App) repairSlaveOfflineMode(host string, node *mysql.Node, state *Nod
 	}
 }
 
+// nolint: gocyclo
 func (app *App) repairReadOnlyOnMaster(masterNode *mysql.Node, masterState *NodeState, clusterStateDcs map[string]*NodeState) {
 	needRo := false
 	// we set as true because we need to wish to master writable during first run,
@@ -1519,7 +1519,7 @@ func (app *App) repairCluster(clusterState, clusterStateDcs map[string]*NodeStat
 		if host == master {
 			app.repairMasterNode(node, clusterState, clusterStateDcs)
 		} else {
-			app.repairSlaveNode(node, clusterState, clusterStateDcs, master)
+			app.repairSlaveNode(node, clusterState, master)
 		}
 	}
 }
@@ -1540,7 +1540,7 @@ func (app *App) repairMasterNode(masterNode *mysql.Node, clusterState, clusterSt
 	}
 }
 
-func (app *App) repairSlaveNode(node *mysql.Node, clusterState, clusterStateDcs map[string]*NodeState, master string) {
+func (app *App) repairSlaveNode(node *mysql.Node, clusterState map[string]*NodeState, master string) {
 	host := node.Host()
 	state := clusterState[host]
 	// node is real slave or stale master here

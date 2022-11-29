@@ -117,7 +117,7 @@ func (ns *NodeState) IsReplicationPermanentlyBroken() (bool, int) {
 	return false, 0
 }
 
-func (ns NodeState) String() string {
+func (ns *NodeState) String() string {
 	ping := "ok"
 	if !ns.PingOk {
 		ping = "ERR"
@@ -241,7 +241,7 @@ type Switchover struct {
 	RunCount    int               `json:"run_count,omitempty"`
 }
 
-func (sw Switchover) String() string {
+func (sw *Switchover) String() string {
 	var state string
 	if sw.Result != nil {
 		if sw.Result.Ok {
@@ -280,7 +280,7 @@ type Maintenance struct {
 	ShouldLeave  bool      `json:"should_leave"`
 }
 
-func (m Maintenance) String() string {
+func (m *Maintenance) String() string {
 	ms := "entering"
 	if m.MySyncPaused {
 		ms = "ON"

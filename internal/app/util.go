@@ -18,9 +18,7 @@ type nodePosition struct {
 }
 
 // find most desirable node based on priority and lag
-func getMostDesirableNode(logger *log.Logger, positions []nodePosition,
-	priorityChoiceMaxLag time.Duration) (string, error) {
-
+func getMostDesirableNode(logger *log.Logger, positions []nodePosition, priorityChoiceMaxLag time.Duration) (string, error) {
 	printHostPriorities(logger, positions)
 	maxLagInSeconds := priorityChoiceMaxLag.Seconds()
 	mostPriorityNode := getMostPriorityNode(positions)
@@ -174,10 +172,10 @@ func calcLagBytes(binlogs []mysql.Binlog, masterFile string, masterPos int64) in
 	var lag int64
 	for _, binlog := range binlogs {
 		if binlog.Name > masterFile {
-			lag += int64(binlog.Size)
+			lag += binlog.Size
 		} else if masterFile == binlog.Name {
 			if binlog.Size > masterPos {
-				lag += int64(binlog.Size - masterPos)
+				lag += binlog.Size - masterPos
 			}
 		}
 	}
