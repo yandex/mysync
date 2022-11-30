@@ -1,4 +1,5 @@
 ![Unit-tests-status](https://github.com/yandex/mysync/workflows/Unit%20tests/badge.svg)
+![Linters-status](https://github.com/yandex/mysync/workflows/Linters/badge.svg)
 ![Docker-tests-status](https://github.com/yandex/mysync/workflows/Docker%20tests/badge.svg)
 
 ## MySync
