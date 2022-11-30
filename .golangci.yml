@@ -68,7 +68,7 @@ linters:
     - unconvert
     - unparam
     - unused
-  # - lll
+    - lll
     - stylecheck
     - gosimple
     - whitespace
