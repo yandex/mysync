@@ -104,10 +104,12 @@ func (l *Logger) ReOpenOnSignal(sig syscall.Signal) {
 	sigs := make(chan os.Signal, 1)
 	signal.Notify(sigs, sig)
 	go func() {
-		<-sigs
-		err := l.ReOpen()
-		if err != nil {
-			log.Printf("failed to reopen log file: %v", err)
+		for {
+			<-sigs
+			err := l.ReOpen()
+			if err != nil {
+				log.Printf("failed to reopen log file: %v", err)
+			}
 		}
 	}()
 }
