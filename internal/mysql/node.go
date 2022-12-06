@@ -137,7 +137,7 @@ func (n *Node) getQuery(name string) string {
 
 func (n *Node) traceQuery(query string, arg interface{}, result interface{}, err error) {
 	query = queryOnliner.ReplaceAllString(query, " ")
-	msg := fmt.Sprintf("node %s running query '%s' with args %#v, result: %#v, error: %s", n.host, query, arg, result, err)
+	msg := fmt.Sprintf("node %s running query '%s' with args %#v, result: %#v, error: %v", n.host, query, arg, result, err)
 	msg = strings.Replace(msg, n.config.MySQL.Password, "********", -1)
 	msg = strings.Replace(msg, n.config.MySQL.ReplicationPassword, "********", -1)
 	n.logger.Debug(msg)
