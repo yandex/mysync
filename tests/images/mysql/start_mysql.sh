@@ -20,8 +20,8 @@ if [ ! -f /etc/mysql/slave.sql ]; then
     if [ ! -z "$MYSQL_MASTER" ]; then
     cat <<EOF > /etc/mysql/slave.sql
         SET GLOBAL server_id = $MYSQL_SERVER_ID;
-        RESET SLAVE;
-        CHANGE MASTER TO MASTER_HOST = '$MYSQL_MASTER', MASTER_USER = 'repl', MASTER_PASSWORD = 'repl_pwd', MASTER_AUTO_POSITION = 1, MASTER_CONNECT_RETRY = 1, MASTER_RETRY_COUNT = 100500;
+        RESET SLAVE FOR CHANNEL 'test_channel';
+        CHANGE MASTER TO MASTER_HOST = '$MYSQL_MASTER', MASTER_USER = 'repl', MASTER_PASSWORD = 'repl_pwd', MASTER_AUTO_POSITION = 1, MASTER_CONNECT_RETRY = 1, MASTER_RETRY_COUNT = 100500 FOR CHANNEL 'test_channel';
         START SLAVE;
 EOF
     else

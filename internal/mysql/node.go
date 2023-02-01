@@ -295,6 +295,27 @@ func (n *Node) execMogrify(queryName string, arg map[string]interface{}) error {
 	return err
 }
 
+func (n *Node) queryRowMogrifyWithTimeout(queryName string, arg map[string]interface{}, result interface{}, timeout time.Duration) error {
+	query := n.getQuery(queryName)
+	query = Mogrify(query, arg)
+	ctx, cancel := context.WithTimeout(context.Background(), timeout)
+	defer cancel()
+	rows, err := n.db.NamedQueryContext(ctx, query, arg)
+	if err == nil {
+		defer func() { _ = rows.Close() }()
+		if rows.Next() {
+			err = rows.StructScan(result)
+		} else {
+			err = rows.Err()
+			if err == nil {
+				err = sql.ErrNoRows
+			}
+		}
+	}
+	n.traceQuery(query, arg, result, err)
+	return err
+}
+
 // IsRunning checks if daemon process is running
 func (n *Node) IsRunning() (bool, error) {
 	if !n.IsLocal() {
@@ -454,19 +475,40 @@ func (n *Node) SlaveStatus() (*SlaveStatus, error) {
 }
 
 func (n *Node) SlaveStatusWithTimeout(timeout time.Duration) (*SlaveStatus, error) {
+	v, err := n.GetVersionWithTimeout(timeout)
+	if err != nil {
+		return nil, nil
+	}
 	status := new(SlaveStatus)
-	err := n.queryRowWithTimeout(querySlaveStatus, nil, status, timeout)
+	err = n.queryRowMogrifyWithTimeout(v.GetSlaveStatusQuery(), map[string]interface{}{
+		"channel": n.config.ReplicationChannel,
+	}, status, timeout)
 	if err == sql.ErrNoRows {
 		return nil, nil
 	}
 	return status, err
 }
 
+func (n *Node) GetVersionWithTimeout(timeout time.Duration) (*version, error) {
+	v := new(version)
+	err := n.queryRowWithTimeout(queryGetVersion, nil, v, timeout)
+	if err == sql.ErrNoRows {
+		return nil, nil
+	}
+	return v, err
+}
+
 // ReplicationLag returns slave replication lag in seconds
 // ReplicationLag may return nil without error if lag is unknown (replication not running)
 func (n *Node) ReplicationLag() (*float64, error) {
+	v, err := n.GetVersionWithTimeout(n.config.DBTimeout)
+	if err != nil {
+		return nil, nil
+	}
 	lag := new(replicationLag)
-	err := n.queryRow(queryReplicationLag, nil, lag)
+	err = n.queryRowMogrifyWithTimeout(v.GetSlaveStatusQuery(), map[string]interface{}{
+		"channel": n.config.ReplicationChannel,
+	}, lag, n.config.DBTimeout)
 	if err == sql.ErrNoRows {
 		// looks like master
 		return new(float64), nil
@@ -625,7 +667,9 @@ func (n *Node) StartSlaveSQLThread() error {
 
 // ResetSlaveAll promotes MySQL Node to be master
 func (n *Node) ResetSlaveAll() error {
-	return n.exec(queryResetSlaveAll, nil)
+	return n.execMogrify(queryResetSlaveAll, map[string]interface{}{
+		"channel": n.config.ReplicationChannel,
+	})
 }
 
 // SemiSyncStatus returns semi sync status
@@ -698,6 +742,7 @@ func (n *Node) ChangeMaster(host string) error {
 		"retryCount":      n.config.MySQL.ReplicationRetryCount,
 		"connectRetry":    n.config.MySQL.ReplicationConnectRetry,
 		"heartbeatPeriod": n.config.MySQL.ReplicationHeartbeatPeriod,
+		"channel":         n.config.ReplicationChannel,
 	})
 }
 

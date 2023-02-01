@@ -82,6 +82,7 @@ type Config struct {
 	ReplicationRepairCooldown               time.Duration       `config:"replication_repair_cooldown" yaml:"replication_repair_cooldown"`
 	ReplicationRepairMaxAttempts            int                 `config:"replication_repair_max_attempts" yaml:"replication_repair_max_attempts"`
 	TestFilesystemReadonlyFile              string              `config:"test_filesystem_readonly_file" yaml:"test_filesystem_readonly_file"`
+	ReplicationChannel                      string              `config:"replication_channel" yaml:"replication_channel"`
 }
 
 // DefaultConfig returns default configuration for MySync
@@ -152,6 +153,7 @@ func DefaultConfig() (Config, error) {
 		ReplicationRepairCooldown:               1 * time.Minute,
 		ReplicationRepairMaxAttempts:            3,
 		TestFilesystemReadonlyFile:              "", // fake readonly status, only for docker tests
+		ReplicationChannel:                      "",
 	}
 	return config, nil
 }

@@ -41,6 +41,7 @@ const (
 	mysqlConnectTimeout        = 30 * time.Second
 	mysqlInitialConnectTimeout = 2 * time.Minute
 	mysqlQueryTimeout          = 2 * time.Second
+	replicationChannel 		   = "test_channel"
 )
 
 var mysqlLogsToSave = map[string]string{
@@ -352,6 +353,28 @@ func (tctx *testContext) doMysqlQuery(db *sqlx.DB, query string, args interface{
 	return result, nil
 }
 
+func (tctx *testContext) runSlaveStatusQuery(host string) ([]map[string]interface{}, error) {
+	res, err := tctx.queryMysql(host, "SELECT SUBSTRING(VERSION(), 1, 3) AS version", nil)
+	if err != nil {
+		return nil, err
+	}
+	version := res[0]["version"].(string)
+	var slaveQuery string
+	if version == "5.7" {
+		slaveQuery = "SHOW SLAVE STATUS FOR CHANNEL :channel"
+	} else {
+		slaveQuery = "SHOW REPLICA STATUS FOR CHANNEL :channel"
+	}
+	query := mysql_internal.Mogrify(slaveQuery, map[string]interface{}{
+		"channel": replicationChannel,
+	})
+	res, err = tctx.queryMysql(host, query, nil)
+	if err != nil {
+		return nil, err
+	}
+	return res, nil
+}
+
 func (tctx *testContext) stepClusterEnvironmentIs(body *godog.DocString) error {
 	var env []string
 	byLine := func(r rune) bool {
@@ -634,7 +657,8 @@ func (tctx *testContext) stepIChangeReplicationSourceWithTimeout(host, replicati
 								MASTER_AUTO_POSITION = 1,
 								MASTER_CONNECT_RETRY = :connectRetry,
 								MASTER_RETRY_COUNT = :retryCount,
-								MASTER_HEARTBEAT_PERIOD = :heartbeatPeriod `
+								MASTER_HEARTBEAT_PERIOD = :heartbeatPeriod
+			    FOR CHANNEL :channel`
 	dc, err := config.DefaultConfig()
 	if err != nil {
 		return err
@@ -649,6 +673,7 @@ func (tctx *testContext) stepIChangeReplicationSourceWithTimeout(host, replicati
 		"retryCount":      dc.MySQL.ReplicationRetryCount,
 		"connectRetry":    dc.MySQL.ReplicationConnectRetry,
 		"heartbeatPeriod": dc.MySQL.ReplicationHeartbeatPeriod,
+		"channel":         replicationChannel,
 	})
 	if _, err := tctx.queryMysql(host, query, nil); err != nil {
 		return err
@@ -852,7 +877,7 @@ func (tctx *testContext) stepZookeeperNodeShouldNotExistWithin(node string, time
 }
 
 func (tctx *testContext) stepMysqlHostShouldBeMaster(host string) error {
-	res, err := tctx.queryMysql(host, "SHOW SLAVE STATUS", nil)
+	res, err := tctx.runSlaveStatusQuery(host)
 	if err != nil {
 		return err
 	}
@@ -929,7 +954,7 @@ func (tctx *testContext) stepMysqlHostShouldHaveEventDefiner(host string, event 
 }
 
 func (tctx *testContext) stepMysqlHostShouldBeReplicaOf(host, master string) error {
-	res, err := tctx.queryMysql(host, "SHOW SLAVE STATUS", nil)
+	res, err := tctx.runSlaveStatusQuery(host)
 	if err != nil {
 		return err
 	}
@@ -953,7 +978,7 @@ func (tctx *testContext) stepMysqlHostShouldBecomeReplicaOfWithin(host, master s
 }
 
 func (tctx *testContext) stepMysqlReplicationOnHostShouldRunFine(host string) error {
-	res, err := tctx.queryMysql(host, "SHOW SLAVE STATUS", nil)
+	res, err := tctx.runSlaveStatusQuery(host)
 	if err != nil {
 		return err
 	}
@@ -983,7 +1008,7 @@ func (tctx *testContext) stepMysqlReplicationOnHostShouldRunFineWithin(host stri
 }
 
 func (tctx *testContext) stepMysqlReplicationOnHostShouldNotRunFine(host string) error {
-	res, err := tctx.queryMysql(host, "SHOW SLAVE STATUS", nil)
+	res, err := tctx.runSlaveStatusQuery(host)
 	if err != nil {
 		return err
 	}
