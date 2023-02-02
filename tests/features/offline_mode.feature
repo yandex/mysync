@@ -13,7 +13,7 @@ Feature: offline mode for lagging replicas
     #When I break replication on host "mysql3"
     And I run SQL on mysql host "mysql3"
         """
-            STOP SLAVE; CHANGE MASTER TO MASTER_DELAY = 300; START SLAVE
+            STOP SLAVE; CHANGE MASTER TO MASTER_DELAY = 300 FOR CHANNEL 'test_channel'; START SLAVE
         """
     And I run SQL on mysql host "mysql1"
         """
@@ -28,6 +28,6 @@ Feature: offline mode for lagging replicas
     Then mysql host "mysql3" should be offline within "15" seconds
     When I run SQL on mysql host "mysql3"
         """
-            STOP SLAVE; CHANGE MASTER TO MASTER_DELAY = 0; START SLAVE
+            STOP SLAVE; CHANGE MASTER TO MASTER_DELAY = 0 FOR CHANNEL 'test_channel'; START SLAVE
         """
     Then mysql host "mysql3" should be online within "10" seconds

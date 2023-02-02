@@ -113,18 +113,23 @@ func (ev Event) String() string {
 }
 
 type version struct {
-	Version string `db:"Version"`
+	MajorVersion string `db:"MajorVersion"`
+	FullVersion string `db:"FullVersion"`
 }
 
 const (
 	Version80 = "8.0"
+	Version80ReplicaStatus = "8.0.22"
 	Version57 = "5.7"
 )
 
 func (v *version) GetSlaveStatusQuery() string {
-	switch v.Version {
+	switch v.MajorVersion {
 	case Version80:
-		return queryReplicaStatus
+		if v.FullVersion >= Version80ReplicaStatus {
+			return queryReplicaStatus
+		}
+		return querySlaveStatus
 	case Version57:
 		return querySlaveStatus
 	default:

@@ -354,18 +354,20 @@ func (tctx *testContext) doMysqlQuery(db *sqlx.DB, query string, args interface{
 }
 
 func (tctx *testContext) runSlaveStatusQuery(host string) ([]map[string]interface{}, error) {
-	res, err := tctx.queryMysql(host, "SELECT SUBSTRING(VERSION(), 1, 3) AS version", nil)
+	query := "SELECT SUBSTRING(VERSION(), 1, 3) AS MajorVersion,  SUBSTRING_INDEX(VERSION(), '-', 1) as FullVersion"
+	res, err := tctx.queryMysql(host, query, nil)
 	if err != nil {
 		return nil, err
 	}
-	version := res[0]["version"].(string)
+	MajorVersion := res[0]["MajorVersion"].(string)
+	FullVersion := res[0]["FullVersion"].(string)
 	var slaveQuery string
-	if version == "5.7" {
+	if MajorVersion == "5.7" || (MajorVersion == "8.0" && FullVersion < "8.0.22") {
 		slaveQuery = "SHOW SLAVE STATUS FOR CHANNEL :channel"
 	} else {
 		slaveQuery = "SHOW REPLICA STATUS FOR CHANNEL :channel"
 	}
-	query := mysql_internal.Mogrify(slaveQuery, map[string]interface{}{
+	query = mysql_internal.Mogrify(slaveQuery, map[string]interface{}{
 		"channel": replicationChannel,
 	})
 	res, err = tctx.queryMysql(host, query, nil)
@@ -750,7 +752,8 @@ func (tctx *testContext) stepBreakReplicationOnHost(host string) error {
 	if _, err := tctx.queryMysql(host, "STOP SLAVE", struct{}{}); err != nil {
 		return err
 	}
-	if _, err := tctx.queryMysql(host, "CHANGE MASTER TO MASTER_PASSWORD = 'incorrect'", struct{}{}); err != nil {
+	query := fmt.Sprintf("CHANGE MASTER TO MASTER_PASSWORD = 'incorrect' FOR CHANNEL '%s'", replicationChannel)
+	if _, err := tctx.queryMysql(host, query, struct{}{}); err != nil {
 		return err
 	}
 	if _, err := tctx.queryMysql(host, "START SLAVE", struct{}{}); err != nil {
