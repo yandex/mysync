@@ -1439,29 +1439,51 @@ func (app *App) repairReadOnlyOnMaster(masterNode *mysql.Node, masterState *Node
 	replicasNormal := 0
 	for host, node := range clusterStateDcs {
 		if node.DiskState == nil {
+			app.logger.Debugf("diskusage: skip host %s check with no disk state", host)
 			continue
 		}
-		if node.IsMaster {
-			if node.DiskState.Usage() >= app.config.CriticalDiskUsage {
+		switch {
+		case masterNode.Host() == host:
+			// master
+			switch {
+			case node.DiskState.Usage() >= app.config.CriticalDiskUsage:
 				app.logger.Errorf("diskusage: master %s has critical disk usage %0.2f%%", host, node.DiskState.Usage())
 				needRo = true
-			} else if node.DiskState.Usage() > app.config.NotCriticalDiskUsage {
+			case node.DiskState.Usage() > app.config.NotCriticalDiskUsage:
 				app.logger.Warnf("diskusage: master %s has grey-zone disk usage %0.2f%%", host, node.DiskState.Usage())
 				mayWrite = false
+			default:
+				app.logger.Debugf("diskusage: master %s OK", host)
 			}
-		} else {
-			if app.config.SemiSync && node.SemiSyncState != nil && node.SemiSyncState.SlaveEnabled &&
-				node.SlaveState != nil && node.SlaveState.ReplicationState == mysql.ReplicationRunning {
-				replicasRunning += 1
-				if node.DiskState.Usage() >= app.config.CriticalDiskUsage {
-					app.logger.Warnf("diskusage: semisync replica %s has critical disk usage %0.2f%%", host, node.DiskState.Usage())
-					replicasLow += 1
-				} else if node.DiskState.Usage() > app.config.NotCriticalDiskUsage {
-					app.logger.Warnf("diskusage: semisync replica %s has grey-zone disk usage %0.2f%%", host, node.DiskState.Usage())
-				} else {
-					replicasNormal += 1
-				}
+
+		case node.IsMaster:
+			app.logger.Warnf("diskusage: Found strange node %s", host)
+			// strange node
+			switch {
+			case node.DiskState.Usage() >= app.config.CriticalDiskUsage:
+				app.logger.Warnf("diskusage: strange node %s has critical disk usage %0.2f%%", host, node.DiskState.Usage())
+				replicasLow += 1
+			case node.DiskState.Usage() > app.config.NotCriticalDiskUsage:
+				app.logger.Warnf("diskusage: strange node %s has grey-zone disk usage %0.2f%%", host, node.DiskState.Usage())
+			default:
+				app.logger.Debugf("diskusage: strange node %s OK", host)
 			}
+
+		case app.config.SemiSync && node.SemiSyncState != nil && node.SemiSyncState.SlaveEnabled &&
+			node.SlaveState != nil && node.SlaveState.ReplicationState == mysql.ReplicationRunning:
+			replicasRunning += 1
+			switch {
+			case node.DiskState.Usage() >= app.config.CriticalDiskUsage:
+				app.logger.Warnf("diskusage: semisync replica %s has critical disk usage %0.2f%%", host, node.DiskState.Usage())
+				replicasLow += 1
+			case node.DiskState.Usage() > app.config.NotCriticalDiskUsage:
+				app.logger.Warnf("diskusage: semisync replica %s has grey-zone disk usage %0.2f%%", host, node.DiskState.Usage())
+			default:
+				app.logger.Debugf("diskusage: semisync replica %s OK", host)
+				replicasNormal += 1
+			}
+		default:
+			app.logger.Warnf("diskusage: skip check host %s", host)
 		}
 	}
 	if replicasRunning > 0 {
