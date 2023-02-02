@@ -385,7 +385,7 @@ func (tctx *testContext) stepClusterIsUpAndRunning(createHaNodes bool) error {
 	}
 	tctx.zk, err = tctx.connectZookeeper(zkAddrs, zkConnectTimeout)
 	if err != nil {
-		return fmt.Errorf("failed to connect to zookeeper %s: %s", zkAddrs, err)
+		return fmt.Errorf("failed  to connect to zookeeper %s: %s", zkAddrs, err)
 	}
 	if err = tctx.createZookeeperNode("/test"); err != nil {
 		return fmt.Errorf("failed to create namespace zk node due %s", err)
