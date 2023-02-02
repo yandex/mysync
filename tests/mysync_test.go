@@ -41,7 +41,7 @@ const (
 	mysqlConnectTimeout        = 30 * time.Second
 	mysqlInitialConnectTimeout = 2 * time.Minute
 	mysqlQueryTimeout          = 2 * time.Second
-	replicationChannel 		   = "test_channel"
+	replicationChannel 		   = ""
 )
 
 var mysqlLogsToSave = map[string]string{
