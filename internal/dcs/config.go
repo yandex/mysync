@@ -29,7 +29,7 @@ func DefaultZookeeperConfig() (ZookeeperConfig, error) {
 	}
 	config := ZookeeperConfig{
 		Hostname:              hostname,
-		SessionTimeout:        2 * time.Second,
+		SessionTimeout:        10 * time.Second,
 		BackoffInterval:       backoff.DefaultInitialInterval,
 		BackoffRandFactor:     backoff.DefaultRandomizationFactor,
 		BackoffMultiplier:     backoff.DefaultMultiplier,

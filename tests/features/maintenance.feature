@@ -194,7 +194,7 @@ Feature: maintenance mode
     """
     And I run SQL on mysql host "mysql1"
     """
-      CHANGE MASTER TO master_user = 'repl', master_password = 'repl_pwd', master_host = 'mysql2', master_auto_position = 1
+      CHANGE MASTER TO master_user = 'repl', master_password = 'repl_pwd', master_host = 'mysql2', master_auto_position = 1  FOR CHANNEL 'test_channel'
     """
     And I run SQL on mysql host "mysql1"
     """
@@ -206,7 +206,7 @@ Feature: maintenance mode
     """
     And I run SQL on mysql host "mysql3"
     """
-      CHANGE MASTER TO master_user = 'repl', master_password = 'repl_pwd', master_host = 'mysql2', master_auto_position = 1
+      CHANGE MASTER TO master_user = 'repl', master_password = 'repl_pwd', master_host = 'mysql2', master_auto_position = 1 FOR CHANNEL 'test_channel'
     """
     And I run SQL on mysql host "mysql3"
     """
