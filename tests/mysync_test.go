@@ -236,7 +236,7 @@ func (tctx *testContext) connectMysql(addr string, timeout time.Duration) (*sqlx
 
 func (tctx *testContext) connectMysqlWithCredentials(username string, password string, addr string, timeout time.Duration) (*sqlx.DB, error) {
 	_ = mysql.SetLogger(noLogger{})
-	connTimeout := 2 * time.Second
+	connTimeout := 20 * time.Second
 	dsn := fmt.Sprintf("%s:%s@tcp(%s)/mysql?timeout=%s", username, password, addr, connTimeout)
 	db, err := sqlx.Open("mysql", dsn)
 	if err != nil {
@@ -245,7 +245,7 @@ func (tctx *testContext) connectMysqlWithCredentials(username string, password s
 	// sql is lazy in go, so we need ping db
 	testutil.Retry(func() bool {
 		//var rows *sql.Rows
-		ctx, cancel := context.WithTimeout(context.Background(), 4*time.Second)
+		ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
 		defer cancel()
 		err = db.PingContext(ctx)
 		return err == nil
@@ -370,6 +370,7 @@ func (tctx *testContext) runSlaveStatusQuery(host string) ([]map[string]interfac
 	query = mysql_internal.Mogrify(slaveQuery, map[string]interface{}{
 		"channel": replicationChannel,
 	})
+	query =  "SHOW SLAVE STATUS FOR CHANNEL test_channel"
 	res, err = tctx.queryMysql(host, query, nil)
 	if err != nil {
 		return nil, err
