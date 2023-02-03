@@ -9,7 +9,7 @@ Feature: cascade replicas
         And cluster is up and running
         Then mysql host "mysql1" should be master
 
-        When I wait for "10" seconds
+        When I wait for "1" seconds
         And mysql host "mysql2" should be replica of "mysql1"
         And mysql replication on host "mysql2" should run fine within "5" seconds
         And mysql host "mysql3" should be replica of "mysql1"
