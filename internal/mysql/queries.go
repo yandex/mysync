@@ -38,7 +38,7 @@ const (
 
 var DefaultQueries = map[string]string{
 	queryPing:                `SELECT 1 AS Ok`,
-	querySlaveStatus:         `SHOW SLAVE STATUS FOR CHANNEL :channel`,
+	querySlaveStatus:         `SHOW SLAVE STATUS FOR CHANNEL 'test_channel'`,
 	queryReplicaStatus:       `SHOW REPLICA STATUS FOR CHANNEL :channel`,
 	queryGetVersion:          `SELECT SUBSTRING(VERSION(), 1, 3) AS MajorVersion,  SUBSTRING_INDEX(VERSION(), '-', 1) as FullVersion`,
 	queryGTIDExecuted:        `SELECT @@GLOBAL.gtid_executed  as Executed_Gtid_Set`,
