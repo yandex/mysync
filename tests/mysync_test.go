@@ -370,7 +370,7 @@ func (tctx *testContext) runSlaveStatusQuery(host string) ([]map[string]interfac
 	query = mysql_internal.Mogrify(slaveQuery, map[string]interface{}{
 		"channel": replicationChannel,
 	})
-	query =  "SHOW SLAVE STATUS FOR CHANNEL test_channel"
+	query =  "SHOW SLAVE STATUS FOR CHANNEL 'test_channel'"
 	res, err = tctx.queryMysql(host, query, nil)
 	if err != nil {
 		return nil, err
