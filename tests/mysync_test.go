@@ -440,6 +440,7 @@ func (tctx *testContext) stepClusterIsUpAndRunning(createHaNodes bool) error {
 			tctx.dbs[service] = db
 		}
 	}
+	time.Sleep(time.Second)
 	return nil
 }
 
