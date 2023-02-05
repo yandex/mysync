@@ -475,20 +475,14 @@ func (n *Node) SlaveStatus() (*SlaveStatus, error) {
 }
 
 func (n *Node) SlaveStatusWithTimeout(timeout time.Duration) (*SlaveStatus, error) {
-	/*
 	v, err := n.GetVersionWithTimeout(timeout)
-
 	if err != nil {
 		return nil, nil
 	}
-
-
+	status := new(SlaveStatus)
 	err = n.queryRowMogrifyWithTimeout(v.GetSlaveStatusQuery(), map[string]interface{}{
 		"channel": n.config.ReplicationChannel,
 	}, status, timeout)
-	*/
-	status := new(SlaveStatus)
-	err := n.queryRowWithTimeout(querySlaveStatus, nil, status, timeout)
 	if err == sql.ErrNoRows {
 		return nil, nil
 	}
