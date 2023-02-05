@@ -442,11 +442,7 @@ func (tctx *testContext) stepClusterIsUpAndRunning(createHaNodes bool) error {
 	}
 	for _, service := range tctx.composer.Services() {
 		if strings.HasPrefix(service, mysqlName) {
-			addr, err3 := tctx.composer.GetAddr(service, mysqlPort)
-			if err3 != nil {
-				return fmt.Errorf("failed to get mysql addr %s: %s", service, err3)
-			}
-			err3 = tctx.stepMysqlHostShouldHaveVariableSetWithin(addr, "offline_mode", "0", 10)
+			err3 := tctx.stepMysqlHostShouldHaveVariableSetWithin(service, "offline_mode", "0", 10)
 			if err3 != nil {
 				return fmt.Errorf("failed to get mysql addr %s: %s", service, err3)
 			}
