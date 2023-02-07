@@ -197,7 +197,7 @@ Feature: cascade replicas
         And mysql host "mysql3" should be replica of "mysql2"
         When I run SQL on mysql host "mysql2"
         """
-            STOP SLAVE; CHANGE MASTER TO MASTER_DELAY = 10 FOR CHANNEL 'test_channel'; START SLAVE
+            STOP SLAVE; CHANGE MASTER TO MASTER_DELAY = 10 FOR CHANNEL ''; START SLAVE
         """
         And I run SQL on mysql host "mysql1"
         """

@@ -94,7 +94,7 @@
           (timeout 5000 (assoc op :type :info, :error "timeout")
             (with-conn [c conn]
               (case (:f op)
-                :read (cond (= (count (j/query c ["show slave status for channel 'test_channel'"])) 0)
+                :read (cond (= (count (j/query c ["show slave status for channel ''"])) 0)
                             (assoc op :type :ok,
                                       :value (->> (j/query c ["select value from test1.test_set"]
                                                            {:row-fn :value})

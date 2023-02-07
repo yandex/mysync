@@ -22,4 +22,4 @@ mysql:
   port: $MYSQL_PORT
   pid_file: /tmp/mysqld.pid
 disable_semi_sync_replication_on_maintenance: ${MYSYNC_DISABLE_REPLICATION_ON_MAINT:-false}
-replication_channel: test_channel
+replication_channel: ''

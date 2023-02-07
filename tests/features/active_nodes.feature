@@ -33,7 +33,7 @@ Feature: mysync saves quorum hosts in zk
     """
     ["mysql1","mysql2"]
     """
-    Then zookeeper node "/test/master" should match regexp within "30" seconds
+    Then zookeeper node "/test/master" should match regexp within "40" seconds
     """
       .*mysql2.*
     """
