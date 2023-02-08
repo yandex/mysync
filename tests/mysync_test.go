@@ -654,14 +654,15 @@ func (tctx *testContext) stepIRunCommandOnHostUntilResultMatch(host string, patt
 }
 
 // Make sure zk node is absent, then stop slave, change master & start slave again
-func (tctx *testContext) stepIChangeReplicationSourceWithTimeout(host, replicationSource string, timeout int) error {
+func (tctx *testContext) stepIChangeReplicationSource(host, replicationSource string) error {
 	if err := tctx.stepIDeleteZookeeperNode(dcs.JoinPath("/test", dcs.PathHANodesPrefix, host)); err != nil {
 		return err
 	}
-	if _, err := tctx.queryMysql(host, "STOP SLAVE", nil); err != nil {
+	query := fmt.Sprintf("STOP SLAVE FOR CHANNEL '%s'", replicationChannel)
+	if _, err := tctx.queryMysql(host, query, nil); err != nil {
 		return err
 	}
-	query := `CHANGE MASTER TO
+	query = `CHANGE MASTER TO
 								MASTER_HOST = :host ,
 								MASTER_PORT = :port ,
 								MASTER_USER = :user ,
@@ -693,7 +694,8 @@ func (tctx *testContext) stepIChangeReplicationSourceWithTimeout(host, replicati
 	if _, err := tctx.queryMysql(host, query, nil); err != nil {
 		return err
 	}
-	_, err = tctx.queryMysql(host, "START SLAVE", nil)
+	query = fmt.Sprintf("START SLAVE FOR CHANNEL '%s'", replicationChannel)
+	_, err = tctx.queryMysql(host, query, nil)
 	return err
 }
 
@@ -759,17 +761,20 @@ func (tctx *testContext) stepThereIsNoSQLErrorWithin(host string, timeout int) e
 }
 
 func (tctx *testContext) stepBreakReplicationOnHost(host string) error {
-	if _, err := tctx.queryMysql(host, "STOP SLAVE IO_THREAD", struct{}{}); err != nil {
+	query := fmt.Sprintf("STOP SLAVE IO_THREAD FOR CHANNEL '%s'", replicationChannel)
+	if _, err := tctx.queryMysql(host, query, nil); err != nil {
 		return err
 	}
-	if _, err := tctx.queryMysql(host, "STOP SLAVE", struct{}{}); err != nil {
+	query = fmt.Sprintf("STOP SLAVE FOR CHANNEL '%s'", replicationChannel)
+	if _, err := tctx.queryMysql(host, query, nil); err != nil {
 		return err
 	}
-	query := fmt.Sprintf("CHANGE MASTER TO MASTER_PASSWORD = 'incorrect' FOR CHANNEL '%s'", replicationChannel)
-	if _, err := tctx.queryMysql(host, query, struct{}{}); err != nil {
+	query = fmt.Sprintf("CHANGE MASTER TO MASTER_PASSWORD = 'incorrect' FOR CHANNEL '%s'", replicationChannel)
+	if _, err := tctx.queryMysql(host, query, nil); err != nil {
 		return err
 	}
-	if _, err := tctx.queryMysql(host, "START SLAVE", struct{}{}); err != nil {
+	query = fmt.Sprintf("START SLAVE FOR CHANNEL '%s'", replicationChannel)
+	if _, err := tctx.queryMysql(host, query, nil); err != nil {
 		return err
 	}
 	return nil
@@ -1273,7 +1278,7 @@ func InitializeScenario(s *godog.ScenarioContext) {
 	s.Step(`^I run command on host "([^"]*)" with timeout "(\d+)" seconds$`, tctx.stepIRunCommandOnHostWithTimeout)
 	s.Step(`^I run async command on host "([^"]*)"$`, tctx.stepIRunAsyncCommandOnHost)
 	s.Step(`^I run command on host "([^"]*)" until result match regexp "([^"]*)" with timeout "(\d+)" seconds$`, tctx.stepIRunCommandOnHostUntilResultMatch)
-	s.Step(`^I change replication source on host "([^"]*)" to "([^"]*)" with timeout "(\d+)" seconds$`, tctx.stepIChangeReplicationSourceWithTimeout)
+	s.Step(`^I change replication source on host "([^"]*)" to "([^"]*)"$`, tctx.stepIChangeReplicationSource)
 	s.Step(`^command return code should be "(\d+)"$`, tctx.stepCommandReturnCodeShouldBe)
 	s.Step(`^command output should match (\w+)$`, tctx.stepCommandOutputShouldMatch)
 	s.Step(`^I run SQL on mysql host "([^"]*)"$`, tctx.stepIRunSQLOnHost)

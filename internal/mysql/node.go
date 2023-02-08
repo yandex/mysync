@@ -285,14 +285,18 @@ func Mogrify(query string, arg map[string]interface{}) string {
 }
 
 // not all queries may be parametrized with placeholders
-func (n *Node) execMogrify(queryName string, arg map[string]interface{}) error {
+func (n *Node) execMogrifyWithTimeout(queryName string, arg map[string]interface{}, timeout time.Duration) error {
 	query := n.getQuery(queryName)
 	query = Mogrify(query, arg)
-	ctx, cancel := context.WithTimeout(context.Background(), n.config.DBTimeout)
+	ctx, cancel := context.WithTimeout(context.Background(), timeout)
 	defer cancel()
 	_, err := n.db.ExecContext(ctx, query)
 	n.traceQuery(query, nil, nil, err)
 	return err
+}
+
+func (n *Node) execMogrify(queryName string, arg map[string]interface{}) error {
+	return n.execMogrifyWithTimeout(queryName, arg, n.config.DBTimeout)
 }
 
 func (n *Node) queryRowMogrifyWithTimeout(queryName string, arg map[string]interface{}, result interface{}, timeout time.Duration) error {
@@ -628,22 +632,30 @@ func (n *Node) SetWritable() error {
 
 // StopSlave stops replication (both IO and SQL threads)
 func (n *Node) StopSlave() error {
-	return n.execWithTimeout(queryStopSlave, nil, n.config.DBStopSlaveSQLThreadTimeout)
+	return n.execMogrifyWithTimeout(queryStopSlave, map[string]interface{}{
+		"channel": n.config.ReplicationChannel,
+	}, n.config.DBStopSlaveSQLThreadTimeout)
 }
 
 // StartSlave starts replication (both IO and SQL threads)
 func (n *Node) StartSlave() error {
-	return n.exec(queryStartSlave, nil)
+	return n.execMogrify(queryStartSlave, map[string]interface{}{
+		"channel": n.config.ReplicationChannel,
+	})
 }
 
 // StopSlaveIOThread stops IO replication thread
 func (n *Node) StopSlaveIOThread() error {
-	return n.exec(queryStopSlaveIOThread, nil)
+	return n.execMogrify(queryStopSlaveIOThread, map[string]interface{}{
+		"channel": n.config.ReplicationChannel,
+	})
 }
 
 // StartSlaveIOThread starts IO replication thread
 func (n *Node) StartSlaveIOThread() error {
-	return n.exec(queryStartSlaveIOThread, nil)
+	return n.execMogrify(queryStartSlaveIOThread, map[string]interface{}{
+		"channel": n.config.ReplicationChannel,
+	})
 }
 
 // RestartSlaveIOThread stops IO replication thread
@@ -657,12 +669,16 @@ func (n *Node) RestartSlaveIOThread() error {
 
 // StopSlaveSQLThread stops SQL replication thread
 func (n *Node) StopSlaveSQLThread() error {
-	return n.execWithTimeout(queryStopSlaveSQLThread, nil, n.config.DBStopSlaveSQLThreadTimeout)
+	return n.execMogrifyWithTimeout(queryStopSlaveSQLThread, map[string]interface{}{
+		"channel": n.config.ReplicationChannel,
+	}, n.config.DBStopSlaveSQLThreadTimeout)
 }
 
 // StartSlaveSQLThread starts SQL replication thread
 func (n *Node) StartSlaveSQLThread() error {
-	return n.exec(queryStartSlaveSQLThread, nil)
+	return n.execMogrify(queryStartSlaveSQLThread, map[string]interface{}{
+		"channel": n.config.ReplicationChannel,
+	})
 }
 
 // ResetSlaveAll promotes MySQL Node to be master

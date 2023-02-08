@@ -48,12 +48,12 @@ var DefaultQueries = map[string]string{
 	querySetReadonly:         `SET GLOBAL super_read_only = 1`, // @@read_only will be set automatically
 	querySetReadonlyNoSuper:  `SET GLOBAL read_only = 1, super_read_only = 0`,
 	querySetWritable:         `SET GLOBAL read_only = 0`, // @@super_read_only will be unset automatically
-	queryStopSlave:           `STOP SLAVE`,
-	queryStartSlave:          `START SLAVE`,
-	queryStopSlaveIOThread:   `STOP SLAVE IO_THREAD`,
-	queryStartSlaveIOThread:  `START SLAVE IO_THREAD`,
-	queryStopSlaveSQLThread:  `STOP SLAVE SQL_THREAD`,
-	queryStartSlaveSQLThread: `START SLAVE SQL_THREAD`,
+	queryStopSlave:           `STOP SLAVE FOR CHANNEL :channel`,
+	queryStartSlave:          `START SLAVE FOR CHANNEL :channel`,
+	queryStopSlaveIOThread:   `STOP SLAVE IO_THREAD FOR CHANNEL :channel`,
+	queryStartSlaveIOThread:  `START SLAVE IO_THREAD FOR CHANNEL :channel`,
+	queryStopSlaveSQLThread:  `STOP SLAVE SQL_THREAD FOR CHANNEL :channel`,
+	queryStartSlaveSQLThread: `START SLAVE SQL_THREAD FOR CHANNEL :channel`,
 	queryResetSlaveAll:       `RESET SLAVE ALL FOR CHANNEL :channel`,
 	queryChangeMaster: `CHANGE MASTER TO
 								MASTER_HOST = :host ,

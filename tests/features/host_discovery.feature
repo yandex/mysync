@@ -41,7 +41,7 @@ Feature: mysync use keys in zk properly
       """
       ["mysql1","mysql2","mysql3"]
       """
-    When I change replication source on host "mysql3" to "mysql1" with timeout "30" seconds
+    When I change replication source on host "mysql3" to "mysql1"
     Then zookeeper node "/test/active_nodes" should match json_exactly within "30" seconds
       """
       ["mysql1","mysql2"]
