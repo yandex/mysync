@@ -29,10 +29,10 @@ import (
 
 // Node represents API to query/manipulate single MySQL node
 type Node struct {
-	config *config.Config
-	logger *log.Logger
-	host   string
-	db     *sqlx.DB
+	config  *config.Config
+	logger  *log.Logger
+	host    string
+	db      *sqlx.DB
 	version *Version
 }
 
@@ -58,10 +58,10 @@ func NewNode(config *config.Config, logger *log.Logger, host string) (*Node, err
 	db.SetMaxOpenConns(3)
 	db.SetConnMaxLifetime(3 * config.TickInterval)
 	return &Node{
-		config: config,
-		logger: logger,
-		db:     db,
-		host:   host,
+		config:  config,
+		logger:  logger,
+		db:      db,
+		host:    host,
 		version: nil,
 	}, nil
 }
@@ -496,7 +496,7 @@ func (n *Node) SlaveStatusWithTimeout(timeout time.Duration) (*SlaveStatus, erro
 }
 
 func (n *Node) GetVersionSlaveStatusQueryWithTimeout(timeout time.Duration) (string, error) {
-	if n.version != nil{
+	if n.version != nil {
 		return n.version.GetSlaveStatusQuery(), nil
 	}
 	v := new(Version)
