@@ -41,8 +41,8 @@ const (
 	mysqlConnectTimeout        = 30 * time.Second
 	mysqlInitialConnectTimeout = 2 * time.Minute
 	mysqlQueryTimeout          = 2 * time.Second
-	mysqlWaitOnlineTimeout	   = 60
-	replicationChannel 		   = ""
+	mysqlWaitOnlineTimeout     = 60
+	replicationChannel         = ""
 )
 
 var mysqlLogsToSave = map[string]string{
@@ -442,11 +442,13 @@ func (tctx *testContext) stepClusterIsUpAndRunning(createHaNodes bool) error {
 		}
 	}
 
-	for _, service := range tctx.composer.Services() {
-		if strings.HasPrefix(service, mysqlName) {
-			err3 := tctx.stepMysqlHostShouldHaveVariableSetWithin(service, "offline_mode", "0", mysqlWaitOnlineTimeout)
-			if err3 != nil {
-				return fmt.Errorf("failed to set up mysql for host  %s: %s", service, err)
+	if createHaNodes {
+		for _, service := range tctx.composer.Services() {
+			if strings.HasPrefix(service, mysqlName) {
+				err3 := tctx.stepMysqlHostShouldHaveVariableSetWithin(service, "offline_mode", "0", mysqlWaitOnlineTimeout)
+				if err3 != nil {
+					return fmt.Errorf("failed to set up mysql for host  %s: %s", service, err)
+				}
 			}
 		}
 	}

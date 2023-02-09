@@ -114,13 +114,13 @@ func (ev Event) String() string {
 
 type version struct {
 	MajorVersion string `db:"MajorVersion"`
-	FullVersion string `db:"FullVersion"`
+	FullVersion  string `db:"FullVersion"`
 }
 
 const (
-	Version80 = "8.0"
+	Version80              = "8.0"
 	Version80ReplicaStatus = "8.0.22"
-	Version57 = "5.7"
+	Version57              = "5.7"
 )
 
 func (v *version) GetSlaveStatusQuery() string {
