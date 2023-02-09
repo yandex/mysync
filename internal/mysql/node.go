@@ -33,6 +33,7 @@ type Node struct {
 	logger *log.Logger
 	host   string
 	db     *sqlx.DB
+	version *Version
 }
 
 var queryOnliner = regexp.MustCompile(`\r?\n\s*`)
@@ -61,6 +62,7 @@ func NewNode(config *config.Config, logger *log.Logger, host string) (*Node, err
 		logger: logger,
 		db:     db,
 		host:   host,
+		version: nil,
 	}, nil
 }
 
@@ -494,12 +496,16 @@ func (n *Node) SlaveStatusWithTimeout(timeout time.Duration) (*SlaveStatus, erro
 }
 
 func (n *Node) GetVersionSlaveStatusQueryWithTimeout(timeout time.Duration) (string, error) {
-	v := new(version)
+	if n.version != nil{
+		return n.version.GetSlaveStatusQuery(), nil
+	}
+	v := new(Version)
 	err := n.queryRowWithTimeout(queryGetVersion, nil, v, timeout)
-	if err == sql.ErrNoRows {
+	if err != nil {
 		return "", err
 	}
-	return v.GetSlaveStatusQuery(), err
+	n.version = v
+	return n.version.GetSlaveStatusQuery(), err
 }
 
 // ReplicationLag returns slave replication lag in seconds

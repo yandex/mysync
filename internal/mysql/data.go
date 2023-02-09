@@ -112,7 +112,7 @@ func (ev Event) String() string {
 	return fmt.Sprintf("`%s`.`%s`", ev.Schema, ev.Name)
 }
 
-type version struct {
+type Version struct {
 	MajorVersion string `db:"MajorVersion"`
 	FullVersion  string `db:"FullVersion"`
 }
@@ -123,7 +123,7 @@ const (
 	Version57              = "5.7"
 )
 
-func (v *version) GetSlaveStatusQuery() string {
+func (v *Version) GetSlaveStatusQuery() string {
 	switch v.MajorVersion {
 	case Version80:
 		if v.FullVersion >= Version80ReplicaStatus {
