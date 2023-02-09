@@ -442,13 +442,11 @@ func (tctx *testContext) stepClusterIsUpAndRunning(createHaNodes bool) error {
 		}
 	}
 
-	if createHaNodes {
-		for _, service := range tctx.composer.Services() {
-			if strings.HasPrefix(service, mysqlName) {
-				err3 := tctx.stepMysqlHostShouldHaveVariableSetWithin(service, "offline_mode", "0", mysqlWaitOnlineTimeout)
-				if err3 != nil {
-					return fmt.Errorf("failed to set up mysql for host  %s: %s", service, err)
-				}
+	for _, service := range tctx.composer.Services() {
+		if strings.HasPrefix(service, mysqlName) {
+			err3 := tctx.stepMysqlHostShouldHaveVariableSetWithin(service, "offline_mode", "0", mysqlWaitOnlineTimeout)
+			if err3 != nil {
+				return fmt.Errorf("failed to set up mysql for host  %s: %s", service, err)
 			}
 		}
 	}
