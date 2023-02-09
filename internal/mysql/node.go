@@ -479,12 +479,12 @@ func (n *Node) SlaveStatus() (*SlaveStatus, error) {
 }
 
 func (n *Node) SlaveStatusWithTimeout(timeout time.Duration) (*SlaveStatus, error) {
-	v, err := n.GetVersionWithTimeout(timeout)
+	query, err := n.GetVersionSlaveStatusQueryWithTimeout(timeout)
 	if err != nil {
 		return nil, nil
 	}
 	status := new(SlaveStatus)
-	err = n.queryRowMogrifyWithTimeout(v.GetSlaveStatusQuery(), map[string]interface{}{
+	err = n.queryRowMogrifyWithTimeout(query, map[string]interface{}{
 		"channel": n.config.ReplicationChannel,
 	}, status, timeout)
 	if err == sql.ErrNoRows {
@@ -493,24 +493,24 @@ func (n *Node) SlaveStatusWithTimeout(timeout time.Duration) (*SlaveStatus, erro
 	return status, err
 }
 
-func (n *Node) GetVersionWithTimeout(timeout time.Duration) (*version, error) {
+func (n *Node) GetVersionSlaveStatusQueryWithTimeout(timeout time.Duration) (string, error) {
 	v := new(version)
 	err := n.queryRowWithTimeout(queryGetVersion, nil, v, timeout)
 	if err == sql.ErrNoRows {
-		return nil, nil
+		return "", err
 	}
-	return v, err
+	return v.GetSlaveStatusQuery(), err
 }
 
 // ReplicationLag returns slave replication lag in seconds
 // ReplicationLag may return nil without error if lag is unknown (replication not running)
 func (n *Node) ReplicationLag() (*float64, error) {
-	v, err := n.GetVersionWithTimeout(n.config.DBTimeout)
+	query, err := n.GetVersionSlaveStatusQueryWithTimeout(n.config.DBTimeout)
 	if err != nil {
 		return nil, nil
 	}
 	lag := new(replicationLag)
-	err = n.queryRowMogrifyWithTimeout(v.GetSlaveStatusQuery(), map[string]interface{}{
+	err = n.queryRowMogrifyWithTimeout(query, map[string]interface{}{
 		"channel": n.config.ReplicationChannel,
 	}, lag, n.config.DBTimeout)
 	if err == sql.ErrNoRows {

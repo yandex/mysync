@@ -442,6 +442,8 @@ func (tctx *testContext) stepClusterIsUpAndRunning(createHaNodes bool) error {
 		}
 	}
 
+	// We check if server is online only if there is alive zk with set nodes
+	// In other case mysync can keep server offline: that's expected behavior
 	if createHaNodes {
 		for _, service := range tctx.composer.Services() {
 			if strings.HasPrefix(service, mysqlName) {
