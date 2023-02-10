@@ -7,6 +7,7 @@ const (
 	queryGetVersion                  = "get_version"
 	queryGTIDExecuted                = "gtid_executed"
 	queryShowBinaryLogs              = "binary_logs"
+	queryReplicationLag              = "replication_lag"
 	querySlaveHosts                  = "slave_hosts"
 	queryIsReadOnly                  = "is_readonly"
 	querySetReadonly                 = "set_readonly"
@@ -44,6 +45,7 @@ var DefaultQueries = map[string]string{
 	queryGTIDExecuted:        `SELECT @@GLOBAL.gtid_executed  as Executed_Gtid_Set`,
 	queryShowBinaryLogs:      `SHOW BINARY LOGS`,
 	querySlaveHosts:          `SHOW SLAVE HOSTS`,
+	queryReplicationLag:      ``,
 	queryIsReadOnly:          `SELECT @@read_only AS ReadOnly, @@super_read_only AS SuperReadOnly`,
 	querySetReadonly:         `SET GLOBAL super_read_only = 1`, // @@read_only will be set automatically
 	querySetReadonlyNoSuper:  `SET GLOBAL read_only = 1, super_read_only = 0`,

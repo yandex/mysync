@@ -511,14 +511,19 @@ func (n *Node) GetVersionSlaveStatusQueryWithTimeout(timeout time.Duration) (str
 // ReplicationLag returns slave replication lag in seconds
 // ReplicationLag may return nil without error if lag is unknown (replication not running)
 func (n *Node) ReplicationLag() (*float64, error) {
-	query, err := n.GetVersionSlaveStatusQueryWithTimeout(n.config.DBTimeout)
-	if err != nil {
-		return nil, nil
-	}
+	var err error
 	lag := new(replicationLag)
-	err = n.queryRowMogrifyWithTimeout(query, map[string]interface{}{
-		"channel": n.config.ReplicationChannel,
-	}, lag, n.config.DBTimeout)
+	if n.getQuery(queryReplicationLag) != "" {
+		err = n.queryRow(queryReplicationLag, nil, lag)
+	} else {
+		query, err := n.GetVersionSlaveStatusQueryWithTimeout(n.config.DBTimeout)
+		if err != nil {
+			return nil, nil
+		}
+		err = n.queryRowMogrifyWithTimeout(query, map[string]interface{}{
+			"channel": n.config.ReplicationChannel,
+		}, lag, n.config.DBTimeout)
+	}
 	if err == sql.ErrNoRows {
 		// looks like master
 		return new(float64), nil
