@@ -516,8 +516,8 @@ func (n *Node) ReplicationLag() (*float64, error) {
 	if n.getQuery(queryReplicationLag) != "" {
 		err = n.queryRow(queryReplicationLag, nil, lag)
 	} else {
-		query, err := n.GetVersionSlaveStatusQueryWithTimeout(n.config.DBTimeout)
-		if err != nil {
+		query, err2 := n.GetVersionSlaveStatusQueryWithTimeout(n.config.DBTimeout)
+		if err2 != nil {
 			return nil, nil
 		}
 		err = n.queryRowMogrifyWithTimeout(query, map[string]interface{}{
