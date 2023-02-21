@@ -360,15 +360,8 @@ func (tctx *testContext) runSlaveStatusQuery(host string) ([]map[string]interfac
 	if err != nil {
 		return nil, err
 	}
-	MajorVersion := res[0]["MajorVersion"].(string)
-	FullVersion := res[0]["FullVersion"].(string)
-	var slaveQuery string
-	if MajorVersion == "5.7" || (MajorVersion == "8.0" && FullVersion < "8.0.22") {
-		slaveQuery = "SHOW SLAVE STATUS FOR CHANNEL :channel"
-	} else {
-		slaveQuery = "SHOW REPLICA STATUS FOR CHANNEL :channel"
-	}
-	query = mysql_internal.Mogrify(slaveQuery, map[string]interface{}{
+	v := mysql_internal.Version{MajorVersion: res[0]["MajorVersion"].(string), FullVersion: res[0]["FullVersion"].(string)}
+	query = mysql_internal.Mogrify(v.GetSlaveStatusQuery(), map[string]interface{}{
 		"channel": replicationChannel,
 	})
 	res, err = tctx.queryMysql(host, query, nil)
