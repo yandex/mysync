@@ -3,6 +3,7 @@ package mysql
 import (
 	"database/sql"
 	"fmt"
+	"time"
 )
 
 const yes = "Yes" // suddenly
@@ -32,6 +33,11 @@ type CascadeNodeConfiguration struct {
 type NodeConfiguration struct {
 	// Priority - is a host priority to become master. Can be changed from CLI.
 	Priority int64 `json:"priority"`
+}
+
+type ResetupStatus struct {
+	Status     bool
+	UpdateTime time.Time
 }
 
 // SlaveStatus contains SHOW SLAVE/REPLICA STATUS response

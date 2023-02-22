@@ -2,8 +2,10 @@ package app
 
 import (
 	"fmt"
+	"time"
 
 	"github.com/yandex/mysync/internal/dcs"
+	"github.com/yandex/mysync/internal/mysql"
 	"github.com/yandex/mysync/internal/util"
 )
 
@@ -80,4 +82,30 @@ func (app *App) IsRecoveryNeeded(host string) bool {
 	// we ignore any zk errors here, as it will appear on next iteration
 	// and lead to lost state followed by recovery
 	return err == nil
+}
+
+func (app *App) SetResetupStatus(host string, status bool) error {
+	err := app.dcs.Create(pathResetupStatus, nil)
+	if err != nil && err != dcs.ErrExists {
+		return err
+	}
+	resetupStatus := &mysql.ResetupStatus{
+		Status:     status,
+		UpdateTime: time.Now(),
+	}
+	err = app.dcs.Create(dcs.JoinPath(pathResetupStatus, host), resetupStatus)
+	if err != nil && err != dcs.ErrExists {
+		return err
+	}
+	err = app.dcs.Set(dcs.JoinPath(pathResetupStatus, host), resetupStatus)
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
+func (app *App) GetResetupStatus(host string) (mysql.ResetupStatus, error) {
+	resetupStatus := mysql.ResetupStatus{}
+	err := app.dcs.Get(dcs.JoinPath(pathResetupStatus, host), &resetupStatus)
+	return resetupStatus, err
 }

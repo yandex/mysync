@@ -59,6 +59,10 @@ const (
 	// low space flag
 	// structure: single value boolean
 	pathLowSpace = "low_space"
+
+	// resetup status
+	// structure: pathResetupStatus/hostname -> ResetupStatus
+	pathResetupStatus = "resetup_status"
 )
 
 var (

@@ -35,6 +35,7 @@ const (
 	queryDisableOfflineMode          = "disable_offline_mode"
 	queryGetOfflineMode              = "get_offline_mode"
 	queryHasWaitingSemiSyncAck       = "has_waiting_semi_sync_ack"
+	queryGetLastStartupTime          = "get_last_startup_time"
 )
 
 var DefaultQueries = map[string]string{
@@ -89,4 +90,5 @@ var DefaultQueries = map[string]string{
 	queryDisableOfflineMode:    `SET GLOBAL offline_mode = OFF`,
 	queryGetOfflineMode:        `SELECT @@GLOBAL.offline_mode AS OfflineMode`,
 	queryHasWaitingSemiSyncAck: `SELECT count(*) <> 0 AS IsWaiting FROM information_schema.PROCESSLIST WHERE state = 'Waiting for semi-sync ACK from slave'`,
+	queryGetLastStartupTime:    `SELECT UNIX_TIMESTAMP(DATE_SUB(now(), INTERVAL variable_value SECOND)) AS LastStartup FROM performance_schema.global_status WHERE variable_name='Uptime'`,
 }
