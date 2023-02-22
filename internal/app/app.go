@@ -230,6 +230,10 @@ func (app *App) recoveryChecker(ctx context.Context) {
 		case <-ticker.C:
 			app.checkRecovery()
 			app.checkCrashRecovery()
+			err := app.SetResetupStatus(app.cluster.Local().Host(), app.doesResetupFileExist())
+			if err != nil {
+				app.logger.Errorf("recovery: failed to set recovery status: %v", err)
+			}
 		case <-ctx.Done():
 			return
 		}
@@ -1405,15 +1409,29 @@ func (app *App) repairMasterOfflineMode(host string, node *mysql.Node, state *No
 func (app *App) repairSlaveOfflineMode(host string, node *mysql.Node, state *NodeState, masterState *NodeState) {
 	if state.SlaveState != nil && state.SlaveState.ReplicationLag != nil {
 		if state.IsOffline && *state.SlaveState.ReplicationLag <= app.config.OfflineModeDisableLag.Seconds() {
-			err := node.SetOnline()
-			if app.IsRecoveryNeeded(host) {
+			recoveryStatus, err := app.GetResetupStatus(host)
+			if err != nil {
+				app.logger.Errorf("repair: failed to get recovery status from host %s: %v", host, err)
 				return
 			}
+			startupTime, err := node.GetStartupTime()
+			if err != nil {
+				app.logger.Errorf("repair: failed to get mysql startup time from host %s: %v", host, err)
+				return
+			}
+			if recoveryStatus.Status || recoveryStatus.UpdateTime.Before(startupTime) {
+				app.logger.Infof("repair: recoveryStatus %v, startup time %s", recoveryStatus, startupTime.String())
+				app.logger.Errorf("repair: should not turn slave to online until get actual recovery status")
+				return
+			}
+
+			err = node.SetOnline()
 			if err != nil {
 				app.logger.Errorf("repair: failed to set slave %s online: %s", host, err)
 			} else {
 				app.logger.Infof("repair: slave %s set online, because ReplicationLag (%f s) <= OfflineModeDisableLag (%v)",
 					host, *state.SlaveState.ReplicationLag, app.config.OfflineModeDisableLag)
+				app.logger.Infof("repair: last recovery status: %v, startup time %s", recoveryStatus, startupTime)
 			}
 		}
 		if !state.IsOffline && !masterState.IsReadOnly && *state.SlaveState.ReplicationLag > app.config.OfflineModeEnableLag.Seconds() {

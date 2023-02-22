@@ -464,7 +464,8 @@ func (n *Node) GetCrashRecoveryTime() (time.Time, error) {
 	s := bufio.NewScanner(fh)
 	for s.Scan() {
 		line := s.Text()
-		if strings.HasSuffix(line, " Starting crash recovery...") {
+		if strings.HasSuffix(line, "[Note] Starting crash recovery...") || // For 5.7 version
+			strings.HasSuffix(line, "[InnoDB] Starting crash recovery.") { // For 8.0 version
 			recoveryTimeText = strings.Split(line, " ")[0]
 		}
 	}
@@ -826,4 +827,16 @@ func (n *Node) IsWaitingSemiSyncAck() (bool, error) {
 	var status waitingSemiSyncStatus
 	err := n.queryRow(queryHasWaitingSemiSyncAck, nil, &status)
 	return status.IsWaiting, err
+}
+
+func (n *Node) GetStartupTime() (time.Time, error) {
+	type lastStartupTime struct {
+		LastStartup float64 `db:"LastStartup"`
+	}
+	var startupTime lastStartupTime
+	err := n.queryRow(queryGetLastStartupTime, nil, &startupTime)
+	if err != nil {
+		return time.Time{}, err
+	}
+	return time.Unix(int64(startupTime.LastStartup), 0), nil
 }
