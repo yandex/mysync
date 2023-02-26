@@ -1441,7 +1441,7 @@ func (app *App) repairReadOnlyOnMaster(masterNode *mysql.Node, masterState *Node
 		if node.DiskState == nil {
 			continue
 		}
-		if node.IsMaster {
+		if node.IsMaster && masterNode.Host() == host {
 			if node.DiskState.Usage() >= app.config.CriticalDiskUsage {
 				app.logger.Errorf("diskusage: master %s has critical disk usage %0.2f%%", host, node.DiskState.Usage())
 				needRo = true

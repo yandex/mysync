@@ -356,7 +356,13 @@ func (n *Node) GetDiskUsage() (used uint64, total uint64, err error) {
 	var stat syscall.Statfs_t
 	err = syscall.Statfs(n.config.MySQL.DataDir, &stat)
 	total = uint64(stat.Bsize) * stat.Blocks
-	used = total - uint64(stat.Bsize)*stat.Bavail
+	// on FreeBSD stat.Bavail may be negative
+	var bavail = stat.Bavail
+	// nolint: staticcheck
+	if bavail < 0 {
+		bavail = 0
+	}
+	used = total - uint64(stat.Bsize)*uint64(bavail) // nolint: unconvert
 	return
 }
 
