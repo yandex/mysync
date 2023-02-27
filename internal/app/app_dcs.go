@@ -84,7 +84,7 @@ func (app *App) IsRecoveryNeeded(host string) bool {
 	return err == nil
 }
 
-func (app *App) SetResetupStatus(host string, status bool) error {
+func (app *App) setResetupStatus(host string, status bool) error {
 	err := app.dcs.Create(pathResetupStatus, nil)
 	if err != nil && err != dcs.ErrExists {
 		return err
