@@ -222,6 +222,13 @@ func (app *App) stateFileHandler(ctx context.Context) {
 	}
 }
 
+func (app *App) SetResetupStatus(status bool) {
+	err := app.setResetupStatus(app.cluster.Local().Host(), status)
+	if err != nil {
+		app.logger.Errorf("recovery: failed to set resetup status: %v", err)
+	}
+}
+
 // separated gorutine for resetuping local mysql
 func (app *App) recoveryChecker(ctx context.Context) {
 	ticker := time.NewTicker(app.config.RecoveryCheckInterval)
@@ -230,10 +237,7 @@ func (app *App) recoveryChecker(ctx context.Context) {
 		case <-ticker.C:
 			app.checkRecovery()
 			app.checkCrashRecovery()
-			err := app.SetResetupStatus(app.cluster.Local().Host(), app.doesResetupFileExist())
-			if err != nil {
-				app.logger.Errorf("recovery: failed to set recovery status: %v", err)
-			}
+			app.SetResetupStatus(app.doesResetupFileExist())
 		case <-ctx.Done():
 			return
 		}
@@ -1409,9 +1413,9 @@ func (app *App) repairMasterOfflineMode(host string, node *mysql.Node, state *No
 func (app *App) repairSlaveOfflineMode(host string, node *mysql.Node, state *NodeState, masterState *NodeState) {
 	if state.SlaveState != nil && state.SlaveState.ReplicationLag != nil {
 		if state.IsOffline && *state.SlaveState.ReplicationLag <= app.config.OfflineModeDisableLag.Seconds() {
-			recoveryStatus, err := app.GetResetupStatus(host)
+			resetupStatus, err := app.GetResetupStatus(host)
 			if err != nil {
-				app.logger.Errorf("repair: failed to get recovery status from host %s: %v", host, err)
+				app.logger.Errorf("repair: failed to get resetup status from host %s: %v", host, err)
 				return
 			}
 			startupTime, err := node.GetStartupTime()
@@ -1419,9 +1423,8 @@ func (app *App) repairSlaveOfflineMode(host string, node *mysql.Node, state *Nod
 				app.logger.Errorf("repair: failed to get mysql startup time from host %s: %v", host, err)
 				return
 			}
-			if recoveryStatus.Status || recoveryStatus.UpdateTime.Before(startupTime) {
-				app.logger.Infof("repair: recoveryStatus %v, startup time %s", recoveryStatus, startupTime.String())
-				app.logger.Errorf("repair: should not turn slave to online until get actual recovery status")
+			if resetupStatus.Status || resetupStatus.UpdateTime.Before(startupTime) {
+				app.logger.Errorf("repair: should not turn slave to online until get actual resetup status")
 				return
 			}
 
@@ -1431,7 +1434,6 @@ func (app *App) repairSlaveOfflineMode(host string, node *mysql.Node, state *Nod
 			} else {
 				app.logger.Infof("repair: slave %s set online, because ReplicationLag (%f s) <= OfflineModeDisableLag (%v)",
 					host, *state.SlaveState.ReplicationLag, app.config.OfflineModeDisableLag)
-				app.logger.Infof("repair: last recovery status: %v, startup time %s", recoveryStatus, startupTime)
 			}
 		}
 		if !state.IsOffline && !masterState.IsReadOnly && *state.SlaveState.ReplicationLag > app.config.OfflineModeEnableLag.Seconds() {
