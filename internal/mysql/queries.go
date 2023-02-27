@@ -3,10 +3,12 @@ package mysql
 const (
 	queryPing                        = "ping"
 	querySlaveStatus                 = "slave_status"
+	queryReplicaStatus               = "replica_status"
+	queryGetVersion                  = "get_version"
 	queryGTIDExecuted                = "gtid_executed"
 	queryShowBinaryLogs              = "binary_logs"
-	querySlaveHosts                  = "slave_hosts"
 	queryReplicationLag              = "replication_lag"
+	querySlaveHosts                  = "slave_hosts"
 	queryIsReadOnly                  = "is_readonly"
 	querySetReadonly                 = "set_readonly"
 	querySetReadonlyNoSuper          = "set_readonly_no_super"
@@ -37,22 +39,24 @@ const (
 
 var DefaultQueries = map[string]string{
 	queryPing:                `SELECT 1 AS Ok`,
-	querySlaveStatus:         `SHOW SLAVE STATUS`,
+	querySlaveStatus:         `SHOW SLAVE STATUS FOR CHANNEL :channel`,
+	queryReplicaStatus:       `SHOW REPLICA STATUS FOR CHANNEL :channel`,
+	queryGetVersion:          `SELECT SUBSTRING(VERSION(), 1, 3) AS MajorVersion,  SUBSTRING_INDEX(VERSION(), '-', 1) as FullVersion`,
 	queryGTIDExecuted:        `SELECT @@GLOBAL.gtid_executed  as Executed_Gtid_Set`,
 	queryShowBinaryLogs:      `SHOW BINARY LOGS`,
 	querySlaveHosts:          `SHOW SLAVE HOSTS`,
-	queryReplicationLag:      `SHOW SLAVE STATUS`,
+	queryReplicationLag:      ``,
 	queryIsReadOnly:          `SELECT @@read_only AS ReadOnly, @@super_read_only AS SuperReadOnly`,
 	querySetReadonly:         `SET GLOBAL super_read_only = 1`, // @@read_only will be set automatically
 	querySetReadonlyNoSuper:  `SET GLOBAL read_only = 1, super_read_only = 0`,
 	querySetWritable:         `SET GLOBAL read_only = 0`, // @@super_read_only will be unset automatically
-	queryStopSlave:           `STOP SLAVE`,
-	queryStartSlave:          `START SLAVE`,
-	queryStopSlaveIOThread:   `STOP SLAVE IO_THREAD`,
-	queryStartSlaveIOThread:  `START SLAVE IO_THREAD`,
-	queryStopSlaveSQLThread:  `STOP SLAVE SQL_THREAD`,
-	queryStartSlaveSQLThread: `START SLAVE SQL_THREAD`,
-	queryResetSlaveAll:       `RESET SLAVE ALL`,
+	queryStopSlave:           `STOP SLAVE FOR CHANNEL :channel`,
+	queryStartSlave:          `START SLAVE FOR CHANNEL :channel`,
+	queryStopSlaveIOThread:   `STOP SLAVE IO_THREAD FOR CHANNEL :channel`,
+	queryStartSlaveIOThread:  `START SLAVE IO_THREAD FOR CHANNEL :channel`,
+	queryStopSlaveSQLThread:  `STOP SLAVE SQL_THREAD FOR CHANNEL :channel`,
+	queryStartSlaveSQLThread: `START SLAVE SQL_THREAD FOR CHANNEL :channel`,
+	queryResetSlaveAll:       `RESET SLAVE ALL FOR CHANNEL :channel`,
 	queryChangeMaster: `CHANGE MASTER TO
 								MASTER_HOST = :host ,
 								MASTER_PORT = :port ,
@@ -64,7 +68,8 @@ var DefaultQueries = map[string]string{
 								MASTER_AUTO_POSITION = 1,
 								MASTER_CONNECT_RETRY = :connectRetry,
 								MASTER_RETRY_COUNT = :retryCount,
-								MASTER_HEARTBEAT_PERIOD = :heartbeatPeriod `,
+								MASTER_HEARTBEAT_PERIOD = :heartbeatPeriod
+						FOR CHANNEL :channel`,
 	querySemiSyncStatus: `SELECT @@rpl_semi_sync_master_enabled AS MasterEnabled,
 								 @@rpl_semi_sync_slave_enabled AS SlaveEnabled,
 								 @@rpl_semi_sync_master_wait_for_slave_count as WaitSlaveCount`,

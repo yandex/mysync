@@ -9,6 +9,7 @@ Feature: cascade replicas
         And cluster is up and running
         Then mysql host "mysql1" should be master
 
+        When I wait for "1" seconds
         And mysql host "mysql2" should be replica of "mysql1"
         And mysql replication on host "mysql2" should run fine within "5" seconds
         And mysql host "mysql3" should be replica of "mysql1"
@@ -196,7 +197,7 @@ Feature: cascade replicas
         And mysql host "mysql3" should be replica of "mysql2"
         When I run SQL on mysql host "mysql2"
         """
-            STOP SLAVE; CHANGE MASTER TO MASTER_DELAY = 10; START SLAVE
+            STOP SLAVE; CHANGE MASTER TO MASTER_DELAY = 10 FOR CHANNEL ''; START SLAVE
         """
         And I run SQL on mysql host "mysql1"
         """

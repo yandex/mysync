@@ -29,10 +29,11 @@ import (
 
 // Node represents API to query/manipulate single MySQL node
 type Node struct {
-	config *config.Config
-	logger *log.Logger
-	host   string
-	db     *sqlx.DB
+	config  *config.Config
+	logger  *log.Logger
+	host    string
+	db      *sqlx.DB
+	version *Version
 }
 
 var queryOnliner = regexp.MustCompile(`\r?\n\s*`)
@@ -57,10 +58,11 @@ func NewNode(config *config.Config, logger *log.Logger, host string) (*Node, err
 	db.SetMaxOpenConns(3)
 	db.SetConnMaxLifetime(3 * config.TickInterval)
 	return &Node{
-		config: config,
-		logger: logger,
-		db:     db,
-		host:   host,
+		config:  config,
+		logger:  logger,
+		db:      db,
+		host:    host,
+		version: nil,
 	}, nil
 }
 
@@ -285,13 +287,38 @@ func Mogrify(query string, arg map[string]interface{}) string {
 }
 
 // not all queries may be parametrized with placeholders
-func (n *Node) execMogrify(queryName string, arg map[string]interface{}) error {
+func (n *Node) execMogrifyWithTimeout(queryName string, arg map[string]interface{}, timeout time.Duration) error {
 	query := n.getQuery(queryName)
 	query = Mogrify(query, arg)
-	ctx, cancel := context.WithTimeout(context.Background(), n.config.DBTimeout)
+	ctx, cancel := context.WithTimeout(context.Background(), timeout)
 	defer cancel()
 	_, err := n.db.ExecContext(ctx, query)
 	n.traceQuery(query, nil, nil, err)
+	return err
+}
+
+func (n *Node) execMogrify(queryName string, arg map[string]interface{}) error {
+	return n.execMogrifyWithTimeout(queryName, arg, n.config.DBTimeout)
+}
+
+func (n *Node) queryRowMogrifyWithTimeout(queryName string, arg map[string]interface{}, result interface{}, timeout time.Duration) error {
+	query := n.getQuery(queryName)
+	query = Mogrify(query, arg)
+	ctx, cancel := context.WithTimeout(context.Background(), timeout)
+	defer cancel()
+	rows, err := n.db.NamedQueryContext(ctx, query, arg)
+	if err == nil {
+		defer func() { _ = rows.Close() }()
+		if rows.Next() {
+			err = rows.StructScan(result)
+		} else {
+			err = rows.Err()
+			if err == nil {
+				err = sql.ErrNoRows
+			}
+		}
+	}
+	n.traceQuery(query, arg, result, err)
 	return err
 }
 
@@ -460,19 +487,49 @@ func (n *Node) SlaveStatus() (*SlaveStatus, error) {
 }
 
 func (n *Node) SlaveStatusWithTimeout(timeout time.Duration) (*SlaveStatus, error) {
+	query, err := n.GetVersionSlaveStatusQueryWithTimeout(timeout)
+	if err != nil {
+		return nil, nil
+	}
 	status := new(SlaveStatus)
-	err := n.queryRowWithTimeout(querySlaveStatus, nil, status, timeout)
+	err = n.queryRowMogrifyWithTimeout(query, map[string]interface{}{
+		"channel": n.config.ReplicationChannel,
+	}, status, timeout)
 	if err == sql.ErrNoRows {
 		return nil, nil
 	}
 	return status, err
 }
 
+func (n *Node) GetVersionSlaveStatusQueryWithTimeout(timeout time.Duration) (string, error) {
+	if n.version != nil {
+		return n.version.GetSlaveStatusQuery(), nil
+	}
+	v := new(Version)
+	err := n.queryRowWithTimeout(queryGetVersion, nil, v, timeout)
+	if err != nil {
+		return "", err
+	}
+	n.version = v
+	return n.version.GetSlaveStatusQuery(), err
+}
+
 // ReplicationLag returns slave replication lag in seconds
 // ReplicationLag may return nil without error if lag is unknown (replication not running)
 func (n *Node) ReplicationLag() (*float64, error) {
+	var err error
 	lag := new(replicationLag)
-	err := n.queryRow(queryReplicationLag, nil, lag)
+	if n.getQuery(queryReplicationLag) != "" {
+		err = n.queryRow(queryReplicationLag, nil, lag)
+	} else {
+		query, err2 := n.GetVersionSlaveStatusQueryWithTimeout(n.config.DBTimeout)
+		if err2 != nil {
+			return nil, nil
+		}
+		err = n.queryRowMogrifyWithTimeout(query, map[string]interface{}{
+			"channel": n.config.ReplicationChannel,
+		}, lag, n.config.DBTimeout)
+	}
 	if err == sql.ErrNoRows {
 		// looks like master
 		return new(float64), nil
@@ -592,22 +649,30 @@ func (n *Node) SetWritable() error {
 
 // StopSlave stops replication (both IO and SQL threads)
 func (n *Node) StopSlave() error {
-	return n.execWithTimeout(queryStopSlave, nil, n.config.DBStopSlaveSQLThreadTimeout)
+	return n.execMogrifyWithTimeout(queryStopSlave, map[string]interface{}{
+		"channel": n.config.ReplicationChannel,
+	}, n.config.DBStopSlaveSQLThreadTimeout)
 }
 
 // StartSlave starts replication (both IO and SQL threads)
 func (n *Node) StartSlave() error {
-	return n.exec(queryStartSlave, nil)
+	return n.execMogrify(queryStartSlave, map[string]interface{}{
+		"channel": n.config.ReplicationChannel,
+	})
 }
 
 // StopSlaveIOThread stops IO replication thread
 func (n *Node) StopSlaveIOThread() error {
-	return n.exec(queryStopSlaveIOThread, nil)
+	return n.execMogrify(queryStopSlaveIOThread, map[string]interface{}{
+		"channel": n.config.ReplicationChannel,
+	})
 }
 
 // StartSlaveIOThread starts IO replication thread
 func (n *Node) StartSlaveIOThread() error {
-	return n.exec(queryStartSlaveIOThread, nil)
+	return n.execMogrify(queryStartSlaveIOThread, map[string]interface{}{
+		"channel": n.config.ReplicationChannel,
+	})
 }
 
 // RestartSlaveIOThread stops IO replication thread
@@ -621,17 +686,23 @@ func (n *Node) RestartSlaveIOThread() error {
 
 // StopSlaveSQLThread stops SQL replication thread
 func (n *Node) StopSlaveSQLThread() error {
-	return n.execWithTimeout(queryStopSlaveSQLThread, nil, n.config.DBStopSlaveSQLThreadTimeout)
+	return n.execMogrifyWithTimeout(queryStopSlaveSQLThread, map[string]interface{}{
+		"channel": n.config.ReplicationChannel,
+	}, n.config.DBStopSlaveSQLThreadTimeout)
 }
 
 // StartSlaveSQLThread starts SQL replication thread
 func (n *Node) StartSlaveSQLThread() error {
-	return n.exec(queryStartSlaveSQLThread, nil)
+	return n.execMogrify(queryStartSlaveSQLThread, map[string]interface{}{
+		"channel": n.config.ReplicationChannel,
+	})
 }
 
 // ResetSlaveAll promotes MySQL Node to be master
 func (n *Node) ResetSlaveAll() error {
-	return n.exec(queryResetSlaveAll, nil)
+	return n.execMogrify(queryResetSlaveAll, map[string]interface{}{
+		"channel": n.config.ReplicationChannel,
+	})
 }
 
 // SemiSyncStatus returns semi sync status
@@ -704,6 +775,7 @@ func (n *Node) ChangeMaster(host string) error {
 		"retryCount":      n.config.MySQL.ReplicationRetryCount,
 		"connectRetry":    n.config.MySQL.ReplicationConnectRetry,
 		"heartbeatPeriod": n.config.MySQL.ReplicationHeartbeatPeriod,
+		"channel":         n.config.ReplicationChannel,
 	})
 }
 

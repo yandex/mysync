@@ -34,7 +34,7 @@ type NodeConfiguration struct {
 	Priority int64 `json:"priority"`
 }
 
-// SlaveStatus contains SHOW SLAVE STATUS response
+// SlaveStatus contains SHOW SLAVE/REPLICA STATUS response
 type SlaveStatus struct {
 	MasterHost       string `db:"Master_Host"`
 	MasterPort       int    `db:"Master_Port"`
@@ -110,4 +110,29 @@ type offlineModeStatus struct {
 
 func (ev Event) String() string {
 	return fmt.Sprintf("`%s`.`%s`", ev.Schema, ev.Name)
+}
+
+type Version struct {
+	MajorVersion string `db:"MajorVersion"`
+	FullVersion  string `db:"FullVersion"`
+}
+
+const (
+	Version80              = "8.0"
+	Version80ReplicaStatus = "8.0.22"
+	Version57              = "5.7"
+)
+
+func (v *Version) GetSlaveStatusQuery() string {
+	switch v.MajorVersion {
+	case Version80:
+		if v.FullVersion >= Version80ReplicaStatus {
+			return queryReplicaStatus
+		}
+		return querySlaveStatus
+	case Version57:
+		return querySlaveStatus
+	default:
+		return queryReplicaStatus
+	}
 }
