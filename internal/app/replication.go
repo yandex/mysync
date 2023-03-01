@@ -16,9 +16,19 @@ const (
 	ResetSlave
 )
 
+type OfflineModeDecisionType int
+
+const (
+	OfflineDontNeeded OfflineModeDecisionType = iota
+	OfflinePlanned
+	OfflineCompleted
+)
+
 type ReplicationRepairState struct {
-	LastAttempt time.Time
-	History     map[ReplicationRepairAlgorithmType]int
+	LastAttempt         time.Time
+	History             map[ReplicationRepairAlgorithmType]int
+	OfflineDecision     OfflineModeDecisionType
+	OfflineDecisionTime time.Time
 }
 
 func (app *App) MarkReplicationRunning(node *mysql.Node) {
@@ -35,14 +45,7 @@ func (app *App) MarkReplicationRunning(node *mysql.Node) {
 }
 
 func (app *App) TryRepairReplication(node *mysql.Node, master string) {
-	var replState *ReplicationRepairState
-
-	if state, ok := app.replRepairState[node.Host()]; ok {
-		replState = state
-	} else {
-		replState = app.createRepairState()
-		app.replRepairState[node.Host()] = replState
-	}
+	replState := app.getOrCreateHostRepairState(node.Host())
 
 	if !replState.cooldownPassed(app.config.ReplicationRepairCooldown) {
 		return
@@ -51,6 +54,7 @@ func (app *App) TryRepairReplication(node *mysql.Node, master string) {
 	algorithmType, count, err := app.getSuitableAlgorithmType(replState)
 	if err != nil {
 		app.logger.Errorf("repair error: host %s, %v", node.Host(), err)
+		app.setOfflineMode(node.Host(), OfflinePlanned)
 		return
 	}
 
@@ -111,7 +115,7 @@ func ResetSlaveAlgorithm(app *App, node *mysql.Node, master string) error {
 }
 
 func (app *App) getSuitableAlgorithmType(state *ReplicationRepairState) (ReplicationRepairAlgorithmType, int, error) {
-	for i := range app.getAlgorithOrder() {
+	for i := range app.getAlgorithmOrder() {
 		algorithmType := ReplicationRepairAlgorithmType(i)
 		count := state.History[algorithmType]
 		if count < app.config.ReplicationRepairMaxAttempts {
@@ -128,13 +132,33 @@ func (state *ReplicationRepairState) cooldownPassed(replicationRepairCooldown ti
 	return state.LastAttempt.Before(cooldown)
 }
 
-func (app *App) createRepairState() *ReplicationRepairState {
-	result := ReplicationRepairState{
-		LastAttempt: time.Now(),
-		History:     make(map[ReplicationRepairAlgorithmType]int),
+func (app *App) getOrCreateHostRepairState(host string) *ReplicationRepairState {
+	var replState *ReplicationRepairState
+	if state, ok := app.replRepairState[host]; ok {
+		replState = state
+	} else {
+		replState = app.createRepairState()
+		app.replRepairState[host] = replState
 	}
 
-	for i := range app.getAlgorithOrder() {
+	return replState
+}
+
+func (app *App) setOfflineMode(host string, decision OfflineModeDecisionType) {
+	state := app.getOrCreateHostRepairState(host)
+	state.OfflineDecision = decision
+	state.OfflineDecisionTime = time.Now()
+}
+
+func (app *App) createRepairState() *ReplicationRepairState {
+	result := ReplicationRepairState{
+		LastAttempt:         time.Now(),
+		History:             make(map[ReplicationRepairAlgorithmType]int),
+		OfflineDecision:     OfflineDontNeeded,
+		OfflineDecisionTime: time.Now(),
+	}
+
+	for i := range app.getAlgorithmOrder() {
 		result.History[ReplicationRepairAlgorithmType(i)] = 0
 	}
 
@@ -150,7 +174,7 @@ var aggressiveOrder = []ReplicationRepairAlgorithmType{
 	ResetSlave,
 }
 
-func (app *App) getAlgorithOrder() []ReplicationRepairAlgorithmType {
+func (app *App) getAlgorithmOrder() []ReplicationRepairAlgorithmType {
 	if app.config.ReplicationRepairAggressiveMode {
 		return aggressiveOrder
 	} else {

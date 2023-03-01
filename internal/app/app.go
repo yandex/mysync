@@ -1612,11 +1612,8 @@ func (app *App) repairSlaveNode(node *mysql.Node, clusterState map[string]*NodeS
 	if state.SlaveState != nil {
 		if state.SlaveState.ReplicationState == mysql.ReplicationError {
 			if result, code := state.IsReplicationPermanentlyBroken(); result {
-				app.logger.Warnf("repair: replication on host %v is permanently broken, error code: %d. Trying set replica offline", host, code)
-				err := node.SetOffline()
-				if err != nil {
-					app.logger.Infof("repair: error while setting offline %v", err)
-				}
+				app.logger.Warnf("repair: replication on host %v is permanently broken, error code: %d", host, code)
+				app.setOfflineMode(node.Host(), OfflinePlanned)
 			} else {
 				app.TryRepairReplication(node, master)
 			}
