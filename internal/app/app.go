@@ -1405,6 +1405,10 @@ func (app *App) repairMasterOfflineMode(host string, node *mysql.Node, state *No
 func (app *App) repairSlaveOfflineMode(host string, node *mysql.Node, state *NodeState, masterState *NodeState) {
 	if state.SlaveState != nil && state.SlaveState.ReplicationLag != nil {
 		if state.IsOffline && *state.SlaveState.ReplicationLag <= app.config.OfflineModeDisableLag.Seconds() {
+			if result, _ := state.IsReplicationPermanentlyBroken(); result {
+				app.logger.Infof("repair: replica %s is permanently broken, won't set online", host)
+				return
+			}
 			err := node.SetOnline()
 			if app.IsRecoveryNeeded(host) {
 				return
@@ -1608,7 +1612,11 @@ func (app *App) repairSlaveNode(node *mysql.Node, clusterState map[string]*NodeS
 	if state.SlaveState != nil {
 		if state.SlaveState.ReplicationState == mysql.ReplicationError {
 			if result, code := state.IsReplicationPermanentlyBroken(); result {
-				app.logger.Warnf("repair: replication on host %v is permanently broken, error code: %d", host, code)
+				app.logger.Warnf("repair: replication on host %v is permanently broken, error code: %d. Trying set replica offline", host, code)
+				err := node.SetOffline()
+				if err != nil {
+					app.logger.Infof("repair: error while setting offline %v", err)
+				}
 			} else {
 				app.TryRepairReplication(node, master)
 			}
@@ -2196,6 +2204,14 @@ func (app *App) Run() int {
 	go app.recoveryChecker(ctx)
 	go app.stateFileHandler(ctx)
 
+	handlers := map[appState](func() appState){
+		stateFirstRun:    app.stateFirstRun,
+		stateManager:     app.stateManager,
+		stateCandidate:   app.stateCandidate,
+		stateLost:        app.stateLost,
+		stateMaintenance: app.stateMaintenance,
+	}
+
 	ticker := time.NewTicker(app.config.TickInterval)
 	for {
 		select {
@@ -2203,13 +2219,7 @@ func (app *App) Run() int {
 			// run states without sleep while app.state changes
 			for {
 				app.logger.Infof("mysync state: %s", app.state)
-				stateHandler := map[appState](func() appState){
-					stateFirstRun:    app.stateFirstRun,
-					stateManager:     app.stateManager,
-					stateCandidate:   app.stateCandidate,
-					stateLost:        app.stateLost,
-					stateMaintenance: app.stateMaintenance,
-				}[app.state]
+				stateHandler := handlers[app.state]
 				if stateHandler == nil {
 					panic(fmt.Sprintf("unknown state: %s", app.state))
 				}
