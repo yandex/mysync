@@ -222,8 +222,8 @@ func (app *App) stateFileHandler(ctx context.Context) {
 	}
 }
 
-func (app *App) SetResetupStatus(status bool) {
-	err := app.setResetupStatus(app.cluster.Local().Host(), status)
+func (app *App) SetResetupStatus() {
+	err := app.setResetupStatus(app.cluster.Local().Host(), app.doesResetupFileExist())
 	if err != nil {
 		app.logger.Errorf("recovery: failed to set resetup status: %v", err)
 	}
@@ -237,7 +237,7 @@ func (app *App) recoveryChecker(ctx context.Context) {
 		case <-ticker.C:
 			app.checkRecovery()
 			app.checkCrashRecovery()
-			app.SetResetupStatus(app.doesResetupFileExist())
+			app.SetResetupStatus()
 		case <-ctx.Done():
 			return
 		}
