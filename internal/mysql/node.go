@@ -482,17 +482,16 @@ func (n *Node) Ping() (bool, error) {
 	return result.Ok > 0, err
 }
 
-// SlaveStatus returns slave status or nil if node is master
-func (n *Node) SlaveStatus() (*SlaveStatus, error) {
-	return n.SlaveStatusWithTimeout(n.config.DBTimeout)
+// SlaveOrReplicaStatus returns slave/replica status or nil if node is master
+func (n *Node) SlaveOrReplicaStatus() (SlaveOrReplicaStatus, error) {
+	return n.SlaveOrReplicaStatusWithTimeout(n.config.DBTimeout)
 }
 
-func (n *Node) SlaveStatusWithTimeout(timeout time.Duration) (*SlaveStatus, error) {
-	query, err := n.GetVersionSlaveStatusQueryWithTimeout(timeout)
+func (n *Node) SlaveOrReplicaStatusWithTimeout(timeout time.Duration) (SlaveOrReplicaStatus, error) {
+	query, status, err := n.GetVersionSlaveStatusQueryWithTimeout(timeout)
 	if err != nil {
 		return nil, nil
 	}
-	status := new(SlaveStatus)
 	err = n.queryRowMogrifyWithTimeout(query, map[string]interface{}{
 		"channel": n.config.ReplicationChannel,
 	}, status, timeout)
@@ -502,17 +501,17 @@ func (n *Node) SlaveStatusWithTimeout(timeout time.Duration) (*SlaveStatus, erro
 	return status, err
 }
 
-func (n *Node) GetVersionSlaveStatusQueryWithTimeout(timeout time.Duration) (string, error) {
+func (n *Node) GetVersionSlaveStatusQueryWithTimeout(timeout time.Duration) (string, SlaveOrReplicaStatus, error) {
 	if n.version != nil {
-		return n.version.GetSlaveStatusQuery(), nil
+		return n.version.GetSlaveStatusQuery(), nil, nil
 	}
 	v := new(Version)
 	err := n.queryRowWithTimeout(queryGetVersion, nil, v, timeout)
 	if err != nil {
-		return "", err
+		return "", nil, err
 	}
 	n.version = v
-	return n.version.GetSlaveStatusQuery(), err
+	return n.version.GetSlaveStatusQuery(), n.version.GetSlaveOrReplicaStruct(), err
 }
 
 // ReplicationLag returns slave replication lag in seconds
@@ -523,7 +522,7 @@ func (n *Node) ReplicationLag() (*float64, error) {
 	if n.getQuery(queryReplicationLag) != "" {
 		err = n.queryRow(queryReplicationLag, nil, lag)
 	} else {
-		query, err2 := n.GetVersionSlaveStatusQueryWithTimeout(n.config.DBTimeout)
+		query, _, err2 := n.GetVersionSlaveStatusQueryWithTimeout(n.config.DBTimeout)
 		if err2 != nil {
 			return nil, nil
 		}
