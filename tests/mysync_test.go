@@ -362,8 +362,17 @@ func (tctx *testContext) runSlaveStatusQuery(host string) ([]map[string]interfac
 		return nil, err
 	}
 	MajorVersion, err := strconv.Atoi(res[0]["MajorVersion"].(string))
+	if err != nil {
+		return nil, err
+	}
 	MinorVersion, err := strconv.Atoi(res[0]["MinorVersion"].(string))
+	if err != nil {
+		return nil, err
+	}
 	PatchVersion, err := strconv.Atoi(res[0]["PatchVersion"].(string))
+	if err != nil {
+		return nil, err
+	}
 	v := mysql_internal.Version{MajorVersion: MajorVersion, MinorVersion: MinorVersion, PatchVersion: PatchVersion}
 	query = mysql_internal.DefaultQueries[v.GetSlaveStatusQuery()]
 	query = mysql_internal.Mogrify(query, map[string]interface{}{
