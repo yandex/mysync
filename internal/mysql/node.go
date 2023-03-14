@@ -503,7 +503,7 @@ func (n *Node) SlaveOrReplicaStatusWithTimeout(timeout time.Duration) (SlaveOrRe
 
 func (n *Node) GetVersionSlaveStatusQueryWithTimeout(timeout time.Duration) (string, SlaveOrReplicaStatus, error) {
 	if n.version != nil {
-		return n.version.GetSlaveStatusQuery(), nil, nil
+		return n.version.GetSlaveStatusQuery(), n.version.GetSlaveOrReplicaStruct(), nil
 	}
 	v := new(Version)
 	err := n.queryRowWithTimeout(queryGetVersion, nil, v, timeout)
