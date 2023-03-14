@@ -360,7 +360,7 @@ func (tctx *testContext) runSlaveStatusQuery(host string) ([]map[string]interfac
 	if err != nil {
 		return nil, err
 	}
-	v := mysql_internal.Version{MajorVersion: res[0]["MajorVersion"].(int), MinorVersion: res[0]["FullVersion"].(int), PatchVersion: res[0]["PatchVersion"].(int)}
+	v := mysql_internal.Version{MajorVersion: res[0]["MajorVersion"].(string), MinorVersion: res[0]["MinorVersion"].(string), PatchVersion: res[0]["PatchVersion"].(string)}
 	query = mysql_internal.DefaultQueries[v.GetSlaveStatusQuery()]
 	query = mysql_internal.Mogrify(query, map[string]interface{}{
 		"channel": replicationChannel,

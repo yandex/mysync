@@ -226,16 +226,16 @@ func (ev Event) String() string {
 }
 
 type Version struct {
-	MajorVersion int `db:"MajorVersion"`
-	MinorVersion int `db:"MinorVersion"`
-	PatchVersion int `db:"PatchVersion"`
+	MajorVersion string `db:"MajorVersion"`
+	MinorVersion string `db:"MinorVersion"`
+	PatchVersion string `db:"PatchVersion"`
 }
 
 const (
-	Version80Major              = 8
-	Version80Minor              = 0
-	Version80PatchReplicaStatus = 22
-	Version57Major              = 5
+	Version80Major              = "8"
+	Version80Minor              = "0"
+	Version80PatchReplicaStatus = "22"
+	Version57Major              = "5"
 )
 
 func (v *Version) GetSlaveStatusQuery() string {
