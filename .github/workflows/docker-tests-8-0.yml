@@ -18,8 +18,8 @@ jobs:
         id: cache-images
         uses: actions/cache@v3
         with:
-          path: ~/mysync-base-img.tgz
-          key: mysync-base-img
+          path: ~/mysync-base-img8-0.tgz
+          key: mysync-base-img8-0
 
       - name: Check out code into the Go module directory
         if: steps.cache-images.outputs.cache-hit != 'true'
@@ -31,7 +31,7 @@ jobs:
       
       - name: Export image
         if: steps.cache-images.outputs.cache-hit != 'true'
-        run: docker save mysync-test-base | gzip -c > ~/mysync-base-img.tgz
+        run: docker save mysync-test-base8-0 | gzip -c > ~/mysync-base-img8-0.tgz
     
   test:
     name: test
@@ -40,27 +40,27 @@ jobs:
     strategy:
       matrix:
         command:
-          - 'GODOG_FEATURE=active_nodes.feature make test'                                                                        
-          - 'GODOG_FEATURE=async.feature make test'                                                                               
-          - 'GODOG_FEATURE=cascade_replicas.feature make test'                                                                    
-          - 'GODOG_FEATURE=CLI.feature make test'                                                                                 
-          - 'GODOG_FEATURE=crash_recovery.feature make test'                                                                      
-          - 'GODOG_FEATURE=events_reenable.feature make test'                                                                     
-          - 'GODOG_FEATURE=failover.feature make test'                                                                            
-          - 'GODOG_FEATURE=free_space.feature make test'                                                                          
-          - 'GODOG_FEATURE=host_discovery.feature make test'                                                                      
-          - 'GODOG_FEATURE=host_management.feature make test'                                                                     
-          - 'GODOG_FEATURE=maintenance.feature make test'                                                                         
-          - 'GODOG_FEATURE=offline_mode.feature make test'                                                                        
-          - 'GODOG_FEATURE=priority.feature make test'                                                                            
-          - 'GODOG_FEATURE=readonly_filesystem.feature make test'                                                                 
-          - 'GODOG_FEATURE=recovery.feature make test'                                                                            
-          - 'GODOG_FEATURE=repair.feature make test'                                                                              
-          - 'GODOG_FEATURE=statefile.feature make test'                                                                           
-          - 'GODOG_FEATURE=switchover_from.feature make test'                                                                     
-          - 'GODOG_FEATURE=switchover_to.feature make test'                                                                       
-          - 'GODOG_FEATURE=zk_failure.feature make test'                                                                          
-          - 'GODOG_FEATURE=zk_maintenance.feature make test'     
+          - 'VERSION=8-0 GODOG_FEATURE=active_nodes.feature make test'                                                                        
+          - 'VERSION=8-0 GODOG_FEATURE=async.feature make test'                                                                               
+          - 'VERSION=8-0 GODOG_FEATURE=cascade_replicas.feature make test'                                                                    
+          - 'VERSION=8-0 GODOG_FEATURE=CLI.feature make test'                                                                                 
+          - 'VERSION=8-0 GODOG_FEATURE=crash_recovery.feature make test'                                                                      
+          - 'VERSION=8-0 GODOG_FEATURE=events_reenable.feature make test'                                                                     
+          - 'VERSION=8-0 GODOG_FEATURE=failover.feature make test'                                                                            
+          - 'VERSION=8-0 GODOG_FEATURE=free_space.feature make test'                                                                          
+          - 'VERSION=8-0 GODOG_FEATURE=host_discovery.feature make test'                                                                      
+          - 'VERSION=8-0 GODOG_FEATURE=host_management.feature make test'                                                                     
+          - 'VERSION=8-0 GODOG_FEATURE=maintenance.feature make test'                                                                         
+          - 'VERSION=8-0 GODOG_FEATURE=offline_mode.feature make test'                                                                        
+          - 'VERSION=8-0 GODOG_FEATURE=priority.feature make test'                                                                            
+          - 'VERSION=8-0 GODOG_FEATURE=readonly_filesystem.feature make test'                                                                 
+          - 'VERSION=8-0 GODOG_FEATURE=recovery.feature make test'                                                                            
+          - 'VERSION=8-0 GODOG_FEATURE=repair.feature make test'                                                                              
+          - 'VERSION=8-0 GODOG_FEATURE=statefile.feature make test'                                                                           
+          - 'VERSION=8-0 GODOG_FEATURE=switchover_from.feature make test'                                                                     
+          - 'VERSION=8-0 GODOG_FEATURE=switchover_to.feature make test'                                                                       
+          - 'VERSION=8-0 GODOG_FEATURE=zk_failure.feature make test'                                                                          
+          - 'VERSION=8-0 GODOG_FEATURE=zk_maintenance.feature make test'     
       fail-fast: false
 
     steps:
@@ -81,8 +81,8 @@ jobs:
         id: cache-images
         uses: actions/cache@v3
         with:
-          path: ~/mysync-base-img.tgz
-          key: mysync-base-img
+          path: ~/mysync-base-img8-0.tgz
+          key: mysync-base-img8-0
 
       - name: Fail if no cached images
         if: steps.cache-images.outputs.cache-hit != 'true'
@@ -91,7 +91,7 @@ jobs:
           exit 1
       
       - name: Import image
-        run: docker load -i ~/mysync-base-img.tgz
+        run: docker load -i ~/mysync-base-img8-0.tgz
         
       - name: Run test
         run: ${{ matrix.command }}
