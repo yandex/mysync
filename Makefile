@@ -18,7 +18,7 @@ base_img_8_0:
 	docker build --tag=mysync-test-base8-0 tests/images/base
 
 jepsen_base_img:
-	docker build --tag=mysync-jepsen-test-base tests/images/jepsen_common
+	docker build --tag=mysync-jepsen-test-base tests/images/jepsen_common --build-arg MYSQL_VERSION=
 
 test:
 	GOOS=linux go build -o ./cmd/mysync/mysync ./cmd/mysync/...
