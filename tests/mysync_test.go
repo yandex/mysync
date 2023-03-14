@@ -395,12 +395,12 @@ func (tctx *testContext) stepClusterEnvironmentIs(body *godog.DocString) error {
 			env = append(env, e)
 		}
 	}
-	tctx.composerEnv = env
 	version, _ := os.LookupEnv("VERSION")
 	if version != "" {
 		v := fmt.Sprintf("VERSION=%s", version)
 		env = append(env, v)
 	}
+	tctx.composerEnv = env
 	return nil
 }
 
