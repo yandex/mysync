@@ -9,6 +9,7 @@ import (
 	"log"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"sync"
 	"testing"
@@ -360,7 +361,10 @@ func (tctx *testContext) runSlaveStatusQuery(host string) ([]map[string]interfac
 	if err != nil {
 		return nil, err
 	}
-	v := mysql_internal.Version{MajorVersion: res[0]["MajorVersion"].(string), MinorVersion: res[0]["MinorVersion"].(string), PatchVersion: res[0]["PatchVersion"].(string)}
+	MajorVersion, err := strconv.Atoi(res[0]["MajorVersion"].(string))
+	MinorVersion, err := strconv.Atoi(res[0]["MinorVersion"].(string))
+	PatchVersion, err := strconv.Atoi(res[0]["PatchVersion"].(string))
+	v := mysql_internal.Version{MajorVersion: MajorVersion, MinorVersion: MinorVersion, PatchVersion: PatchVersion}
 	query = mysql_internal.DefaultQueries[v.GetSlaveStatusQuery()]
 	query = mysql_internal.Mogrify(query, map[string]interface{}{
 		"channel": replicationChannel,
