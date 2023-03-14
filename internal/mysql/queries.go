@@ -42,7 +42,7 @@ var DefaultQueries = map[string]string{
 	queryPing:                `SELECT 1 AS Ok`,
 	querySlaveStatus:         `SHOW SLAVE STATUS FOR CHANNEL :channel`,
 	queryReplicaStatus:       `SHOW REPLICA STATUS FOR CHANNEL :channel`,
-	queryGetVersion:          `SELECT SUBSTRING(VERSION(), 1, 3) AS MajorVersion,  SUBSTRING_INDEX(VERSION(), '-', 1) as FullVersion`,
+	queryGetVersion:          `SELECT sys.version_major() AS MajorVersion, sys.version_minor() AS MinorVersion, sys.version_patch() AS PatchVersion`,
 	queryGTIDExecuted:        `SELECT @@GLOBAL.gtid_executed  as Executed_Gtid_Set`,
 	queryShowBinaryLogs:      `SHOW BINARY LOGS`,
 	querySlaveHosts:          `SHOW SLAVE HOSTS`,

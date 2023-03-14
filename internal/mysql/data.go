@@ -227,23 +227,25 @@ func (ev Event) String() string {
 
 type Version struct {
 	MajorVersion string `db:"MajorVersion"`
-	FullVersion  string `db:"FullVersion"`
+	MinorVersion string `db:"MinorVersion"`
+	PatchVersion string `db:"PatchVersion"`
 }
 
 const (
-	Version80              = "8.0"
-	Version80ReplicaStatus = "8.0.22"
-	Version57              = "5.7"
+	Version80Major              = "8"
+	Version80Minor              = "0"
+	Version80PatchReplicaStatus = "22"
+	Version57Major              = "5"
 )
 
 func (v *Version) GetSlaveStatusQuery() string {
 	switch v.MajorVersion {
-	case Version80:
-		if v.FullVersion >= Version80ReplicaStatus {
+	case Version80Major:
+		if v.MinorVersion > Version80Minor || v.PatchVersion >= Version80PatchReplicaStatus {
 			return queryReplicaStatus
 		}
 		return querySlaveStatus
-	case Version57:
+	case Version57Major:
 		return querySlaveStatus
 	default:
 		return queryReplicaStatus
@@ -252,12 +254,12 @@ func (v *Version) GetSlaveStatusQuery() string {
 
 func (v *Version) GetSlaveOrReplicaStruct() SlaveOrReplicaStatus {
 	switch v.MajorVersion {
-	case Version80:
-		if v.FullVersion >= Version80ReplicaStatus {
+	case Version80Major:
+		if v.MinorVersion > Version80Minor || v.PatchVersion >= Version80PatchReplicaStatus {
 			return new(ReplicaStatus)
 		}
 		return new(SlaveStatus)
-	case Version57:
+	case Version57Major:
 		return new(SlaveStatus)
 	default:
 		return new(ReplicaStatus)
