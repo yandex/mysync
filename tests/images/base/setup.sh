@@ -57,7 +57,8 @@ apt-get install \
     percona-xtradb-cluster-server${MYSQL_VERSION} \
     percona-xtradb-cluster-client${MYSQL_VERSION} \
     percona-xtradb-cluster-common${MYSQL_VERSION} \
-    percona-xtrabackup-24
+    percona-xtrabackup-24 \
+    2>1
 rm -rf /var/lib/mysql/*
 
 # supervisor
