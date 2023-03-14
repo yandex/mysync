@@ -126,7 +126,7 @@ func (dc *DockerComposer) Up(env []string) error {
 	for _, v := range env {
 		fmt.Println(v)
 	}
-	err := dc.runCompose([]string{"up", "-d", "--force-recreate", "-t", strconv.Itoa(int(defaultDockerComposeTimeout / time.Second))}, env)
+	err := dc.runCompose([]string{"up", "-d", "--force-recreate", "-t", strconv.Itoa(int(defaultDockerComposeTimeout / time.Second)), "VERSION=8-0"}, env)
 	if err != nil {
 		// to save container logs
 		_ = dc.fillContainers()
