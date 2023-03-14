@@ -123,7 +123,7 @@ func (dc *DockerComposer) fillContainers() error {
 // Up brings all containers up according to config
 func (dc *DockerComposer) Up(env []string) error {
 	fmt.Println("env vars:")
-	for v := range env {
+	for _, v := range env {
 		fmt.Println(v)
 	}
 	err := dc.runCompose([]string{"up", "-d", "--force-recreate", "-t", strconv.Itoa(int(defaultDockerComposeTimeout / time.Second))}, env)
