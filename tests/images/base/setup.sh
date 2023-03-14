@@ -54,9 +54,9 @@ chmod 0600 /root/.ssh/*
 
 # mysql
 apt-get install \
-    percona-xtradb-cluster-server-${MYSQL_VERSION} \
-    percona-xtradb-cluster-client-${MYSQL_VERSION} \
-    percona-xtradb-cluster-common-${MYSQL_VERSION} \
+    percona-xtradb-cluster-server${MYSQL_VERSION} \
+    percona-xtradb-cluster-client${MYSQL_VERSION} \
+    percona-xtradb-cluster-common${MYSQL_VERSION} \
     percona-xtrabackup-24
 rm -rf /var/lib/mysql/*
 
