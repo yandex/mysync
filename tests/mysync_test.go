@@ -355,12 +355,12 @@ func (tctx *testContext) doMysqlQuery(db *sqlx.DB, query string, args interface{
 }
 
 func (tctx *testContext) runSlaveStatusQuery(host string) ([]map[string]interface{}, error) {
-	query := "SELECT SUBSTRING(VERSION(), 1, 3) AS MajorVersion,  SUBSTRING_INDEX(VERSION(), '-', 1) as FullVersion"
+	query := "SELECT sys.version_major() AS MajorVersion, sys.version_minor() AS MinorVersion, sys.version_patch() AS PatchVersion"
 	res, err := tctx.queryMysql(host, query, nil)
 	if err != nil {
 		return nil, err
 	}
-	v := mysql_internal.Version{MajorVersion: res[0]["MajorVersion"].(string), FullVersion: res[0]["FullVersion"].(string)}
+	v := mysql_internal.Version{MajorVersion: res[0]["MajorVersion"].(string), MinorVersion: res[0]["FullVersion"].(string), PatchVersion: res[0]["PatchVersion"].(string)}
 	query = mysql_internal.DefaultQueries[v.GetSlaveStatusQuery()]
 	query = mysql_internal.Mogrify(query, map[string]interface{}{
 		"channel": replicationChannel,
