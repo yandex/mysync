@@ -9,6 +9,7 @@ services:
         - 2181
     privileged: true
     environment:
+      VERSION:
       ZK_SERVERS: server.1=zoo1:2888:3888, server.2=zoo2:2888:3888, server.3=zoo3:2888:3888
       ZK_MYID: 1
     healthcheck:
@@ -29,6 +30,7 @@ services:
         - 2181
     privileged: true
     environment:
+      VERSION:
       ZK_SERVERS: server.1=zoo1:2888:3888, server.2=zoo2:2888:3888, server.3=zoo3:2888:3888
       ZK_MYID: 2
     networks:
@@ -43,6 +45,7 @@ services:
         - 2181
     privileged: true
     environment:
+      VERSION:
       ZK_SERVERS: server.1=zoo1:2888:3888, server.2=zoo2:2888:3888, server.3=zoo3:2888:3888
       ZK_MYID: 3
     networks:
@@ -76,6 +79,7 @@ services:
       MYSYNC_RESETUP_CRASHED_HOSTS:
       MYSYNC_REPLICATION_REPAIR_AGGRESSIVE_MODE:
       MYSYNC_SET_RO_TIMEOUT:
+      VERSION:
     healthcheck:
       test: "mysql --user=admin --password=admin_pwd -e 'SELECT 1'"
       start_period: 30s
@@ -116,6 +120,7 @@ services:
       MYSYNC_RESETUP_CRASHED_HOSTS:
       MYSYNC_REPLICATION_REPAIR_AGGRESSIVE_MODE:
       MYSYNC_SET_RO_TIMEOUT:
+      VERSION:
     depends_on:
       mysql1:
         condition: service_healthy
@@ -150,6 +155,7 @@ services:
       MYSYNC_RESETUP_CRASHED_HOSTS:
       MYSYNC_REPLICATION_REPAIR_AGGRESSIVE_MODE:
       MYSYNC_SET_RO_TIMEOUT:
+      VERSION:
     depends_on:
       mysql1:
         condition: service_healthy
