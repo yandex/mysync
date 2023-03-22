@@ -19,7 +19,7 @@ jobs:
         uses: actions/cache@v3
         with:
           path: ~/mysync-base-img.tgz
-          key: mysync-base-img
+          key: mysync-base-img-${{ hashFiles('tests/images/base/*') }}
 
       - name: Check out code into the Go module directory
         if: steps.cache-images.outputs.cache-hit != 'true'
@@ -82,7 +82,7 @@ jobs:
         uses: actions/cache@v3
         with:
           path: ~/mysync-base-img.tgz
-          key: mysync-base-img
+          key: mysync-base-img-${{ hashFiles('tests/images/base/*') }}
 
       - name: Fail if no cached images
         if: steps.cache-images.outputs.cache-hit != 'true'
