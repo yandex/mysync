@@ -373,6 +373,8 @@ func (tctx *testContext) runSlaveStatusQuery(host string) ([]map[string]interfac
 	if err != nil {
 		return nil, err
 	}
+	ln := fmt.Sprintf("mysql version is %d %d %d", MajorVersion, MinorVersion, PatchVersion)
+	fmt.Println(ln)
 	v := mysql_internal.Version{MajorVersion: MajorVersion, MinorVersion: MinorVersion, PatchVersion: PatchVersion}
 	query = mysql_internal.DefaultQueries[v.GetSlaveStatusQuery()]
 	query = mysql_internal.Mogrify(query, map[string]interface{}{

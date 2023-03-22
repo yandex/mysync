@@ -55,13 +55,11 @@ chmod 0600 /root/.ssh/*
 # mysql
 if [[ "$MYSQL_VERSION" == "8.0" ]]; then
   apt-get install \
-    percona-xtradb-cluster-server \
-    percona-xtrabackup-24
+    percona-server-server \
+    percona-xtrabackup-80
 else
   apt-get install \
-      percona-xtradb-cluster-server${MYSQL_VERSION} \
-      percona-xtradb-cluster-client${MYSQL_VERSION} \
-      percona-xtradb-cluster-common${MYSQL_VERSION} \
+      percona-server-server-${MYSQL_VERSION} \
       percona-xtrabackup-24
 fi
 rm -rf /var/lib/mysql/*
