@@ -14,16 +14,15 @@ jobs:
     name: Build images
     runs-on: ubuntu-20.04
     steps:
+      - name: Check out code into the Go module directory
+        uses: actions/checkout@v3
+
       - name: Docker images caching
         id: cache-images
         uses: actions/cache@v3
         with:
           path: ~/mysync-base-img.tgz
           key: mysync-base-img-${{ hashFiles('tests/images/base/*') }}
-
-      - name: Check out code into the Go module directory
-        if: steps.cache-images.outputs.cache-hit != 'true'
-        uses: actions/checkout@v3
 
       - name: Build images
         if: steps.cache-images.outputs.cache-hit != 'true'
