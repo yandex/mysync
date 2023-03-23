@@ -62,12 +62,13 @@ if [[ "$MYSQL_VERSION" == "8.0" ]]; then
   apt-get install \
     percona-server-server \
     percona-xtrabackup-80
+  rm -rf /var/lib/mysql/auto.cnf
 else
   apt-get install \
       percona-server-server-${MYSQL_VERSION} \
       percona-xtrabackup-24
+    rm -rf /var/lib/mysql/*
 fi
-rm -rf /var/lib/mysql/*
 
 # supervisor
 pip3 install git+https://github.com/Supervisor/supervisor.git@4619168a4d820b37641a4719e211cf867bd7f49d
