@@ -38,7 +38,6 @@ apt-get install \
     faketime \
     rsync \
     vim \
-    curl \
     iptables
 rm -rf /var/run
 ln -s /dev/shm /var/run
@@ -55,20 +54,17 @@ chmod 0600 /root/.ssh/*
 
 # mysql
 if [[ "$MYSQL_VERSION" == "8.0" ]]; then
-  curl -O https://repo.percona.com/apt/percona-release_latest.generic_all.deb
-  sudo apt install gnupg2 lsb-release ./percona-release_latest.generic_all.deb
-  percona-release setup ps80
-  apt-get update
   apt-get install \
     percona-server-server \
     percona-xtrabackup-80
-  rm -rf /var/lib/mysql/auto.cnf
 else
   apt-get install \
-      percona-server-server-${MYSQL_VERSION} \
-      percona-xtrabackup-24
-    rm -rf /var/lib/mysql/*
+    percona-xtradb-cluster-server-${MYSQL_VERSION} \
+    percona-xtradb-cluster-client-${MYSQL_VERSION} \
+    percona-xtradb-cluster-common-${MYSQL_VERSION} \
+    percona-xtrabackup-24
 fi
+rm -rf /var/lib/mysql/*
 
 # supervisor
 pip3 install git+https://github.com/Supervisor/supervisor.git@4619168a4d820b37641a4719e211cf867bd7f49d
