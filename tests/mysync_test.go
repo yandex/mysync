@@ -355,7 +355,7 @@ func (tctx *testContext) doMysqlQuery(db *sqlx.DB, query string, args interface{
 	return result, nil
 }
 
-func (tctx *testContext) runSlaveStatusQuery(host string) ([]map[string]interface{}, error) {
+func (tctx *testContext) runSlaveStatusQuery(host string) (map[string]string, error) {
 	query := "SELECT sys.version_major() AS MajorVersion, sys.version_minor() AS MinorVersion, sys.version_patch() AS PatchVersion"
 	res, err := tctx.queryMysql(host, query, nil)
 	if err != nil {
@@ -381,10 +381,22 @@ func (tctx *testContext) runSlaveStatusQuery(host string) ([]map[string]interfac
 		"channel": replicationChannel,
 	})
 	res, err = tctx.queryMysql(host, query, nil)
-	if err != nil {
+	if len(res) == 0 || err != nil {
 		return nil, err
 	}
-	return res, nil
+	result := make(map[string]string)
+	result["Last_IO_Error"] = res[0]["Last_IO_Error"].(string)
+	result["Last_SQL_Error"] = res[0]["Last_SQL_Error"].(string)
+	if v.CheckIfVersionReplicaStatus() {
+		result["Master_Host"] = res[0]["Source_Host"].(string)
+		result["Slave_IO_Running"] = res[0]["Replica_IO_Running"].(string)
+		result["Slave_SQL_Running"] = res[0]["Replica_SQL_Running"].(string)
+	} else {
+		result["Master_Host"] = res[0]["Master_Host"].(string)
+		result["Slave_IO_Running"] = res[0]["Slave_IO_Running"].(string)
+		result["Slave_SQL_Running"] = res[0]["Slave_SQL_Running"].(string)
+	}
+	return result, nil
 }
 
 func (tctx *testContext) stepClusterEnvironmentIs(body *godog.DocString) error {
@@ -918,7 +930,7 @@ func (tctx *testContext) stepMysqlHostShouldBeMaster(host string) error {
 	if err != nil {
 		return err
 	}
-	if len(res) != 0 {
+	if res == nil {
 		return fmt.Errorf("host %s has not empty slave status", host)
 	}
 	return nil
@@ -995,10 +1007,10 @@ func (tctx *testContext) stepMysqlHostShouldBeReplicaOf(host, master string) err
 	if err != nil {
 		return err
 	}
-	if len(res) == 0 {
+	if res == nil {
 		return fmt.Errorf("host %s has empty slave status", host)
 	}
-	masterHostStr := res[0]["Master_Host"].(string)
+	masterHostStr := res["Master_Host"]
 	if masterHostStr != master {
 		return fmt.Errorf("host %s master is %s, when expected %s", host, masterHostStr, master)
 	}
@@ -1019,16 +1031,16 @@ func (tctx *testContext) stepMysqlReplicationOnHostShouldRunFine(host string) er
 	if err != nil {
 		return err
 	}
-	if len(res) == 0 {
+	if res == nil {
 		return fmt.Errorf("host %s has empty slave status", host)
 	}
-	ioRunning := res[0]["Slave_IO_Running"].(string)
-	ioError := res[0]["Last_IO_Error"].(string)
+	ioRunning := res["Slave_IO_Running"]
+	ioError := res["Last_IO_Error"]
 	if ioRunning != yes {
 		return fmt.Errorf("host %s replication io thread is not running: %s", host, ioError)
 	}
-	sqlRunning := res[0]["Slave_SQL_Running"].(string)
-	sqlError := res[0]["Last_SQL_Error"].(string)
+	sqlRunning := res["Slave_SQL_Running"]
+	sqlError := res["Last_SQL_Error"]
 	if sqlRunning != yes {
 		return fmt.Errorf("host %s replication io thread is not running: %s", host, sqlError)
 	}
@@ -1049,11 +1061,11 @@ func (tctx *testContext) stepMysqlReplicationOnHostShouldNotRunFine(host string)
 	if err != nil {
 		return err
 	}
-	if len(res) == 0 {
+	if res == nil {
 		return fmt.Errorf("host %s has empty slave status", host)
 	}
-	ioRunning := res[0]["Slave_IO_Running"].(string)
-	sqlRunning := res[0]["Slave_SQL_Running"].(string)
+	ioRunning := res["Slave_IO_Running"]
+	sqlRunning := res["Slave_SQL_Running"]
 	if ioRunning != yes || sqlRunning != yes {
 		return nil
 	}

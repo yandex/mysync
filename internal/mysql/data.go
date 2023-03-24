@@ -251,30 +251,32 @@ const (
 	Version57Major              = 5
 )
 
-func (v *Version) GetSlaveStatusQuery() string {
+func (v *Version) CheckIfVersionReplicaStatus() bool {
 	switch v.MajorVersion {
 	case Version80Major:
 		if v.MinorVersion > Version80Minor || v.PatchVersion >= Version80PatchReplicaStatus {
-			return queryReplicaStatus
+			return true
 		}
-		return querySlaveStatus
+		return false
 	case Version57Major:
-		return querySlaveStatus
+		return false
 	default:
+		return true
+	}
+}
+
+func (v *Version) GetSlaveStatusQuery() string {
+	if v.CheckIfVersionReplicaStatus() {
 		return queryReplicaStatus
+	} else {
+		return querySlaveStatus
 	}
 }
 
 func (v *Version) GetSlaveOrReplicaStruct() SlaveOrReplicaStatus {
-	switch v.MajorVersion {
-	case Version80Major:
-		if v.MinorVersion > Version80Minor || v.PatchVersion >= Version80PatchReplicaStatus {
-			return new(ReplicaStatus)
-		}
-		return new(SlaveStatus)
-	case Version57Major:
-		return new(SlaveStatus)
-	default:
+	if v.CheckIfVersionReplicaStatus() {
 		return new(ReplicaStatus)
+	} else {
+		return new(SlaveStatus)
 	}
 }
