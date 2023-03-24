@@ -930,7 +930,7 @@ func (tctx *testContext) stepMysqlHostShouldBeMaster(host string) error {
 	if err != nil {
 		return err
 	}
-	if res == nil {
+	if res != nil {
 		return fmt.Errorf("host %s has not empty slave status", host)
 	}
 	return nil
