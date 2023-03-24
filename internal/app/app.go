@@ -1710,12 +1710,12 @@ func (app *App) repairCascadeNode(node *mysql.Node, clusterState map[string]*Nod
 		// So, fetch cascade replica's Slave/ReplicaStatus here
 		// As a result, we know that myGITIDs fetched AFTER candidate's GTIDs...
 		// We should wait until myGITIDs (fetched later) will be lower or equal to candidateGTIDs (fetched earlier)
-		mySlaveStatue, err := node.SlaveOrReplicaStatus() // retrieve fresh GTIDs
+		mySlaveStatus, err := node.SlaveOrReplicaStatus() // retrieve fresh GTIDs
 		if err != nil {
 			app.logger.Warnf("repair: cannot obtain own SLAVE/REPLICA STATUS")
 			return
 		}
-		myGITIDs := gtids.ParseGtidSet(mySlaveStatue.GetExecutedGtidSet())
+		myGITIDs := gtids.ParseGtidSet(mySlaveStatus.GetExecutedGtidSet())
 
 		candidateState := clusterState[upstreamCandidate]
 		var candidateGTIDs gtids.GTIDSet
@@ -1926,7 +1926,7 @@ func (app *App) getNodeState(host string) *NodeState {
 			nodeState.SlaveState.MasterLogPos = slaveStatus.GetReadMasterLogPos()
 			nodeState.SlaveState.LastIOErrno = slaveStatus.GetLastIOErrno()
 			nodeState.SlaveState.LastSQLErrno = slaveStatus.GetLastSQLErrno()
-			lag, err2 := node.ReplicationLag()
+			lag, err2 := node.ReplicationLag(slaveStatus)
 			if err2 != nil {
 				return err2
 			}
@@ -2133,7 +2133,7 @@ func (app *App) getNodePositions(activeNodes []string) ([]nodePosition, error) {
 		if err != nil || app.emulateError("freeze_slave_status") {
 			return fmt.Errorf("failed to get slave status on host %s: %s", host, err)
 		}
-		lag, err := node.ReplicationLag()
+		lag, err := node.ReplicationLag(sstatus)
 		if err != nil || app.emulateError("freeze_slave_status2") {
 			return fmt.Errorf("failed to get slave replication lag on host %s: %s", host, err)
 		}

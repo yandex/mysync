@@ -42,30 +42,32 @@ type ResetupStatus struct {
 
 // SlaveStatus contains SHOW SLAVE STATUS response
 type SlaveStatus struct {
-	MasterHost       string `db:"Master_Host"`
-	MasterPort       int    `db:"Master_Port"`
-	MasterLogFile    string `db:"Master_Log_File"`
-	ReadMasterLogPos int64  `db:"Read_Master_Log_Pos"`
-	SlaveIORunning   string `db:"Slave_IO_Running"`
-	SlaveSQLRunning  string `db:"Slave_SQL_Running"`
-	RetrievedGtidSet string `db:"Retrieved_Gtid_Set"`
-	ExecutedGtidSet  string `db:"Executed_Gtid_Set"`
-	LastIOErrno      int    `db:"Last_IO_Errno"`
-	LastSQLErrno     int    `db:"Last_SQL_Errno"`
+	MasterHost       string          `db:"Master_Host"`
+	MasterPort       int             `db:"Master_Port"`
+	MasterLogFile    string          `db:"Master_Log_File"`
+	ReadMasterLogPos int64           `db:"Read_Master_Log_Pos"`
+	SlaveIORunning   string          `db:"Slave_IO_Running"`
+	SlaveSQLRunning  string          `db:"Slave_SQL_Running"`
+	RetrievedGtidSet string          `db:"Retrieved_Gtid_Set"`
+	ExecutedGtidSet  string          `db:"Executed_Gtid_Set"`
+	LastIOErrno      int             `db:"Last_IO_Errno"`
+	LastSQLErrno     int             `db:"Last_SQL_Errno"`
+	Lag              sql.NullFloat64 `db:"Seconds_Behind_Master"`
 }
 
 // ReplicaStatus contains SHOW REPLICA STATUS response
 type ReplicaStatus struct {
-	SourceHost        string `db:"Source_Host"`
-	SourcePort        int    `db:"Source_Port"`
-	SourceLogFile     string `db:"Source_Log_File"`
-	ReadSourceLogPos  int64  `db:"Read_Source_Log_Pos"`
-	ReplicaIORunning  string `db:"Replica_IO_Running"`
-	ReplicaSQLRunning string `db:"Replica_SQL_Running"`
-	RetrievedGtidSet  string `db:"Retrieved_Gtid_Set"`
-	ExecutedGtidSet   string `db:"Executed_Gtid_Set"`
-	LastIOErrno       int    `db:"Last_IO_Errno"`
-	LastSQLErrno      int    `db:"Last_SQL_Errno"`
+	SourceHost        string          `db:"Source_Host"`
+	SourcePort        int             `db:"Source_Port"`
+	SourceLogFile     string          `db:"Source_Log_File"`
+	ReadSourceLogPos  int64           `db:"Read_Source_Log_Pos"`
+	ReplicaIORunning  string          `db:"Replica_IO_Running"`
+	ReplicaSQLRunning string          `db:"Replica_SQL_Running"`
+	RetrievedGtidSet  string          `db:"Retrieved_Gtid_Set"`
+	ExecutedGtidSet   string          `db:"Executed_Gtid_Set"`
+	LastIOErrno       int             `db:"Last_IO_Errno"`
+	LastSQLErrno      int             `db:"Last_SQL_Errno"`
+	Lag               sql.NullFloat64 `db:"Seconds_Behind_Source"`
 }
 
 type SlaveOrReplicaStatus interface {
@@ -80,6 +82,7 @@ type SlaveOrReplicaStatus interface {
 	GetRetrievedGtidSet() string
 	GetLastIOErrno() int
 	GetLastSQLErrno() int
+	GetReplicationLag() sql.NullFloat64
 }
 
 // SemiSyncStatus contains semi sync host settings
@@ -171,6 +174,16 @@ func (ss *SlaveStatus) ReplicationRunning() bool {
 func (ss *ReplicaStatus) ReplicationRunning() bool {
 	return ss.ReplicationIORunning() && ss.ReplicationSQLRunning()
 }
+
+func (ss *SlaveStatus) GetReplicationLag() sql.NullFloat64 {
+	return ss.Lag
+}
+
+func (ss *ReplicaStatus) GetReplicationLag() sql.NullFloat64 {
+	return ss.Lag
+}
+
+//GetReplicationLag
 
 // ReplicationState ...
 func (ss *SlaveStatus) ReplicationState() string {
