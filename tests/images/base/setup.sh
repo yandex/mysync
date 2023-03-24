@@ -19,6 +19,7 @@ apt-get install \
 
 apt-key add - < /var/lib/dist/base/percona.gpg
 add-apt-repository 'deb http://mirror.yandex.ru/mirrors/percona/percona/apt bionic main'
+add-apt-repository 'deb http://mirror.yandex.ru/mirrors/percona/ps-80/apt bionic main'
 
 # common
 apt-get update
@@ -55,7 +56,7 @@ chmod 0600 /root/.ssh/*
 # mysql
 if [[ "$MYSQL_VERSION" == "8.0" ]]; then
   apt-get install \
-    percona-server-server \
+    percona-server-server=8.0.\* \
     percona-xtrabackup-80
 else
   apt-get install \
