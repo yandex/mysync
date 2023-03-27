@@ -13,8 +13,8 @@ cat <<EOF > /etc/mysql/init.sql
    GRANT REPLICATION SLAVE ON *.* TO repl@'%';
    CREATE DATABASE test1;
    RESET MASTER;
-   INSTALL PLUGIN rpl_semi_sync_master  SONAME 'semisync_master.so';
-   INSTALL PLUGIN rpl_semi_sync_slave SONAME 'semisync_slave.so';
+   INSTALL PLUGIN rpl_semi_sync_source SONAME 'semisync_source.so';
+   INSTALL PLUGIN rpl_semi_sync_replica  SONAME 'semisync_replica.so';
    SET GLOBAL super_read_only = 1;
 EOF
 
@@ -34,7 +34,8 @@ else
 fi
 
 if [ ! -f /var/lib/mysql/auto.cnf ]; then
-    /usr/sbin/mysqld --initialize --datadir=/var/lib/mysql --init-file=/etc/mysql/init.sql --server-id=$MYSQL_SERVER_ID || true
+    /usr/sbin/mysqld --defaults-file=/etc/mysql/init.cnf \
+    --initialize --datadir=/var/lib/mysql --init-file=/etc/mysql/init.sql --server-id=$MYSQL_SERVER_ID || true
     echo "==INITIALIZED=="
 fi
 
