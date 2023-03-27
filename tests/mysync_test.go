@@ -815,6 +815,7 @@ func (tctx *testContext) stepISetZookeeperNode(node string, body *godog.DocStrin
 	if !json.Valid(data) {
 		return fmt.Errorf("node value is not valid json")
 	}
+	//test
 	_, stat, err := tctx.zk.Get(node)
 	if err != nil && err != zk.ErrNoNode {
 		return err
