@@ -528,7 +528,7 @@ func (n *Node) ReplicationLag(sstatus SlaveOrReplicaStatus) (*float64, error) {
 		if lag.Lag.Valid {
 			return &lag.Lag.Float64, nil
 		}
-	} else {
+	} else if sstatus != nil {
 		l := sstatus.GetReplicationLag()
 		if l.Valid {
 			return &l.Float64, nil
