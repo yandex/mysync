@@ -74,5 +74,5 @@ cp /var/lib/dist/base/supervisor.conf /etc/supervisor/supervisord.conf
 cp /var/lib/dist/base/supervisor_ssh.conf /etc/supervisor/conf.d
 
 # zookeeper
-wget -nc -O - --quiet https://www-eu.apache.org/dist/zookeeper/zookeeper-${ZK_VERSION}/apache-zookeeper-${ZK_VERSION}-bin.tar.gz | tar -xz -C /opt && \
+wget -nc -O - --quiet  https://downloads.apache.org/zookeeper/zookeeper-${ZK_VERSION}/apache-zookeeper-${ZK_VERSION}-bin.tar.gz | tar -xz -C /opt && \
 mv /opt/apache-zookeeper* /opt/zookeeper

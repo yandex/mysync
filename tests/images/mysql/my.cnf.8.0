@@ -36,8 +36,6 @@ explicit_defaults_for_timestamp = ON
 log_timestamps = SYSTEM
 max_allowed_packet = 16M
 thread_stack = 192K
-# query cache is deprecated and will be removed in 8.0
-query_cache_size = 0
 
 max_connections =  200
 thread_handling = one-thread-per-connection
@@ -54,7 +52,7 @@ innodb_autoinc_lock_mode = 2
 innodb_use_native_aio = OFF
 #innodb_flush_method = O_DIRECT
 innodb_flush_log_at_trx_commit = 1
-innodb_use_global_flush_log_at_trx_commit = OFF
+
 
 # Replication
 # server_id = 2  # should set from env
@@ -70,6 +68,14 @@ relay_log_recovery = ON
 log_bin = mysql-bin-log
 relay_log = mysql-relay-log
 sync_binlog = 1
+rpl_semi_sync_master_timeout = 31536000000
+rpl_semi_sync_master_wait_for_slave_count = 1
+rpl_semi_sync_master_wait_no_slave = ON
+rpl_semi_sync_master_wait_point = AFTER_SYNC
+rpl_semi_sync_source_timeout = 31536000000
+rpl_semi_sync_source_wait_for_replica_count = 1
+rpl_semi_sync_source_wait_no_replica = ON
+rpl_semi_sync_source_wait_point = AFTER_SYNC
 
 # we should start in
 # * read-only mode to avoid split brain after restart

@@ -1861,7 +1861,7 @@ func (app *App) performChangeMaster(host, master string) error {
 		return fmt.Errorf("failed to start slave on host %s: %s", host, err)
 	}
 
-	deadline := time.Now().Add(app.config.WaitReplicationStarTimeout)
+	deadline := time.Now().Add(app.config.WaitReplicationStartTimeout)
 	var sstatus mysql.SlaveOrReplicaStatus
 	for time.Now().Before(deadline) {
 		sstatus, err = node.SlaveOrReplicaStatus()

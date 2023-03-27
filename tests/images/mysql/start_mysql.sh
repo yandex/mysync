@@ -13,6 +13,8 @@ cat <<EOF > /etc/mysql/init.sql
    GRANT REPLICATION SLAVE ON *.* TO repl@'%';
    CREATE DATABASE test1;
    RESET MASTER;
+   INSTALL PLUGIN rpl_semi_sync_master  SONAME 'semisync_master.so';
+   INSTALL PLUGIN rpl_semi_sync_slave SONAME 'semisync_slave.so';
    SET GLOBAL super_read_only = 1;
 EOF
 
