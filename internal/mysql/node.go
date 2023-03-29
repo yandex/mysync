@@ -482,8 +482,8 @@ func (n *Node) Ping() (bool, error) {
 	return result.Ok > 0, err
 }
 
-// SlaveOrReplicaStatus returns slave/replica status or nil if node is master
-func (n *Node) SlaveOrReplicaStatus() (SlaveOrReplicaStatus, error) {
+// GetReplicaStatus returns slave/replica status or nil if node is master
+func (n *Node) GetReplicaStatus() (SlaveOrReplicaStatus, error) {
 	return n.SlaveOrReplicaStatusWithTimeout(n.config.DBTimeout)
 }
 

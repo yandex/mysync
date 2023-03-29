@@ -254,7 +254,7 @@ func (app *App) checkRecovery() {
 	}
 
 	localNode := app.cluster.Local()
-	sstatus, err := localNode.SlaveOrReplicaStatus()
+	sstatus, err := localNode.GetReplicaStatus()
 	if err != nil {
 		app.logger.Errorf("recovery: host %s failed to get slave status %v", localNode.Host(), err)
 		return
@@ -315,7 +315,7 @@ func (app *App) checkCrashRecovery() {
 		return
 	}
 	localNode := app.cluster.Local()
-	sstatus, err := localNode.SlaveOrReplicaStatus()
+	sstatus, err := localNode.GetReplicaStatus()
 	if err != nil {
 		app.logger.Errorf("recovery: host %s failed to get slave status %v", localNode.Host(), err)
 		return
@@ -1300,7 +1300,7 @@ func (app *App) performSwitchover(clusterState map[string]*NodeState, activeNode
 
 	// check if need recover old master
 	oldMasterNode := app.cluster.Get(oldMaster)
-	oldMasterSlaveStatus, err := oldMasterNode.SlaveOrReplicaStatus()
+	oldMasterSlaveStatus, err := oldMasterNode.GetReplicaStatus()
 	app.logger.Infof("switchover: old master slave status: %#v", oldMasterSlaveStatus)
 	if err != nil || oldMasterSlaveStatus == nil || isSlavePermanentlyLost(oldMasterSlaveStatus, mostRecentGtidSet) {
 		err = app.SetRecovery(oldMaster)
@@ -1710,7 +1710,7 @@ func (app *App) repairCascadeNode(node *mysql.Node, clusterState map[string]*Nod
 		// So, fetch cascade replica's Slave/ReplicaStatus here
 		// As a result, we know that myGITIDs fetched AFTER candidate's GTIDs...
 		// We should wait until myGITIDs (fetched later) will be lower or equal to candidateGTIDs (fetched earlier)
-		mySlaveStatus, err := node.SlaveOrReplicaStatus() // retrieve fresh GTIDs
+		mySlaveStatus, err := node.GetReplicaStatus() // retrieve fresh GTIDs
 		if err != nil {
 			app.logger.Warnf("repair: cannot obtain own SLAVE/REPLICA STATUS")
 			return
@@ -1864,7 +1864,7 @@ func (app *App) performChangeMaster(host, master string) error {
 	deadline := time.Now().Add(app.config.WaitReplicationStartTimeout)
 	var sstatus mysql.SlaveOrReplicaStatus
 	for time.Now().Before(deadline) {
-		sstatus, err = node.SlaveOrReplicaStatus()
+		sstatus, err = node.GetReplicaStatus()
 		if err != nil {
 			app.logger.Warnf("changemaster: failed to get slave status on host %s: %v", host, err)
 			continue
@@ -1911,7 +1911,7 @@ func (app *App) getNodeState(host string) *NodeState {
 		if err != nil {
 			return err
 		}
-		slaveStatus, err := node.SlaveOrReplicaStatus()
+		slaveStatus, err := node.GetReplicaStatus()
 		if err != nil {
 			return err
 		}
@@ -2129,7 +2129,7 @@ func (app *App) getNodePositions(activeNodes []string) ([]nodePosition, error) {
 	var positionsMutex sync.Mutex
 	errs := util.RunParallel(func(host string) error {
 		node := app.cluster.Get(host)
-		sstatus, err := node.SlaveOrReplicaStatus()
+		sstatus, err := node.GetReplicaStatus()
 		if err != nil || app.emulateError("freeze_slave_status") {
 			return fmt.Errorf("failed to get slave status on host %s: %s", host, err)
 		}

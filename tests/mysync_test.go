@@ -808,7 +808,7 @@ func (tctx *testContext) stepBreakReplicationOnHost(host string) error {
 
 func (tctx *testContext) stepBreakReplicationOnHostInARepairableWay(host string) error {
 	// Kill Replication IO thread:
-	query := "SELECT id FROM information_schema.processlist WHERE state = 'Waiting for master to send event'"
+	query := "SELECT id FROM information_schema.processlist WHERE state = 'Waiting for master to send event' OR state = 'Waiting for source to send event'"
 	queryReqult, err := tctx.queryMysql(host, query, struct{}{})
 	if err != nil {
 		return err
