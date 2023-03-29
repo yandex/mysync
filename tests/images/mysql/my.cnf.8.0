@@ -17,6 +17,7 @@ max_allowed_packet = 16M
 
 [mysqld]
 plugin_load_add = 'rpl_semi_sync_master=semisync_master.so;rpl_semi_sync_slave=semisync_slave.so'
+default_authentication_plugin=mysql_native_password
 user = mysql
 port = 3306
 pid_file = /tmp/mysqld.pid
@@ -29,7 +30,7 @@ basedir	= /usr
 datadir	= /var/lib/mysql
 tmpdir = /tmp
 lc_messages_dir	= /usr/share/mysql
-max-connect-errors = 1000000
+max_connect_errors = 1000000
 local_infile = OFF
 slave_net_timeout = 30
 
