@@ -331,7 +331,7 @@ func (app *App) checkCrashRecovery() {
 func (app *App) checkHAReplicasRunning(local *mysql.Node) bool {
 	checker := func(host string) error {
 		node := app.cluster.Get(host)
-		status, err := node.SlaveOrReplicaStatusWithTimeout(app.config.DBLostCheckTimeout)
+		status, err := node.ReplicaStatusWithTimeout(app.config.DBLostCheckTimeout)
 		if err != nil {
 			return err
 		}
@@ -1707,7 +1707,7 @@ func (app *App) repairCascadeNode(node *mysql.Node, clusterState map[string]*Nod
 		// we have chosen candidate... wait till stream_from will have newer GTID than ours:
 
 		// There is a race between GTID sets: order in which it was fetched is not defined.
-		// So, fetch cascade replica's Slave/ReplicaStatus here
+		// So, fetch cascade replica's ReplicaStatus here
 		// As a result, we know that myGITIDs fetched AFTER candidate's GTIDs...
 		// We should wait until myGITIDs (fetched later) will be lower or equal to candidateGTIDs (fetched earlier)
 		mySlaveStatus, err := node.GetReplicaStatus() // retrieve fresh GTIDs
@@ -1862,7 +1862,7 @@ func (app *App) performChangeMaster(host, master string) error {
 	}
 
 	deadline := time.Now().Add(app.config.WaitReplicationStartTimeout)
-	var sstatus mysql.SlaveOrReplicaStatus
+	var sstatus mysql.ReplicaStatus
 	for time.Now().Before(deadline) {
 		sstatus, err = node.GetReplicaStatus()
 		if err != nil {

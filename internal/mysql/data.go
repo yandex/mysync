@@ -40,8 +40,8 @@ type ResetupStatus struct {
 	UpdateTime time.Time
 }
 
-// SlaveStatus contains SHOW SLAVE STATUS response
-type SlaveStatus struct {
+// SlaveStatusStruct contains SHOW SLAVE STATUS response
+type SlaveStatusStruct struct {
 	MasterHost       string          `db:"Master_Host"`
 	MasterPort       int             `db:"Master_Port"`
 	MasterLogFile    string          `db:"Master_Log_File"`
@@ -55,8 +55,8 @@ type SlaveStatus struct {
 	Lag              sql.NullFloat64 `db:"Seconds_Behind_Master"`
 }
 
-// ReplicaStatus contains SHOW REPLICA STATUS response
-type ReplicaStatus struct {
+// ReplicaStatusStruct contains SHOW REPLICA STATUS response
+type ReplicaStatusStruct struct {
 	SourceHost        string          `db:"Source_Host"`
 	SourcePort        int             `db:"Source_Port"`
 	SourceLogFile     string          `db:"Source_Log_File"`
@@ -70,7 +70,7 @@ type ReplicaStatus struct {
 	Lag               sql.NullFloat64 `db:"Seconds_Behind_Source"`
 }
 
-type SlaveOrReplicaStatus interface {
+type ReplicaStatus interface {
 	ReplicationIORunning() bool
 	ReplicationSQLRunning() bool
 	ReplicationRunning() bool
@@ -92,101 +92,101 @@ type SemiSyncStatus struct {
 	WaitSlaveCount int `db:"WaitSlaveCount"`
 }
 
-func (ss *SlaveStatus) GetMasterHost() string {
+func (ss *SlaveStatusStruct) GetMasterHost() string {
 	return ss.MasterHost
 }
 
-func (ss *SlaveStatus) GetMasterLogFile() string {
+func (ss *SlaveStatusStruct) GetMasterLogFile() string {
 	return ss.MasterLogFile
 }
 
-func (ss *SlaveStatus) GetReadMasterLogPos() int64 {
+func (ss *SlaveStatusStruct) GetReadMasterLogPos() int64 {
 	return ss.ReadMasterLogPos
 }
 
-func (ss *SlaveStatus) GetExecutedGtidSet() string {
+func (ss *SlaveStatusStruct) GetExecutedGtidSet() string {
 	return ss.ExecutedGtidSet
 }
 
-func (ss *SlaveStatus) GetRetrievedGtidSet() string {
+func (ss *SlaveStatusStruct) GetRetrievedGtidSet() string {
 	return ss.RetrievedGtidSet
 }
 
-func (ss *SlaveStatus) GetLastIOErrno() int {
+func (ss *SlaveStatusStruct) GetLastIOErrno() int {
 	return ss.LastIOErrno
 }
 
-func (ss *SlaveStatus) GetLastSQLErrno() int {
+func (ss *SlaveStatusStruct) GetLastSQLErrno() int {
 	return ss.LastSQLErrno
 }
 
-func (ss *ReplicaStatus) GetMasterHost() string {
+func (ss *ReplicaStatusStruct) GetMasterHost() string {
 	return ss.SourceHost
 }
 
-func (ss *ReplicaStatus) GetMasterLogFile() string {
+func (ss *ReplicaStatusStruct) GetMasterLogFile() string {
 	return ss.SourceLogFile
 }
 
-func (ss *ReplicaStatus) GetReadMasterLogPos() int64 {
+func (ss *ReplicaStatusStruct) GetReadMasterLogPos() int64 {
 	return ss.ReadSourceLogPos
 }
 
-func (ss *ReplicaStatus) GetExecutedGtidSet() string {
+func (ss *ReplicaStatusStruct) GetExecutedGtidSet() string {
 	return ss.ExecutedGtidSet
 }
 
-func (ss *ReplicaStatus) GetRetrievedGtidSet() string {
+func (ss *ReplicaStatusStruct) GetRetrievedGtidSet() string {
 	return ss.RetrievedGtidSet
 }
 
-func (ss *ReplicaStatus) GetLastIOErrno() int {
+func (ss *ReplicaStatusStruct) GetLastIOErrno() int {
 	return ss.LastIOErrno
 }
 
-func (ss *ReplicaStatus) GetLastSQLErrno() int {
+func (ss *ReplicaStatusStruct) GetLastSQLErrno() int {
 	return ss.LastSQLErrno
 }
 
 // ReplicationIORunning ...
-func (ss *SlaveStatus) ReplicationIORunning() bool {
+func (ss *SlaveStatusStruct) ReplicationIORunning() bool {
 	return ss.SlaveIORunning == yes
 }
 
-func (ss *ReplicaStatus) ReplicationIORunning() bool {
+func (ss *ReplicaStatusStruct) ReplicationIORunning() bool {
 	return ss.ReplicaIORunning == yes
 }
 
 // ReplicationSQLRunning ...
-func (ss *SlaveStatus) ReplicationSQLRunning() bool {
+func (ss *SlaveStatusStruct) ReplicationSQLRunning() bool {
 	return ss.SlaveSQLRunning == yes
 }
 
-func (ss *ReplicaStatus) ReplicationSQLRunning() bool {
+func (ss *ReplicaStatusStruct) ReplicationSQLRunning() bool {
 	return ss.ReplicaSQLRunning == yes
 }
 
 // ReplicationRunning is true when both IO and SQL threads running
-func (ss *SlaveStatus) ReplicationRunning() bool {
+func (ss *SlaveStatusStruct) ReplicationRunning() bool {
 	return ss.ReplicationIORunning() && ss.ReplicationSQLRunning()
 }
 
-func (ss *ReplicaStatus) ReplicationRunning() bool {
+func (ss *ReplicaStatusStruct) ReplicationRunning() bool {
 	return ss.ReplicationIORunning() && ss.ReplicationSQLRunning()
 }
 
-func (ss *SlaveStatus) GetReplicationLag() sql.NullFloat64 {
+func (ss *SlaveStatusStruct) GetReplicationLag() sql.NullFloat64 {
 	return ss.Lag
 }
 
-func (ss *ReplicaStatus) GetReplicationLag() sql.NullFloat64 {
+func (ss *ReplicaStatusStruct) GetReplicationLag() sql.NullFloat64 {
 	return ss.Lag
 }
 
 //GetReplicationLag
 
 // ReplicationState ...
-func (ss *SlaveStatus) ReplicationState() string {
+func (ss *SlaveStatusStruct) ReplicationState() string {
 	switch {
 	case ss.SlaveIORunning == yes && ss.SlaveSQLRunning == yes:
 		return ReplicationRunning
@@ -197,7 +197,7 @@ func (ss *SlaveStatus) ReplicationState() string {
 	}
 }
 
-func (ss *ReplicaStatus) ReplicationState() string {
+func (ss *ReplicaStatusStruct) ReplicationState() string {
 	switch {
 	case ss.ReplicaIORunning == yes && ss.ReplicaSQLRunning == yes:
 		return ReplicationRunning
@@ -273,10 +273,10 @@ func (v *Version) GetSlaveStatusQuery() string {
 	}
 }
 
-func (v *Version) GetSlaveOrReplicaStruct() SlaveOrReplicaStatus {
+func (v *Version) GetSlaveOrReplicaStruct() ReplicaStatus {
 	if v.CheckIfVersionReplicaStatus() {
-		return new(ReplicaStatus)
+		return new(ReplicaStatusStruct)
 	} else {
-		return new(SlaveStatus)
+		return new(SlaveStatusStruct)
 	}
 }

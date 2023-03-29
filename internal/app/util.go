@@ -221,7 +221,7 @@ func getNodeStatesInParallel(hosts []string, getter func(string) (*NodeState, er
 	return clusterState, nil
 }
 
-func isSlavePermanentlyLost(sstatus mysql.SlaveOrReplicaStatus, masterGtidSet gtids.GTIDSet) bool {
+func isSlavePermanentlyLost(sstatus mysql.ReplicaStatus, masterGtidSet gtids.GTIDSet) bool {
 	if sstatus.ReplicationState() == mysql.ReplicationError {
 		return true
 	}

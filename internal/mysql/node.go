@@ -483,11 +483,11 @@ func (n *Node) Ping() (bool, error) {
 }
 
 // GetReplicaStatus returns slave/replica status or nil if node is master
-func (n *Node) GetReplicaStatus() (SlaveOrReplicaStatus, error) {
-	return n.SlaveOrReplicaStatusWithTimeout(n.config.DBTimeout)
+func (n *Node) GetReplicaStatus() (ReplicaStatus, error) {
+	return n.ReplicaStatusWithTimeout(n.config.DBTimeout)
 }
 
-func (n *Node) SlaveOrReplicaStatusWithTimeout(timeout time.Duration) (SlaveOrReplicaStatus, error) {
+func (n *Node) ReplicaStatusWithTimeout(timeout time.Duration) (ReplicaStatus, error) {
 	query, status, err := n.GetVersionSlaveStatusQueryWithTimeout(timeout)
 	if err != nil {
 		return nil, nil
@@ -501,7 +501,7 @@ func (n *Node) SlaveOrReplicaStatusWithTimeout(timeout time.Duration) (SlaveOrRe
 	return status, err
 }
 
-func (n *Node) GetVersionSlaveStatusQueryWithTimeout(timeout time.Duration) (string, SlaveOrReplicaStatus, error) {
+func (n *Node) GetVersionSlaveStatusQueryWithTimeout(timeout time.Duration) (string, ReplicaStatus, error) {
 	if n.version != nil {
 		return n.version.GetSlaveStatusQuery(), n.version.GetSlaveOrReplicaStruct(), nil
 	}
@@ -516,7 +516,7 @@ func (n *Node) GetVersionSlaveStatusQueryWithTimeout(timeout time.Duration) (str
 
 // ReplicationLag returns slave replication lag in seconds
 // ReplicationLag may return nil without error if lag is unknown (replication not running)
-func (n *Node) ReplicationLag(sstatus SlaveOrReplicaStatus) (*float64, error) {
+func (n *Node) ReplicationLag(sstatus ReplicaStatus) (*float64, error) {
 	var err error
 	if n.getQuery(queryReplicationLag) != "" {
 		lag := new(replicationLag)
