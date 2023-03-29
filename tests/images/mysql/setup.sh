@@ -3,7 +3,7 @@ set -e
 chown mysql:root /etc/mysql
 touch /etc/mysync.yaml
 chown mysql:mysql /etc/mysync.yaml
-if [[ "$VERSION" == "8-0" ]]; then
+if [[ "$VERSION" == "8.0" ]]; then
   cp /var/lib/dist/mysql/my.cnf.8.0 /etc/mysql/my.cnf
   cp /var/lib/dist/mysql/my.cnf.8.0 /etc/mysql/init.cnf
 cat <<EOF >> /etc/mysql/my.cnf
