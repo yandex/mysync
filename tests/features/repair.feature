@@ -84,7 +84,9 @@ Feature: repair hosts in cluster
     Given cluster is up and running
     Then mysql host "mysql1" should be master
     And mysql host "mysql1" should be writable
-    # jsut to have stable tests - turn on maintenance mode
+    And mysql host "mysql2" should be replica of "mysql1"
+    And mysql replication on host "mysql2" should run fine within "5" seconds
+    # just to have stable tests - turn on maintenance mode
     And I run command on host "mysql1"
     """
       mysync maint on

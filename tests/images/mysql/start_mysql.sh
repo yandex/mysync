@@ -32,7 +32,8 @@ else
 fi
 
 if [ ! -f /var/lib/mysql/auto.cnf ]; then
-    /usr/sbin/mysqld --initialize --datadir=/var/lib/mysql --init-file=/etc/mysql/init.sql --server-id=$MYSQL_SERVER_ID
+    /usr/sbin/mysqld --defaults-file=/etc/mysql/init.cnf \
+    --initialize --datadir=/var/lib/mysql --init-file=/etc/mysql/init.sql --server-id=$MYSQL_SERVER_ID || true
     echo "==INITIALIZED=="
 fi
 

@@ -19,6 +19,7 @@ apt-get install \
 
 apt-key add - < /var/lib/dist/base/percona.gpg
 add-apt-repository 'deb http://mirror.yandex.ru/mirrors/percona/percona/apt bionic main'
+add-apt-repository 'deb http://mirror.yandex.ru/mirrors/percona/ps-80/apt bionic main'
 
 # common
 apt-get update
@@ -53,11 +54,17 @@ cp /root/.ssh/id_rsa.pub /root/.ssh/authorized_keys
 chmod 0600 /root/.ssh/*
 
 # mysql
-apt-get install \
+if [[ "$MYSQL_VERSION" == "8.0" ]]; then
+  apt-get install \
+    percona-server-server=8.0.\* \
+    percona-xtrabackup-80
+else
+  apt-get install \
     percona-xtradb-cluster-server-${MYSQL_VERSION} \
     percona-xtradb-cluster-client-${MYSQL_VERSION} \
     percona-xtradb-cluster-common-${MYSQL_VERSION} \
     percona-xtrabackup-24
+fi
 rm -rf /var/lib/mysql/*
 
 # supervisor
@@ -67,6 +74,5 @@ cp /var/lib/dist/base/supervisor.conf /etc/supervisor/supervisord.conf
 cp /var/lib/dist/base/supervisor_ssh.conf /etc/supervisor/conf.d
 
 # zookeeper
-# wget -nc -O - --quiet https://www-eu.apache.org/dist/zookeeper/zookeeper-${ZK_VERSION}/apache-zookeeper-${ZK_VERSION}-bin.tar.gz | tar -xz -C /opt && \
 wget -nc -O - --quiet  https://downloads.apache.org/zookeeper/zookeeper-${ZK_VERSION}/apache-zookeeper-${ZK_VERSION}-bin.tar.gz | tar -xz -C /opt && \
 mv /opt/apache-zookeeper* /opt/zookeeper

@@ -254,7 +254,7 @@ func (app *App) checkRecovery() {
 	}
 
 	localNode := app.cluster.Local()
-	sstatus, err := localNode.SlaveStatus()
+	sstatus, err := localNode.GetReplicaStatus()
 	if err != nil {
 		app.logger.Errorf("recovery: host %s failed to get slave status %v", localNode.Host(), err)
 		return
@@ -283,7 +283,7 @@ func (app *App) checkRecovery() {
 	}
 
 	app.logger.Infof("recovery: master %s has GTIDs %s", master, mgtids)
-	app.logger.Infof("recovery: local node %s has GTIDs %s", localNode.Host(), sstatus.ExecutedGtidSet)
+	app.logger.Infof("recovery: local node %s has GTIDs %s", localNode.Host(), sstatus.GetExecutedGtidSet())
 
 	if isSlavePermanentlyLost(sstatus, mgtids) {
 		app.logger.Errorf("recovery: local node %s is NOT behind the master %s, need RESETUP", localNode.Host(), masterNode)
@@ -315,7 +315,7 @@ func (app *App) checkCrashRecovery() {
 		return
 	}
 	localNode := app.cluster.Local()
-	sstatus, err := localNode.SlaveStatus()
+	sstatus, err := localNode.GetReplicaStatus()
 	if err != nil {
 		app.logger.Errorf("recovery: host %s failed to get slave status %v", localNode.Host(), err)
 		return
@@ -331,7 +331,7 @@ func (app *App) checkCrashRecovery() {
 func (app *App) checkHAReplicasRunning(local *mysql.Node) bool {
 	checker := func(host string) error {
 		node := app.cluster.Get(host)
-		status, err := node.SlaveStatusWithTimeout(app.config.DBLostCheckTimeout)
+		status, err := node.ReplicaStatusWithTimeout(app.config.DBLostCheckTimeout)
 		if err != nil {
 			return err
 		}
@@ -341,7 +341,7 @@ func (app *App) checkHAReplicasRunning(local *mysql.Node) bool {
 		if !status.ReplicationRunning() {
 			return fmt.Errorf("replication on host %s is not running", host)
 		}
-		if status.MasterHost != local.Host() {
+		if status.GetMasterHost() != local.Host() {
 			return fmt.Errorf("replication on host %s doesn't streaming from master %s", host, local.Host())
 		}
 		if !app.config.SemiSync {
@@ -1300,7 +1300,7 @@ func (app *App) performSwitchover(clusterState map[string]*NodeState, activeNode
 
 	// check if need recover old master
 	oldMasterNode := app.cluster.Get(oldMaster)
-	oldMasterSlaveStatus, err := oldMasterNode.SlaveStatus()
+	oldMasterSlaveStatus, err := oldMasterNode.GetReplicaStatus()
 	app.logger.Infof("switchover: old master slave status: %#v", oldMasterSlaveStatus)
 	if err != nil || oldMasterSlaveStatus == nil || isSlavePermanentlyLost(oldMasterSlaveStatus, mostRecentGtidSet) {
 		err = app.SetRecovery(oldMaster)
@@ -1645,7 +1645,7 @@ func (app *App) repairCascadeNode(node *mysql.Node, clusterState map[string]*Nod
 	cnc := cascadeTopology[host]
 
 	if state.SlaveState == nil {
-		app.logger.Warnf("repair: current SlaveStatus is unknown. Blindly change master on %s to '%s'", host, cnc.StreamFrom)
+		app.logger.Warnf("repair: current Slave/Replica Status is unknown. Blindly change master on %s to '%s'", host, cnc.StreamFrom)
 		err := app.performChangeMaster(host, cnc.StreamFrom)
 		if err != nil {
 			app.logger.Warnf("repair: failed to change master on host %s to new value %s", host, cnc.StreamFrom)
@@ -1707,15 +1707,15 @@ func (app *App) repairCascadeNode(node *mysql.Node, clusterState map[string]*Nod
 		// we have chosen candidate... wait till stream_from will have newer GTID than ours:
 
 		// There is a race between GTID sets: order in which it was fetched is not defined.
-		// So, fetch cascade replica's SlaveStatus here
+		// So, fetch cascade replica's ReplicaStatus here
 		// As a result, we know that myGITIDs fetched AFTER candidate's GTIDs...
 		// We should wait until myGITIDs (fetched later) will be lower or equal to candidateGTIDs (fetched earlier)
-		mySlaveStatue, err := node.SlaveStatus() // retrieve fresh GTIDs
+		mySlaveStatus, err := node.GetReplicaStatus() // retrieve fresh GTIDs
 		if err != nil {
-			app.logger.Warnf("repair: cannot obtain own SLAVE STATUS")
+			app.logger.Warnf("repair: cannot obtain own SLAVE/REPLICA STATUS")
 			return
 		}
-		myGITIDs := gtids.ParseGtidSet(mySlaveStatue.ExecutedGtidSet)
+		myGITIDs := gtids.ParseGtidSet(mySlaveStatus.GetExecutedGtidSet())
 
 		candidateState := clusterState[upstreamCandidate]
 		var candidateGTIDs gtids.GTIDSet
@@ -1861,10 +1861,10 @@ func (app *App) performChangeMaster(host, master string) error {
 		return fmt.Errorf("failed to start slave on host %s: %s", host, err)
 	}
 
-	deadline := time.Now().Add(app.config.WaitReplicationStarTimeout)
-	var sstatus *mysql.SlaveStatus
+	deadline := time.Now().Add(app.config.WaitReplicationStartTimeout)
+	var sstatus mysql.ReplicaStatus
 	for time.Now().Before(deadline) {
-		sstatus, err = node.SlaveStatus()
+		sstatus, err = node.GetReplicaStatus()
 		if err != nil {
 			app.logger.Warnf("changemaster: failed to get slave status on host %s: %v", host, err)
 			continue
@@ -1911,22 +1911,22 @@ func (app *App) getNodeState(host string) *NodeState {
 		if err != nil {
 			return err
 		}
-		slaveStatus, err := node.SlaveStatus()
+		slaveStatus, err := node.GetReplicaStatus()
 		if err != nil {
 			return err
 		}
 		if slaveStatus != nil {
 			nodeState.IsMaster = false
 			nodeState.SlaveState = new(SlaveState)
-			nodeState.SlaveState.ExecutedGtidSet = slaveStatus.ExecutedGtidSet
-			nodeState.SlaveState.RetrievedGtidSet = slaveStatus.RetrievedGtidSet
-			nodeState.SlaveState.MasterHost = slaveStatus.MasterHost
+			nodeState.SlaveState.ExecutedGtidSet = slaveStatus.GetExecutedGtidSet()
+			nodeState.SlaveState.RetrievedGtidSet = slaveStatus.GetRetrievedGtidSet()
+			nodeState.SlaveState.MasterHost = slaveStatus.GetMasterHost()
 			nodeState.SlaveState.ReplicationState = slaveStatus.ReplicationState()
-			nodeState.SlaveState.MasterLogFile = slaveStatus.MasterLogFile
-			nodeState.SlaveState.MasterLogPos = slaveStatus.ReadMasterLogPos
-			nodeState.SlaveState.LastIOErrno = slaveStatus.LastIOErrno
-			nodeState.SlaveState.LastSQLErrno = slaveStatus.LastSQLErrno
-			lag, err2 := node.ReplicationLag()
+			nodeState.SlaveState.MasterLogFile = slaveStatus.GetMasterLogFile()
+			nodeState.SlaveState.MasterLogPos = slaveStatus.GetReadMasterLogPos()
+			nodeState.SlaveState.LastIOErrno = slaveStatus.GetLastIOErrno()
+			nodeState.SlaveState.LastSQLErrno = slaveStatus.GetLastSQLErrno()
+			lag, err2 := node.ReplicationLag(slaveStatus)
 			if err2 != nil {
 				return err2
 			}
@@ -2129,11 +2129,11 @@ func (app *App) getNodePositions(activeNodes []string) ([]nodePosition, error) {
 	var positionsMutex sync.Mutex
 	errs := util.RunParallel(func(host string) error {
 		node := app.cluster.Get(host)
-		sstatus, err := node.SlaveStatus()
+		sstatus, err := node.GetReplicaStatus()
 		if err != nil || app.emulateError("freeze_slave_status") {
 			return fmt.Errorf("failed to get slave status on host %s: %s", host, err)
 		}
-		lag, err := node.ReplicationLag()
+		lag, err := node.ReplicationLag(sstatus)
 		if err != nil || app.emulateError("freeze_slave_status2") {
 			return fmt.Errorf("failed to get slave replication lag on host %s: %s", host, err)
 		}
@@ -2152,10 +2152,10 @@ func (app *App) getNodePositions(activeNodes []string) ([]nodePosition, error) {
 				return fmt.Errorf("failed to get master status on host %s: %s", host, err)
 			}
 		} else {
-			gtidset = gtids.ParseGtidSet(sstatus.ExecutedGtidSet)
-			if sstatus.RetrievedGtidSet != "" {
+			gtidset = gtids.ParseGtidSet(sstatus.GetExecutedGtidSet())
+			if sstatus.GetRetrievedGtidSet() != "" {
 				// slave may have downloaded but not applied transactions
-				err := gtidset.Update(sstatus.RetrievedGtidSet)
+				err := gtidset.Update(sstatus.GetRetrievedGtidSet())
 				if err != nil {
 					return fmt.Errorf("failed to parse RetrievedGtidSet from host %s: %s", host, err)
 				}

@@ -4,6 +4,8 @@ services:
   zoo1:
     build:
       context: ./zookeeper
+      args:
+        - VERSION=$VERSION
     hostname: zoo1
     ports:
         - 2181
@@ -24,6 +26,8 @@ services:
   zoo2:
     build:
       context: ./zookeeper
+      args:
+        - VERSION=$VERSION
     hostname: zoo2
     ports:
         - 2181
@@ -38,6 +42,8 @@ services:
   zoo3:
     build:
       context: ./zookeeper
+      args:
+        - VERSION=$VERSION
     hostname: zoo3
     ports:
         - 2181
@@ -52,6 +58,8 @@ services:
   mysql1:
     build:
       context: ./mysql
+      args:
+        - VERSION=$VERSION
     hostname: mysql1
     ports:
         - 3306
@@ -92,6 +100,8 @@ services:
   mysql2:
     build:
       context: ./mysql
+      args:
+        - VERSION=$VERSION
     hostname: mysql2
     ports:
         - 3306
@@ -126,6 +136,8 @@ services:
   mysql3:
     build:
       context: ./mysql
+      args:
+        - VERSION=$VERSION
     hostname: mysql3
     ports:
         - 3306

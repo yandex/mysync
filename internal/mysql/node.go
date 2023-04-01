@@ -482,17 +482,16 @@ func (n *Node) Ping() (bool, error) {
 	return result.Ok > 0, err
 }
 
-// SlaveStatus returns slave status or nil if node is master
-func (n *Node) SlaveStatus() (*SlaveStatus, error) {
-	return n.SlaveStatusWithTimeout(n.config.DBTimeout)
+// GetReplicaStatus returns slave/replica status or nil if node is master
+func (n *Node) GetReplicaStatus() (ReplicaStatus, error) {
+	return n.ReplicaStatusWithTimeout(n.config.DBTimeout)
 }
 
-func (n *Node) SlaveStatusWithTimeout(timeout time.Duration) (*SlaveStatus, error) {
-	query, err := n.GetVersionSlaveStatusQueryWithTimeout(timeout)
+func (n *Node) ReplicaStatusWithTimeout(timeout time.Duration) (ReplicaStatus, error) {
+	query, status, err := n.GetVersionSlaveStatusQueryWithTimeout(timeout)
 	if err != nil {
 		return nil, nil
 	}
-	status := new(SlaveStatus)
 	err = n.queryRowMogrifyWithTimeout(query, map[string]interface{}{
 		"channel": n.config.ReplicationChannel,
 	}, status, timeout)
@@ -502,41 +501,38 @@ func (n *Node) SlaveStatusWithTimeout(timeout time.Duration) (*SlaveStatus, erro
 	return status, err
 }
 
-func (n *Node) GetVersionSlaveStatusQueryWithTimeout(timeout time.Duration) (string, error) {
+func (n *Node) GetVersionSlaveStatusQueryWithTimeout(timeout time.Duration) (string, ReplicaStatus, error) {
 	if n.version != nil {
-		return n.version.GetSlaveStatusQuery(), nil
+		return n.version.GetSlaveStatusQuery(), n.version.GetSlaveOrReplicaStruct(), nil
 	}
 	v := new(Version)
 	err := n.queryRowWithTimeout(queryGetVersion, nil, v, timeout)
 	if err != nil {
-		return "", err
+		return "", nil, err
 	}
 	n.version = v
-	return n.version.GetSlaveStatusQuery(), err
+	return n.version.GetSlaveStatusQuery(), n.version.GetSlaveOrReplicaStruct(), err
 }
 
 // ReplicationLag returns slave replication lag in seconds
 // ReplicationLag may return nil without error if lag is unknown (replication not running)
-func (n *Node) ReplicationLag() (*float64, error) {
+func (n *Node) ReplicationLag(sstatus ReplicaStatus) (*float64, error) {
 	var err error
-	lag := new(replicationLag)
 	if n.getQuery(queryReplicationLag) != "" {
+		lag := new(replicationLag)
 		err = n.queryRow(queryReplicationLag, nil, lag)
-	} else {
-		query, err2 := n.GetVersionSlaveStatusQueryWithTimeout(n.config.DBTimeout)
-		if err2 != nil {
-			return nil, nil
+		if err == sql.ErrNoRows {
+			// looks like master
+			return new(float64), nil
 		}
-		err = n.queryRowMogrifyWithTimeout(query, map[string]interface{}{
-			"channel": n.config.ReplicationChannel,
-		}, lag, n.config.DBTimeout)
-	}
-	if err == sql.ErrNoRows {
-		// looks like master
-		return new(float64), nil
-	}
-	if lag.Lag.Valid {
-		return &lag.Lag.Float64, nil
+		if lag.Lag.Valid {
+			return &lag.Lag.Float64, nil
+		}
+	} else if sstatus != nil {
+		l := sstatus.GetReplicationLag()
+		if l.Valid {
+			return &l.Float64, nil
+		}
 	}
 	// replication not running, assume lag is huge
 	return nil, err
