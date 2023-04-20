@@ -8,6 +8,9 @@ services:
     domainname: mysync_mysql_net
     ports:
         - 2181
+        - 2281
+        - 2888
+        - 3888
     privileged: true
     extra_hosts:
      - "mysync_mysql1_1.mysync_mysql_net:192.168.233.13"
@@ -30,6 +33,9 @@ services:
     domainname: mysync_mysql_net
     ports:
         - 2181
+        - 2281
+        - 2888
+        - 3888
     privileged: true
     extra_hosts:
      - "mysync_mysql1_1.mysync_mysql_net:192.168.233.13"
@@ -52,6 +58,9 @@ services:
     domainname: mysync_mysql_net
     ports:
         - 2181
+        - 2281
+        - 2888
+        - 3888
     privileged: true
     extra_hosts:
      - "mysync_mysql1_1.mysync_mysql_net:192.168.233.13"
@@ -87,7 +96,7 @@ services:
      MYSYNC_FAILOVER: 'true'
      MYSYNC_FAILOVER_DELAY:
      MYSYNC_FAILOVER_COOLDOWN:
-     ZK_SERVERS: mysync_zookeeper1_1.mysync_mysql_net:2181, mysync_zookeeper2_1.mysync_mysql_net:2181, mysync_zookeeper3_1.mysync_mysql_net:2181
+     ZK_SERVERS: mysync_zookeeper1_1.mysync_mysql_net:2281, mysync_zookeeper2_1.mysync_mysql_net:2281, mysync_zookeeper3_1.mysync_mysql_net:2281
      MYSQL_PORT: 3306
      MYSYNC_DISABLE_REPLICATION_ON_MAINT: "true"
      MYSYNC_WAIT_FOR_SLAVE_COUNT:
@@ -115,7 +124,7 @@ services:
         MYSYNC_FAILOVER: 'true'
         MYSYNC_FAILOVER_DELAY:
         MYSYNC_FAILOVER_COOLDOWN:
-        ZK_SERVERS: mysync_zookeeper1_1.mysync_mysql_net:2181, mysync_zookeeper2_1.mysync_mysql_net:2181, mysync_zookeeper3_1.mysync_mysql_net:2181
+        ZK_SERVERS: mysync_zookeeper1_1.mysync_mysql_net:2281, mysync_zookeeper2_1.mysync_mysql_net:2281, mysync_zookeeper3_1.mysync_mysql_net:2281
         MYSQL_PORT: 3306
         MYSYNC_DISABLE_REPLICATION_ON_MAINT: "true"
         MYSYNC_WAIT_FOR_SLAVE_COUNT:
@@ -142,7 +151,7 @@ services:
         MYSYNC_FAILOVER: 'true'
         MYSYNC_FAILOVER_DELAY:
         MYSYNC_FAILOVER_COOLDOWN:
-        ZK_SERVERS: mysync_zookeeper1_1.mysync_mysql_net:2181, mysync_zookeeper2_1.mysync_mysql_net:2181, mysync_zookeeper3_1.mysync_mysql_net:2181
+        ZK_SERVERS: mysync_zookeeper1_1.mysync_mysql_net:2281, mysync_zookeeper2_1.mysync_mysql_net:2281, mysync_zookeeper3_1.mysync_mysql_net:2281
         MYSQL_PORT: 3306
         MYSYNC_DISABLE_REPLICATION_ON_MAINT: "true"
         MYSYNC_WAIT_FOR_SLAVE_COUNT:

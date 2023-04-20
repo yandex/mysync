@@ -91,6 +91,7 @@ Feature: repair hosts in cluster
     """
       mysync maint on
     """
+    And I wait for "5" seconds
     When I break replication on host "mysql2" in repairable way
     Then mysql replication on host "mysql2" should not run fine
     And I run command on host "mysql1"
@@ -112,6 +113,7 @@ Feature: repair hosts in cluster
     """
       mysync maint on
     """
+    And I wait for "5" seconds
     When I break replication on host "mysql2"
     Then mysql replication on host "mysql2" should not run fine
     And I run command on host "mysql1"

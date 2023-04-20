@@ -77,6 +77,7 @@ Feature: mysync saves quorum hosts in zk
     mysync maint on
     """
     Then command return code should be "0"
+    And I wait for "5" seconds
     When I run SQL on mysql host "mysql2"
     """
     SET GLOBAL READ_ONLY=0;

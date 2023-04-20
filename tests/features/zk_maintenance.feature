@@ -15,6 +15,7 @@ Feature: maintenance during dead zookeeper
       """
       maintenance enabled
       """
+    And I wait for "5" seconds
 
     When host "zoo3" is detached from the network
     And host "zoo2" is detached from the network

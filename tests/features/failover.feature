@@ -74,22 +74,26 @@ Feature: failover
         """
         ["mysql1","mysql2","mysql3"]
         """
+      When I get zookeeper node "/test/manager"
+      And I save zookeeper query result as "manager"
+      When I get zookeeper node "/test/master"
+      And I save zookeeper query result as "master"
       When mysql on host "mysql1" is killed
       And mysql on host "mysql2" is killed
       Then mysql host "mysql1" should become unavailable within "10" seconds
       And mysql host "mysql2" should become unavailable within "10" seconds
       # give a change to perform (actualy not) failover
       When I wait for "30" seconds
-      Then mysql host "mysql3" should be replica of "mysql1"
+      Then mysql host "mysql3" should be replica of "{{.master}}"
       And zookeeper node "/test/master" should match regexp
         """
-          .*mysql1.*
+          .*{{.master}}.*
         """
       And zookeeper node "/test/manager" should match regexp
         """
-        .*mysql1.*
+          .*{{.manager.hostname}}.*
         """
-      When I run command on host "mysql1"
+      When I run command on host "{{.manager.hostname}}"
         """
           grep failover /var/log/mysync.log
         """

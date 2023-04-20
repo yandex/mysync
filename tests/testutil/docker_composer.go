@@ -46,10 +46,11 @@ type Composer interface {
 	// Executes command inside container/VM with given timeout.
 	// Returns command retcode and output (stdoud and stderr are mixed)
 	RunCommand(service, cmd string, timeout time.Duration) (retcode int, output string, err error)
+	RunCommandAtHosts(cmd, hostsSubstring string, timeout time.Duration) error
 	// Executes command inside container/VM with given timeout.
 	// Returns command retcode and output (stdoud and stderr are mixed)
 	RunAsyncCommand(service, cmd string) error
-	// Returns content of the fail from container by path
+	// Returns content of the file from container by path
 	GetFile(service, path string) (io.ReadCloser, error)
 }
 
@@ -171,6 +172,19 @@ func (dc *DockerComposer) GetIP(service string) (string, error) {
 		return network.IPAddress, nil
 	}
 	return "", fmt.Errorf("no network for service: %s", service)
+}
+
+func (dc *DockerComposer) RunCommandAtHosts(cmd, hostSubstring string, timeout time.Duration) error {
+	for name := range dc.containers {
+		if !strings.Contains(name, hostSubstring) {
+			continue
+		}
+		_, _, err := dc.RunCommand(name, cmd, timeout)
+		if err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 // RunCommand executes command inside container/VM with given timeout.

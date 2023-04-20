@@ -3,6 +3,7 @@ package dcs
 import (
 	"encoding/json"
 	"fmt"
+	"net"
 	"os"
 	"strings"
 	"sync"
@@ -24,6 +25,7 @@ type zkDCS struct {
 	connectedChans     []chan struct{}
 	connectedLock      sync.Mutex
 	closeTimer         *time.Timer
+	acl                []zk.ACL
 }
 
 type zkLoggerProxy struct{ *log.Logger }
@@ -67,10 +69,30 @@ func NewZookeeper(config *ZookeeperConfig, logger *log.Logger) (DCS, error) {
 	var conn *zk.Conn
 	var ec <-chan zk.Event
 	var err error
+	var operation func() error
+	if config.UseSSL {
+		if config.CACert == "" || config.KeyFile == "" || config.CertFile == "" {
+			return nil, fmt.Errorf("zookeeper ssl not configured, fill ca_cert/key_file/cert_file in config or disable use_ssl flag")
+		}
+		tlsConfig, err := CreateTLSConfig(config.CACert, config.CertFile, config.KeyFile)
+		if err != nil {
+			return nil, err
+		}
+		baseDialer := net.Dialer{Timeout: config.SessionTimeout}
+		dialer, err := GetTLSDialer(config.Hosts, &baseDialer, tlsConfig)
+		if err != nil {
+			return nil, err
+		}
 
-	operation := func() error {
-		conn, ec, err = zk.Connect(config.Hosts, config.SessionTimeout, zk.WithLogger(zkLoggerProxy{logger}))
-		return err
+		operation = func() error {
+			conn, ec, err = zk.Connect(config.Hosts, config.SessionTimeout, zk.WithLogger(zkLoggerProxy{logger}), zk.WithDialer(dialer))
+			return err
+		}
+	} else {
+		operation = func() error {
+			conn, ec, err = zk.Connect(config.Hosts, config.SessionTimeout, zk.WithLogger(zkLoggerProxy{logger}))
+			return err
+		}
 	}
 
 	err = retry(config, operation)
@@ -79,12 +101,24 @@ func NewZookeeper(config *ZookeeperConfig, logger *log.Logger) (DCS, error) {
 		return nil, err
 	}
 
+	var acl []zk.ACL
+	if config.Auth {
+		if config.Username == "" || config.Password == "" {
+			return nil, fmt.Errorf("zookeeper auth not configured, fill username/password in config or disable auth flag")
+		}
+		acl = zk.DigestACL(zk.PermAll, config.Username, config.Password)
+		err = conn.AddAuth("digest", []byte(fmt.Sprintf("%s:%s", config.Username, config.Password)))
+		if err != nil {
+			return nil, err
+		}
+	}
 	z := &zkDCS{
 		config:             config,
 		logger:             logger,
 		conn:               conn,
 		disconnectCallback: func() error { return nil },
 		eventsChan:         ec,
+		acl:                acl,
 	}
 	go z.handleEvents()
 
@@ -126,7 +160,7 @@ func (z *zkDCS) makePath(path string) error {
 			continue
 		}
 		prefix = JoinPath(prefix, part)
-		_, err := z.retryCreate(prefix, []byte{}, 0, nil)
+		_, err := z.retryCreate(prefix, []byte{}, 0, z.acl)
 		if err != nil && err != zk.ErrNodeExists {
 			return err
 		}
