@@ -19,6 +19,14 @@ type ZookeeperConfig struct {
 	BackoffMaxInterval    time.Duration `config:"backoff_max_interval" yaml:"backoff_max_interval"`
 	BackoffMaxElapsedTime time.Duration `config:"backoff_max_elapsed_time" yaml:"backoff_max_elapsed_time"`
 	BackoffMaxRetries     uint64        `config:"backoff_max_retries" yaml:"backoff_max_retries"`
+	Auth                  bool          `config:"auth" yaml:"auth"`
+	Username              string        `config:"username" yaml:"username"`
+	Password              string        `config:"password" yaml:"password"`
+	UseSSL                bool          `config:"use_ssl" yaml:"use_ssl"`
+	KeyFile               string        `config:"keyfile" yaml:"keyfile"`
+	CertFile              string        `config:"certfile" yaml:"certfile"`
+	CACert                string        `config:"ca_cert" yaml:"ca_cert"`
+	VerifyCerts           bool          `config:"verify_certs" yaml:"verify_certs"`
 }
 
 // DefaultZookeeperConfig return default Zookeeper connection configuration

@@ -7,11 +7,15 @@ then
 fi
 
 retry_create() {
+    echo 'create ${1}
+addauth digest testuser:testpassword123
+setAcl ${1} auth:testuser:testpassword123:crwad' > /tmp/zk_commands
+
     tries=0
     ret=1
     while [ ${tries} -le 60 ]
     do
-        if /opt/zookeeper/bin/zkCli.sh create "${1}"
+        if cat /tmp/zk_commands | /opt/zookeeper/bin/zkCli.sh
         then
             ret=0
             break

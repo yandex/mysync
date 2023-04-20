@@ -32,7 +32,7 @@ const (
 	yes                        = "Yes"
 	zkName                     = "zoo"
 	zkPort                     = 2181
-	zkConnectTimeout           = 1 * time.Minute
+	zkConnectTimeout           = 5 * time.Second
 	mysqlName                  = "mysql"
 	mysqlPort                  = 3306
 	mysqlAdminUser             = "admin"
@@ -44,6 +44,8 @@ const (
 	mysqlQueryTimeout          = 2 * time.Second
 	mysqlWaitOnlineTimeout     = 60
 	replicationChannel         = ""
+	testUser                   = "testuser"
+	testPassword               = "testpassword123"
 )
 
 var mysqlLogsToSave = map[string]string{
@@ -76,6 +78,7 @@ type testContext struct {
 	sqlUserQueryError sync.Map // host -> error
 	commandRetcode    int
 	commandOutput     string
+	acl               []zk.ACL
 }
 
 func newTestContext() (*testContext, error) {
@@ -86,6 +89,7 @@ func newTestContext() (*testContext, error) {
 		return nil, err
 	}
 	tctx.dbs = make(map[string]*sqlx.DB)
+	tctx.acl = zk.DigestACL(zk.PermAll, testUser, testPassword)
 	return tctx, nil
 }
 
@@ -212,6 +216,10 @@ func (tctx *testContext) cleanup() {
 
 func (tctx *testContext) connectZookeeper(addrs []string, timeout time.Duration) (*zk.Conn, error) {
 	conn, ec, err := zk.Connect(addrs, time.Second, zk.WithLogger(noLogger{}))
+	if err != nil {
+		return nil, err
+	}
+	err = conn.AddAuth("digest", []byte(fmt.Sprintf("%s:%s", testUser, testPassword)))
 	if err != nil {
 		return nil, err
 	}
@@ -423,20 +431,35 @@ func (tctx *testContext) stepClusterIsUpAndRunning(createHaNodes bool) error {
 	}
 
 	// check zookeepers
-	zkAddrs := make([]string, 0)
-	for _, service := range tctx.composer.Services() {
-		if strings.HasPrefix(service, zkName) {
-			addr, err2 := tctx.composer.GetAddr(service, zkPort)
-			if err2 != nil {
-				return fmt.Errorf("failed to connect to zookeeper %s: %s", service, err2)
+	var zkAddrs []string
+	testutil.Retry(func() bool {
+		zkAddrs = make([]string, 0)
+		for _, service := range tctx.composer.Services() {
+			if strings.HasPrefix(service, zkName) {
+				addr, err2 := tctx.composer.GetAddr(service, zkPort)
+				if err2 != nil {
+					err = fmt.Errorf("failed to get zookeeper addr %s: %s", service, err2)
+					return false
+				}
+				zkAddrs = append(zkAddrs, addr)
 			}
-			zkAddrs = append(zkAddrs, addr)
 		}
-	}
-	tctx.zk, err = tctx.connectZookeeper(zkAddrs, zkConnectTimeout)
+
+		tctx.zk, err = tctx.connectZookeeper(zkAddrs, zkConnectTimeout)
+		return err == nil
+	}, time.Minute, time.Second)
+
 	if err != nil {
 		return fmt.Errorf("failed to connect to zookeeper %s: %s", zkAddrs, err)
 	}
+
+	err = tctx.composer.RunCommandAtHosts("/var/lib/dist/base/generate_certs.sh && supervisorctl restart mysync",
+		"mysql",
+		time.Minute)
+	if err != nil {
+		return fmt.Errorf("failed to generate certs in mysql hosts: %s", err)
+	}
+
 	if err = tctx.createZookeeperNode("/test"); err != nil {
 		return fmt.Errorf("failed to create namespace zk node due %s", err)
 	}
@@ -832,7 +855,7 @@ func (tctx *testContext) createZookeeperNode(node string) error {
 	if ok, _, err := tctx.zk.Exists(node); err == nil && ok {
 		return nil
 	}
-	data, err := tctx.zk.Create(node, []byte{}, 0, zk.WorldACL(zk.PermAll))
+	data, err := tctx.zk.Create(node, []byte{}, 0, tctx.acl)
 	if err != nil {
 		return err
 	}
@@ -850,7 +873,7 @@ func (tctx *testContext) stepISetZookeeperNode(node string, body *godog.DocStrin
 		return err
 	}
 	if err == zk.ErrNoNode {
-		_, err = tctx.zk.Create(node, data, 0, zk.WorldACL(zk.PermAll))
+		_, err = tctx.zk.Create(node, data, 0, tctx.acl)
 	} else {
 		_, err = tctx.zk.Set(node, data, stat.Version)
 	}

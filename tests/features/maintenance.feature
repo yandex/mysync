@@ -93,6 +93,7 @@ Feature: maintenance mode
       """
       maintenance enabled
       """
+    And I wait for "5" seconds
     And zookeeper node "/test/maintenance" should match json
       """
       {
@@ -173,6 +174,7 @@ Feature: maintenance mode
       """
       maintenance enabled
       """
+    And I wait for "5" seconds
     And zookeeper node "/test/maintenance" should match json
       """
       {
