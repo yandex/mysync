@@ -7,7 +7,10 @@ MYSQL_DATA_DIR=/var/lib/mysql
 PATH_MASTER=/test/master
 
 function zk_get() {
-	/opt/zookeeper/bin/zkCli.sh -server "mysync_zookeeper1_1.mysync_mysql_net:2181,mysync_zookeeper2_1.mysync_mysql_net:2181,mysync_zookeeper3_1.mysync_mysql_net:2181"  get /test/master | grep -o '"mysync_mysql[1-3]_1"' | grep -o '[a-z0-9_]*'
+  echo "addauth digest testuser:testpassword123
+  get /test/master" > /tmp/zk_commands
+
+	cat /tmp/zk_commands | /opt/zookeeper/bin/zkCli.sh -server "mysync_zookeeper1_1.mysync_mysql_net:2181,mysync_zookeeper2_1.mysync_mysql_net:2181,mysync_zookeeper3_1.mysync_mysql_net:2181" | grep -o '"mysync_mysql[1-3]_1"' | grep -o '[a-z0-9_]*'
 }
 
 

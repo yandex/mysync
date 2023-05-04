@@ -7,9 +7,9 @@ then
 fi
 
 retry_create() {
-    echo 'create ${1}
-addauth digest testuser:testpassword123
-setAcl ${1} auth:testuser:testpassword123:crwad' > /tmp/zk_commands
+    echo "addauth digest testuser:testpassword123
+create ${1}
+setAcl ${1} auth:testuser:testpassword123:crwad" > /tmp/zk_commands
 
     tries=0
     ret=1

@@ -6,6 +6,7 @@ services:
       context: ./zookeeper_jepsen
     hostname: mysync_zookeeper1_1
     domainname: mysync_mysql_net
+    container_name: mysync_zoo1_1
     ports:
         - 2181
         - 2281
@@ -31,6 +32,7 @@ services:
       context: ./zookeeper_jepsen
     hostname: mysync_zookeeper2_1
     domainname: mysync_mysql_net
+    container_name: mysync_zoo2_1
     ports:
         - 2181
         - 2281
@@ -56,6 +58,7 @@ services:
       context: ./zookeeper_jepsen
     hostname: mysync_zookeeper3_1
     domainname: mysync_mysql_net
+    container_name: mysync_zoo3_1
     ports:
         - 2181
         - 2281
@@ -81,6 +84,7 @@ services:
     privileged: true
     hostname: mysync_mysql1_1
     domainname: mysync_mysql_net
+    container_name: mysync_mysql1_1
     init: true
     extra_hosts:
      - "mysync_mysql2_1.mysync_mysql_net:192.168.233.14"
@@ -109,6 +113,7 @@ services:
     privileged: true
     hostname: mysync_mysql2_1
     domainname: mysync_mysql_net
+    container_name: mysync_mysql2_1
     init: true
     extra_hosts:
      - "mysync_mysql1_1.mysync_mysql_net:192.168.233.13"
@@ -136,6 +141,7 @@ services:
     privileged: true
     hostname: mysync_mysql3_1
     domainname: mysync_mysql_net
+    container_name: mysync_mysql3_1
     init: true
     extra_hosts:
      - "mysync_mysql1_1.mysync_mysql_net:192.168.233.13"
@@ -162,6 +168,7 @@ services:
     build: ./jepsen_main
     hostname: mysync_jepsen_1
     domainname: mysync_mysql_net
+    container_name: mysync_jepsen_1
     init: true
     extra_hosts:
      - "mysync_mysql1_1.mysync_mysql_net:192.168.233.13"

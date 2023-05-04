@@ -31,3 +31,5 @@ mysql:
   pid_file: /tmp/mysqld.pid
 disable_semi_sync_replication_on_maintenance: ${MYSYNC_DISABLE_REPLICATION_ON_MAINT:-false}
 replication_channel: ''
+test_filesystem_readonly_file: /tmp/readonly
+test_disk_usage_file: /tmp/usedspace
