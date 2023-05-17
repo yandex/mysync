@@ -13,6 +13,8 @@ var dubiousErrorNumbers = []uint16{
 	1698, // Symbol: ER_ACCESS_DENIED_NO_PASSWORD_ERROR; SQLSTATE: 28000
 }
 
+const channelDoesNotExists = 3074 // Symbol: ER_REPLICA_CHANNEL_DOES_NOT_EXIST; SQLSTATE: HY000
+
 // IsErrorDubious check that error may be caused by misconfiguration, mysync/scripts bugs
 // and not related to MySQL/network failure
 func IsErrorDubious(err error) bool {
@@ -27,6 +29,20 @@ func IsErrorDubious(err error) bool {
 		if mysqlErr.Number == errno {
 			return true
 		}
+	}
+	return false
+}
+
+func IsErrorChannelDoesNotExists(err error) bool {
+	if err == nil {
+		return false
+	}
+	mysqlErr, ok := err.(*mysql.MySQLError)
+	if !ok {
+		return false
+	}
+	if mysqlErr.Number == channelDoesNotExists {
+		return true
 	}
 	return false
 }

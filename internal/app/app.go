@@ -1309,6 +1309,10 @@ func (app *App) performSwitchover(clusterState map[string]*NodeState, activeNode
 		}
 	} else {
 		app.logger.Infof("switchover: old master %s does not need recovery", oldMaster)
+		err = oldMasterNode.ResetExternalReplicationAll()
+		if err != nil {
+			return fmt.Errorf("got error: %s while reseting external replication on old master: %s", err, oldMaster)
+		}
 	}
 
 	// promote new master
@@ -1344,6 +1348,12 @@ func (app *App) performSwitchover(clusterState map[string]*NodeState, activeNode
 	}
 	if len(events) > 0 {
 		app.logger.Infof("switchover: events reenabled on %s: %v", newMaster, events)
+	}
+
+	// enable external replication
+	err = newMasterNode.SetExternalReplication()
+	if err != nil {
+		app.logger.Errorf("failed to set external replication on new master")
 	}
 
 	// set new master in dcs

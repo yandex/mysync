@@ -44,6 +44,7 @@ const (
 	mysqlQueryTimeout          = 2 * time.Second
 	mysqlWaitOnlineTimeout     = 60
 	replicationChannel         = ""
+	ExternalReplicationChannel = "external"
 	testUser                   = "testuser"
 	testPassword               = "testpassword123"
 )

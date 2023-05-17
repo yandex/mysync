@@ -26,6 +26,7 @@ type MySQLConfig struct {
 	ReplicationRetryCount      int    `config:"replication_retry_count" yaml:"replication_retry_count"`
 	ReplicationConnectRetry    int    `config:"replication_connect_retry" yaml:"replication_connect_retry"`
 	ReplicationHeartbeatPeriod int    `config:"replication_heartbeat_period" yaml:"replication_heartbeat_period"`
+	ExternalReplicationSslCA   string `config:"external_replication_ssl_ca" yaml:"external_replication_ssl_ca"`
 	DataDir                    string `config:"data_dir" yaml:"data_dir"`
 	PidFile                    string `config:"pid_file" yaml:"pid_file"`
 	ErrorLog                   string `config:"error_log" yaml:"error_log"`
@@ -83,6 +84,7 @@ type Config struct {
 	ReplicationRepairMaxAttempts            int                 `config:"replication_repair_max_attempts" yaml:"replication_repair_max_attempts"`
 	TestFilesystemReadonlyFile              string              `config:"test_filesystem_readonly_file" yaml:"test_filesystem_readonly_file"`
 	ReplicationChannel                      string              `config:"replication_channel" yaml:"replication_channel"`
+	ExternalReplicationChannel              string              `config:"external_replication_channel" yaml:"external_replication_channel"`
 }
 
 // DefaultConfig returns default configuration for MySync
@@ -154,6 +156,7 @@ func DefaultConfig() (Config, error) {
 		ReplicationRepairMaxAttempts:            3,
 		TestFilesystemReadonlyFile:              "", // fake readonly status, only for docker tests
 		ReplicationChannel:                      "",
+		ExternalReplicationChannel:				 "external",
 	}
 	return config, nil
 }

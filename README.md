@@ -103,6 +103,7 @@ mysql:
   replication_user: repl
   replication_password: ********
   replication_ssl_ca: /etc/mysql/ssl/allCAs.pem
+  external_replication_ssl_ca: /etc/mysql/ssl/external_CA.pem
   port: 3306
 
 stream_from_reasonable_lag: 5m

@@ -30,6 +30,7 @@ mysql:
   replication_user: repl
   replication_password: repl_pwd
   port: $MYSQL_PORT
+  external_replication_ssl_ca: /etc/mysql/ssl/external_CA.pem
   pid_file: /tmp/mysqld.pid
   error_log: /var/log/mysql/error.log
 disable_semi_sync_replication_on_maintenance: ${MYSYNC_DISABLE_REPLICATION_ON_MAINT:-false}
