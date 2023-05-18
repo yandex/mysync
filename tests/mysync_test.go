@@ -774,14 +774,15 @@ func (tctx *testContext) stepIRunSQLOnHost(host string, body *godog.DocString) e
 	return err
 }
 
-func (tctx *testContext) stepIRunSQLOnHostExpectingErrorOfNumber(host string, errorNumber uint16, body *godog.DocString) error {
+func (tctx *testContext) stepIRunSQLOnHostExpectingErrorOfNumber(host string, errorNumber int, body *godog.DocString) error {
 	query := strings.TrimSpace(body.Content)
 	_, err := tctx.queryMysql(host, query, struct{}{})
 	mysqlErr, ok := err.(*mysql.MySQLError)
 	if !ok {
 		return err
 	}
-	if mysqlErr.Number == errorNumber {
+	num := uint16(errorNumber)
+	if mysqlErr.Number == num {
 		return nil
 	}
 	return err
