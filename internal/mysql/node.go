@@ -902,7 +902,7 @@ func (n *Node) GetStartupTime() (time.Time, error) {
 }
 
 func (n *Node) SetExternalReplication() error {
-	var replSettings replicationSettings
+	replSettings := new(replicationSettings)
 	err := n.queryRow(queryGetExternalReplicationSettings, nil, replSettings)
 	if err != nil {
 		// If no table in scheme then we consider external replication not existing and we do nothing
@@ -911,6 +911,7 @@ func (n *Node) SetExternalReplication() error {
 		}
 		// If there is no rows in table for external replication - do nothing
 		if err == sql.ErrNoRows {
+			n.logger.Infof("no external replication records found in replication table on host %s", n.host)
 			return nil
 		}
 		return err
