@@ -721,7 +721,7 @@ func (n *Node) StartExternalReplication() error {
 		err := n.execMogrify(queryStartReplica, map[string]interface{}{
 			"channel": n.config.ExternalReplicationChannel,
 		})
-		if err != nil && !IsErrorChannelDoesNotExists(err) {
+		if err != nil {
 			return err
 		}
 	}
@@ -905,6 +905,14 @@ func (n *Node) SetExternalReplication() error {
 	var replSettings replicationSettings
 	err := n.queryRow(queryGetExternalReplicationSettings, nil, replSettings)
 	if err != nil {
+		// If no table in scheme then we consider external replication not existing and we do nothing
+		if IsErrorTableDoesNotExists(err) {
+			return nil
+		}
+		// If there is no rows in table for external replication - do nothing
+		if err == sql.ErrNoRows {
+			return nil
+		}
 		return err
 	}
 	useSsl := 0

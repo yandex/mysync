@@ -14,6 +14,7 @@ var dubiousErrorNumbers = []uint16{
 }
 
 const channelDoesNotExists = 3074 // Symbol: ER_REPLICA_CHANNEL_DOES_NOT_EXIST; SQLSTATE: HY000
+const tableDoesNotExists = 1146 // Symbol: ER_NO_SUCH_TABLE; SQLSTATE: 42S02
 
 // IsErrorDubious check that error may be caused by misconfiguration, mysync/scripts bugs
 // and not related to MySQL/network failure
@@ -42,6 +43,20 @@ func IsErrorChannelDoesNotExists(err error) bool {
 		return false
 	}
 	if mysqlErr.Number == channelDoesNotExists {
+		return true
+	}
+	return false
+}
+
+func IsErrorTableDoesNotExists(err error) bool {
+	if err == nil {
+		return false
+	}
+	mysqlErr, ok := err.(*mysql.MySQLError)
+	if !ok {
+		return false
+	}
+	if mysqlErr.Number == tableDoesNotExists {
 		return true
 	}
 	return false
