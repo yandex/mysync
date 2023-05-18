@@ -114,6 +114,6 @@ var DefaultQueries = map[string]string{
 								SOURCE_AUTO_POSITION = 1,
 								SOURCE_CONNECT_RETRY = :connectRetry,
 								SOURCE_RETRY_COUNT = :retryCount,
-								SOURCE_DELAY = :sourceDelay,
+								SOURCE_DELAY = :sourceDelay
 						FOR CHANNEL :channel`,
 }
