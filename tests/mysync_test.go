@@ -774,6 +774,19 @@ func (tctx *testContext) stepIRunSQLOnHost(host string, body *godog.DocString) e
 	return err
 }
 
+func (tctx *testContext) stepIRunSQLOnHostExpectingErrorOfNumber(host string, errorNumber uint16, body *godog.DocString) error {
+	query := strings.TrimSpace(body.Content)
+	_, err := tctx.queryMysql(host, query, struct{}{})
+	mysqlErr, ok := err.(*mysql.MySQLError)
+	if !ok {
+		return err
+	}
+	if mysqlErr.Number == errorNumber {
+		return nil
+	}
+	return err
+}
+
 func (tctx *testContext) stepSQLResultShouldMatch(matcher string, body *godog.DocString) error {
 	m, err := matchers.GetMatcher(matcher)
 	if err != nil {
@@ -1336,6 +1349,7 @@ func InitializeScenario(s *godog.ScenarioContext) {
 	s.Step(`^command return code should be "(\d+)"$`, tctx.stepCommandReturnCodeShouldBe)
 	s.Step(`^command output should match (\w+)$`, tctx.stepCommandOutputShouldMatch)
 	s.Step(`^I run SQL on mysql host "([^"]*)"$`, tctx.stepIRunSQLOnHost)
+	s.Step(`^I run SQL on mysql host "([^"]*)" expecting error on number "(\d+)"$`, tctx.stepIRunSQLOnHostExpectingErrorOfNumber)
 	s.Step(`^SQL result should match (\w+)$`, tctx.stepSQLResultShouldMatch)
 	s.Step(`^I break replication on host "([^"]*)"$`, tctx.stepBreakReplicationOnHost)
 	s.Step(`^I break replication on host "([^"]*)" in repairable way$`, tctx.stepBreakReplicationOnHostInARepairableWay)

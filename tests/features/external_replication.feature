@@ -27,8 +27,7 @@ Feature: external replication
         VALUES ('external', 'test_source', 'test_user', 'test_pass', 2222);
     """
     And I wait for "5" seconds
-    And I run SQL on mysql host "mysql1"
+    And I run SQL on mysql host "mysql1" expecting error on number "3074"
     """
         SHOW REPLICA STATUS FOR CHANNEL "external"
     """
-    And I have SQL execution error at mysql host "mysql1" within "0" seconds
