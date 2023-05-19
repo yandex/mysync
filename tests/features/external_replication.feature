@@ -26,10 +26,36 @@ Feature: external replication
             (channel_name, source_host, source_user, source_password, source_port)
             VALUES ('external', 'test_source', 'test_user', 'test_pass', 2222);
         """
-        And I wait for "5" seconds
         And I run SQL on mysql host "mysql1" expecting error on number "3074"
         """
             SHOW REPLICA STATUS FOR CHANNEL 'external'
+        """
+        And I run SQL on mysql host "mysql1"
+        """
+            SELECT source_host, source_user, source_password, source_port  FROM mysql.replication_settings WHERE channel_name = 'external'
+        """
+        Then SQL result should match regexp
+        """
+        [{
+            "source_host": "test_source to source",
+            "source_user": "test_user",
+            "source_password": "test_pass",
+            "source_port": 2222,
+        }]
+        """
+        When I wait for "5" seconds
+        And I run SQL on mysql host "mysql2"
+        """
+            SELECT source_host, source_user, source_password, source_port  FROM mysql.replication_settings WHERE channel_name = 'external'
+        """
+        Then SQL result should match regexp
+        """
+        [{
+            "source_host": "test_source to source",
+            "source_user": "test_user",
+            "source_password": "test_pass",
+            "source_port": 2222,
+        }]
         """
         When I run SQL on mysql host "mysql1"
         """

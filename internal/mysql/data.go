@@ -41,11 +41,11 @@ type ResetupStatus struct {
 }
 
 type replicationSettings struct {
-	channelName    string `db:"channel_name"`
-	sourceHost     string `db:"source_host"`
-	sourceUser     string `db:"source_user"`
-	sourcePassword string `db:"source_password"`
-	sourcePort	   string `db:"source_port"`
+	channelName    string `db:"channelName"`
+	sourceHost     string `db:"sourceHost"`
+	sourceUser     string `db:"sourceUser"`
+	sourcePassword string `db:"sourcePassword"`
+	sourcePort	   string `db:"sourcePort"`
 	sourceSslCa    string `db:"sourceSslCa"`
 	sourceDelay    uint64 `db:"sourceDelay"`
 }

@@ -902,10 +902,10 @@ func (n *Node) GetStartupTime() (time.Time, error) {
 }
 
 func (n *Node) SetExternalReplication() error {
-	replSettings := new(replicationSettings)
-	err := n.queryRow(queryGetExternalReplicationSettings, nil, replSettings)
+	var replSettings replicationSettings
+	err := n.queryRow(queryGetExternalReplicationSettings, nil, &replSettings)
 	if err != nil {
-		// If no table in scheme then we consider external replication not existing and we do nothing
+		// If no table in scheme then we consider external replication not existing so we do nothing
 		if IsErrorTableDoesNotExists(err) {
 			return nil
 		}
