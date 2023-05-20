@@ -918,8 +918,8 @@ func (n *Node) SetExternalReplication() error {
 	}
 	useSsl := 0
 	sslCa := ""
-	if replSettings.sourceSslCa != "" && n.config.MySQL.ExternalReplicationSslCA != "" {
-		err := n.SaveCAFile(replSettings.sourceSslCa, n.config.MySQL.ExternalReplicationSslCA)
+	if replSettings.SourceSslCa != "" && n.config.MySQL.ExternalReplicationSslCA != "" {
+		err := n.SaveCAFile(replSettings.SourceSslCa, n.config.MySQL.ExternalReplicationSslCA)
 		if err != nil {
 			return err
 		}
