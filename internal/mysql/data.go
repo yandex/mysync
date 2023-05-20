@@ -45,9 +45,9 @@ type replicationSettings struct {
 	SourceHost     string `db:"SourceHost"`
 	SourceUser     string `db:"SourceUser"`
 	SourcePassword string `db:"SourcePassword"`
-	SourcePort	   uint64 `db:"SourcePort"`
+	SourcePort	   int64 `db:"SourcePort"`
 	SourceSslCa    string `db:"SourceSslCa"`
-	SourceDelay    uint64 `db:"SourceDelay"`
+	SourceDelay    int64 `db:"SourceDelay"`
 }
 
 // SlaveStatusStruct contains SHOW SLAVE STATUS response
