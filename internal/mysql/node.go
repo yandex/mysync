@@ -935,13 +935,13 @@ func (n *Node) SetExternalReplication() error {
 		return err
 	}
 	err = n.execMogrify(queryChangeSource, map[string]interface{}{
-		"host":            replSettings.sourceHost,
-		"port":            replSettings.sourcePort,
-		"user":            replSettings.sourceUser,
-		"password":        replSettings.sourcePassword,
+		"host":            replSettings.SourceHost,
+		"port":            replSettings.SourcePort,
+		"user":            replSettings.SourceUser,
+		"password":        replSettings.SourcePassword,
 		"ssl":             useSsl,
 		"sslCa":           sslCa,
-		"sourceDelay":	   replSettings.sourceDelay,
+		"sourceDelay":	   replSettings.SourceDelay,
 		"retryCount":      n.config.MySQL.ReplicationRetryCount,
 		"connectRetry":    n.config.MySQL.ReplicationConnectRetry,
 		"heartbeatPeriod": n.config.MySQL.ReplicationHeartbeatPeriod,

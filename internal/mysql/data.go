@@ -41,13 +41,13 @@ type ResetupStatus struct {
 }
 
 type replicationSettings struct {
-	channelName    string `db:"channelName"`
-	sourceHost     string `db:"sourceHost"`
-	sourceUser     string `db:"sourceUser"`
-	sourcePassword string `db:"sourcePassword"`
-	sourcePort	   string `db:"sourcePort"`
-	sourceSslCa    string `db:"sourceSslCa"`
-	sourceDelay    uint64 `db:"sourceDelay"`
+	ChannelName    string `db:"ChannelName"`
+	SourceHost     string `db:"SourceHost"`
+	SourceUser     string `db:"SourceUser"`
+	SourcePassword string `db:"SourcePassword"`
+	SourcePort	   uint64 `db:"SourcePort"`
+	SourceSslCa    string `db:"SourceSslCa"`
+	SourceDelay    uint64 `db:"SourceDelay"`
 }
 
 // SlaveStatusStruct contains SHOW SLAVE STATUS response
