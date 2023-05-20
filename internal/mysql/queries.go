@@ -103,7 +103,7 @@ var DefaultQueries = map[string]string{
 	queryGetExternalReplicationSettings: `SELECT channel_name AS ChannelName, source_host AS SourceHost, source_user AS SourceUser, source_port AS SourcePort,
 											source_password AS SourcePassword, source_ssl_ca AS SourceSslCa, source_delay AS SourceDelay
 											FROM mysql.replication_settings WHERE channel_name = 'external'`,
-	queryChangeSource: `CHANGE SOURCE TO
+	queryChangeSource: `CHANGE REPLICATION SOURCE TO
 								SOURCE_HOST = :host,
 								SOURCE_PORT = :port,
 								SOURCE_USER = :user,
