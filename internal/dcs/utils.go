@@ -2,16 +2,11 @@ package dcs
 
 import "strings"
 
-func buildFullPath(paths ...string) string {
+func buildFullPath(prefix, path string) string {
 	b := strings.Builder{}
-	length := 1
-	for _, v := range paths {
-		length += len(v)
-	}
-	b.Grow(length)
-	for _, v := range paths {
-		buildPathPart(&b, v)
-	}
+	b.Grow(1 + len(prefix) + len(path))
+	buildPathPart(&b, prefix)
+	buildPathPart(&b, path)
 	if b.Len() == 0 {
 		b.WriteRune(sepRune)
 	}
