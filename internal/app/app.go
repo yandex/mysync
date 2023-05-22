@@ -98,10 +98,18 @@ func (app *App) baseContext() context.Context {
 func (app *App) connectDCS() error {
 	var err error
 	// TODO: support other DCS systems
-	app.dcs, err = dcs.NewZookeeper(&app.config.Zookeeper, app.logger)
-	if err != nil {
-		return fmt.Errorf("failed to connect to zkDCS: %s", err.Error())
+	if len(app.config.Zookeeper.Hosts) != 0 {
+		app.dcs, err = dcs.NewZookeeper(&app.config.Zookeeper, app.logger)
+		if err != nil {
+			return fmt.Errorf("failed to connect to zkDCS: %s", err.Error())
+		}
+	} else if len(app.config.Etcd.Hosts) != 0 {
+		app.dcs, err = dcs.NewEtcd(&app.config.Etcd, app.logger)
+		if err != nil {
+			return fmt.Errorf("failed to connect to etcdDCS: %s", err.Error())
+		}
 	}
+
 	return nil
 }
 

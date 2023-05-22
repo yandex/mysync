@@ -41,7 +41,11 @@ var (
 
 // sep is a path separator for most common DCS
 // Zookeeper, etcd and consul use slash
-const sep = "/"
+const (
+	sep          = "/"
+	sepRune      = '/'
+	etcdLockName = "etcd_lock"
+)
 
 // LockOwner contains info about the process holding the lock
 type LockOwner struct {

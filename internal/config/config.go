@@ -54,6 +54,7 @@ type Config struct {
 	Queries                                 map[string]string   `config:"queries"`
 	Commands                                map[string]string   `config:"commands"`
 	Zookeeper                               dcs.ZookeeperConfig `config:"zookeeper"`
+	Etcd                                    dcs.EtcdConfig      `config:"etcd"`
 	DcsWaitTimeout                          time.Duration       `config:"dcs_wait_timeout" yaml:"dcs_wait_timeout"`
 	DBTimeout                               time.Duration       `config:"db_timeout" yaml:"db_timeout"`
 	DBLostCheckTimeout                      time.Duration       `config:"db_lost_check_timeout" yaml:"db_lost_check_timeout"`
@@ -91,6 +92,10 @@ func DefaultConfig() (Config, error) {
 	if err != nil {
 		return Config{}, err
 	}
+	etcdConfig, err := dcs.DefaultEtcdConfig()
+	if err != nil {
+		return Config{}, err
+	}
 	hostname, err := os.Hostname()
 	if err != nil {
 		return Config{}, err
@@ -125,6 +130,7 @@ func DefaultConfig() (Config, error) {
 		Commands:                                map[string]string{},
 		Hostname:                                hostname,
 		Zookeeper:                               zkConfig,
+		Etcd:                                    etcdConfig,
 		DcsWaitTimeout:                          10 * time.Second,
 		DBTimeout:                               5 * time.Second,
 		DBLostCheckTimeout:                      5 * time.Second,

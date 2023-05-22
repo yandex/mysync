@@ -11,7 +11,6 @@ import (
 
 	"github.com/cenkalti/backoff/v4"
 	"github.com/go-zookeeper/zk"
-
 	"github.com/yandex/mysync/internal/log"
 )
 
@@ -126,26 +125,7 @@ func NewZookeeper(config *ZookeeperConfig, logger *log.Logger) (DCS, error) {
 }
 
 func (z *zkDCS) buildFullPath(path string) string {
-	if len([]byte(sep)) != 1 {
-		panic("only 1-byte length sep supported")
-	}
-	bsep := []byte(sep)[0]
-	res := []byte(JoinPath(z.config.Namespace, path))
-	j := 0
-	for i := 0; i < len(res); i++ {
-		if i > 0 && res[i] == bsep && res[i-1] == bsep {
-			continue
-		}
-		res[j] = res[i]
-		j++
-	}
-	res = res[:j]
-	if res[j-1] == bsep {
-		res = res[:j-1]
-	} else {
-		res = res[:j]
-	}
-	return string(res)
+	return buildFullPath(z.config.Namespace, path)
 }
 
 func (z *zkDCS) getSelfLockOwner() LockOwner {

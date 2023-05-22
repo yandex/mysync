@@ -47,3 +47,31 @@ func DefaultZookeeperConfig() (ZookeeperConfig, error) {
 	}
 	return config, nil
 }
+
+// EtcdConfig contains etcd connection info
+type EtcdConfig struct {
+	Hostname       string        `config:"hostname" yaml:"hostname"`
+	SessionTimeout time.Duration `config:"session_timeout" yaml:"session_timeout"`
+	Namespace      string        `config:"namespace,required"`
+	Hosts          []string      `config:"hosts,required"`
+	Auth           bool          `config:"auth" yaml:"auth"`
+	Username       string        `config:"username" yaml:"username"`
+	Password       string        `config:"password" yaml:"password"`
+	UseSSL         bool          `config:"use_ssl" yaml:"use_ssl"`
+	KeyFile        string        `config:"keyfile" yaml:"keyfile"`
+	CertFile       string        `config:"certfile" yaml:"certfile"`
+	CACert         string        `config:"ca_cert" yaml:"ca_cert"`
+}
+
+// DefaultEtcdConfig return default etcd connection configuration
+func DefaultEtcdConfig() (EtcdConfig, error) {
+	hostname, err := os.Hostname()
+	if err != nil {
+		return EtcdConfig{}, err
+	}
+	config := EtcdConfig{
+		Hostname:       hostname,
+		SessionTimeout: 2 * time.Second,
+	}
+	return config, nil
+}
