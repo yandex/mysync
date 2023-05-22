@@ -1,6 +1,11 @@
 #!/bin/bash
 set -ex
-FQDN=$(hostname)
+FQDN=$1
+
+if [[ "${FQDN}" == "" ]];
+then
+    FQDN=$(hostname)
+fi
 
 ls /etc/zk-ssl/server.crt && exit 0 || true
 mkdir /etc/zk-ssl
