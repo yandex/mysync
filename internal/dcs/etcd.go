@@ -72,27 +72,7 @@ func NewEtcd(config *EtcdConfig, logger *log.Logger) (DCS, error) {
 		session:            session,
 		disconnectCallback: func() error { return nil },
 	}, nil
-
 }
-
-//
-//type DCS interface {
-//	IsConnected() bool
-//	WaitConnected(timeout time.Duration) bool
-//	Initialize() // Create initial data structure if not exists
-//	SetDisconnectCallback(callback func() error)
-//	AcquireLock(path string) bool
-//	ReleaseLock(path string)
-//	Create(path string, value interface{}) error
-//	CreateEphemeral(path string, value interface{}) error
-//	Set(path string, value interface{}) error
-//	SetEphemeral(path string, value interface{}) error
-//	Get(path string, dest interface{}) error
-//	Delete(path string) error
-//	GetTree(path string) (interface{}, error)
-//	GetChildren(path string) ([]string, error)
-//	Close()
-//}
 
 func (e *etcdDCS) buildFullPath(path string) string {
 	return buildFullPath(e.config.Namespace, path)
@@ -129,7 +109,7 @@ func (e *etcdDCS) AcquireLock(path string) bool {
 	mu := concurrency.NewMutex(e.session, e.buildFullPath(path))
 	err := mu.TryLock(context.TODO())
 	if err != nil {
-		e.logger.Errorf("try lock failed, error: %w", err)
+		e.logger.Errorf("try lock failed, error: %v", err)
 		return false
 	}
 	return true
@@ -138,7 +118,7 @@ func (e *etcdDCS) AcquireLock(path string) bool {
 func (e *etcdDCS) ReleaseLock(path string) {
 	mu := concurrency.NewMutex(e.session, e.buildFullPath(path))
 	if err := mu.Unlock(context.TODO()); err != nil {
-		e.logger.Errorf("unlock failed, error: %w", err)
+		e.logger.Errorf("unlock failed, error: %v", err)
 	}
 }
 
