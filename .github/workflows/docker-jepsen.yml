@@ -1,0 +1,37 @@
+name: Docker tests
+
+on:
+  push:
+    branches: [ master ]
+  pull_request:
+    branches: [ master ]
+
+env:
+  GO_VERSION: 1.19
+
+jobs:
+  test:
+    name: jepsen
+    runs-on: ubuntu-20.04
+    steps:
+      - name: Set up Go 1.x
+        uses: actions/setup-go@v3
+        with:
+          go-version: ${{ env.GO_VERSION }}
+        id: go
+
+      - name: Check out code into the Go module directory
+        uses: actions/checkout@v3
+
+      - name: Get dependencies
+        run: |
+          go get -v -t -d ./...
+
+      - name: Test
+        run: make base_img jepsen_base_img jepsen_test
+
+      - uses: actions/upload-artifact@v3
+        if: failure()
+        with:
+          name: logs
+          path: tests/logs

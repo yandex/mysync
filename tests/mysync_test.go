@@ -502,7 +502,11 @@ func (tctx *testContext) stepClusterIsUpAndRunning(createHaNodes bool) error {
 		}
 	}
 
-	return nil
+	if !createHaNodes {
+		return nil
+	}
+	body := godog.DocString{Content: "[\"mysql1\",\"mysql2\",\"mysql3\"]"}
+	return tctx.stepZookeeperNodeShouldMatchWithin("/test/active_nodes", "json_exactly", 30, &body)
 }
 
 func (tctx *testContext) stepHostIsStopped(host string) error {
