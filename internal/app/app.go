@@ -525,6 +525,11 @@ func (app *App) stateManager() appState {
 		return stateManager
 	}
 
+	err = app.UpdateExternalCAFile(master)
+	if err != nil {
+		app.logger.Errorf("gor error %s while updating external CA file", err.Error())
+	}
+
 	// activeNodes are master + alive running replicas
 	activeNodes, err := app.GetActiveNodes()
 	if err != nil {
@@ -2189,6 +2194,11 @@ func (app *App) getNodePositions(activeNodes []string) ([]nodePosition, error) {
 	}, activeNodes)
 
 	return positions, util.CombineErrors(errs)
+}
+
+func (app *App) UpdateExternalCAFile(master string) error {
+	masterNode := app.cluster.Get(master)
+	return masterNode.UpdateExternalCAFile()
 }
 
 /*

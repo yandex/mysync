@@ -953,7 +953,37 @@ func (n *Node) SetExternalReplication() error {
 	return n.StartExternalReplication()
 }
 
-func (n *Node) SaveCAFile (data string, path string) error {
+func (n *Node) UpdateExternalCAFile() error {
+	var replSettings replicationSettings
+	err := n.queryRow(queryGetExternalReplicationSettings, nil, &replSettings)
+	if err != nil {
+		return nil
+	}
+	data := replSettings.SourceSslCa
+	fileName := n.config.MySQL.ExternalReplicationSslCA
+	if data != "" && fileName != "" {
+		_, err := os.Stat(fileName)
+		if os.IsNotExist(err) {
+			_, err := os.Create(fileName)
+			if err != nil {
+				return err
+			}
+		}
+		oldDataByte, err := os.ReadFile(fileName)
+		if err != nil {
+			return err
+		}
+		if data != string(oldDataByte) {
+			err := n.SaveCAFile(data, fileName)
+			if err != nil {
+				return err
+			}
+		}
+	}
+	return nil
+}
+
+func (n *Node) SaveCAFile(data string, path string) error {
 	rootCertPool := x509.NewCertPool()
 	byteData := []byte(data)
 	if ok := rootCertPool.AppendCertsFromPEM(byteData); !ok {
