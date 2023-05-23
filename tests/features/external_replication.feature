@@ -90,30 +90,31 @@ Feature: external replication
         """
 
         When I run command on host "mysql1"
-          """
-          mysync switch --to mysql2 --wait=0s
-          """
+        """
+            mysync switch --to mysql2 --wait=0s
+        """
         Then command return code should be "0"
         And command output should match regexp
-          """
-          switchover scheduled
-          """
+        """
+            switchover scheduled
+        """
         And zookeeper node "/test/switch" should match json
-          """
-          {
+        """
+            {
             "from": "",
             "to": "mysql2"
-          }
-          """
+            }
+        """
         Then zookeeper node "/test/last_switch" should match json within "30" seconds
-          """
-          {
+        """
+            {
             "from": "",
             "to": "mysql2",
             "result": {
               "ok": true
             }
-          }
+            }
+        """
         Then mysql host "mysql2" should be master
         And mysql host "mysql2" should be writable
         When I run SQL on mysql host "mysql2"
