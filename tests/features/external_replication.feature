@@ -1,6 +1,6 @@
 Feature: external replication
 
-    Scenario: external replication
+    Scenario: external replication and switchover
         Given cluster is up and running
         Then mysql host "mysql1" should be master
         And mysql host "mysql2" should be replica of "mysql1"
@@ -85,53 +85,6 @@ Feature: external replication
         }]
         """
 
-        When I run command on host "mysql2"
-        """
-            mysync switch --to mysql2 --wait=0s
-        """
-        Then command return code should be "0"
-        And command output should match regexp
-        """
-            switchover scheduled
-        """
-        And zookeeper node "/test/switch" should match json
-        """
-        {
-            "from": "",
-            "to": "mysql2"
-        }
-        """
-        Then zookeeper node "/test/last_switch" should match json within "30" seconds
-        """
-        {
-            "from": "",
-            "to": "mysql2",
-            "result": {
-              "ok": true
-            }
-        }
-        """
-        Then mysql host "mysql2" should be master
-        And I wait for "1" seconds
-        And I run SQL on mysql host "mysql2"
-        """
-            SHOW REPLICA STATUS FOR CHANNEL 'external'
-        """
-        Then SQL result should match regexp
-        """
-        [{
-            "Replica_IO_State": "Connecting to source",
-            "Source_Host": "test_source",
-            "Source_Port": 1111,
-            "Source_User": "test_user",
-            "Replica_IO_Running": "Connecting",
-            "Relay_Source_Log_File": "",
-            "Exec_Source_Log_Pos": 0,
-            "Last_IO_Errno": 2005,
-            "Channel_Name": "external"
-        }]
-        """
-
         When host "mysql1" is started
         Then mysql host "mysql1" should become available within "20" seconds
         And mysql host "mysql1" should become replica of "mysql2" within "10" seconds
@@ -153,8 +106,130 @@ Feature: external replication
         }]
         """
 
-        When I run SQL on mysql host "mysql2"
+    Scenario: external replication
+        Given cluster is up and running
+        Then mysql host "mysql1" should be master
+        And mysql host "mysql2" should be replica of "mysql1"
+        And mysql host "mysql3" should be replica of "mysql1"
+        When I run SQL on mysql host "mysql1"
         """
+            CREATE TABLE mysql.replication_settings(
+                channel_name VARCHAR(50) NOT NULL,
+                source_host VARCHAR(50) NOT NULL,
+                source_user VARCHAR(50) NOT NULL,
+                source_password VARCHAR(50) NOT NULL,
+                source_port INT UNSIGNED NOT NULL,
+                source_ssl_ca VARCHAR(4096) NOT NULL DEFAULT '',
+                source_delay INT UNSIGNED NOT NULL DEFAULT 0,
+                source_log_file VARCHAR(50) NOT NULL DEFAULT '',
+                source_log_pos INT UNSIGNED NOT NULL DEFAULT 0,
+                PRIMARY KEY (channel_name)
+            ) ENGINE=INNODB;
+        """
+        And I run SQL on mysql host "mysql1"
+        """
+            INSERT INTO mysql.replication_settings
+            (channel_name, source_host, source_user, source_password, source_port)
+            VALUES ('external', 'test_source', 'test_user', 'test_pass', 2222);
+        """
+        And I run SQL on mysql host "mysql1"
+        """
+            CHANGE REPLICATION SOURCE TO  SOURCE_HOST = 'test_source',
+                SOURCE_USER = 'test_user',
+                SOURCE_PASSWORD = 'test_pass',
+                SOURCE_PORT = 1111,
+                FOR CHANNEL 'external'
+        """
+        And I run SQL on mysql host "mysql1"
+        """
+            SHOW REPLICA STATUS FOR CHANNEL 'external'
+        """
+        Then SQL result should match regexp
+        """
+        [{
+            "Replica_IO_State": "No",
+            "Source_Host": "test_source",
+            "Source_Port": 1111,
+            "Source_User": "test_user",
+            "Replica_IO_Running": "No",
+            "Source_SSL_CA_File": "",
+            "Relay_Source_Log_File": "",
+            "Exec_Source_Log_Pos": 0,
+            "Last_IO_Errno": 2005,
+            "Channel_Name": "external"
+        }]
+        """
+        When I run SQL on mysql host "mysql1"
+        """
+            UPDATE mysql.replication_settings
+            SET source_ssl_ca = '-----BEGIN CERTIFICATE-----
+                                 MIIDDDCCAfSgAwIBAgIBATANBgkqhkiG9w0BAQssADA/MT0wOwYDVQQDDDRNeVNR
+                                 TF9TZXJ2ZXJfOC4wLjMyLTI0X0F1dG9fR2VuZXJhdGVkX0NBX0NlcnRpZmljYXRl
+                                 MB4XDTIzMDUxNDE2NDA1OFoXDTMzMDUxMTE2NDA1OFowPzE9MDsGA1UEAww0TXlT
+                                 UUxfU2VydmVyXzguMC4zMi0yNF9BdXRvX0dlbmVyYXRlZF9DQV9DZXJ0aWZpY2F0
+                                 ZTCCASIwDQYJKoZIhvcNAQEBBQADggEPADCCAQoCggEBAOFExOlSI8gd0LtIko+z
+                                 SSpVP94Kk0mxRALdNWry6Ua1PoLogq+ScE0OMN6JamaLqG268K5gIdydLOaK9kx2
+                                 SXXyPUTTepuivpnpiI4KqMcaWYQzmot5eoSOOQL6E5hb09oRXY+IhlaynFg0l/E7
+                                 t5uMMUopmcfOH6OGMXTCFXebKbWGnzHx83bXkyzMWWc1p4X+aP18dewHsYuwZOdx
+                                 1goNZNNz0BaJq2y0RYnfYeNOLV6d+S6BAMAUkWbABdols8Pi8ezsPwZ8x/1vk7uy
+                                 tUOmiuMkLsC6LzJnnUaoGR3tflCH+yU3XSPQpnZYzaFaeA3d6mgV93w7y3Jreavx
+                                 tHkCAwEAAaMTMBEwDwYDVR0TAQH/BAUwAwEB/zANBgkqhkiG9w0BAQsFAAOCAQEA
+                                 dZ9vGVJaAauomoDp9VY4zOr0G4n7WnEElqMAxOQPzLJwRXe81/GchmUKWvX5Fc6o
+                                 6RiEa7Nw4YiXKyFMqoJbQN3j8EkOiHs1FtrwJNsobzmlVmjuqxqCBWmVQPpUfOQh
+                                 f6I/gQr2BVxvNsj+IvuI0vIVjP5J3GBxL9ySv`Ksfp4xtk1oTHIuA2G3haIv2AJp
+                                 j/Hm7nVvoXWrb/zX+fagi0rrf+3hDCsHMXtxaxXk2sGRLKHgkTYTVwEPQ6SKEqrW
+                                 qnSOx+SMl4up6AVfEq6kVR8ZIt/CzJBWZ4qYQnOf0eK4KQC6UB22adzsaFMmhzRB
+                                 YZQy1bHIhscLf8wjTYbzAg==
+                                 -----END CERTIFICATE-----'
+        """
+        And I wait for "10" seconds
+        And I run SQL on mysql host "mysql1"
+        """
+            SHOW REPLICA STATUS FOR CHANNEL 'external'
+        """
+        Then SQL result should match regexp
+        """
+        [{
+            "Replica_IO_State": "No",
+            "Source_Host": "test_source",
+            "Source_Port": 1111,
+            "Source_User": "test_user",
+            "Replica_IO_Running": "No",
+            "Source_SSL_CA_File": "/etc/mysql/ssl/external_CA.pem",
+            "Relay_Source_Log_File": "",
+            "Exec_Source_Log_Pos": 0,
+            "Last_IO_Errno": 2005,
+            "Channel_Name": "external"
+        }]
+        """
+        When I run SQL on mysql host "mysql1"
+        """
+            UPDATE mysql.replication_settings
+            SET source_ssl_ca = ''
+        """
+        And I wait for "10" seconds
+        And I run SQL on mysql host "mysql1"
+        """
+            SHOW REPLICA STATUS FOR CHANNEL 'external'
+        """
+        Then SQL result should match regexp
+        """
+        [{
+            "Replica_IO_State": "No",
+            "Source_Host": "test_source",
+            "Source_Port": 1111,
+            "Source_User": "test_user",
+            "Replica_IO_Running": "No",
+            "Source_SSL_CA_File": "",
+            "Relay_Source_Log_File": "",
+            "Exec_Source_Log_Pos": 0,
+            "Last_IO_Errno": 2005,
+            "Channel_Name": "external"
+        }]
+        """
+        When I run SQL on mysql host "mysql1"
+        """
+            -- bad sert, must be ignored
             UPDATE mysql.replication_settings
             SET source_ssl_ca = '-----BEGIN CERTIFICATE-----
              MIIDCTCCAfGgAwIBAgIBATANBgkqhkiG9w0BAQsFADA/MT0wOwYDVQQDDDRNeVNR
@@ -177,19 +252,19 @@ Feature: external replication
              -----END CERTIFICATE-----'
         """
         And I wait for "10" seconds
-        And I run command on host "mysql2"
+        And I run SQL on mysql host "mysql1"
         """
             SHOW REPLICA STATUS FOR CHANNEL 'external'
         """
         Then SQL result should match regexp
         """
         [{
-            "Replica_IO_State": "Connecting to source",
-            "Source_Host": "test_source_2",
-            "Source_Port": 2222,
-            "Source_User": "test_user_2",
-            "Source_SSL_CA_File": "/etc/mysql/ssl/external_CA.pem",
-            "Replica_IO_Running": "Connecting",
+            "Replica_IO_State": "No",
+            "Source_Host": "test_source",
+            "Source_Port": 1111,
+            "Source_User": "test_user",
+            "Replica_IO_Running": "No",
+            "Source_SSL_CA_File": "",
             "Relay_Source_Log_File": "",
             "Exec_Source_Log_Pos": 0,
             "Last_IO_Errno": 2005,
