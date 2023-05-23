@@ -24,7 +24,7 @@ Feature: external replication
         """
             INSERT INTO mysql.replication_settings
             (channel_name, source_host, source_user, source_password, source_port)
-            VALUES ('external', 'test_source', 'test_user', 'test_pass', 2222);
+            VALUES ('external', 'test_source_2', 'test_user_2', 'test_pass_2', 2222);
         """
         And I run SQL on mysql host "mysql1" expecting error on number "3074"
         """
@@ -37,9 +37,9 @@ Feature: external replication
         Then SQL result should match regexp
         """
         [{
-            "source_host": "test_source to source",
-            "source_user": "test_user",
-            "source_password": "test_pass",
+            "source_host": "test_source_2",
+            "source_user": "test_user_2",
+            "source_password": "test_pass_2",
             "source_port": 2222,
         }]
         """
@@ -51,9 +51,9 @@ Feature: external replication
         Then SQL result should match regexp
         """
         [{
-            "source_host": "test_source to source",
-            "source_user": "test_user",
-            "source_password": "test_pass",
+            "source_host": "test_source_2",
+            "source_user": "test_user_2",
+            "source_password": "test_pass_2",
             "source_port": 2222,
         }]
         """
@@ -66,6 +66,10 @@ Feature: external replication
                 SOURCE_AUTO_POSITION = 1
                 FOR CHANNEL 'external'
         """
+        And I run SQL on mysql host "mysql2" expecting error on number "3074"
+        """
+            SHOW REPLICA STATUS FOR CHANNEL 'external'
+        """
         And I run SQL on mysql host "mysql1"
         """
             SHOW REPLICA STATUS FOR CHANNEL 'external'
@@ -77,6 +81,52 @@ Feature: external replication
             "Source_Host": "test_source",
             "Source_Port": 1111,
             "Source_User": "test_user",
+            "Replica_IO_Running": "Connecting",
+            "Relay_Source_Log_File": "",
+            "Exec_Source_Log_Pos": 0,
+            "Last_IO_Errno": 2005,
+            "Channel_Name": "external"
+        }]
+        """
+
+        When I run command on host "mysql1"
+          """
+          mysync switch --to mysql2 --wait=0s
+          """
+        Then command return code should be "0"
+        And command output should match regexp
+          """
+          switchover scheduled
+          """
+        And zookeeper node "/test/switch" should match json
+          """
+          {
+            "from": "",
+            "to": "mysql2"
+          }
+          """
+        Then zookeeper node "/test/last_switch" should match json within "30" seconds
+          """
+          {
+            "from": "",
+            "to": "mysql2",
+            "result": {
+              "ok": true
+            }
+          }
+        Then mysql host "mysql2" should be master
+        And mysql host "mysql2" should be writable
+        When I run SQL on mysql host "mysql2"
+        """
+            SHOW REPLICA STATUS FOR CHANNEL 'external'
+        """
+        Then SQL result should match regexp
+        """
+        [{
+            "Replica_IO_State": "Connecting to source",
+            "Source_Host": "test_source_2",
+            "Source_Port": 2222,
+            "Source_User": "test_user_2",
             "Replica_IO_Running": "Connecting",
             "Relay_Source_Log_File": "",
             "Exec_Source_Log_Pos": 0,
@@ -99,14 +149,14 @@ Feature: external replication
         Then SQL result should match regexp
         """
         [{
-            "source_host": "test_source to source",
+            "source_host": "test_source_2",
             "source_user": "test_user",
             "source_password": "test_pass",
             "source_port": 2222,
         }]
         """
 
-    Scenario: external replication
+    Scenario: external replication CA file creating
         Given cluster is up and running
         Then mysql host "mysql1" should be master
         And mysql host "mysql2" should be replica of "mysql1"
