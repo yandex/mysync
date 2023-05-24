@@ -175,20 +175,20 @@ Feature: external replication
                 source_log_file VARCHAR(50) NOT NULL DEFAULT '',
                 source_log_pos INT UNSIGNED NOT NULL DEFAULT 0,
                 PRIMARY KEY (channel_name)
-            ) ENGINE=INNODB;
+            ) ENGINE=INNODB
         """
         And I run SQL on mysql host "mysql1"
         """
             INSERT INTO mysql.replication_settings
             (channel_name, source_host, source_user, source_password, source_port)
-            VALUES ('external', 'test_source', 'test_user', 'test_pass', 2222);
+            VALUES ('external', 'test_source', 'test_user', 'test_pass', 2222)
         """
         And I run SQL on mysql host "mysql1"
         """
             CHANGE REPLICATION SOURCE TO  SOURCE_HOST = 'test_source',
                 SOURCE_USER = 'test_user',
                 SOURCE_PASSWORD = 'test_pass',
-                SOURCE_PORT = 1111,
+                SOURCE_PORT = 1111
                 FOR CHANNEL 'external'
         """
         And I run SQL on mysql host "mysql1"
