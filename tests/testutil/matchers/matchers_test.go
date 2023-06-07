@@ -17,7 +17,7 @@ func TestRegexpMatcher(t *testing.T) {
 func TestJsonExactlyMatcher(t *testing.T) {
 	var a, e string
 	a = `{"a":1, "b":0.2, "c": [1,2], "z": null, "e": {"x":"y"}}`
-	e = `{"a":1, "c": [1,2,3], "b":0.2,    "z": null, "e": {"x":   "y"}}`
+	e = `{"a":1, "c": [1,2], "b":0.2,    "z": null, "e": {"x":   "y"}}`
 	assert.NoError(t, JSONExactlyMatcher(a, e), "exact json matcher should match jsons despite key orders and spaces")
 	a = `{"a":2, "b":0.2, "c": [1,2], "d": null, "e": {"x":"y"}}`
 	assert.Error(t, JSONExactlyMatcher(a, e), "exact json matcher should not match if value changes")
