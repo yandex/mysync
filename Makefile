@@ -10,6 +10,7 @@ lint:
 
 unittests:
 	go test ./cmd/... ./internal/...
+	go test ./cmd/... ./tests/testutil/matchers/
 
 base_img:
 	docker build --tag=mysync-test-base tests/images/base --build-arg MYSQL_VERSION=5.7
@@ -54,3 +55,4 @@ clean:
 	docker network ls | grep mysync | awk '{print $$1}' | xargs docker network rm || true
 	docker image ls | grep mysync | awk '{print $$3}' | xargs docker image rm --force || true
 	rm -rf ./tests/logs
+
