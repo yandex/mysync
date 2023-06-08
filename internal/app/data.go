@@ -63,6 +63,8 @@ const (
 	// resetup status
 	// structure: pathResetupStatus/hostname -> ResetupStatus
 	pathResetupStatus = "resetup_status"
+
+	pathLastShutdownNodeTime = "last_shutdown_node_time"
 )
 
 var (
