@@ -1455,7 +1455,7 @@ func (app *App) repairSlaveOfflineMode(host string, node *mysql.Node, state *Nod
 			app.logger.Errorf("repair: failed to get last shutdown node time: %s", err)
 			return
 		}
-		setOfflineIsPossible := time.Now().Sub(lastShutdownNodeTime) < app.config.OfflineModeEnableInterval
+		setOfflineIsPossible := time.Since(lastShutdownNodeTime) < app.config.OfflineModeEnableInterval
 		if result, _ := state.IsReplicationPermanentlyBroken(); result && !state.IsOffline && setOfflineIsPossible {
 			err = app.UpdateLastShutdownNodeTime()
 			if err != nil {
