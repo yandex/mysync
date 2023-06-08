@@ -35,14 +35,7 @@ func (app *App) MarkReplicationRunning(node *mysql.Node) {
 }
 
 func (app *App) TryRepairReplication(node *mysql.Node, master string) {
-	var replState *ReplicationRepairState
-
-	if state, ok := app.replRepairState[node.Host()]; ok {
-		replState = state
-	} else {
-		replState = app.createRepairState()
-		app.replRepairState[node.Host()] = replState
-	}
+	replState := app.getOrCreateHostRepairState(node.Host())
 
 	if !replState.cooldownPassed(app.config.ReplicationRepairCooldown) {
 		return
@@ -64,7 +57,7 @@ func (app *App) TryRepairReplication(node *mysql.Node, master string) {
 	replState.LastAttempt = time.Now()
 }
 
-func StartSlaveAlgorithm(app *App, node *mysql.Node, master string) error {
+func StartSlaveAlgorithm(app *App, node *mysql.Node, _ string) error {
 	app.logger.Infof("repair: trying to repair replication using StartSlaveAlgorithm...")
 	return node.StartSlave()
 }
@@ -111,7 +104,7 @@ func ResetSlaveAlgorithm(app *App, node *mysql.Node, master string) error {
 }
 
 func (app *App) getSuitableAlgorithmType(state *ReplicationRepairState) (ReplicationRepairAlgorithmType, int, error) {
-	for i := range app.getAlgorithOrder() {
+	for i := range app.getAlgorithmOrder() {
 		algorithmType := ReplicationRepairAlgorithmType(i)
 		count := state.History[algorithmType]
 		if count < app.config.ReplicationRepairMaxAttempts {
@@ -128,13 +121,25 @@ func (state *ReplicationRepairState) cooldownPassed(replicationRepairCooldown ti
 	return state.LastAttempt.Before(cooldown)
 }
 
+func (app *App) getOrCreateHostRepairState(host string) *ReplicationRepairState {
+	var replState *ReplicationRepairState
+	if state, ok := app.replRepairState[host]; ok {
+		replState = state
+	} else {
+		replState = app.createRepairState()
+		app.replRepairState[host] = replState
+	}
+
+	return replState
+}
+
 func (app *App) createRepairState() *ReplicationRepairState {
 	result := ReplicationRepairState{
 		LastAttempt: time.Now(),
 		History:     make(map[ReplicationRepairAlgorithmType]int),
 	}
 
-	for i := range app.getAlgorithOrder() {
+	for i := range app.getAlgorithmOrder() {
 		result.History[ReplicationRepairAlgorithmType(i)] = 0
 	}
 
@@ -150,7 +155,7 @@ var aggressiveOrder = []ReplicationRepairAlgorithmType{
 	ResetSlave,
 }
 
-func (app *App) getAlgorithOrder() []ReplicationRepairAlgorithmType {
+func (app *App) getAlgorithmOrder() []ReplicationRepairAlgorithmType {
 	if app.config.ReplicationRepairAggressiveMode {
 		return aggressiveOrder
 	} else {
