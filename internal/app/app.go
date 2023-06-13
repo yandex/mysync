@@ -1412,8 +1412,9 @@ func (app *App) repairMasterOfflineMode(host string, node *mysql.Node, state *No
 
 func (app *App) repairSlaveOfflineMode(host string, node *mysql.Node, state *NodeState, masterState *NodeState) {
 	if state.SlaveState != nil && state.SlaveState.ReplicationLag != nil {
+		replPermBroken, _ := state.IsReplicationPermanentlyBroken()
 		if state.IsOffline && *state.SlaveState.ReplicationLag <= app.config.OfflineModeDisableLag.Seconds() {
-			if result, _ := state.IsReplicationPermanentlyBroken(); result {
+			if replPermBroken {
 				app.logger.Infof("repair: replica %s is permanently broken, won't set online", host)
 				return
 			}
@@ -1455,8 +1456,8 @@ func (app *App) repairSlaveOfflineMode(host string, node *mysql.Node, state *Nod
 			app.logger.Errorf("repair: failed to get last shutdown node time: %s", err)
 			return
 		}
-		setOfflineIsPossible := time.Since(lastShutdownNodeTime) < app.config.OfflineModeEnableInterval
-		if result, _ := state.IsReplicationPermanentlyBroken(); result && !state.IsOffline && setOfflineIsPossible {
+		setOfflineIsPossible := time.Since(lastShutdownNodeTime) > app.config.OfflineModeEnableInterval
+		if !state.IsOffline && replPermBroken && setOfflineIsPossible {
 			err = app.UpdateLastShutdownNodeTime()
 			if err != nil {
 				app.logger.Errorf("repair: failed to update last shutdown node time: %s", err)
