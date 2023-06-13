@@ -143,7 +143,7 @@ func DefaultConfig() (Config, error) {
 		DisableSemiSyncReplicationOnMaintenance: true,
 		KeepSuperWritableOnCriticalDiskUsage:    false,
 		ExcludeUsers:                            []string{},
-		OfflineModeEnableInterval:               8 * time.Hour,
+		OfflineModeEnableInterval:               15 * time.Minute,
 		OfflineModeEnableLag:                    24 * time.Hour,
 		OfflineModeDisableLag:                   30 * time.Second,
 		StreamFromReasonableLag:                 5 * time.Minute,
