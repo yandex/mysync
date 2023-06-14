@@ -1728,7 +1728,7 @@ func (app *App) repairCascadeNode(node *mysql.Node, clusterState map[string]*Nod
 
 		if !isGTIDLessOrEqual(myGITIDs, candidateGTIDs) && !isGTIDLessOrEqual(candidateGTIDs, myGITIDs) {
 			app.logger.Errorf("repair: %s and %s are splitbrained...", host, upstreamCandidate)
-			app.writeEmergeFile("During cascade replica switch we found it splitbained")
+			app.writeEmergeFile("cascade replica splitbain detected")
 			return
 		}
 		if isGTIDLessOrEqual(myGITIDs, candidateGTIDs) {
@@ -1813,7 +1813,7 @@ func (app *App) leaveMaintenance() error {
 	clusterState := app.getClusterStateFromDB()
 	master, err := app.ensureCurrentMaster(clusterState)
 	if err != nil {
-		if errors.Is(err, ErrNoMaster) || errors.Is(err, ErrManyMasters) {
+		if errors.Is(err, ErrManyMasters) {
 			app.writeEmergeFile(err.Error())
 		}
 		return err
