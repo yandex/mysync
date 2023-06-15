@@ -69,6 +69,7 @@ type Config struct {
 	DisableSemiSyncReplicationOnMaintenance bool                `config:"disable_semi_sync_replication_on_maintenance" yaml:"disable_semi_sync_replication_on_maintenance"`
 	KeepSuperWritableOnCriticalDiskUsage    bool                `config:"keep_super_writable_on_critical_disk_usage" yaml:"keep_super_writable_on_critical_disk_usage"`
 	ExcludeUsers                            []string            `config:"exclude_users" yaml:"exclude_users"`
+	OfflineModeEnableInterval               time.Duration       `config:"offline_mode_enable_interval" yaml:"offline_mode_enable_interval"`
 	OfflineModeEnableLag                    time.Duration       `config:"offline_mode_enable_lag" yaml:"offline_mode_enable_lag"`
 	OfflineModeDisableLag                   time.Duration       `config:"offline_mode_disable_lag" yaml:"offline_mode_disable_lag"`
 	DisableSetReadonlyOnLost                bool                `config:"disable_set_readonly_on_lost" yaml:"disable_set_readonly_on_lost"`
@@ -142,6 +143,7 @@ func DefaultConfig() (Config, error) {
 		DisableSemiSyncReplicationOnMaintenance: true,
 		KeepSuperWritableOnCriticalDiskUsage:    false,
 		ExcludeUsers:                            []string{},
+		OfflineModeEnableInterval:               15 * time.Minute,
 		OfflineModeEnableLag:                    24 * time.Hour,
 		OfflineModeDisableLag:                   30 * time.Second,
 		StreamFromReasonableLag:                 5 * time.Minute,
