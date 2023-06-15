@@ -310,7 +310,12 @@ func (app *App) checkCrashRecovery() {
 		app.logger.Errorf("recovery: failed to get local daemon state: %v", err)
 		return
 	}
-	app.logger.Debugf("recovery: daemon state: start time %s crash recovery time: %s", ds.StartTime, ds.RecoveryTime)
+	if !ds.StartTime.IsZero() {
+		app.logger.Debugf("recovery: daemon state: start time: %s", ds.StartTime)
+	}
+	if !ds.RecoveryTime.IsZero() {
+		app.logger.Debugf("recovery: daemon state: crash recovery time: %s", ds.RecoveryTime)
+	}
 	if !ds.CrashRecovery {
 		return
 	}
