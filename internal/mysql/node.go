@@ -919,7 +919,7 @@ func (n *Node) SetExternalReplication() error {
 	useSsl := 0
 	sslCa := ""
 	if replSettings.SourceSslCa != "" && n.config.MySQL.ExternalReplicationSslCA != "" {
-		err := n.SaveCAFile(replSettings.SourceSslCa, n.config.MySQL.ExternalReplicationSslCA)
+		err := n.UpdateExternalCAFile()
 		if err != nil {
 			return err
 		}
@@ -962,12 +962,9 @@ func (n *Node) UpdateExternalCAFile() error {
 	data := replSettings.SourceSslCa
 	fileName := n.config.MySQL.ExternalReplicationSslCA
 	if data != "" && fileName != "" {
-		_, err := os.Stat(fileName)
-		if os.IsNotExist(err) {
-			_, err := os.Create(fileName)
-			if err != nil {
-				return err
-			}
+		err = util.TouchFile(fileName)
+		if err != nil {
+			return err
 		}
 		oldDataByte, err := os.ReadFile(fileName)
 		if err != nil {
@@ -986,6 +983,7 @@ func (n *Node) UpdateExternalCAFile() error {
 		if os.IsNotExist(err) {
 			return nil
 		}
+		n.logger.Infof("deleting CA file %s", fileName)
 		err = os.Remove(fileName)
 		if err != nil {
 			return err
