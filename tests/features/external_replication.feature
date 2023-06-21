@@ -79,7 +79,6 @@ Feature: external replication
         """
             START REPLICA FOR CHANNEL 'external'
         """
-        And I wait for "3" seconds
         And I run SQL on mysql host "mysql1"
         """
             SHOW REPLICA STATUS FOR CHANNEL 'external'
@@ -130,7 +129,7 @@ Feature: external replication
         """
             SHOW REPLICA STATUS FOR CHANNEL 'external'
         """
-        Then SQL result should match regexp
+        Then SQL result should match json
         """
         [{
             "Replica_IO_State": "Connecting to source",
@@ -156,7 +155,7 @@ Feature: external replication
         """
             SELECT source_host, source_user, source_password, source_port  FROM mysql.replication_settings WHERE channel_name = 'external'
         """
-        Then SQL result should match regexp
+        Then SQL result should match json
         """
         [{
             "source_host": "test_source_2",
@@ -205,7 +204,7 @@ Feature: external replication
         """
             SHOW REPLICA STATUS FOR CHANNEL 'external'
         """
-        Then SQL result should match regexp
+        Then SQL result should match json
         """
         [{
             "Replica_IO_State": "No",
@@ -248,18 +247,18 @@ Feature: external replication
         """
             SHOW REPLICA STATUS FOR CHANNEL 'external'
         """
-        Then SQL result should match regexp
+        Then SQL result should match json
         """
         [{
             "Replica_IO_State": "No",
             "Source_Host": "test_source",
-            "Source_Port": 1111,
+            "Source_Port": "1111",
             "Source_User": "test_user",
             "Replica_IO_Running": "No",
             "Source_SSL_CA_File": "/etc/mysql/ssl/external_CA.pem",
             "Relay_Source_Log_File": "",
-            "Exec_Source_Log_Pos": 0,
-            "Last_IO_Errno": 2005,
+            "Exec_Source_Log_Pos": "0",
+            "Last_IO_Errno": "2005",
             "Channel_Name": "external"
         }]
         """
@@ -273,18 +272,18 @@ Feature: external replication
         """
             SHOW REPLICA STATUS FOR CHANNEL 'external'
         """
-        Then SQL result should match regexp
+        Then SQL result should match json
         """
         [{
             "Replica_IO_State": "No",
             "Source_Host": "test_source",
-            "Source_Port": 1111,
+            "Source_Port": "1111",
             "Source_User": "test_user",
             "Replica_IO_Running": "No",
             "Source_SSL_CA_File": "",
             "Relay_Source_Log_File": "",
-            "Exec_Source_Log_Pos": 0,
-            "Last_IO_Errno": 2005,
+            "Exec_Source_Log_Pos": "0",
+            "Last_IO_Errno": "2005",
             "Channel_Name": "external"
         }]
         """
@@ -317,18 +316,18 @@ Feature: external replication
         """
             SHOW REPLICA STATUS FOR CHANNEL 'external'
         """
-        Then SQL result should match regexp
+        Then SQL result should match json
         """
         [{
             "Replica_IO_State": "No",
             "Source_Host": "test_source",
-            "Source_Port": 1111,
+            "Source_Port": "1111",
             "Source_User": "test_user",
             "Replica_IO_Running": "No",
             "Source_SSL_CA_File": "",
             "Relay_Source_Log_File": "",
-            "Exec_Source_Log_Pos": 0,
-            "Last_IO_Errno": 2005,
+            "Exec_Source_Log_Pos": "0",
+            "Last_IO_Errno": "2005",
             "Channel_Name": "external"
         }]
         """
