@@ -1314,6 +1314,10 @@ func (app *App) performSwitchover(clusterState map[string]*NodeState, activeNode
 		}
 	} else {
 		app.logger.Infof("switchover: old master %s does not need recovery", oldMaster)
+		err = oldMasterNode.StopExternalReplication()
+		if err != nil {
+			return fmt.Errorf("got error: %s while stopping external replication on old master: %s", err, oldMaster)
+		}
 		err = oldMasterNode.ResetExternalReplicationAll()
 		if err != nil {
 			return fmt.Errorf("got error: %s while reseting external replication on old master: %s", err, oldMaster)
