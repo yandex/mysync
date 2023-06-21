@@ -239,8 +239,8 @@ qnSOx+SMl4up6AVfEq6kVR8ZIt/CzJBWZ4qYQnOf0eK4KQC6UB22adzsaFMmhzRB
 YZQy1bHIhscLf8wjTYbzAg==
 -----END CERTIFICATE-----'
         """
-        And I wait for "10" seconds
-        And I run SQL on mysql host "mysql1"
+        Then host "mysql1" should have file "/etc/mysql/ssl/external_CA.pem" within "10" seconds
+        When I run SQL on mysql host "mysql1"
         """
             SHOW REPLICA STATUS FOR CHANNEL 'external'
         """
@@ -252,7 +252,7 @@ YZQy1bHIhscLf8wjTYbzAg==
             "Source_Port": "1111",
             "Source_User": "test_user",
             "Replica_IO_Running": "No",
-            "Source_SSL_CA_File": "/etc/mysql/ssl/external_CA.pem",
+            "Source_SSL_CA_File": "",
             "Relay_Source_Log_File": "",
             "Exec_Source_Log_Pos": "0",
             "Channel_Name": "external"
@@ -264,6 +264,7 @@ YZQy1bHIhscLf8wjTYbzAg==
             SET source_ssl_ca = ''
         """
         And I wait for "10" seconds
+        Then host "mysql1" should have no file "/etc/mysql/ssl/external_CA.pem"
         And I run SQL on mysql host "mysql1"
         """
             SHOW REPLICA STATUS FOR CHANNEL 'external'

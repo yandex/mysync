@@ -981,6 +981,16 @@ func (n *Node) UpdateExternalCAFile() error {
 			}
 		}
 	}
+	if data == "" && fileName != "" {
+		_, err := os.Stat(fileName)
+		if os.IsNotExist(err) {
+			return nil
+		}
+		err = os.Remove(fileName)
+		if err != nil {
+			return err
+		}
+	}
 	return nil
 }
 

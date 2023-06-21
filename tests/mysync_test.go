@@ -638,6 +638,14 @@ func (tctx *testContext) stepHostShouldHaveFile(node string, path string) error 
 	return nil
 }
 
+func (tctx *testContext) stepHostShouldHaveNoFile(node string, path string) error {
+	err := tctx.composer.CheckIfFileExist(node, path)
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
 func (tctx *testContext) stepHostShouldHaveFileWithin(node string, path string, timeout int) error {
 	var err error
 	testutil.Retry(func() bool {
@@ -1414,6 +1422,7 @@ func InitializeScenario(s *godog.ScenarioContext) {
 	// misc
 	s.Step(`^I wait for "(\d+)" seconds$`, tctx.stepIWaitFor)
 	s.Step(`^info file "([^"]*)" on "([^"]*)" match (\w+)$`, tctx.stepInfoFileOnHostMatch)
+	s.Step(`^host "([^"]*)" should have no file "([^"]*)"$`, tctx.stepHostShouldHaveNoFile)
 }
 
 func TestMysync(t *testing.T) {
