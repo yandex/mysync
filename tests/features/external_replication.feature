@@ -205,7 +205,7 @@ Feature: external replication
         Then SQL result should match json
         """
         [{
-            "Replica_IO_State": "No",
+            "Replica_IO_State": "",
             "Source_Host": "test_source",
             "Source_Port": "1111",
             "Source_User": "test_user",
