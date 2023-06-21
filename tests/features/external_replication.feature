@@ -159,7 +159,7 @@ Feature: external replication
             "source_host": "test_source_2",
             "source_user": "test_user",
             "source_password": "test_pass",
-            "source_port": "2222",
+            "source_port": "2222"
         }]
         """
 
