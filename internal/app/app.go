@@ -527,7 +527,7 @@ func (app *App) stateManager() appState {
 
 	err = app.UpdateExternalCAFile(master)
 	if err != nil {
-		app.logger.Errorf("gor error %s while updating external CA file", err.Error())
+		app.logger.Errorf("got error %s while updating external CA file", err.Error())
 	}
 
 	// activeNodes are master + alive running replicas
