@@ -157,8 +157,8 @@ Feature: external replication
         """
         [{
             "source_host": "test_source_2",
-            "source_user": "test_user",
-            "source_password": "test_pass",
+            "source_user": "test_user_2",
+            "source_password": "test_pass_2",
             "source_port": "2222"
         }]
         """
