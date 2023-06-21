@@ -93,7 +93,6 @@ Feature: external replication
             "Source_User": "test_user",
             "Replica_IO_Running": "Connecting",
             "Relay_Source_Log_File": "",
-            "Last_IO_Errno": "2005",
             "Channel_Name": "external"
         }]
         """
@@ -139,7 +138,6 @@ Feature: external replication
             "Replica_IO_Running": "Connecting",
             "Relay_Source_Log_File": "",
             "Exec_Source_Log_Pos": "0",
-            "Last_IO_Errno": "2005",
             "Channel_Name": "external"
         }]
         """
@@ -215,7 +213,6 @@ Feature: external replication
             "Source_SSL_CA_File": "",
             "Relay_Source_Log_File": "",
             "Exec_Source_Log_Pos": "0",
-            "Last_IO_Errno": "2005",
             "Channel_Name": "external"
         }]
         """
@@ -258,7 +255,6 @@ Feature: external replication
             "Source_SSL_CA_File": "/etc/mysql/ssl/external_CA.pem",
             "Relay_Source_Log_File": "",
             "Exec_Source_Log_Pos": "0",
-            "Last_IO_Errno": "2005",
             "Channel_Name": "external"
         }]
         """
@@ -283,7 +279,6 @@ Feature: external replication
             "Source_SSL_CA_File": "",
             "Relay_Source_Log_File": "",
             "Exec_Source_Log_Pos": "0",
-            "Last_IO_Errno": "2005",
             "Channel_Name": "external"
         }]
         """
@@ -327,7 +322,6 @@ Feature: external replication
             "Source_SSL_CA_File": "",
             "Relay_Source_Log_File": "",
             "Exec_Source_Log_Pos": "0",
-            "Last_IO_Errno": "2005",
             "Channel_Name": "external"
         }]
         """
