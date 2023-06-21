@@ -974,6 +974,7 @@ func (n *Node) UpdateExternalCAFile() error {
 			return err
 		}
 		if data != string(oldDataByte) {
+			n.logger.Infof("saving new CA file to %s", fileName)
 			err := n.SaveCAFile(data, fileName)
 			if err != nil {
 				return err

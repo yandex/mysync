@@ -220,24 +220,24 @@ Feature: external replication
         """
             UPDATE mysql.replication_settings
             SET source_ssl_ca = '-----BEGIN CERTIFICATE-----
-                                 MIIDDDCCAfSgAwIBAgIBATANBgkqhkiG9w0BAQssADA/MT0wOwYDVQQDDDRNeVNR
-                                 TF9TZXJ2ZXJfOC4wLjMyLTI0X0F1dG9fR2VuZXJhdGVkX0NBX0NlcnRpZmljYXRl
-                                 MB4XDTIzMDUxNDE2NDA1OFoXDTMzMDUxMTE2NDA1OFowPzE9MDsGA1UEAww0TXlT
-                                 UUxfU2VydmVyXzguMC4zMi0yNF9BdXRvX0dlbmVyYXRlZF9DQV9DZXJ0aWZpY2F0
-                                 ZTCCASIwDQYJKoZIhvcNAQEBBQADggEPADCCAQoCggEBAOFExOlSI8gd0LtIko+z
-                                 SSpVP94Kk0mxRALdNWry6Ua1PoLogq+ScE0OMN6JamaLqG268K5gIdydLOaK9kx2
-                                 SXXyPUTTepuivpnpiI4KqMcaWYQzmot5eoSOOQL6E5hb09oRXY+IhlaynFg0l/E7
-                                 t5uMMUopmcfOH6OGMXTCFXebKbWGnzHx83bXkyzMWWc1p4X+aP18dewHsYuwZOdx
-                                 1goNZNNz0BaJq2y0RYnfYeNOLV6d+S6BAMAUkWbABdols8Pi8ezsPwZ8x/1vk7uy
-                                 tUOmiuMkLsC6LzJnnUaoGR3tflCH+yU3XSPQpnZYzaFaeA3d6mgV93w7y3Jreavx
-                                 tHkCAwEAAaMTMBEwDwYDVR0TAQH/BAUwAwEB/zANBgkqhkiG9w0BAQsFAAOCAQEA
-                                 dZ9vGVJaAauomoDp9VY4zOr0G4n7WnEElqMAxOQPzLJwRXe81/GchmUKWvX5Fc6o
-                                 6RiEa7Nw4YiXKyFMqoJbQN3j8EkOiHs1FtrwJNsobzmlVmjuqxqCBWmVQPpUfOQh
-                                 f6I/gQr2BVxvNsj+IvuI0vIVjP5J3GBxL9ySv`Ksfp4xtk1oTHIuA2G3haIv2AJp
-                                 j/Hm7nVvoXWrb/zX+fagi0rrf+3hDCsHMXtxaxXk2sGRLKHgkTYTVwEPQ6SKEqrW
-                                 qnSOx+SMl4up6AVfEq6kVR8ZIt/CzJBWZ4qYQnOf0eK4KQC6UB22adzsaFMmhzRB
-                                 YZQy1bHIhscLf8wjTYbzAg==
-                                 -----END CERTIFICATE-----'
+MIIDDDCCAfSgAwIBAgIBATANBgkqhkiG9w0BAQsFADA/MT0wOwYDVQQDDDRNeVNR
+TF9TZXJ2ZXJfOC4wLjMyLTI0X0F1dG9fR2VuZXJhdGVkX0NBX0NlcnRpZmljYXRl
+MB4XDTIzMDUxNDE2NDA1OFoXDTMzMDUxMTE2NDA1OFowPzE9MDsGA1UEAww0TXlT
+UUxfU2VydmVyXzguMC4zMi0yNF9BdXRvX0dlbmVyYXRlZF9DQV9DZXJ0aWZpY2F0
+ZTCCASIwDQYJKoZIhvcNAQEBBQADggEPADCCAQoCggEBAOFExOlSI8gd0LtIko+z
+SpVP94Kk0mxRALdNWry6Ua1PoLogq+ScE0OMN6JamaLqG268K5gIdydLOaK9kx2h
+4XXyPUTTepuivpnpiI4KqMcaWYQzmot5eoSOOQL6E5hb09oRXY+IhlaynFg0l/E7
+t5uMMUopmcfOH6OGMXTCFXebKbWGnzHx83bXkyzMWWc1p4X+aP18dewHsYuwZOdx
+1goNZNNz0BaJq2y0RYnfYeNOLV6d+S6BAMAUkWbABdols8Pi8ezsPwZ8x/1vk7uy
+tUOmiuMkLsC6LzJnnUaoGR3tflCH+yU3XSPQpnZYzaFaeA3d6mgV93w7y3Jreavx
+tHkCAwEAAaMTMBEwDwYDVR0TAQH/BAUwAwEB/zANBgkqhkiG9w0BAQsFAAOCAQEA
+dZ9vGVJaAauomoDp9VY4zOr0G4n7WnEElqMAxOQPzLJwRXe81/GchmUKWvX5Fc6o
+6RiEa7Nw4YiXKyFMqoJbQN3j8EkOiHs1FtrwJNsobzmlVmjuqxqCBWmVQPpUfOQh
+f6I/gQr2BVxvNsj+IvuI0vIVjP5J3GBxL9ySvFKsfp4xtk1oTHIuA2G3haIv2AJp
+j/Hm7nVvoXWrb/zX+fagi0rrf+3hDCsHMXtxaxXk2sGRLKHgkTYTVwEPQ6SKEqrW
+qnSOx+SMl4up6AVfEq6kVR8ZIt/CzJBWZ4qYQnOf0eK4KQC6UB22adzsaFMmhzRB
+YZQy1bHIhscLf8wjTYbzAg==
+-----END CERTIFICATE-----'
         """
         And I wait for "10" seconds
         And I run SQL on mysql host "mysql1"
@@ -287,24 +287,24 @@ Feature: external replication
             -- bad sert, must be ignored
             UPDATE mysql.replication_settings
             SET source_ssl_ca = '-----BEGIN CERTIFICATE-----
-             MIIDCTCCAfGgAwIBAgIBATANBgkqhkiG9w0BAQsFADA/MT0wOwYDVQQDDDRNeVNR
-             TF9TZXJ2ZXJfOC4wLjMwLTIyX0F1dG9fR2VuZXJhdGVkX0NBX0NlcnRpZmljYXRl
-             MB4XDTIzMDUyMDE3MTExMVoXDTMzMDUxNzE3MTExMVowPzE9MDsGA1UEAww0TXlT
-             UUxfU2VydmVyXzguMC4zMC0yMl9BdXRvX0dlbmVyYXRlZF9DQV9DZXJ0aWZpY2F0
-             ZTCCASIwDQYJKoZIhvcNAQEBBQADggEPADCCAQoCggEBAMxEcfxGCEuGSUA4ZDVU
-             YXl94bslyjFDh9BFrt/gbj9iu2H88VjtmuU+qhBOGV6wHsqMY3EBlfP2/6CHu+wP
-             XYRTBqhwWF0AijEI63RGpuEmtl9mf7baxx9bXNkWWWEFke0y6w08VHj3hYkvOGCA
-             JsBXpUvBqgxPtHvXRdWks/WUs50a10HZ0T2sim4CV9rbUpq0lblhmYeiHrPsmvaM
-             fK+lgZwt4NMSqcrGiXY0KpiSCM0LGIPm8Be6aUQlZVKbKrEP4S/BpC3HQLBUcrk4
-             Wp18o8S8eUgxLaybGKiQrtms12/+VgfXDdsxSXfkX77ZYqXSiBJZ5GXevZRhrfvA
-             WCkCAwEAAaMQMA4wDAYDVR0TBAUwAwEB/zANBgkqhkiG9w0BAQsFAAOCAQEAFr5N
-             vejmieL0u47Zcw1z6dssED96ETMGciFvRAj2cTnGT1KpPMOB/UcidS3RclOnas43
-             HpqnFWiEDBePUZuPiepFm/rJZnUMFs0Yng7D4y++6EzjDb8hUG/7gIeTvmW2G/pl
-             y9qlrZp7ZmfJ3mgtd3BJktaidnzleWl/xWw8vTeVkteoPE1QGzlgzObHf4UVnVs3
-             tO8jq1ZBq1uywP9xjYzdDMaBBjvhJJfwOllHo5d3ME/l7Qzv+ApFvYQjWlAIXj5n
-             KJ3etZdZDFBUPZBRawJjmBKGyxVo4x2chbxzQ92HsCPYK4eMXafGZhGKIJ586w5w
-             Y2AirKuDzA5GErKOfQ==
-             -----END CERTIFICATE-----'
+MIIDCTCCAfGgAwIBAgIBATANBgkqhkiG9w0BAQsFADA/MT0wOwYDVQQDDDRNeVNR
+TF9TZXJ2ZXJfOC4wLjMwLTIyX0F1dG9fR2VuZXJhdGVkX0NBX0NlcnRpZmljYXRl
+MB4XDTIzMDUyMDE3MTExMVoXDTMzMDUxNzE3MTExMVowPzE9MDsGA1UEAww0TXlT
+UUxfU2VydmVyXzguMC4zMC0yMl9BdXRvX0dlbmVyYXRlZF9DQV9DZXJ0aWZpY2F0
+ZTCCASIwDQYJKoZIhvcNAQEBBQADggEPADCCAQoCggEBAMxEcfxGCEuGSUA4ZDVU
+YXl94bslyjFDh9BFrt/gbj9iu2H88VjtmuU+qhBOGV6wHsqMY3EBlfP2/6CHu+wP
+XYRTBqhwWF0AijEI63RGpuEmtl9mf7baxx9bXNkWWWEFke0y6w08VHj3hYkvOGCA
+JsBXpUvBqgxPtHvXRdWks/WUs50a10HZ0T2sim4CV9rbUpq0lblhmYeiHrPsmvaM
+fK+lgZwt4NMSqcrGiXY0KpiSCM0LGIPm8Be6aUQlZVKbKrEP4S/BpC3HQLBUcrk4
+Wp18o8S8eUgxLaybGKiQrtms12/+VgfXDdsxSXfkX77ZYqXSiBJZ5GXevZRhrfvA
+WCkCAwEAAaMQMA4wDAYDVR0TBAUwAwEB/zANBgkqhkiG9w0BAQsFAAOCAQEAFr5N
+vejmieL0u47Zcw1z6dssED96ETMGciFvRAj2cTnGT1KpPMOB/UcidS3RclOnas43
+HpqnFWiEDBePUZuPiepFm/rJZnUMFs0Yng7D4y++6EzjDb8hUG/7gIeTvmW2G/pl
+y9qlrZp7ZmfJ3mgtd3BJktaidnzleWl/xWw8vTeVkteoPE1QGzlgzObHf4UVnVs3
+tO8jq1ZBq1uywP9xjYzdDMaBBjvhJJfwOllHo5d3ME/l7Qzv+ApFvYQjWlAIXj5n
+KJ3etZdZDFBUPZBRawJjmBKGyxVo4x2chbxzQ92HsCPYK4eMXafGZhGKIJ586w5w
+Y2AirKuDzA5GErKOfQ==
+-----END CERTIFICATE-----'
         """
         And I wait for "10" seconds
         And I run SQL on mysql host "mysql1"
