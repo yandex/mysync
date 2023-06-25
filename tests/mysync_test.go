@@ -640,10 +640,13 @@ func (tctx *testContext) stepHostShouldHaveFile(node string, path string) error 
 
 func (tctx *testContext) stepHostShouldHaveNoFile(node string, path string) error {
 	err := tctx.composer.CheckIfFileExist(node, path)
+	if os.IsNotExist(err) {
+		return nil
+	}
 	if err != nil {
 		return err
 	}
-	return nil
+	return fmt.Errorf("file %s exists on %s", path, node)
 }
 
 func (tctx *testContext) stepHostShouldHaveFileWithin(node string, path string, timeout int) error {

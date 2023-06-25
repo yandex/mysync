@@ -239,7 +239,8 @@ qnSOx+SMl4up6AVfEq6kVR8ZIt/CzJBWZ4qYQnOf0eK4KQC6UB22adzsaFMmhzRB
 YZQy1bHIhscLf8wjTYbzAg==
 -----END CERTIFICATE-----'
         """
-        Then host "mysql1" should have file "/etc/mysql/ssl/external_CA.pem" within "10" seconds
+        And I wait for "10" seconds
+        Then host "mysql1" should have file "/etc/mysql/ssl/external_CA.pem"
         When I run SQL on mysql host "mysql1"
         """
             SHOW REPLICA STATUS FOR CHANNEL 'external'
