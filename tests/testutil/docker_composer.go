@@ -53,7 +53,7 @@ type Composer interface {
 	// Returns content of the file from container by path
 	GetFile(service, path string) (io.ReadCloser, error)
 	// CheckIfFileExist Checks if file exists
-	CheckIfFileExist(service, path string) error
+	CheckIfFileExist(service, path string) (bool, error)
 }
 
 // DockerComposer is a Composer implementation based on docker and docker-compose
@@ -263,16 +263,19 @@ func (dc *DockerComposer) GetFile(service, path string) (io.ReadCloser, error) {
 }
 
 // CheckIfFileExist Checks if file exists
-func (dc *DockerComposer) CheckIfFileExist(service, path string) error {
+func (dc *DockerComposer) CheckIfFileExist(service, path string) (bool, error) {
 	cont, ok := dc.containers[service]
 	if !ok {
-		return fmt.Errorf("no such service: %s", service)
+		return false, fmt.Errorf("no such service: %s", service)
 	}
 	_, err := dc.api.ContainerStatPath(context.Background(), cont.ID, path)
 	if err != nil {
-		return err
+		if client.IsErrNotFound(err) {
+			return false, nil
+		}
+		return false, err
 	}
-	return err
+	return true, nil
 }
 
 // Start starts container by service name

@@ -158,7 +158,7 @@ func DefaultConfig() (Config, error) {
 		ReplicationRepairMaxAttempts:            3,
 		TestFilesystemReadonlyFile:              "", // fake readonly status, only for docker tests
 		ReplicationChannel:                      "",
-		ExternalReplicationChannel:				 "external",
+		ExternalReplicationChannel:              "external",
 	}
 	return config, nil
 }

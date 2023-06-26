@@ -14,7 +14,7 @@ var dubiousErrorNumbers = []uint16{
 }
 
 const channelDoesNotExists = 3074 // Symbol: ER_REPLICA_CHANNEL_DOES_NOT_EXIST; SQLSTATE: HY000
-const tableDoesNotExists = 1146 // Symbol: ER_NO_SUCH_TABLE; SQLSTATE: 42S02
+const tableDoesNotExists = 1146   // Symbol: ER_NO_SUCH_TABLE; SQLSTATE: 42S02
 
 // IsErrorDubious check that error may be caused by misconfiguration, mysync/scripts bugs
 // and not related to MySQL/network failure

@@ -232,11 +232,11 @@ func (app *App) externalCAFileChecker(ctx context.Context) {
 			replicaStatus, err := localNode.GetExternalReplicaStatus()
 			if err != nil {
 				app.logger.Errorf("external CA file checker: host %s failed to get external replica status %v", localNode.Host(), err)
-				return
+				continue
 			}
 			if replicaStatus == nil {
 				app.logger.Infof("external CA file checker: no external replication found on host %v", localNode.Host())
-				return
+				continue
 			}
 			err = localNode.UpdateExternalCAFile()
 			if err != nil {

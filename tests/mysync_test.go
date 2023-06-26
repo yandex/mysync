@@ -639,14 +639,14 @@ func (tctx *testContext) stepHostShouldHaveFile(node string, path string) error 
 }
 
 func (tctx *testContext) stepHostShouldHaveNoFile(node string, path string) error {
-	err := tctx.composer.CheckIfFileExist(node, path)
-	if os.IsNotExist(err) {
-		return nil
-	}
+	res, err := tctx.composer.CheckIfFileExist(node, path)
 	if err != nil {
 		return err
 	}
-	return fmt.Errorf("file %s exists on %s", path, node)
+	if res {
+		return fmt.Errorf("file %s exists on %s", path, node)
+	}
+	return nil
 }
 
 func (tctx *testContext) stepHostShouldHaveFileWithin(node string, path string, timeout int) error {
