@@ -65,6 +65,7 @@ type Config struct {
 	HealthCheckInterval                     time.Duration       `config:"healthcheck_interval" yaml:"healthcheck_interval"`
 	InfoFileHandlerInterval                 time.Duration       `config:"info_file_handler_interval" yaml:"info_file_handler_interval"`
 	RecoveryCheckInterval                   time.Duration       `config:"recoverycheck_interval" yaml:"recoverycheck_interval"`
+	ExternalCAFileCheckInterval             time.Duration       `config:"external_ca_file_check_interval" yaml:"external_ca_file_check_interval"`
 	MaxAcceptableLag                        float64             `config:"max_acceptable_lag" yaml:"max_acceptable_lag"`
 	SlaveCatchUpTimeout                     time.Duration       `config:"slave_catch_up_timeout" yaml:"slave_catch_up_timeout"`
 	DisableSemiSyncReplicationOnMaintenance bool                `config:"disable_semi_sync_replication_on_maintenance" yaml:"disable_semi_sync_replication_on_maintenance"`
@@ -139,6 +140,7 @@ func DefaultConfig() (Config, error) {
 		HealthCheckInterval:                     5 * time.Second,
 		InfoFileHandlerInterval:                 30 * time.Second,
 		RecoveryCheckInterval:                   5 * time.Second,
+		ExternalCAFileCheckInterval:             5 * time.Second,
 		MaxAcceptableLag:                        60.0,
 		SlaveCatchUpTimeout:                     30 * time.Minute,
 		DisableSemiSyncReplicationOnMaintenance: true,

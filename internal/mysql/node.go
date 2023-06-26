@@ -501,6 +501,25 @@ func (n *Node) ReplicaStatusWithTimeout(timeout time.Duration) (ReplicaStatus, e
 	return status, err
 }
 
+// GetExternalReplicaStatus returns slave/replica status or nil if node is master for external channel
+func (n *Node) GetExternalReplicaStatus() (ReplicaStatus, error) {
+	checked, err := n.IsExternalReplicationSupported()
+	if err != nil {
+		return nil, err
+	}
+	if !(checked) {
+		return nil, nil
+	}
+	status := new(ReplicaStatusStruct)
+	err = n.queryRowMogrifyWithTimeout(queryReplicaStatus, map[string]interface{}{
+		"channel": n.config.ExternalReplicationChannel,
+	}, status, n.config.DBTimeout)
+	if err == sql.ErrNoRows {
+		return nil, nil
+	}
+	return status, err
+}
+
 func (n *Node) GetVersionSlaveStatusQuery() (string, ReplicaStatus, error) {
 	if n.version == nil {
 		err := n.GetVersion()
@@ -711,13 +730,11 @@ func (n *Node) ResetSlaveAll() error {
 
 // StartExternalReplication starts external replication
 func (n *Node) StartExternalReplication() error {
-	if n.version == nil {
-		err := n.GetVersion()
-		if err != nil {
-			return err
-		}
+	checked, err := n.IsExternalReplicationSupported()
+	if err != nil {
+		return err
 	}
-	if n.version.CheckIfExternalReplicationSupported() {
+	if checked {
 		err := n.execMogrify(queryStartReplica, map[string]interface{}{
 			"channel": n.config.ExternalReplicationChannel,
 		})
@@ -730,13 +747,11 @@ func (n *Node) StartExternalReplication() error {
 
 // StopExternalReplication stops external replication
 func (n *Node) StopExternalReplication() error {
-	if n.version == nil {
-		err := n.GetVersion()
-		if err != nil {
-			return err
-		}
+	checked, err := n.IsExternalReplicationSupported()
+	if err != nil {
+		return err
 	}
-	if n.version.CheckIfExternalReplicationSupported() {
+	if checked {
 		err := n.execMogrify(queryStopReplica, map[string]interface{}{
 			"channel": n.config.ExternalReplicationChannel,
 		})
@@ -749,13 +764,11 @@ func (n *Node) StopExternalReplication() error {
 
 // ResetExternalReplicationAll resets external replication
 func (n *Node) ResetExternalReplicationAll() error {
-	if n.version == nil {
-		err := n.GetVersion()
-		if err != nil {
-			return err
-		}
+	checked, err := n.IsExternalReplicationSupported()
+	if err != nil {
+		return err
 	}
-	if n.version.CheckIfExternalReplicationSupported() {
+	if checked {
 		err := n.execMogrify(queryResetReplicaAll, map[string]interface{}{
 			"channel": n.config.ExternalReplicationChannel,
 		})
@@ -899,6 +912,16 @@ func (n *Node) GetStartupTime() (time.Time, error) {
 		return time.Time{}, err
 	}
 	return time.Unix(int64(startupTime.LastStartup), 0), nil
+}
+
+func (n *Node) IsExternalReplicationSupported() (bool, error) {
+	if n.version == nil {
+		err := n.GetVersion()
+		if err != nil {
+			return false, err
+		}
+	}
+	return n.version.CheckIfExternalReplicationSupported(), nil
 }
 
 func (n *Node) SetExternalReplication() error {

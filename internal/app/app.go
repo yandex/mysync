@@ -222,6 +222,32 @@ func (app *App) stateFileHandler(ctx context.Context) {
 	}
 }
 
+// checks if update of external CA file required
+func (app *App) externalCAFileChecker(ctx context.Context) {
+	ticker := time.NewTicker(app.config.ExternalCAFileCheckInterval)
+	for {
+		select {
+		case <-ticker.C:
+			localNode := app.cluster.Local()
+			replicaStatus, err := localNode.GetExternalReplicaStatus()
+			if err != nil {
+				app.logger.Errorf("external CA file checker: host %s failed to get external replica status %v", localNode.Host(), err)
+				return
+			}
+			if replicaStatus == nil {
+				app.logger.Infof("external CA file checker: no external replication found on host %v", localNode.Host())
+				return
+			}
+			err = localNode.UpdateExternalCAFile()
+			if err != nil {
+				app.logger.Errorf("external CA file checker: failed check and update CA file: %s", err)
+			}
+		case <-ctx.Done():
+			return
+		}
+	}
+}
+
 func (app *App) SetResetupStatus() {
 	err := app.setResetupStatus(app.cluster.Local().Host(), app.doesResetupFileExist())
 	if err != nil {
@@ -525,7 +551,6 @@ func (app *App) stateManager() appState {
 		return stateManager
 	}
 
-	err = app.UpdateExternalCAFile(master)
 	if err != nil {
 		app.logger.Errorf("got error %s while updating external CA file", err.Error())
 	}
@@ -2200,11 +2225,6 @@ func (app *App) getNodePositions(activeNodes []string) ([]nodePosition, error) {
 	return positions, util.CombineErrors(errs)
 }
 
-func (app *App) UpdateExternalCAFile(master string) error {
-	masterNode := app.cluster.Get(master)
-	return masterNode.UpdateExternalCAFile()
-}
-
 /*
 Run enters the main application loop
 When Run exits mysync process is over
@@ -2239,6 +2259,7 @@ func (app *App) Run() int {
 	go app.healthChecker(ctx)
 	go app.recoveryChecker(ctx)
 	go app.stateFileHandler(ctx)
+	go app.externalCAFileChecker(ctx)
 
 	ticker := time.NewTicker(app.config.TickInterval)
 	for {
