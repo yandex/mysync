@@ -37,11 +37,10 @@ const (
 	queryHasWaitingSemiSyncAck          = "has_waiting_semi_sync_ack"
 	queryGetLastStartupTime             = "get_last_startup_time"
 	queryGetExternalReplicationSettings = "get_external_replication_settings"
-	queryChangeSource					= "change_source"
+	queryChangeSource                   = "change_source"
 	queryResetReplicaAll                = "reset_replica_all"
-	queryStopReplica					= "stop_replica"
-	queryStartReplica					= "start_replica"
-
+	queryStopReplica                    = "stop_replica"
+	queryStartReplica                   = "start_replica"
 )
 
 var DefaultQueries = map[string]string{

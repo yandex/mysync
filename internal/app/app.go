@@ -551,10 +551,6 @@ func (app *App) stateManager() appState {
 		return stateManager
 	}
 
-	if err != nil {
-		app.logger.Errorf("got error %s while updating external CA file", err.Error())
-	}
-
 	// activeNodes are master + alive running replicas
 	activeNodes, err := app.GetActiveNodes()
 	if err != nil {
