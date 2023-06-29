@@ -1,4 +1,4 @@
-name: Docker tests
+name: Docker tests (8.0)
 
 on:
   push:
