@@ -123,6 +123,7 @@ func DefaultConfig() (Config, error) {
 			DataDir:                    "/var/lib/mysql",
 			PidFile:                    "/var/run/mysqld/mysqld.pid",
 			ErrorLog:                   "/var/log/mysql/error.log",
+			ExternalReplicationSslCA:   "/etc/mysql/ssl/external_CA.pem",
 		},
 		Queries:                                 map[string]string{},
 		Commands:                                map[string]string{},

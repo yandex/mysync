@@ -521,23 +521,24 @@ func (n *Node) GetExternalReplicaStatus() (ReplicaStatus, error) {
 }
 
 func (n *Node) GetVersionSlaveStatusQuery() (string, ReplicaStatus, error) {
-	if n.version == nil {
-		err := n.GetVersion()
-		if err != nil {
-			return "", nil, err
-		}
+	version, err := n.GetVersion()
+	if err != nil {
+		return "", nil, err
 	}
-	return n.version.GetSlaveStatusQuery(), n.version.GetSlaveOrReplicaStruct(), nil
+	return version.GetSlaveStatusQuery(), version.GetSlaveOrReplicaStruct(), nil
 }
 
-func (n *Node) GetVersion() error {
+func (n *Node) GetVersion() (*Version, error) {
+	if n.version != nil {
+		return n.version, nil
+	}
 	v := new(Version)
 	err := n.queryRow(queryGetVersion, nil, v)
 	if err != nil {
-		return err
+		return nil, err
 	}
 	n.version = v
-	return nil
+	return n.version, nil
 }
 
 // ReplicationLag returns slave replication lag in seconds
@@ -915,13 +916,11 @@ func (n *Node) GetStartupTime() (time.Time, error) {
 }
 
 func (n *Node) IsExternalReplicationSupported() (bool, error) {
-	if n.version == nil {
-		err := n.GetVersion()
-		if err != nil {
-			return false, err
-		}
+	version, err := n.GetVersion()
+	if err != nil {
+		return false, err
 	}
-	return n.version.CheckIfExternalReplicationSupported(), nil
+	return version.CheckIfExternalReplicationSupported(), nil
 }
 
 func (n *Node) SetExternalReplication() error {
@@ -942,10 +941,6 @@ func (n *Node) SetExternalReplication() error {
 	useSsl := 0
 	sslCa := ""
 	if replSettings.SourceSslCa != "" && n.config.MySQL.ExternalReplicationSslCA != "" {
-		err := n.UpdateExternalCAFile()
-		if err != nil {
-			return err
-		}
 		useSsl = 1
 		sslCa = n.config.MySQL.ExternalReplicationSslCA
 	}
