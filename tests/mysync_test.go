@@ -658,6 +658,35 @@ func (tctx *testContext) stepHostShouldHaveFileWithin(node string, path string, 
 	return err
 }
 
+func (tctx *testContext) stepFileOnHostHaveContentOf(path string, node string, body *godog.DocString) error {
+	remoteFile, err := tctx.composer.GetFile(node, path)
+	if err != nil {
+		return err
+	}
+	var res strings.Builder
+	for {
+		buf := make([]byte, 4096)
+		n, err := remoteFile.Read(buf)
+		res.WriteString(string(buf[:n]))
+		if err == io.EOF {
+			break
+		}
+		if err != nil {
+			return err
+		}
+	}
+	if err != nil {
+		return err
+	}
+	actualContent := res.String()
+	expectedContent := strings.TrimSpace(body.Content)
+	if actualContent != expectedContent {
+		return fmt.Errorf("file %s on %s should contents %s but actually has %s", path, node, expectedContent, actualContent)
+	}
+	err = remoteFile.Close()
+	return err
+}
+
 func (tctx *testContext) stepIRunCommandOnHost(host string, body *godog.DocString) error {
 	cmd := strings.TrimSpace(body.Content)
 	var err error
@@ -1426,6 +1455,7 @@ func InitializeScenario(s *godog.ScenarioContext) {
 	s.Step(`^I wait for "(\d+)" seconds$`, tctx.stepIWaitFor)
 	s.Step(`^info file "([^"]*)" on "([^"]*)" match (\w+)$`, tctx.stepInfoFileOnHostMatch)
 	s.Step(`^host "([^"]*)" should have no file "([^"]*)"$`, tctx.stepHostShouldHaveNoFile)
+	s.Step(`^file "([^"]*)" on host "([^"]*)" should have content$`, tctx.stepFileOnHostHaveContentOf)
 }
 
 func TestMysync(t *testing.T) {

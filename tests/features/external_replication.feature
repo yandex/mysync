@@ -122,6 +122,28 @@ YZQy1bHIhscLf8wjTYbzAg==
         """
         Then host "mysql1" should have file "/etc/mysql/ssl/external_CA.pem" within "10" seconds
         And host "mysql2" should have no file "/etc/mysql/ssl/external_CA.pem"
+        And file "/etc/mysql/ssl/external_CA.pem" on host "mysql1" should have content
+        """
+-----BEGIN CERTIFICATE-----
+MIIDDDCCAfSgAwIBAgIBATANBgkqhkiG9w0BAQsFADA/MT0wOwYDVQQDDDRNeVNR
+TF9TZXJ2ZXJfOC4wLjMyLTI0X0F1dG9fR2VuZXJhdGVkX0NBX0NlcnRpZmljYXRl
+MB4XDTIzMDUxNDE2NDA1OFoXDTMzMDUxMTE2NDA1OFowPzE9MDsGA1UEAww0TXlT
+UUxfU2VydmVyXzguMC4zMi0yNF9BdXRvX0dlbmVyYXRlZF9DQV9DZXJ0aWZpY2F0
+ZTCCASIwDQYJKoZIhvcNAQEBBQADggEPADCCAQoCggEBAOFExOlSI8gd0LtIko+z
+SpVP94Kk0mxRALdNWry6Ua1PoLogq+ScE0OMN6JamaLqG268K5gIdydLOaK9kx2h
+4XXyPUTTepuivpnpiI4KqMcaWYQzmot5eoSOOQL6E5hb09oRXY+IhlaynFg0l/E7
+t5uMMUopmcfOH6OGMXTCFXebKbWGnzHx83bXkyzMWWc1p4X+aP18dewHsYuwZOdx
+1goNZNNz0BaJq2y0RYnfYeNOLV6d+S6BAMAUkWbABdols8Pi8ezsPwZ8x/1vk7uy
+tUOmiuMkLsC6LzJnnUaoGR3tflCH+yU3XSPQpnZYzaFaeA3d6mgV93w7y3Jreavx
+tHkCAwEAAaMTMBEwDwYDVR0TAQH/BAUwAwEB/zANBgkqhkiG9w0BAQsFAAOCAQEA
+dZ9vGVJaAauomoDp9VY4zOr0G4n7WnEElqMAxOQPzLJwRXe81/GchmUKWvX5Fc6o
+6RiEa7Nw4YiXKyFMqoJbQN3j8EkOiHs1FtrwJNsobzmlVmjuqxqCBWmVQPpUfOQh
+f6I/gQr2BVxvNsj+IvuI0vIVjP5J3GBxL9ySvFKsfp4xtk1oTHIuA2G3haIv2AJp
+j/Hm7nVvoXWrb/zX+fagi0rrf+3hDCsHMXtxaxXk2sGRLKHgkTYTVwEPQ6SKEqrW
+qnSOx+SMl4up6AVfEq6kVR8ZIt/CzJBWZ4qYQnOf0eK4KQC6UB22adzsaFMmhzRB
+YZQy1bHIhscLf8wjTYbzAg==
+-----END CERTIFICATE-----
+        """
         When I run command on host "mysql1"
         """
             mysync switch --to mysql2 --wait=0s
