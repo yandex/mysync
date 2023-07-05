@@ -621,7 +621,23 @@ func (n *Node) setReadonlyWithTimeout(superReadOnly bool, timeout time.Duration)
 		query = querySetReadonlyNoSuper
 	}
 
-	return n.execWithTimeout(query, nil, timeout)
+	err := n.execWithTimeout(query, nil, timeout)
+	if err != nil {
+		return err
+	}
+
+	// making sure that the node has switched to read_only mode
+	isReadOnly, isSuperReadOnly, err := n.IsReadOnly()
+	if err != nil {
+		return err
+	}
+	if isSuperReadOnly != superReadOnly {
+		return fmt.Errorf("the node has not switched to super_read_only mode")
+	}
+	if !isReadOnly {
+		return fmt.Errorf("the node has not switched to read_only mode")
+	}
+	return nil
 }
 
 // SetReadOnlyWithForce sets MySQL Node to be read-only

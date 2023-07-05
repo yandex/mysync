@@ -1,6 +1,7 @@
 package app
 
 import (
+	"errors"
 	"fmt"
 	"time"
 
@@ -9,6 +10,7 @@ import (
 	"github.com/yandex/mysync/internal/util"
 )
 
+// GetActiveNodes returns master + alive running replicas
 func (app *App) GetActiveNodes() ([]string, error) {
 	var activeNodes []string
 	err := app.dcs.Get(pathActiveNodes, &activeNodes)
@@ -108,4 +110,29 @@ func (app *App) GetResetupStatus(host string) (mysql.ResetupStatus, error) {
 	resetupStatus := mysql.ResetupStatus{}
 	err := app.dcs.Get(dcs.JoinPath(pathResetupStatus, host), &resetupStatus)
 	return resetupStatus, err
+}
+
+func (app *App) UpdateLastShutdownNodeTime() error {
+	err := app.dcs.Create(pathLastShutdownNodeTime, time.Now())
+	if err != nil && err != dcs.ErrExists {
+		return err
+	}
+	err = app.dcs.Set(pathLastShutdownNodeTime, time.Now())
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
+func (app *App) GetLastShutdownNodeTime() (time.Time, error) {
+	var t time.Time
+	err := app.dcs.Get(pathLastShutdownNodeTime, &t)
+	if errors.Is(err, dcs.ErrNotFound) {
+		err = app.dcs.Create(pathLastShutdownNodeTime, time.Now())
+		if err != nil {
+			return time.Now(), err
+		}
+		return time.Now(), nil
+	}
+	return t, err
 }

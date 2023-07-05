@@ -33,6 +33,7 @@ const (
 	zkName                     = "zoo"
 	zkPort                     = 2181
 	zkConnectTimeout           = 5 * time.Second
+	commandExecutionTimeout    = 10 * time.Second
 	mysqlName                  = "mysql"
 	mysqlPort                  = 3306
 	mysqlAdminUser             = "admin"
@@ -544,13 +545,13 @@ func (tctx *testContext) stepHostIsDeleted(host string) error {
 
 func (tctx *testContext) stepMysqlOnHostKilled(host string) error {
 	cmd := "supervisorctl signal KILL mysqld"
-	_, _, err := tctx.composer.RunCommand(host, cmd, 10*time.Second)
+	_, _, err := tctx.composer.RunCommand(host, cmd, commandExecutionTimeout)
 	return err
 }
 
 func (tctx *testContext) stepMysqlOnHostStarted(host string) error {
 	cmd := "supervisorctl start mysqld"
-	_, _, err := tctx.composer.RunCommand(host, cmd, 10*time.Second)
+	_, _, err := tctx.composer.RunCommand(host, cmd, commandExecutionTimeout)
 	return err
 }
 
@@ -562,7 +563,7 @@ func (tctx *testContext) stepMysqlOnHostRestarted(host string) error {
 
 func (tctx *testContext) stepMysqlOnHostStopped(host string) error {
 	cmd := "supervisorctl signal TERM mysqld"
-	_, _, err := tctx.composer.RunCommand(host, cmd, 10*time.Second)
+	_, _, err := tctx.composer.RunCommand(host, cmd, commandExecutionTimeout)
 	return err
 }
 
@@ -690,7 +691,7 @@ func (tctx *testContext) stepFileOnHostHaveContentOf(path string, node string, b
 func (tctx *testContext) stepIRunCommandOnHost(host string, body *godog.DocString) error {
 	cmd := strings.TrimSpace(body.Content)
 	var err error
-	tctx.commandRetcode, tctx.commandOutput, err = tctx.composer.RunCommand(host, cmd, 10*time.Second)
+	tctx.commandRetcode, tctx.commandOutput, err = tctx.composer.RunCommand(host, cmd, commandExecutionTimeout)
 	return err
 }
 
@@ -699,7 +700,7 @@ func (tctx *testContext) stepSetUsedSpace(host string, percent int) error {
 		return fmt.Errorf("incorrect percent value: %d", percent)
 	}
 	cmd := fmt.Sprintf("rm /tmp/usedspace && echo %d > /tmp/usedspace", percent)
-	_, _, err := tctx.composer.RunCommand(host, cmd, 10*time.Second)
+	_, _, err := tctx.composer.RunCommand(host, cmd, commandExecutionTimeout)
 	return err
 }
 
@@ -708,7 +709,7 @@ func (tctx *testContext) stepSetReadonlyStatus(host string, value string) error 
 		return fmt.Errorf("value must be true or false: %s", value)
 	}
 	cmd := fmt.Sprintf("rm /tmp/readonly && echo %s > /tmp/readonly", value)
-	code, output, err := tctx.composer.RunCommand(host, cmd, 10*time.Second)
+	code, output, err := tctx.composer.RunCommand(host, cmd, commandExecutionTimeout)
 	if code != 0 {
 		return fmt.Errorf("comand exit with code %d and output: %s", code, output)
 	}
@@ -727,7 +728,7 @@ func (tctx *testContext) stepIRunCommandOnHostWithTimeout(host string, timeout i
 	return err
 }
 
-func (tctx *testContext) stepIRunCommandOnHostUntilResultMatch(host string, pattern string, timeout int, body *godog.DocString) error {
+func (tctx *testContext) stepIRunCommandOnHostUntilResultMatchWithTimeout(host string, pattern string, timeout int, body *godog.DocString) error {
 	matcher, err := matchers.GetMatcher("regexp")
 	if err != nil {
 		return err
@@ -742,6 +743,20 @@ func (tctx *testContext) stepIRunCommandOnHostUntilResultMatch(host string, patt
 		}
 		lastError = matcher(tctx.commandOutput, strings.TrimSpace(pattern))
 		return lastError == nil
+	}, time.Duration(timeout)*time.Second, time.Second)
+
+	return lastError
+}
+
+func (tctx *testContext) stepIRunCommandOnHostUntilReturnCodeWithTimeout(host string, code int, timeout int, body *godog.DocString) error {
+	var lastError error
+	testutil.Retry(func() bool {
+		cmd := strings.TrimSpace(body.Content)
+		tctx.commandRetcode, tctx.commandOutput, lastError = tctx.composer.RunCommand(host, cmd, time.Duration(timeout)*time.Second)
+		if lastError != nil {
+			return false
+		}
+		return tctx.commandRetcode == code
 	}, time.Duration(timeout)*time.Second, time.Second)
 
 	return lastError
@@ -1385,7 +1400,8 @@ func InitializeScenario(s *godog.ScenarioContext) {
 	s.Step(`^I run command on host "([^"]*)"$`, tctx.stepIRunCommandOnHost)
 	s.Step(`^I run command on host "([^"]*)" with timeout "(\d+)" seconds$`, tctx.stepIRunCommandOnHostWithTimeout)
 	s.Step(`^I run async command on host "([^"]*)"$`, tctx.stepIRunAsyncCommandOnHost)
-	s.Step(`^I run command on host "([^"]*)" until result match regexp "([^"]*)" with timeout "(\d+)" seconds$`, tctx.stepIRunCommandOnHostUntilResultMatch)
+	s.Step(`^I run command on host "([^"]*)" until result match regexp "([^"]*)" with timeout "(\d+)" seconds$`, tctx.stepIRunCommandOnHostUntilResultMatchWithTimeout)
+	s.Step(`^I run command on host "([^"]*)" until return code is "([^"]*)" with timeout "(\d+)" seconds$`, tctx.stepIRunCommandOnHostUntilReturnCodeWithTimeout)
 	s.Step(`^I change replication source on host "([^"]*)" to "([^"]*)"$`, tctx.stepIChangeReplicationSource)
 	s.Step(`^command return code should be "(\d+)"$`, tctx.stepCommandReturnCodeShouldBe)
 	s.Step(`^command output should match (\w+)$`, tctx.stepCommandOutputShouldMatch)

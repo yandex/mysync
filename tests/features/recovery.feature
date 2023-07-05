@@ -38,15 +38,15 @@ Feature: hosts recovery
       Then mysql host "mysql2" should be master
       And mysql host "mysql2" should be writable
       And mysql host "mysql2" should have variable "rpl_semi_sync_master_enabled" set to "0"
-
       # Commit normal transaction
       Then I run SQL on mysql host "mysql2"
-        """
-          CREATE TABLE splitbrain(id int);
-        """
+      """
+        CREATE TABLE splitbrain(id int);
+      """
 
       # Emulate lost transactions on old master
-      When I run command on host "mysql1"
+      # mysync may set super_read_only while we run query
+      When I run command on host "mysql1" until return code is "0" with timeout "5" seconds
         """
           mysql -e '
             SET GLOBAL rpl_semi_sync_master_enabled = 0;
@@ -55,7 +55,6 @@ Feature: hosts recovery
             SET GLOBAL read_only = 1;
           '
         """
-      Then command return code should be "0"
 
       When host "mysql1" is attached to the network
       Then mysql host "mysql1" should become available within "10" seconds
