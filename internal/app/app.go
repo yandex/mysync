@@ -222,6 +222,32 @@ func (app *App) stateFileHandler(ctx context.Context) {
 	}
 }
 
+// checks if update of external CA file required
+func (app *App) externalCAFileChecker(ctx context.Context) {
+	ticker := time.NewTicker(app.config.ExternalCAFileCheckInterval)
+	for {
+		select {
+		case <-ticker.C:
+			localNode := app.cluster.Local()
+			replicaStatus, err := localNode.GetExternalReplicaStatus()
+			if err != nil {
+				app.logger.Errorf("external CA file checker: host %s failed to get external replica status %v", localNode.Host(), err)
+				continue
+			}
+			if replicaStatus == nil {
+				app.logger.Infof("external CA file checker: no external replication found on host %v", localNode.Host())
+				continue
+			}
+			err = localNode.UpdateExternalCAFile()
+			if err != nil {
+				app.logger.Errorf("external CA file checker: failed check and update CA file: %s", err)
+			}
+		case <-ctx.Done():
+			return
+		}
+	}
+}
+
 func (app *App) SetResetupStatus() {
 	err := app.setResetupStatus(app.cluster.Local().Host(), app.doesResetupFileExist())
 	if err != nil {
@@ -1314,6 +1340,14 @@ func (app *App) performSwitchover(clusterState map[string]*NodeState, activeNode
 		}
 	} else {
 		app.logger.Infof("switchover: old master %s does not need recovery", oldMaster)
+		err = oldMasterNode.StopExternalReplication()
+		if err != nil {
+			return fmt.Errorf("got error: %s while stopping external replication on old master: %s", err, oldMaster)
+		}
+		err = oldMasterNode.ResetExternalReplicationAll()
+		if err != nil {
+			return fmt.Errorf("got error: %s while reseting external replication on old master: %s", err, oldMaster)
+		}
 	}
 
 	// promote new master
@@ -1349,6 +1383,12 @@ func (app *App) performSwitchover(clusterState map[string]*NodeState, activeNode
 	}
 	if len(events) > 0 {
 		app.logger.Infof("switchover: events reenabled on %s: %v", newMaster, events)
+	}
+
+	// enable external replication
+	err = newMasterNode.SetExternalReplication()
+	if err != nil {
+		app.logger.Errorf("failed to set external replication on new master")
 	}
 
 	// set new master in dcs
@@ -2244,6 +2284,7 @@ func (app *App) Run() int {
 	go app.healthChecker(ctx)
 	go app.recoveryChecker(ctx)
 	go app.stateFileHandler(ctx)
+	go app.externalCAFileChecker(ctx)
 
 	handlers := map[appState](func() appState){
 		stateFirstRun:    app.stateFirstRun,

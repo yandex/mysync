@@ -488,7 +488,7 @@ func (n *Node) GetReplicaStatus() (ReplicaStatus, error) {
 }
 
 func (n *Node) ReplicaStatusWithTimeout(timeout time.Duration) (ReplicaStatus, error) {
-	query, status, err := n.GetVersionSlaveStatusQueryWithTimeout(timeout)
+	query, status, err := n.GetVersionSlaveStatusQuery()
 	if err != nil {
 		return nil, nil
 	}
@@ -501,17 +501,44 @@ func (n *Node) ReplicaStatusWithTimeout(timeout time.Duration) (ReplicaStatus, e
 	return status, err
 }
 
-func (n *Node) GetVersionSlaveStatusQueryWithTimeout(timeout time.Duration) (string, ReplicaStatus, error) {
-	if n.version != nil {
-		return n.version.GetSlaveStatusQuery(), n.version.GetSlaveOrReplicaStruct(), nil
+// GetExternalReplicaStatus returns slave/replica status or nil if node is master for external channel
+func (n *Node) GetExternalReplicaStatus() (ReplicaStatus, error) {
+	checked, err := n.IsExternalReplicationSupported()
+	if err != nil {
+		return nil, err
 	}
-	v := new(Version)
-	err := n.queryRowWithTimeout(queryGetVersion, nil, v, timeout)
+	if !(checked) {
+		return nil, nil
+	}
+	status := new(ReplicaStatusStruct)
+	err = n.queryRowMogrifyWithTimeout(queryReplicaStatus, map[string]interface{}{
+		"channel": n.config.ExternalReplicationChannel,
+	}, status, n.config.DBTimeout)
+	if err == sql.ErrNoRows {
+		return nil, nil
+	}
+	return status, err
+}
+
+func (n *Node) GetVersionSlaveStatusQuery() (string, ReplicaStatus, error) {
+	version, err := n.GetVersion()
 	if err != nil {
 		return "", nil, err
 	}
+	return version.GetSlaveStatusQuery(), version.GetSlaveOrReplicaStruct(), nil
+}
+
+func (n *Node) GetVersion() (*Version, error) {
+	if n.version != nil {
+		return n.version, nil
+	}
+	v := new(Version)
+	err := n.queryRow(queryGetVersion, nil, v)
+	if err != nil {
+		return nil, err
+	}
 	n.version = v
-	return n.version.GetSlaveStatusQuery(), n.version.GetSlaveOrReplicaStruct(), err
+	return n.version, nil
 }
 
 // ReplicationLag returns slave replication lag in seconds
@@ -718,6 +745,57 @@ func (n *Node) ResetSlaveAll() error {
 	})
 }
 
+// StartExternalReplication starts external replication
+func (n *Node) StartExternalReplication() error {
+	checked, err := n.IsExternalReplicationSupported()
+	if err != nil {
+		return err
+	}
+	if checked {
+		err := n.execMogrify(queryStartReplica, map[string]interface{}{
+			"channel": n.config.ExternalReplicationChannel,
+		})
+		if err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+// StopExternalReplication stops external replication
+func (n *Node) StopExternalReplication() error {
+	checked, err := n.IsExternalReplicationSupported()
+	if err != nil {
+		return err
+	}
+	if checked {
+		err := n.execMogrify(queryStopReplica, map[string]interface{}{
+			"channel": n.config.ExternalReplicationChannel,
+		})
+		if err != nil && !IsErrorChannelDoesNotExists(err) {
+			return err
+		}
+	}
+	return nil
+}
+
+// ResetExternalReplicationAll resets external replication
+func (n *Node) ResetExternalReplicationAll() error {
+	checked, err := n.IsExternalReplicationSupported()
+	if err != nil {
+		return err
+	}
+	if checked {
+		err := n.execMogrify(queryResetReplicaAll, map[string]interface{}{
+			"channel": n.config.ExternalReplicationChannel,
+		})
+		if err != nil && !IsErrorChannelDoesNotExists(err) {
+			return err
+		}
+	}
+	return nil
+}
+
 // SemiSyncStatus returns semi sync status
 func (n *Node) SemiSyncStatus() (*SemiSyncStatus, error) {
 	status := new(SemiSyncStatus)
@@ -851,4 +929,113 @@ func (n *Node) GetStartupTime() (time.Time, error) {
 		return time.Time{}, err
 	}
 	return time.Unix(int64(startupTime.LastStartup), 0), nil
+}
+
+func (n *Node) IsExternalReplicationSupported() (bool, error) {
+	version, err := n.GetVersion()
+	if err != nil {
+		return false, err
+	}
+	return version.CheckIfExternalReplicationSupported(), nil
+}
+
+func (n *Node) SetExternalReplication() error {
+	var replSettings replicationSettings
+	err := n.queryRow(queryGetExternalReplicationSettings, nil, &replSettings)
+	if err != nil {
+		// If no table in scheme then we consider external replication not existing so we do nothing
+		if IsErrorTableDoesNotExists(err) {
+			return nil
+		}
+		// If there is no rows in table for external replication - do nothing
+		if err == sql.ErrNoRows {
+			n.logger.Infof("no external replication records found in replication table on host %s", n.host)
+			return nil
+		}
+		return err
+	}
+	useSsl := 0
+	sslCa := ""
+	if replSettings.SourceSslCa != "" && n.config.MySQL.ExternalReplicationSslCA != "" {
+		useSsl = 1
+		sslCa = n.config.MySQL.ExternalReplicationSslCA
+	}
+	err = n.StopExternalReplication()
+	if err != nil {
+		return err
+	}
+	err = n.ResetExternalReplicationAll()
+	if err != nil {
+		return err
+	}
+	err = n.execMogrify(queryChangeSource, map[string]interface{}{
+		"host":            replSettings.SourceHost,
+		"port":            replSettings.SourcePort,
+		"user":            replSettings.SourceUser,
+		"password":        replSettings.SourcePassword,
+		"ssl":             useSsl,
+		"sslCa":           sslCa,
+		"sourceDelay":     replSettings.SourceDelay,
+		"retryCount":      n.config.MySQL.ReplicationRetryCount,
+		"connectRetry":    n.config.MySQL.ReplicationConnectRetry,
+		"heartbeatPeriod": n.config.MySQL.ReplicationHeartbeatPeriod,
+		"channel":         "external",
+	})
+	if err != nil {
+		return err
+	}
+	return n.StartExternalReplication()
+}
+
+func (n *Node) UpdateExternalCAFile() error {
+	var replSettings replicationSettings
+	err := n.queryRow(queryGetExternalReplicationSettings, nil, &replSettings)
+	if err != nil {
+		return nil
+	}
+	data := replSettings.SourceSslCa
+	fileName := n.config.MySQL.ExternalReplicationSslCA
+	if data != "" && fileName != "" {
+		err = util.TouchFile(fileName)
+		if err != nil {
+			return err
+		}
+		oldDataByte, err := os.ReadFile(fileName)
+		if err != nil {
+			return err
+		}
+		if data != string(oldDataByte) {
+			n.logger.Infof("saving new CA file to %s", fileName)
+			err := n.SaveCAFile(data, fileName)
+			if err != nil {
+				return err
+			}
+		}
+	}
+	if data == "" && fileName != "" {
+		_, err := os.Stat(fileName)
+		if os.IsNotExist(err) {
+			return nil
+		}
+		n.logger.Infof("deleting CA file %s", fileName)
+		err = os.Remove(fileName)
+		if err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func (n *Node) SaveCAFile(data string, path string) error {
+	rootCertPool := x509.NewCertPool()
+	byteData := []byte(data)
+	if ok := rootCertPool.AppendCertsFromPEM(byteData); !ok {
+		return fmt.Errorf("got error validating PEM certificate")
+	}
+	err := os.WriteFile(path, byteData, 0644)
+	if err != nil {
+		err2 := fmt.Errorf("got error while writing CA file: %s", err)
+		return err2
+	}
+	return nil
 }

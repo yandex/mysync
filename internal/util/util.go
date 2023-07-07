@@ -36,11 +36,12 @@ func SelectNodes(hosts []string, match string) []string {
 func TouchFile(fname string) error {
 	_, err := os.Stat(fname)
 	if os.IsNotExist(err) {
-		file, err := os.Create(fname)
+		err := os.WriteFile(fname, []byte(""), 0644)
+		//file, err := os.Create(fname)
 		if err != nil {
 			return err
 		}
-		defer file.Close()
+		//defer file.Close()
 	}
 	return nil
 }

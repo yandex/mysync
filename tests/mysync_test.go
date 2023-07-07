@@ -45,6 +45,7 @@ const (
 	mysqlQueryTimeout          = 2 * time.Second
 	mysqlWaitOnlineTimeout     = 60
 	replicationChannel         = ""
+	ExternalReplicationChannel = "external"
 	testUser                   = "testuser"
 	testPassword               = "testpassword123"
 )
@@ -638,12 +639,52 @@ func (tctx *testContext) stepHostShouldHaveFile(node string, path string) error 
 	return nil
 }
 
+func (tctx *testContext) stepHostShouldHaveNoFile(node string, path string) error {
+	res, err := tctx.composer.CheckIfFileExist(node, path)
+	if err != nil {
+		return err
+	}
+	if res {
+		return fmt.Errorf("file %s exists on %s", path, node)
+	}
+	return nil
+}
+
 func (tctx *testContext) stepHostShouldHaveFileWithin(node string, path string, timeout int) error {
 	var err error
 	testutil.Retry(func() bool {
 		err = tctx.stepHostShouldHaveFile(node, path)
 		return err == nil
 	}, time.Duration(timeout*int(time.Second)), time.Second)
+	return err
+}
+
+func (tctx *testContext) stepFileOnHostHaveContentOf(path string, node string, body *godog.DocString) error {
+	remoteFile, err := tctx.composer.GetFile(node, path)
+	if err != nil {
+		return err
+	}
+	var res strings.Builder
+	for {
+		buf := make([]byte, 4096)
+		n, err := remoteFile.Read(buf)
+		res.WriteString(string(buf[:n]))
+		if err == io.EOF {
+			break
+		}
+		if err != nil {
+			return err
+		}
+	}
+	if err != nil {
+		return err
+	}
+	actualContent := res.String()
+	expectedContent := strings.TrimSpace(body.Content)
+	if actualContent != expectedContent {
+		return fmt.Errorf("file %s on %s should contents %s but actually has %s", path, node, expectedContent, actualContent)
+	}
+	err = remoteFile.Close()
 	return err
 }
 
@@ -785,6 +826,20 @@ func (tctx *testContext) stepCommandOutputShouldMatch(matcher string, body *godo
 func (tctx *testContext) stepIRunSQLOnHost(host string, body *godog.DocString) error {
 	query := strings.TrimSpace(body.Content)
 	_, err := tctx.queryMysql(host, query, struct{}{})
+	return err
+}
+
+func (tctx *testContext) stepIRunSQLOnHostExpectingErrorOfNumber(host string, errorNumber int, body *godog.DocString) error {
+	query := strings.TrimSpace(body.Content)
+	_, err := tctx.queryMysql(host, query, struct{}{})
+	mysqlErr, ok := err.(*mysql.MySQLError)
+	if !ok {
+		return err
+	}
+	num := uint16(errorNumber)
+	if mysqlErr.Number == num {
+		return nil
+	}
 	return err
 }
 
@@ -1351,6 +1406,7 @@ func InitializeScenario(s *godog.ScenarioContext) {
 	s.Step(`^command return code should be "(\d+)"$`, tctx.stepCommandReturnCodeShouldBe)
 	s.Step(`^command output should match (\w+)$`, tctx.stepCommandOutputShouldMatch)
 	s.Step(`^I run SQL on mysql host "([^"]*)"$`, tctx.stepIRunSQLOnHost)
+	s.Step(`^I run SQL on mysql host "([^"]*)" expecting error on number "(\d+)"$`, tctx.stepIRunSQLOnHostExpectingErrorOfNumber)
 	s.Step(`^SQL result should match (\w+)$`, tctx.stepSQLResultShouldMatch)
 	s.Step(`^I break replication on host "([^"]*)"$`, tctx.stepBreakReplicationOnHost)
 	s.Step(`^I break replication on host "([^"]*)" in repairable way$`, tctx.stepBreakReplicationOnHostInARepairableWay)
@@ -1414,6 +1470,8 @@ func InitializeScenario(s *godog.ScenarioContext) {
 	// misc
 	s.Step(`^I wait for "(\d+)" seconds$`, tctx.stepIWaitFor)
 	s.Step(`^info file "([^"]*)" on "([^"]*)" match (\w+)$`, tctx.stepInfoFileOnHostMatch)
+	s.Step(`^host "([^"]*)" should have no file "([^"]*)"$`, tctx.stepHostShouldHaveNoFile)
+	s.Step(`^file "([^"]*)" on host "([^"]*)" should have content$`, tctx.stepFileOnHostHaveContentOf)
 }
 
 func TestMysync(t *testing.T) {

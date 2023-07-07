@@ -40,6 +40,16 @@ type ResetupStatus struct {
 	UpdateTime time.Time
 }
 
+type replicationSettings struct {
+	ChannelName    string `db:"ChannelName"`
+	SourceHost     string `db:"SourceHost"`
+	SourceUser     string `db:"SourceUser"`
+	SourcePassword string `db:"SourcePassword"`
+	SourcePort     int    `db:"SourcePort"`
+	SourceSslCa    string `db:"SourceSslCa"`
+	SourceDelay    int    `db:"SourceDelay"`
+}
+
 // SlaveStatusStruct contains SHOW SLAVE STATUS response
 type SlaveStatusStruct struct {
 	MasterHost       string          `db:"Master_Host"`
@@ -252,6 +262,20 @@ const (
 )
 
 func (v *Version) CheckIfVersionReplicaStatus() bool {
+	switch v.MajorVersion {
+	case Version80Major:
+		if v.MinorVersion > Version80Minor || v.PatchVersion >= Version80PatchReplicaStatus {
+			return true
+		}
+		return false
+	case Version57Major:
+		return false
+	default:
+		return true
+	}
+}
+
+func (v *Version) CheckIfExternalReplicationSupported() bool {
 	switch v.MajorVersion {
 	case Version80Major:
 		if v.MinorVersion > Version80Minor || v.PatchVersion >= Version80PatchReplicaStatus {
