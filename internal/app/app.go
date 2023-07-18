@@ -315,6 +315,17 @@ func (app *App) checkRecovery() {
 		app.logger.Errorf("recovery: local node %s is NOT behind the master %s, need RESETUP", localNode.Host(), masterNode)
 		app.writeResetupFile("")
 	} else {
+		readOnly, _, err := localNode.IsReadOnly()
+		if err != nil {
+			app.logger.Errorf("recovery: failed to check if host is read-only: %v", err)
+			return
+		}
+
+		if !readOnly {
+			app.logger.Errorf("recovery: host is not read-only, we should wait for it...")
+			return
+		}
+
 		app.logger.Infof("recovery: local node %s is not ahead of master, recovery finished", localNode.Host())
 		err = app.ClearRecovery(app.config.Hostname)
 		if err != nil {
