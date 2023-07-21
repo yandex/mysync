@@ -803,78 +803,6 @@ func (app *App) approveSwitchover(switchover *Switchover, activeNodes []string, 
 	return nil
 }
 
-func (app *App) startSwitchover(switchover *Switchover) error {
-	app.logger.Infof("switchover: %s => %s starting...", switchover.From, switchover.To)
-	switchover.StartedAt = time.Now()
-	switchover.StartedBy = app.config.Hostname
-	return app.dcs.Set(pathCurrentSwitch, switchover)
-}
-
-// Fail current switchover, it will be repeated next cycle
-func (app *App) failSwitchover(switchover *Switchover, err error) error {
-	app.logger.Errorf("switchover: %s => %s failed: %s", switchover.From, switchover.To, err)
-	switchover.RunCount++
-	switchover.Result = new(SwitchoverResult)
-	switchover.Result.Ok = false
-	switchover.Result.Error = err.Error()
-	switchover.Result.FinishedAt = time.Now()
-	return app.dcs.Set(pathCurrentSwitch, switchover)
-}
-
-// Finish current switchover and write the result
-func (app *App) finishSwitchover(switchover *Switchover, switchErr error) error {
-	result := true
-	action := "finished"
-	path := pathLastSwitch
-	if switchErr != nil {
-		result = false
-		action = "rejected"
-		path = pathLastRejectedSwitch
-	}
-
-	app.logger.Infof("switchover: %s => %s %s", switchover.From, switchover.To, action)
-	switchover.Result = new(SwitchoverResult)
-	switchover.Result.Ok = result
-	switchover.Result.FinishedAt = time.Now()
-
-	if switchErr != nil {
-		switchover.Result.Error = switchErr.Error()
-	}
-
-	err := app.dcs.Delete(pathCurrentSwitch)
-	if err != nil {
-		return err
-	}
-	return app.dcs.Set(path, switchover)
-}
-
-func (app *App) getLastSwitchover() Switchover {
-	var lastSwitch, lastRejectedSwitch Switchover
-	err := app.dcs.Get(pathLastSwitch, &lastSwitch)
-	if err != nil && err != dcs.ErrNotFound {
-		app.logger.Errorf("%s: %s", pathLastSwitch, err.Error())
-	}
-	errRejected := app.dcs.Get(pathLastRejectedSwitch, &lastRejectedSwitch)
-	if errRejected != nil && errRejected != dcs.ErrNotFound {
-		app.logger.Errorf("%s: %s", pathLastRejectedSwitch, errRejected.Error())
-	}
-
-	if lastRejectedSwitch.InitiatedAt.After(lastSwitch.InitiatedAt) {
-		return lastRejectedSwitch
-	}
-
-	return lastSwitch
-}
-
-func (app *App) issueFailover(master string) error {
-	var switchover Switchover
-	switchover.From = master
-	switchover.InitiatedBy = app.config.Hostname
-	switchover.InitiatedAt = time.Now()
-	switchover.Cause = CauseAuto
-	return app.dcs.Create(pathCurrentSwitch, switchover)
-}
-
 /*
 Returns list of hosts that should be active at the moment
 Typically it's master + list of alive, replicating, not split-brained replicas
@@ -1210,7 +1138,7 @@ func (app *App) performSwitchover(clusterState map[string]*NodeState, activeNode
 		return err
 	}
 
-	app.logger.Info("switchover: phase 1: stop replication")
+	app.logger.Info("switchover: phase 2: stop replication")
 	errs2 := util.RunParallel(func(host string) error {
 		if !clusterState[host].PingOk {
 			return fmt.Errorf("switchover: failed to ping host %s", host)
@@ -1242,7 +1170,7 @@ func (app *App) performSwitchover(clusterState map[string]*NodeState, activeNode
 	}
 
 	// collect active host positions
-	app.logger.Info("switchover: phase 2: find most up-to-date host")
+	app.logger.Info("switchover: phase 3: find most up-to-date host")
 	positions, err := app.getNodePositions(frozenActiveNodes)
 	if err != nil {
 		return err
@@ -1285,7 +1213,7 @@ func (app *App) performSwitchover(clusterState map[string]*NodeState, activeNode
 	newMasterNode := app.cluster.Get(newMaster)
 
 	// catch up
-	app.logger.Info("switchover: phase 3: catch up if needed")
+	app.logger.Info("switchover: phase 4: catch up if needed")
 	if newMaster != mostRecent {
 		app.logger.Infof("switchover: new master %s differs from most recent host %s, need to catch up", newMaster, mostRecent)
 		err := app.cluster.Get(mostRecent).SetOnline()
@@ -1323,7 +1251,7 @@ func (app *App) performSwitchover(clusterState map[string]*NodeState, activeNode
 	}
 
 	// turn slaves to the new master
-	app.logger.Info("switchover: phase 4: turn to the new master")
+	app.logger.Info("switchover: phase 5: turn to the new master")
 	errs = util.RunParallel(func(host string) error {
 		if host == newMaster || !clusterState[host].PingOk {
 			return nil
@@ -1362,7 +1290,7 @@ func (app *App) performSwitchover(clusterState map[string]*NodeState, activeNode
 	}
 
 	// promote new master
-	app.logger.Info("switchover: phase 5: promote new master")
+	app.logger.Info("switchover: phase 6: promote new master")
 	err = newMasterNode.StopSlave()
 	if err != nil || app.emulateError("promote_stop_slave") {
 		return fmt.Errorf("failed to stop slave on new master %s: %s", newMaster, err)
@@ -1388,7 +1316,7 @@ func (app *App) performSwitchover(clusterState map[string]*NodeState, activeNode
 	app.logger.Infof("switchover: new master %s set writable", newMaster)
 
 	// reenable events
-	events, err := newMasterNode.ReenableEvents()
+	events, err := newMasterNode.ReenableEventsRetry()
 	if err != nil || app.emulateError("promote_reenable_events") {
 		return fmt.Errorf("failed to reenable slaveside disabled events on %s: %s", newMaster, err)
 	}
@@ -1409,33 +1337,6 @@ func (app *App) performSwitchover(clusterState map[string]*NodeState, activeNode
 	}
 
 	return nil
-}
-
-func (app *App) getCurrentMaster(clusterState map[string]*NodeState) (string, error) {
-	var master string
-	err := app.dcs.Get(pathMasterNode, &master)
-	if err != nil && err != dcs.ErrNotFound {
-		return "", fmt.Errorf("failed to get current master from dcs: %s", err)
-	}
-	if master != "" {
-		return master, nil
-	}
-	return app.ensureCurrentMaster(clusterState)
-}
-
-func (app *App) ensureCurrentMaster(clusterState map[string]*NodeState) (string, error) {
-	master, err := app.getMasterHost(clusterState)
-	if err != nil {
-		return "", err
-	}
-	if master == "" {
-		return "", ErrNoMaster
-	}
-	err = app.dcs.Set(pathMasterNode, master)
-	if err != nil {
-		return "", fmt.Errorf("failed to set current master to dcs: %s", err)
-	}
-	return master, nil
 }
 
 func (app *App) repairOfflineMode(clusterState map[string]*NodeState, master string) {
