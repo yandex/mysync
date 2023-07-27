@@ -187,6 +187,7 @@ YZQy1bHIhscLf8wjTYbzAg==
             "Relay_Source_Log_File": "",
             "Exec_Source_Log_Pos": "0",
             "Channel_Name": "external",
+            "Replicate_Ignore_DB": "mysql",
             "Source_SSL_CA_File": "/etc/mysql/ssl/external_CA.pem"
         }]
         """

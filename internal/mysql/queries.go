@@ -41,6 +41,7 @@ const (
 	queryResetReplicaAll                = "reset_replica_all"
 	queryStopReplica                    = "stop_replica"
 	queryStartReplica                   = "start_replica"
+	queryIgnoreDB                       = "ignore_db"
 )
 
 var DefaultQueries = map[string]string{
@@ -115,4 +116,5 @@ var DefaultQueries = map[string]string{
 								SOURCE_RETRY_COUNT = :retryCount,
 								SOURCE_DELAY = :sourceDelay
 						FOR CHANNEL :channel`,
+	queryIgnoreDB: `CHANGE REPLICATION FILTER REPLICATE_IGNORE_DB = (:ignoreList) FOR CHANNEl :channel`,
 }

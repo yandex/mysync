@@ -1153,6 +1153,12 @@ func (app *App) performSwitchover(clusterState map[string]*NodeState, activeNode
 		return nil
 	}, activeNodes)
 
+	oldMasterNode := app.cluster.Get(oldMaster)
+	err := oldMasterNode.StopExternalReplication()
+	if err != nil {
+		return fmt.Errorf("got error: %s while stopping external replication on old master: %s", err, oldMaster)
+	}
+
 	// count successfully stopped active nodes and check one more time that we have a quorum
 	var frozenActiveNodes []string
 	for _, host := range activeNodes {
@@ -1269,7 +1275,6 @@ func (app *App) performSwitchover(clusterState map[string]*NodeState, activeNode
 	}
 
 	// check if need recover old master
-	oldMasterNode := app.cluster.Get(oldMaster)
 	oldMasterSlaveStatus, err := oldMasterNode.GetReplicaStatus()
 	app.logger.Infof("switchover: old master slave status: %#v", oldMasterSlaveStatus)
 	if err != nil || oldMasterSlaveStatus == nil || isSlavePermanentlyLost(oldMasterSlaveStatus, mostRecentGtidSet) {
@@ -1279,10 +1284,6 @@ func (app *App) performSwitchover(clusterState map[string]*NodeState, activeNode
 		}
 	} else {
 		app.logger.Infof("switchover: old master %s does not need recovery", oldMaster)
-		err = oldMasterNode.StopExternalReplication()
-		if err != nil {
-			return fmt.Errorf("got error: %s while stopping external replication on old master: %s", err, oldMaster)
-		}
 		err = oldMasterNode.ResetExternalReplicationAll()
 		if err != nil {
 			return fmt.Errorf("got error: %s while reseting external replication on old master: %s", err, oldMaster)
