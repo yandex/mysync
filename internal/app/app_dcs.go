@@ -137,8 +137,8 @@ func (app *App) GetLastShutdownNodeTime() (time.Time, error) {
 	return t, err
 }
 
-// Finish current switchover and write the result
-func (app *App) finishSwitchover(switchover *Switchover, switchErr error) error {
+// FinishSwitchover finish current switchover and write the result
+func (app *App) FinishSwitchover(switchover *Switchover, switchErr error) error {
 	result := true
 	action := "finished"
 	path := pathLastSwitch
@@ -209,7 +209,15 @@ func (app *App) issueFailover(master string) error {
 	return app.dcs.Create(pathCurrentSwitch, switchover)
 }
 
-func (app *App) getCurrentMaster(clusterState map[string]*NodeState) (string, error) {
+func (app *App) setMasterHost(master string) (string, error) {
+	err := app.dcs.Set(pathMasterNode, master)
+	if err != nil {
+		return "", fmt.Errorf("failed to set current master to dcs: %s", err)
+	}
+	return master, nil
+}
+
+func (app *App) getMasterHostFromDcs() (string, error) {
 	var master string
 	err := app.dcs.Get(pathMasterNode, &master)
 	if err != nil && err != dcs.ErrNotFound {
@@ -218,20 +226,5 @@ func (app *App) getCurrentMaster(clusterState map[string]*NodeState) (string, er
 	if master != "" {
 		return master, nil
 	}
-	return app.ensureCurrentMaster(clusterState)
-}
-
-func (app *App) ensureCurrentMaster(clusterState map[string]*NodeState) (string, error) {
-	master, err := app.getMasterHost(clusterState)
-	if err != nil {
-		return "", err
-	}
-	if master == "" {
-		return "", ErrNoMaster
-	}
-	err = app.dcs.Set(pathMasterNode, master)
-	if err != nil {
-		return "", fmt.Errorf("failed to set current master to dcs: %s", err)
-	}
-	return master, nil
+	return "", nil
 }

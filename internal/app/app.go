@@ -602,7 +602,7 @@ func (app *App) stateManager() appState {
 		err = app.approveSwitchover(switchover, activeNodes, clusterState)
 		if err != nil {
 			app.logger.Errorf("cannot perform switchover: %s", err)
-			err = app.finishSwitchover(switchover, err)
+			err = app.FinishSwitchover(switchover, err)
 			if err != nil {
 				app.logger.Errorf("failed to reject switchover: %s", err)
 			}
@@ -624,7 +624,7 @@ func (app *App) stateManager() appState {
 					app.logger.Errorf("failed to report switchover failure: %s", err)
 				}
 			} else {
-				err = app.finishSwitchover(switchover, nil)
+				err = app.FinishSwitchover(switchover, nil)
 				if err != nil {
 					// we failed to update status in DCS, it's highly possible
 					// that current process lost DCS connection
@@ -1130,7 +1130,7 @@ func (app *App) performSwitchover(clusterState map[string]*NodeState, activeNode
 	if err, ok := errs[oldMaster]; ok && err != nil && clusterState[oldMaster].PingOk {
 		err = fmt.Errorf("switchover: failed to set old master %s read-only %s", oldMaster, err)
 		app.logger.Info(err.Error())
-		switchErr := app.finishSwitchover(switchover, err)
+		switchErr := app.FinishSwitchover(switchover, err)
 		if switchErr != nil {
 			return fmt.Errorf("switchover: failed to reject switchover %s", switchErr)
 		}
@@ -1337,6 +1337,41 @@ func (app *App) performSwitchover(clusterState map[string]*NodeState, activeNode
 	}
 
 	return nil
+}
+
+func (app *App) getCurrentMaster(clusterState map[string]*NodeState) (string, error) {
+	master, err := app.getMasterHostFromDcs()
+	if master != "" && err == nil {
+		return master, err
+	}
+	return app.ensureCurrentMaster(clusterState)
+}
+
+func (app *App) ensureCurrentMaster(clusterState map[string]*NodeState) (string, error) {
+	master, err := app.getMasterHost(clusterState)
+	if err != nil {
+		return "", err
+	}
+	if master == "" {
+		return "", ErrNoMaster
+	}
+	return app.setMasterHost(master)
+}
+
+func (app *App) getMasterHost(clusterState map[string]*NodeState) (string, error) {
+	masters := make([]string, 0)
+	for host, state := range clusterState {
+		if state.PingOk && state.IsMaster {
+			masters = append(masters, host)
+		}
+	}
+	if len(masters) > 1 {
+		return "", fmt.Errorf("%w: %s", ErrManyMasters, masters)
+	}
+	if len(masters) == 0 {
+		return "", nil
+	}
+	return masters[0], nil
 }
 
 func (app *App) repairOfflineMode(clusterState map[string]*NodeState, master string) {
@@ -2049,22 +2084,6 @@ func (app *App) waitForCatchUp(node *mysql.Node, gtidset gtids.GTIDSet, timeout 
 		}
 	}
 	return false, nil
-}
-
-func (app *App) getMasterHost(clusterState map[string]*NodeState) (string, error) {
-	masters := make([]string, 0)
-	for host, state := range clusterState {
-		if state.PingOk && state.IsMaster {
-			masters = append(masters, host)
-		}
-	}
-	if len(masters) > 1 {
-		return "", fmt.Errorf("%w: %s", ErrManyMasters, masters)
-	}
-	if len(masters) == 0 {
-		return "", nil
-	}
-	return masters[0], nil
 }
 
 // Set master offline and disable semi-sync replication
