@@ -231,7 +231,9 @@ func (app *App) externalCAFileChecker(ctx context.Context) {
 			localNode := app.cluster.Local()
 			replicaStatus, err := localNode.GetExternalReplicaStatus()
 			if err != nil {
-				app.logger.Errorf("external CA file checker: host %s failed to get external replica status %v", localNode.Host(), err)
+				if !mysql.IsErrorChannelDoesNotExists(err) {
+					app.logger.Errorf("external CA file checker: host %s failed to get external replica status %v", localNode.Host(), err)
+				}
 				continue
 			}
 			if replicaStatus == nil {
@@ -1139,6 +1141,15 @@ func (app *App) performSwitchover(clusterState map[string]*NodeState, activeNode
 	}
 
 	app.logger.Info("switchover: phase 2: stop replication")
+
+	oldMasterNode := app.cluster.Get(oldMaster)
+	if clusterState[oldMaster].PingOk {
+		err := oldMasterNode.StopExternalReplication()
+		if err != nil {
+			return fmt.Errorf("got error: %s while stopping external replication on old master: %s", err, oldMaster)
+		}
+	}
+
 	errs2 := util.RunParallel(func(host string) error {
 		if !clusterState[host].PingOk {
 			return fmt.Errorf("switchover: failed to ping host %s", host)
@@ -1152,12 +1163,6 @@ func (app *App) performSwitchover(clusterState map[string]*NodeState, activeNode
 		app.logger.Infof("switchover: host %s replication IO thread stopped", host)
 		return nil
 	}, activeNodes)
-
-	oldMasterNode := app.cluster.Get(oldMaster)
-	err := oldMasterNode.StopExternalReplication()
-	if err != nil {
-		return fmt.Errorf("got error: %s while stopping external replication on old master: %s", err, oldMaster)
-	}
 
 	// count successfully stopped active nodes and check one more time that we have a quorum
 	var frozenActiveNodes []string
