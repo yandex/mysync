@@ -324,7 +324,7 @@ func (app *App) CliSwitch(switchFrom, switchTo string, waitTimeout time.Duration
 		for {
 			select {
 			case <-ticker.C:
-				lastSwitchover = app.getLastSwitchover()
+				lastSwitchover = app.GetLastSwitchover()
 				if lastSwitchover.InitiatedBy == switchover.InitiatedBy && lastSwitchover.InitiatedAt.Unix() == switchover.InitiatedAt.Unix() {
 					break Out
 				} else {

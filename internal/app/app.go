@@ -609,7 +609,7 @@ func (app *App) stateManager() appState {
 			return stateManager
 		}
 
-		err = app.startSwitchover(switchover)
+		err = app.StartSwitchover(switchover)
 		if err != nil {
 			app.logger.Errorf("failed to start switchover: %s", err)
 			return stateManager
@@ -619,7 +619,7 @@ func (app *App) stateManager() appState {
 			app.logger.Errorf("switchover was aborted")
 		} else {
 			if err != nil {
-				err = app.failSwitchover(switchover, err)
+				err = app.FailSwitchover(switchover, err)
 				if err != nil {
 					app.logger.Errorf("failed to report switchover failure: %s", err)
 				}
@@ -648,7 +648,7 @@ func (app *App) stateManager() appState {
 		err = app.approveFailover(clusterState, clusterStateDcs, activeNodes, master)
 		if err == nil {
 			app.logger.Infof("failover approved")
-			err = app.issueFailover(master)
+			err = app.IssueFailover(master)
 			if err != nil {
 				app.logger.Error(err.Error())
 			}
@@ -676,7 +676,7 @@ func (app *App) stateManager() appState {
 		err = app.approveFailover(clusterState, clusterStateDcs, activeNodes, master)
 		if err == nil {
 			app.logger.Infof("failover approved")
-			err = app.issueFailover(master)
+			err = app.IssueFailover(master)
 			if err != nil {
 				app.logger.Error(err.Error())
 			}
@@ -1340,7 +1340,7 @@ func (app *App) performSwitchover(clusterState map[string]*NodeState, activeNode
 }
 
 func (app *App) getCurrentMaster(clusterState map[string]*NodeState) (string, error) {
-	master, err := app.getMasterHostFromDcs()
+	master, err := app.GetMasterHostFromDcs()
 	if master != "" && err == nil {
 		return master, err
 	}
@@ -1355,7 +1355,7 @@ func (app *App) ensureCurrentMaster(clusterState map[string]*NodeState) (string,
 	if master == "" {
 		return "", ErrNoMaster
 	}
-	return app.setMasterHost(master)
+	return app.SetMasterHost(master)
 }
 
 func (app *App) getMasterHost(clusterState map[string]*NodeState) (string, error) {

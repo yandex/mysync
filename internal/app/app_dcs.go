@@ -165,7 +165,7 @@ func (app *App) FinishSwitchover(switchover *Switchover, switchErr error) error 
 }
 
 // Fail current switchover, it will be repeated next cycle
-func (app *App) failSwitchover(switchover *Switchover, err error) error {
+func (app *App) FailSwitchover(switchover *Switchover, err error) error {
 	app.logger.Errorf("switchover: %s => %s failed: %s", switchover.From, switchover.To, err)
 	switchover.RunCount++
 	switchover.Result = new(SwitchoverResult)
@@ -175,14 +175,14 @@ func (app *App) failSwitchover(switchover *Switchover, err error) error {
 	return app.dcs.Set(pathCurrentSwitch, switchover)
 }
 
-func (app *App) startSwitchover(switchover *Switchover) error {
+func (app *App) StartSwitchover(switchover *Switchover) error {
 	app.logger.Infof("switchover: %s => %s starting...", switchover.From, switchover.To)
 	switchover.StartedAt = time.Now()
 	switchover.StartedBy = app.config.Hostname
 	return app.dcs.Set(pathCurrentSwitch, switchover)
 }
 
-func (app *App) getLastSwitchover() Switchover {
+func (app *App) GetLastSwitchover() Switchover {
 	var lastSwitch, lastRejectedSwitch Switchover
 	err := app.dcs.Get(pathLastSwitch, &lastSwitch)
 	if err != nil && err != dcs.ErrNotFound {
@@ -200,7 +200,7 @@ func (app *App) getLastSwitchover() Switchover {
 	return lastSwitch
 }
 
-func (app *App) issueFailover(master string) error {
+func (app *App) IssueFailover(master string) error {
 	var switchover Switchover
 	switchover.From = master
 	switchover.InitiatedBy = app.config.Hostname
@@ -209,7 +209,7 @@ func (app *App) issueFailover(master string) error {
 	return app.dcs.Create(pathCurrentSwitch, switchover)
 }
 
-func (app *App) setMasterHost(master string) (string, error) {
+func (app *App) SetMasterHost(master string) (string, error) {
 	err := app.dcs.Set(pathMasterNode, master)
 	if err != nil {
 		return "", fmt.Errorf("failed to set current master to dcs: %s", err)
@@ -217,7 +217,7 @@ func (app *App) setMasterHost(master string) (string, error) {
 	return master, nil
 }
 
-func (app *App) getMasterHostFromDcs() (string, error) {
+func (app *App) GetMasterHostFromDcs() (string, error) {
 	var master string
 	err := app.dcs.Get(pathMasterNode, &master)
 	if err != nil && err != dcs.ErrNotFound {
