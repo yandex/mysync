@@ -870,6 +870,20 @@ func (n *Node) ChangeMaster(host string) error {
 	})
 }
 
+const ReenableEventsRetryCount = 3
+
+func (n *Node) ReenableEventsRetry() ([]Event, error) {
+	var err error
+	for attempt := 0; attempt < ReenableEventsRetryCount; attempt++ {
+		events, err := n.ReenableEvents()
+		if err == nil {
+			return events, nil
+		}
+		n.logger.Errorf("failed to enable events: %s", err)
+	}
+	return nil, err
+}
+
 func (n *Node) ReenableEvents() ([]Event, error) {
 	var events []Event
 	err := n.queryRows(queryListSlavesideDisabledEvents, nil, func(rows *sqlx.Rows) error {
