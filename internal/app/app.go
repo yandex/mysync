@@ -1604,6 +1604,14 @@ func (app *App) repairSlaveNode(node *mysql.Node, clusterState map[string]*NodeS
 		if err != nil {
 			app.logger.Errorf("repair: %s", err)
 		}
+		err = node.StopExternalReplication()
+		if err != nil {
+			app.logger.Errorf("repair: %s", err)
+		}
+		err = node.ResetExternalReplicationAll()
+		if err != nil {
+			app.logger.Errorf("repair: %s", err)
+		}
 		app.logger.Infof("repair: turning stale master %s to new master %s", host, master)
 		err = app.performChangeMaster(host, master)
 		if err != nil {
