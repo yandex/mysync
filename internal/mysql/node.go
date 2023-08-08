@@ -1002,6 +1002,9 @@ func (n *Node) SetExternalReplication() error {
 		"ignoreList": schemaname("mysql"),
 		"channel":    "external",
 	})
+	if err != nil {
+		return err
+	}
 	return n.StartExternalReplication()
 }
 
