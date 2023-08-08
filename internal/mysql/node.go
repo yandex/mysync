@@ -998,6 +998,13 @@ func (n *Node) SetExternalReplication() error {
 	if err != nil {
 		return err
 	}
+	err = n.execMogrify(queryIgnoreDB, map[string]interface{}{
+		"ignoreList": schemaname("mysql"),
+		"channel":    "external",
+	})
+	if err != nil {
+		return err
+	}
 	return n.StartExternalReplication()
 }
 

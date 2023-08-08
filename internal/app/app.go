@@ -231,7 +231,9 @@ func (app *App) externalCAFileChecker(ctx context.Context) {
 			localNode := app.cluster.Local()
 			replicaStatus, err := localNode.GetExternalReplicaStatus()
 			if err != nil {
-				app.logger.Errorf("external CA file checker: host %s failed to get external replica status %v", localNode.Host(), err)
+				if !mysql.IsErrorChannelDoesNotExists(err) {
+					app.logger.Errorf("external CA file checker: host %s failed to get external replica status %v", localNode.Host(), err)
+				}
 				continue
 			}
 			if replicaStatus == nil {
@@ -1139,6 +1141,15 @@ func (app *App) performSwitchover(clusterState map[string]*NodeState, activeNode
 	}
 
 	app.logger.Info("switchover: phase 2: stop replication")
+
+	oldMasterNode := app.cluster.Get(oldMaster)
+	if clusterState[oldMaster].PingOk {
+		err := oldMasterNode.StopExternalReplication()
+		if err != nil {
+			return fmt.Errorf("got error: %s while stopping external replication on old master: %s", err, oldMaster)
+		}
+	}
+
 	errs2 := util.RunParallel(func(host string) error {
 		if !clusterState[host].PingOk {
 			return fmt.Errorf("switchover: failed to ping host %s", host)
@@ -1269,7 +1280,6 @@ func (app *App) performSwitchover(clusterState map[string]*NodeState, activeNode
 	}
 
 	// check if need recover old master
-	oldMasterNode := app.cluster.Get(oldMaster)
 	oldMasterSlaveStatus, err := oldMasterNode.GetReplicaStatus()
 	app.logger.Infof("switchover: old master slave status: %#v", oldMasterSlaveStatus)
 	if err != nil || oldMasterSlaveStatus == nil || isSlavePermanentlyLost(oldMasterSlaveStatus, mostRecentGtidSet) {
@@ -1279,10 +1289,6 @@ func (app *App) performSwitchover(clusterState map[string]*NodeState, activeNode
 		}
 	} else {
 		app.logger.Infof("switchover: old master %s does not need recovery", oldMaster)
-		err = oldMasterNode.StopExternalReplication()
-		if err != nil {
-			return fmt.Errorf("got error: %s while stopping external replication on old master: %s", err, oldMaster)
-		}
 		err = oldMasterNode.ResetExternalReplicationAll()
 		if err != nil {
 			return fmt.Errorf("got error: %s while reseting external replication on old master: %s", err, oldMaster)
@@ -1595,6 +1601,14 @@ func (app *App) repairSlaveNode(node *mysql.Node, clusterState map[string]*NodeS
 		app.logger.Infof("repair: found stale master %s", host)
 		app.logger.Infof("repair: setting stale master %s offline", host)
 		err := app.stopReplicationOnMaster(node)
+		if err != nil {
+			app.logger.Errorf("repair: %s", err)
+		}
+		err = node.StopExternalReplication()
+		if err != nil {
+			app.logger.Errorf("repair: %s", err)
+		}
+		err = node.ResetExternalReplicationAll()
 		if err != nil {
 			app.logger.Errorf("repair: %s", err)
 		}
