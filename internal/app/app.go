@@ -907,6 +907,7 @@ func (app *App) calcActiveNodesChanges(clusterState map[string]*NodeState, activ
 			if dataLag > app.config.SemiSyncEnableLag {
 				app.logger.Warnf("calc active nodes: %v should become active, but it has data lag %d, delaying...", host, dataLag)
 				dataLagging = append(dataLagging, host)
+				becomeInactive = append(becomeInactive, host)
 			}
 		}
 		becomeActive = filterOut(becomeActive, dataLagging)
