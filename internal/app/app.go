@@ -1434,7 +1434,7 @@ func (app *App) repairSlaveOfflineMode(host string, node *mysql.Node, state *Nod
 			}
 			err = node.SetDefaultReplicationSettings(masterNode)
 			if err != nil {
-				app.logger.Errorf("repair: failed to set optimise replication settings on slave %s: %s", host, err)
+				app.logger.Errorf("repair: failed to set optimize replication settings on slave %s: %s", host, err)
 			}
 			err = node.SetOnline()
 			if err != nil {
@@ -1453,7 +1453,7 @@ func (app *App) repairSlaveOfflineMode(host string, node *mysql.Node, state *Nod
 					host, *state.SlaveState.ReplicationLag, app.config.OfflineModeEnableLag)
 				err = node.OptimizeReplication()
 				if err != nil {
-					app.logger.Errorf("repair: failed to set optimise replication settings on slave %s: %s", host, err)
+					app.logger.Errorf("repair: failed to set optimize replication settings on slave %s: %s", host, err)
 				}
 			}
 		}
@@ -1477,7 +1477,7 @@ func (app *App) repairSlaveOfflineMode(host string, node *mysql.Node, state *Nod
 			}
 			err = node.OptimizeReplication()
 			if err != nil {
-				app.logger.Errorf("repair: failed to set optimise replication settings on slave %s: %s", host, err)
+				app.logger.Errorf("repair: failed to set optimize replication settings on slave %s: %s", host, err)
 			}
 		}
 	}
