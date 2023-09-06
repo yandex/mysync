@@ -5,7 +5,7 @@
 ## MySync
 
 MySync is mysql high-availability and cluster configuration tool.
-MySync is designed to switch master in homogeneous MySQL cluster in manual and automatic mode without data loose.
+MySync is designed to switch master in homogeneous MySQL cluster in manual and automatic mode without data loss.
 
 #### Project status
 
