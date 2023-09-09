@@ -945,6 +945,9 @@ func (n *Node) GetStartupTime() (time.Time, error) {
 }
 
 func (n *Node) IsExternalReplicationSupported() (bool, error) {
+	if !n.config.IsExternalReplicationSupported {
+		return false, nil
+	}
 	version, err := n.GetVersion()
 	if err != nil {
 		return false, err
