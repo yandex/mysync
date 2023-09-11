@@ -87,7 +87,7 @@ type Config struct {
 	TestFilesystemReadonlyFile              string              `config:"test_filesystem_readonly_file" yaml:"test_filesystem_readonly_file"`
 	ReplicationChannel                      string              `config:"replication_channel" yaml:"replication_channel"`
 	ExternalReplicationChannel              string              `config:"external_replication_channel" yaml:"external_replication_channel"`
-	IsExternalReplicationSupported          bool                      `config:"is_external_replication_supported", yaml:"is_external_replication_supported"`
+	IsExternalReplicationSupported          bool                `config:"is_external_replication_supported", yaml:"is_external_replication_supported"`
 }
 
 // DefaultConfig returns default configuration for MySync
