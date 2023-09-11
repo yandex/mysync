@@ -7,7 +7,7 @@ import (
 	"github.com/yandex/mysync/internal/mysql"
 )
 
-type RepairReplicationAlgorithm func(app *App, node *mysql.Node, master string) error
+type RepairReplicationAlgorithm func(app *App, node *mysql.Node, master string, channel string) error
 
 type ReplicationRepairAlgorithmType int
 
@@ -21,21 +21,22 @@ type ReplicationRepairState struct {
 	History     map[ReplicationRepairAlgorithmType]int
 }
 
-func (app *App) MarkReplicationRunning(node *mysql.Node) {
+func (app *App) MarkReplicationRunning(node *mysql.Node, channel string) {
 	var replState *ReplicationRepairState
-	if state, ok := app.replRepairState[node.Host()]; ok {
+	key := app.makeReplStateKey(node, channel)
+	if state, ok := app.replRepairState[key]; ok {
 		replState = state
 	} else {
 		return
 	}
 
 	if replState.cooldownPassed(app.config.ReplicationRepairCooldown) {
-		delete(app.replRepairState, node.Host())
+		delete(app.replRepairState, key)
 	}
 }
 
-func (app *App) TryRepairReplication(node *mysql.Node, master string) {
-	replState := app.getOrCreateHostRepairState(node.Host())
+func (app *App) TryRepairReplication(node *mysql.Node, master string, channel string) {
+	replState := app.getOrCreateHostRepairState(app.makeReplStateKey(node, channel))
 
 	if !replState.cooldownPassed(app.config.ReplicationRepairCooldown) {
 		return
@@ -48,7 +49,7 @@ func (app *App) TryRepairReplication(node *mysql.Node, master string) {
 	}
 
 	algorithm := getRepairAlgorithm(algorithmType)
-	err = algorithm(app, node, master)
+	err = algorithm(app, node, master, channel)
 	if err != nil {
 		app.logger.Errorf("repair error: %v", err)
 	}
@@ -57,12 +58,27 @@ func (app *App) TryRepairReplication(node *mysql.Node, master string) {
 	replState.LastAttempt = time.Now()
 }
 
-func StartSlaveAlgorithm(app *App, node *mysql.Node, _ string) error {
+func (app *App) makeReplStateKey(node *mysql.Node, channel string) string {
+	if channel == app.config.ExternalReplicationChannel {
+		return fmt.Sprintf("%s-%s", node.Host(), channel)
+	}
+	return node.Host()
+}
+
+func StartSlaveAlgorithm(app *App, node *mysql.Node, _ string, channel string) error {
 	app.logger.Infof("repair: trying to repair replication using StartSlaveAlgorithm...")
+	if channel == app.config.ExternalReplicationChannel {
+		return node.StartExternalReplication()
+	}
 	return node.StartSlave()
 }
 
-func ResetSlaveAlgorithm(app *App, node *mysql.Node, master string) error {
+func ResetSlaveAlgorithm(app *App, node *mysql.Node, master string, channel string) error {
+	// TODO we don't want reset slave on external replication
+	if channel == app.config.ExternalReplicationChannel {
+		app.logger.Infof("external repair: don't want to use ResetSlaveAlgorithm, leaving")
+		return nil
+	}
 	app.logger.Infof("repair: trying to repair replication using ResetSlaveAlgorithm...")
 	app.logger.Infof("repair: executing set slave offline")
 	err := node.SetOffline()

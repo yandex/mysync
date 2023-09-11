@@ -7,6 +7,8 @@ import (
 	"strconv"
 	"strings"
 	"time"
+
+	"github.com/yandex/mysync/internal/mysql"
 )
 
 type appState string
@@ -216,6 +218,17 @@ type SlaveState struct {
 	MasterLogPos     int64    `json:"master_log_pos"`
 	LastIOErrno      int      `json:"last_io_errno"`
 	LastSQLErrno     int      `json:"last_sql_errno"`
+}
+
+func (ns *SlaveState) FromReplicaStatus(replStatus mysql.ReplicaStatus) {
+	ns.ExecutedGtidSet = replStatus.GetExecutedGtidSet()
+	ns.RetrievedGtidSet = replStatus.GetRetrievedGtidSet()
+	ns.MasterHost = replStatus.GetMasterHost()
+	ns.ReplicationState = replStatus.ReplicationState()
+	ns.MasterLogFile = replStatus.GetMasterLogFile()
+	ns.MasterLogPos = replStatus.GetReadMasterLogPos()
+	ns.LastIOErrno = replStatus.GetLastIOErrno()
+	ns.LastSQLErrno = replStatus.GetLastSQLErrno()
 }
 
 // SemiSyncState contains semi sync host settings
