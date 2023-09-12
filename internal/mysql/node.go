@@ -40,6 +40,11 @@ var queryOnliner = regexp.MustCompile(`\r?\n\s*`)
 var mogrifyRegex = regexp.MustCompile(`:\w+`)
 var ErrNotLocalNode = errors.New("this method should be run on local node only")
 
+const (
+	optimalSyncBinlogValue                = 1000
+	optimalInnodbFlushLogAtTrxCommitValue = 2
+)
+
 // NewNode returns new Node
 func NewNode(config *config.Config, logger *log.Logger, host string) (*Node, error) {
 	addr := util.JoinHostPort(host, config.MySQL.Port)
@@ -1057,6 +1062,43 @@ func (n *Node) SaveCAFile(data string, path string) error {
 	if err != nil {
 		err2 := fmt.Errorf("got error while writing CA file: %s", err)
 		return err2
+	}
+	return nil
+}
+
+// OptimizeReplication sets the optimal settings for replication, which reduces the replication lag.
+// Cannot be used permanently due to the instability of the replica in this state
+func (n *Node) OptimizeReplication() error {
+	err := n.exec(querySetInnodbFlushLogAtTrxCommit, map[string]interface{}{"level": optimalInnodbFlushLogAtTrxCommitValue})
+	if err != nil {
+		return err
+	}
+	err = n.exec(querySetSyncBinlog, map[string]interface{}{"sync_binlog": optimalSyncBinlogValue})
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
+type ReplicationSettings struct {
+	InnodbFlushLogAtTrxCommit int `db:"InnodbFlushLogAtTrxCommit"`
+	SyncBinlog                int `db:"SyncBinlog"`
+}
+
+// SetDefaultReplicationSettings sets default values for replication based on the value on the master
+func (n *Node) SetDefaultReplicationSettings(masterNode *Node) error {
+	var rs ReplicationSettings
+	err := masterNode.queryRow(queryGetReplicationSettings, nil, &rs)
+	if err != nil {
+		return err
+	}
+	err = n.exec(querySetInnodbFlushLogAtTrxCommit, map[string]interface{}{"level": rs.InnodbFlushLogAtTrxCommit})
+	if err != nil {
+		return err
+	}
+	err = n.exec(querySetSyncBinlog, map[string]interface{}{"sync_binlog": rs.SyncBinlog})
+	if err != nil {
+		return err
 	}
 	return nil
 }
