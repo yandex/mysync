@@ -75,6 +75,7 @@ func StartSlaveAlgorithm(app *App, node *mysql.Node, _ string, channel string) e
 
 func ResetSlaveAlgorithm(app *App, node *mysql.Node, master string, channel string) error {
 	// TODO we don't want reset slave on external replication
+	// May be we should split algorithms by channel type (ext/int)
 	if channel == app.config.ExternalReplicationChannel {
 		app.logger.Infof("external repair: don't want to use ResetSlaveAlgorithm, leaving")
 		return nil
@@ -137,13 +138,13 @@ func (state *ReplicationRepairState) cooldownPassed(replicationRepairCooldown ti
 	return state.LastAttempt.Before(cooldown)
 }
 
-func (app *App) getOrCreateHostRepairState(host string) *ReplicationRepairState {
+func (app *App) getOrCreateHostRepairState(stateKey string) *ReplicationRepairState {
 	var replState *ReplicationRepairState
-	if state, ok := app.replRepairState[host]; ok {
+	if state, ok := app.replRepairState[stateKey]; ok {
 		replState = state
 	} else {
 		replState = app.createRepairState()
-		app.replRepairState[host] = replState
+		app.replRepairState[stateKey] = replState
 	}
 
 	return replState

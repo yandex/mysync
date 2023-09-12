@@ -1783,14 +1783,14 @@ func (app *App) repairCascadeNode(node *mysql.Node, clusterState map[string]*Nod
 
 func (app *App) repairExternalReplication(masterNode *mysql.Node) {
 	extReplStatus, err := masterNode.GetExternalReplicaStatus()
-	if extReplStatus == nil {
-		// external replication is not supported
-		return
-	}
 	if err != nil {
 		if !mysql.IsErrorChannelDoesNotExists(err) {
 			app.logger.Errorf("repair (external): host %s failed to get external replica status %v", masterNode.Host(), err)
 		}
+		return
+	}
+	if extReplStatus == nil {
+		// external replication is not supported
 		return
 	}
 

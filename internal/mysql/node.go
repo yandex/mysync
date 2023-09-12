@@ -503,7 +503,7 @@ func (n *Node) GetExternalReplicaStatus() (ReplicaStatus, error) {
 func (n *Node) ReplicaStatusWithTimeout(timeout time.Duration, channel string) (ReplicaStatus, error) {
 	query, status, err := n.GetVersionSlaveStatusQuery()
 	if err != nil {
-		return nil, nil
+		return nil, err
 	}
 	err = n.queryRowMogrifyWithTimeout(query, map[string]interface{}{
 		"channel": channel,
