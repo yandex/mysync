@@ -489,21 +489,7 @@ func (n *Node) Ping() (bool, error) {
 
 // GetReplicaStatus returns slave/replica status or nil if node is master
 func (n *Node) GetReplicaStatus() (ReplicaStatus, error) {
-	return n.ReplicaStatusWithTimeout(n.config.DBTimeout)
-}
-
-func (n *Node) ReplicaStatusWithTimeout(timeout time.Duration) (ReplicaStatus, error) {
-	query, status, err := n.GetVersionSlaveStatusQuery()
-	if err != nil {
-		return nil, nil
-	}
-	err = n.queryRowMogrifyWithTimeout(query, map[string]interface{}{
-		"channel": n.config.ReplicationChannel,
-	}, status, timeout)
-	if err == sql.ErrNoRows {
-		return nil, nil
-	}
-	return status, err
+	return n.ReplicaStatusWithTimeout(n.config.DBTimeout, n.config.ReplicationChannel)
 }
 
 // GetExternalReplicaStatus returns slave/replica status or nil if node is master for external channel
@@ -515,10 +501,18 @@ func (n *Node) GetExternalReplicaStatus() (ReplicaStatus, error) {
 	if !(checked) {
 		return nil, nil
 	}
-	status := new(ReplicaStatusStruct)
-	err = n.queryRowMogrifyWithTimeout(queryReplicaStatus, map[string]interface{}{
-		"channel": n.config.ExternalReplicationChannel,
-	}, status, n.config.DBTimeout)
+
+	return n.ReplicaStatusWithTimeout(n.config.DBTimeout, n.config.ExternalReplicationChannel)
+}
+
+func (n *Node) ReplicaStatusWithTimeout(timeout time.Duration, channel string) (ReplicaStatus, error) {
+	query, status, err := n.GetVersionSlaveStatusQuery()
+	if err != nil {
+		return nil, err
+	}
+	err = n.queryRowMogrifyWithTimeout(query, map[string]interface{}{
+		"channel": channel,
+	}, status, timeout)
 	if err == sql.ErrNoRows {
 		return nil, nil
 	}

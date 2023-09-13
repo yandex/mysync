@@ -375,7 +375,7 @@ func (app *App) checkCrashRecovery() {
 func (app *App) checkHAReplicasRunning(local *mysql.Node) bool {
 	checker := func(host string) error {
 		node := app.cluster.Get(host)
-		status, err := node.ReplicaStatusWithTimeout(app.config.DBLostCheckTimeout)
+		status, err := node.ReplicaStatusWithTimeout(app.config.DBLostCheckTimeout, app.config.ReplicationChannel)
 		if err != nil {
 			return err
 		}
@@ -1582,6 +1582,8 @@ func (app *App) repairMasterNode(masterNode *mysql.Node, clusterState, clusterSt
 	// enter read-only if disk is full
 	app.repairReadOnlyOnMaster(masterNode, masterState, clusterStateDcs)
 
+	app.repairExternalReplication(masterNode)
+
 	events, err := masterNode.ReenableEvents()
 	if err != nil {
 		app.logger.Errorf("repair: failed to reenable slaveside disabled events on %s: %s", host, err)
@@ -1669,10 +1671,10 @@ func (app *App) repairSlaveNode(node *mysql.Node, clusterState map[string]*NodeS
 			if result, code := state.IsReplicationPermanentlyBroken(); result {
 				app.logger.Warnf("repair: replication on host %v is permanently broken, error code: %d", host, code)
 			} else {
-				app.TryRepairReplication(node, master)
+				app.TryRepairReplication(node, master, app.config.ReplicationChannel)
 			}
 		} else {
-			app.MarkReplicationRunning(node)
+			app.MarkReplicationRunning(node, app.config.ReplicationChannel)
 		}
 	}
 }
@@ -1784,6 +1786,25 @@ func (app *App) repairCascadeNode(node *mysql.Node, clusterState map[string]*Nod
 			}
 			app.logger.Infof("repair: Success. New stream_from host is: %s", upstreamCandidate)
 		}
+	}
+}
+
+func (app *App) repairExternalReplication(masterNode *mysql.Node) {
+	extReplStatus, err := masterNode.GetExternalReplicaStatus()
+	if err != nil {
+		if !mysql.IsErrorChannelDoesNotExists(err) {
+			app.logger.Errorf("repair (external): host %s failed to get external replica status %v", masterNode.Host(), err)
+		}
+		return
+	}
+	if extReplStatus == nil {
+		// external replication is not supported
+		return
+	}
+
+	if extReplStatus.ReplicationState() == mysql.ReplicationError {
+		// TODO: remove "". Master is not needed for external replication now
+		app.TryRepairReplication(masterNode, "", app.config.ExternalReplicationChannel)
 	}
 }
 
@@ -1957,14 +1978,7 @@ func (app *App) getNodeState(host string) *NodeState {
 		if slaveStatus != nil {
 			nodeState.IsMaster = false
 			nodeState.SlaveState = new(SlaveState)
-			nodeState.SlaveState.ExecutedGtidSet = slaveStatus.GetExecutedGtidSet()
-			nodeState.SlaveState.RetrievedGtidSet = slaveStatus.GetRetrievedGtidSet()
-			nodeState.SlaveState.MasterHost = slaveStatus.GetMasterHost()
-			nodeState.SlaveState.ReplicationState = slaveStatus.ReplicationState()
-			nodeState.SlaveState.MasterLogFile = slaveStatus.GetMasterLogFile()
-			nodeState.SlaveState.MasterLogPos = slaveStatus.GetReadMasterLogPos()
-			nodeState.SlaveState.LastIOErrno = slaveStatus.GetLastIOErrno()
-			nodeState.SlaveState.LastSQLErrno = slaveStatus.GetLastSQLErrno()
+			nodeState.SlaveState.FromReplicaStatus(slaveStatus)
 			lag, err2 := node.ReplicationLag(slaveStatus)
 			if err2 != nil {
 				return err2
