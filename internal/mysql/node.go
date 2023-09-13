@@ -298,41 +298,6 @@ func (n *Node) GetReplicaStatus() (ReplicaStatus, error) {
 	return n.ReplicaStatusWithTimeout(n.config.DBTimeout, n.config.ReplicationChannel)
 }
 
-// GetExternalReplicaStatus returns slave/replica status or nil if node is master for external channel
-func (n *Node) GetExternalReplicaStatus() (ReplicaStatus, error) {
-	checked, err := n.IsExternalReplicationSupported()
-	if err != nil {
-		return nil, err
-	}
-	if !(checked) {
-		return nil, nil
-	}
-
-	return n.ReplicaStatusWithTimeout(n.config.DBTimeout, n.config.ExternalReplicationChannel)
-}
-
-func (n *Node) ReplicaStatusWithTimeout(timeout time.Duration, channel string) (ReplicaStatus, error) {
-	query, status, err := n.GetVersionSlaveStatusQuery()
-	if err != nil {
-		return nil, err
-	}
-	err = n.queryRowMogrifyWithTimeout(query, map[string]interface{}{
-		"channel": channel,
-	}, status, timeout)
-	if err == sql.ErrNoRows {
-		return nil, nil
-	}
-	return status, err
-}
-
-func (n *Node) GetVersionSlaveStatusQuery() (string, ReplicaStatus, error) {
-	version, err := n.GetVersion()
-	if err != nil {
-		return "", nil, err
-	}
-	return version.GetSlaveStatusQuery(), version.GetSlaveOrReplicaStruct(), nil
-}
-
 // ReplicationLag returns slave replication lag in seconds
 // ReplicationLag may return nil without error if lag is unknown (replication not running)
 func (n *Node) ReplicationLag(sstatus ReplicaStatus) (*float64, error) {
@@ -684,61 +649,6 @@ func (n *Node) GetStartupTime() (time.Time, error) {
 		return time.Time{}, err
 	}
 	return time.Unix(int64(startupTime.LastStartup), 0), nil
-}
-
-func (n *Node) SetExternalReplication() error {
-	var replSettings replicationSettings
-	err := n.queryRow(queryGetExternalReplicationSettings, nil, &replSettings)
-	if err != nil {
-		// If no table in scheme then we consider external replication not existing so we do nothing
-		if IsErrorTableDoesNotExists(err) {
-			return nil
-		}
-		// If there is no rows in table for external replication - do nothing
-		if err == sql.ErrNoRows {
-			n.logger.Infof("no external replication records found in replication table on host %s", n.host)
-			return nil
-		}
-		return err
-	}
-	useSsl := 0
-	sslCa := ""
-	if replSettings.SourceSslCa != "" && n.config.MySQL.ExternalReplicationSslCA != "" {
-		useSsl = 1
-		sslCa = n.config.MySQL.ExternalReplicationSslCA
-	}
-	err = n.StopExternalReplication()
-	if err != nil {
-		return err
-	}
-	err = n.ResetExternalReplicationAll()
-	if err != nil {
-		return err
-	}
-	err = n.execMogrify(queryChangeSource, map[string]interface{}{
-		"host":            replSettings.SourceHost,
-		"port":            replSettings.SourcePort,
-		"user":            replSettings.SourceUser,
-		"password":        replSettings.SourcePassword,
-		"ssl":             useSsl,
-		"sslCa":           sslCa,
-		"sourceDelay":     replSettings.SourceDelay,
-		"retryCount":      n.config.MySQL.ReplicationRetryCount,
-		"connectRetry":    n.config.MySQL.ReplicationConnectRetry,
-		"heartbeatPeriod": n.config.MySQL.ReplicationHeartbeatPeriod,
-		"channel":         "external",
-	})
-	if err != nil {
-		return err
-	}
-	err = n.execMogrify(queryIgnoreDB, map[string]interface{}{
-		"ignoreList": schemaname("mysql"),
-		"channel":    "external",
-	})
-	if err != nil {
-		return err
-	}
-	return n.StartExternalReplication()
 }
 
 func (n *Node) UpdateExternalCAFile() error {

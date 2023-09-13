@@ -2,10 +2,12 @@ package mysql
 
 import (
 	"database/sql"
+	"time"
 )
 
 type IExternalReplication interface {
 	StartExternalReplication() error
+	ReplicaStatusWithTimeout(time.Duration, string) (ReplicaStatus, error)
 	StopExternalReplication() error
 	GetExternalReplicaStatus() (ReplicaStatus, error)
 	SetExternalReplication() error
@@ -15,6 +17,10 @@ type IExternalReplication interface {
 
 type DummyExternalReplication struct {
 	isExternalReplicationSupported bool
+}
+
+func ReplicaStatusWithTimeout(time.Duration, string) (ReplicaStatus, error) {
+	return nil, nil
 }
 
 func (d *DummyExternalReplication) StartExternalReplication() error {
@@ -79,6 +85,28 @@ func (n *ExternalReplication) StopExternalReplication() error {
 	return nil
 }
 
+func (n *ExternalReplication) GetVersionSlaveStatusQuery() (string, ReplicaStatus, error) {
+	version, err := n.GetVersion()
+	if err != nil {
+		return "", nil, err
+	}
+	return version.GetSlaveStatusQuery(), version.GetSlaveOrReplicaStruct(), nil
+}
+
+func (n *ExternalReplication) ReplicaStatusWithTimeout(timeout time.Duration, channel string) (ReplicaStatus, error) {
+	query, status, err := n.GetVersionSlaveStatusQuery()
+	if err != nil {
+		return nil, err
+	}
+	err = n.queryRowMogrifyWithTimeout(query, map[string]interface{}{
+		"channel": channel,
+	}, status, timeout)
+	if err == sql.ErrNoRows {
+		return nil, nil
+	}
+	return status, err
+}
+
 // GetExternalReplicaStatus returns slave/replica status or nil if node is master for external channel
 func (n *ExternalReplication) GetExternalReplicaStatus() (ReplicaStatus, error) {
 	checked, err := n.IsExternalReplicationSupported()
@@ -88,14 +116,8 @@ func (n *ExternalReplication) GetExternalReplicaStatus() (ReplicaStatus, error) 
 	if !(checked) {
 		return nil, nil
 	}
-	status := new(ReplicaStatusStruct)
-	err = n.queryRowMogrifyWithTimeout(queryReplicaStatus, map[string]interface{}{
-		"channel": n.config.ExternalReplicationChannel,
-	}, status, n.config.DBTimeout)
-	if err == sql.ErrNoRows {
-		return nil, nil
-	}
-	return status, err
+
+	return n.ReplicaStatusWithTimeout(n.config.DBTimeout, n.config.ExternalReplicationChannel)
 }
 
 func (n *ExternalReplication) SetExternalReplication() error {
