@@ -42,6 +42,9 @@ const (
 	queryStopReplica                    = "stop_replica"
 	queryStartReplica                   = "start_replica"
 	queryIgnoreDB                       = "ignore_db"
+	querySetInnodbFlushLogAtTrxCommit   = "set_innodb_flush_log_at_trx_commit"
+	querySetSyncBinlog                  = "set_sync_binlog"
+	queryGetReplicationSettings         = "get_replication_settings"
 )
 
 var DefaultQueries = map[string]string{
@@ -116,5 +119,8 @@ var DefaultQueries = map[string]string{
 								SOURCE_RETRY_COUNT = :retryCount,
 								SOURCE_DELAY = :sourceDelay
 						FOR CHANNEL :channel`,
-	queryIgnoreDB: `CHANGE REPLICATION FILTER REPLICATE_IGNORE_DB = (:ignoreList) FOR CHANNEl :channel`,
+	queryIgnoreDB:                     `CHANGE REPLICATION FILTER REPLICATE_IGNORE_DB = (:ignoreList) FOR CHANNEl :channel`,
+	querySetInnodbFlushLogAtTrxCommit: `SET GLOBAL innodb_flush_log_at_trx_commit = :level`,
+	queryGetReplicationSettings:       `SELECT @@innodb_flush_log_at_trx_commit as InnodbFlushLogAtTrxCommit, @@sync_binlog as SyncBinlog`,
+	querySetSyncBinlog:                `SET GLOBAL sync_binlog = :sync_binlog`,
 }
