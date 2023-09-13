@@ -13,6 +13,34 @@ type IExternalReplication interface {
 	ResetExternalReplicationAll() error
 }
 
+type DummyExternalReplication struct {
+	isExternalReplicationSupported bool
+}
+
+func (d *DummyExternalReplication) StartExternalReplication() error {
+	return nil
+}
+
+func (d *DummyExternalReplication) StopExternalReplication() error {
+	return nil
+}
+
+func (d *DummyExternalReplication) GetExternalReplicaStatus() (ReplicaStatus, error) {
+	return nil, nil
+}
+
+func (d *DummyExternalReplication) SetExternalReplication() error {
+	return nil
+}
+
+func (d *DummyExternalReplication) IsExternalReplicationSupported() (bool, error) {
+	return d.isExternalReplicationSupported, nil
+}
+
+func (d *DummyExternalReplication) ResetExternalReplicationAll() error {
+	return nil
+}
+
 type ExternalReplication struct {
 	*dbWorker
 }
