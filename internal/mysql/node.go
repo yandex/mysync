@@ -1004,7 +1004,22 @@ func (n *Node) SetExternalReplication() error {
 	if err != nil {
 		return err
 	}
-	return n.StartExternalReplication()
+	if replSettings.ShouldBeRunning() {
+		return n.StartExternalReplication()
+	}
+	return nil
+}
+
+func (n *Node) IsExternalReplicationRunningByUser() bool {
+	var replSettings replicationSettings
+	err := n.queryRow(queryGetExternalReplicationSettings, nil, &replSettings)
+	if err != nil {
+		return false
+	}
+	if replSettings.ShouldBeRunning() {
+		return true
+	}
+	return false
 }
 
 func (n *Node) UpdateExternalCAFile() error {
