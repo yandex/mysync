@@ -416,11 +416,11 @@ Y2AirKuDzA5GErKOfQ==
         Then SQL result should match json
         """
         [{
-            "Replica_IO_State": "Connecting",
+            "Replica_IO_State": "Connecting to source",
             "Source_Host": "test_source",
             "Source_Port": "1111",
             "Source_User": "test_user",
-            "Replica_IO_Running": "Yes",
+            "Replica_IO_Running": "Connecting",
             "Replica_SQL_Running": "Yes",
             "Source_SSL_CA_File": "",
             "Relay_Source_Log_File": "",
