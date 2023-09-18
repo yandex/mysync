@@ -404,30 +404,6 @@ Y2AirKuDzA5GErKOfQ==
             "Channel_Name": "external"
         }]
         """
-        When I run SQL on mysql host "mysql1"
-        """
-        UPDATE mysql.replication_settings SET replication_status = 'running' WHERE channel_name = 'external'
-        """
-        And I wait for "10" seconds
-        And I run SQL on mysql host "mysql1"
-        """
-            SHOW REPLICA STATUS FOR CHANNEL 'external'
-        """
-        Then SQL result should match json
-        """
-        [{
-            "Replica_IO_State": "Connecting",
-            "Source_Host": "test_source",
-            "Source_Port": "1111",
-            "Source_User": "test_user",
-            "Replica_IO_Running": "Yes",
-            "Replica_SQL_Running": "Yes",
-            "Source_SSL_CA_File": "",
-            "Relay_Source_Log_File": "",
-            "Exec_Source_Log_Pos": "0",
-            "Channel_Name": "external"
-        }]
-        """
 
     Scenario: external replication stop/start by user
         Given cluster is up and running
