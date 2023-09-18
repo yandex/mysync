@@ -241,7 +241,7 @@ YZQy1bHIhscLf8wjTYbzAg==
         """
             INSERT INTO mysql.replication_settings
             (channel_name, source_host, source_user, source_password, source_port, replication_status)
-            VALUES ('external', 'test_source', 'test_user', 'test_pass', 2222, 'running')
+            VALUES ('external', 'test_source', 'test_user', 'test_pass', 2222, 'stopped')
         """
         And I run SQL on mysql host "mysql1"
         """
@@ -251,6 +251,26 @@ YZQy1bHIhscLf8wjTYbzAg==
                 SOURCE_PORT = 1111
                 FOR CHANNEL 'external'
         """
+        And I run SQL on mysql host "mysql1"
+        """
+            SHOW REPLICA STATUS FOR CHANNEL 'external'
+        """
+        Then SQL result should match json
+        """
+        [{
+            "Replica_IO_State": "",
+            "Source_Host": "test_source",
+            "Source_Port": "1111",
+            "Source_User": "test_user",
+            "Replica_IO_Running": "No",
+            "Replica_SQL_Running": "No",
+            "Source_SSL_CA_File": "",
+            "Relay_Source_Log_File": "",
+            "Exec_Source_Log_Pos": "0",
+            "Channel_Name": "external"
+        }]
+        """
+        When I wait for "10" seconds
         And I run SQL on mysql host "mysql1"
         """
             SHOW REPLICA STATUS FOR CHANNEL 'external'
@@ -378,6 +398,30 @@ Y2AirKuDzA5GErKOfQ==
             "Source_User": "test_user",
             "Replica_IO_Running": "No",
             "Replica_SQL_Running": "No",
+            "Source_SSL_CA_File": "",
+            "Relay_Source_Log_File": "",
+            "Exec_Source_Log_Pos": "0",
+            "Channel_Name": "external"
+        }]
+        """
+        When I run SQL on mysql host "mysql1"
+        """
+        UPDATE mysql.replication_settings SET replication_status = 'running' WHERE channel_name = 'external'
+        """
+        And I wait for "10" seconds
+        And I run SQL on mysql host "mysql1"
+        """
+            SHOW REPLICA STATUS FOR CHANNEL 'external'
+        """
+        Then SQL result should match json
+        """
+        [{
+            "Replica_IO_State": "Connecting",
+            "Source_Host": "test_source",
+            "Source_Port": "1111",
+            "Source_User": "test_user",
+            "Replica_IO_Running": "Yes",
+            "Replica_SQL_Running": "Yes",
             "Source_SSL_CA_File": "",
             "Relay_Source_Log_File": "",
             "Exec_Source_Log_Pos": "0",
