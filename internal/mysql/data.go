@@ -14,6 +14,11 @@ const (
 	ReplicationError   = "error"
 )
 
+const (
+	ReplicationRunningByClient = "running"
+	ReplicationStoppedByClient = "stopped"
+)
+
 type pingResult struct {
 	Ok int `db:"Ok"`
 }
@@ -41,13 +46,14 @@ type ResetupStatus struct {
 }
 
 type replicationSettings struct {
-	ChannelName    string `db:"ChannelName"`
-	SourceHost     string `db:"SourceHost"`
-	SourceUser     string `db:"SourceUser"`
-	SourcePassword string `db:"SourcePassword"`
-	SourcePort     int    `db:"SourcePort"`
-	SourceSslCa    string `db:"SourceSslCa"`
-	SourceDelay    int    `db:"SourceDelay"`
+	ChannelName       string         `db:"ChannelName"`
+	SourceHost        string         `db:"SourceHost"`
+	SourceUser        string         `db:"SourceUser"`
+	SourcePassword    string         `db:"SourcePassword"`
+	SourcePort        int            `db:"SourcePort"`
+	SourceSslCa       string         `db:"SourceSslCa"`
+	SourceDelay       int            `db:"SourceDelay"`
+	ReplicationStatus sql.NullString `db:"ReplicationStatus"`
 }
 
 // SlaveStatusStruct contains SHOW SLAVE STATUS response
@@ -100,6 +106,14 @@ type SemiSyncStatus struct {
 	MasterEnabled  int `db:"MasterEnabled"`
 	SlaveEnabled   int `db:"SlaveEnabled"`
 	WaitSlaveCount int `db:"WaitSlaveCount"`
+}
+
+func (sett *replicationSettings) ShouldBeRunning() bool {
+	replStatus, _ := sett.ReplicationStatus.Value()
+	if replStatus != nil {
+		return replStatus == ReplicationRunningByClient
+	}
+	return false
 }
 
 func (ss *SlaveStatusStruct) GetMasterHost() string {

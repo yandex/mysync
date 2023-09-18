@@ -104,7 +104,7 @@ var DefaultQueries = map[string]string{
 	queryHasWaitingSemiSyncAck: `SELECT count(*) <> 0 AS IsWaiting FROM information_schema.PROCESSLIST WHERE state = 'Waiting for semi-sync ACK from slave'`,
 	queryGetLastStartupTime:    `SELECT UNIX_TIMESTAMP(DATE_SUB(now(), INTERVAL variable_value SECOND)) AS LastStartup FROM performance_schema.global_status WHERE variable_name='Uptime'`,
 	queryGetExternalReplicationSettings: `SELECT channel_name AS ChannelName, source_host AS SourceHost, source_user AS SourceUser, source_port AS SourcePort,
-											source_password AS SourcePassword, source_ssl_ca AS SourceSslCa, source_delay AS SourceDelay
+											source_password AS SourcePassword, source_ssl_ca AS SourceSslCa, source_delay AS SourceDelay, replication_status AS ReplicationStatus
 											FROM mysql.replication_settings WHERE channel_name = 'external'`,
 	queryChangeSource: `CHANGE REPLICATION SOURCE TO
 								SOURCE_HOST = :host,

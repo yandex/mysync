@@ -1802,7 +1802,7 @@ func (app *App) repairExternalReplication(masterNode *mysql.Node) {
 		return
 	}
 
-	if extReplStatus.ReplicationState() == mysql.ReplicationError {
+	if masterNode.IsExternalReplicationRunningByUser() && !extReplStatus.ReplicationRunning() {
 		// TODO: remove "". Master is not needed for external replication now
 		app.TryRepairReplication(masterNode, "", app.config.ExternalReplicationChannel)
 	}
