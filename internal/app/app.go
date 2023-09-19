@@ -26,17 +26,18 @@ import (
 
 // App is main application structure
 type App struct {
-	state              appState
-	logger             *log.Logger
-	config             *config.Config
-	dcs                dcs.DCS
-	cluster            *mysql.Cluster
-	filelock           *flock.Flock
-	nodeFailedAt       map[string]time.Time
-	streamFromFailedAt map[string]time.Time
-	daemonState        *DaemonState
-	daemonMutex        sync.Mutex
-	replRepairState    map[string]*ReplicationRepairState
+	state               appState
+	logger              *log.Logger
+	config              *config.Config
+	dcs                 dcs.DCS
+	cluster             *mysql.Cluster
+	filelock            *flock.Flock
+	nodeFailedAt        map[string]time.Time
+	streamFromFailedAt  map[string]time.Time
+	daemonState         *DaemonState
+	daemonMutex         sync.Mutex
+	replRepairState     map[string]*ReplicationRepairState
+	externalReplication mysql.IExternalReplication
 }
 
 // NewApp returns new App. Suddenly.
@@ -57,13 +58,18 @@ func NewApp(configFile, logLevel string, interactive bool) (*App, error) {
 	if logPath != "" {
 		logger.ReOpenOnSignal(syscall.SIGUSR2)
 	}
+	externalReplication, err := mysql.NewExternalReplication(config.ExternalReplicationType, logger)
+	if err != nil {
+		return nil, err
+	}
 	app := &App{
-		state:              stateFirstRun,
-		config:             config,
-		logger:             logger,
-		nodeFailedAt:       make(map[string]time.Time),
-		streamFromFailedAt: make(map[string]time.Time),
-		replRepairState:    make(map[string]*ReplicationRepairState),
+		state:               stateFirstRun,
+		config:              config,
+		logger:              logger,
+		nodeFailedAt:        make(map[string]time.Time),
+		streamFromFailedAt:  make(map[string]time.Time),
+		replRepairState:     make(map[string]*ReplicationRepairState),
+		externalReplication: externalReplication,
 	}
 	return app, nil
 }
@@ -229,7 +235,7 @@ func (app *App) externalCAFileChecker(ctx context.Context) {
 		select {
 		case <-ticker.C:
 			localNode := app.cluster.Local()
-			replicaStatus, err := localNode.GetExternalReplicaStatus()
+			replicaStatus, err := app.externalReplication.GetReplicaStatus(localNode)
 			if err != nil {
 				if !mysql.IsErrorChannelDoesNotExists(err) {
 					app.logger.Errorf("external CA file checker: host %s failed to get external replica status %v", localNode.Host(), err)
@@ -1145,7 +1151,7 @@ func (app *App) performSwitchover(clusterState map[string]*NodeState, activeNode
 
 	oldMasterNode := app.cluster.Get(oldMaster)
 	if clusterState[oldMaster].PingOk {
-		err := oldMasterNode.StopExternalReplication()
+		err := app.externalReplication.Stop(oldMasterNode)
 		if err != nil {
 			return fmt.Errorf("got error: %s while stopping external replication on old master: %s", err, oldMaster)
 		}
@@ -1290,7 +1296,7 @@ func (app *App) performSwitchover(clusterState map[string]*NodeState, activeNode
 		}
 	} else {
 		app.logger.Infof("switchover: old master %s does not need recovery", oldMaster)
-		err = oldMasterNode.ResetExternalReplicationAll()
+		err = app.externalReplication.Reset(oldMasterNode)
 		if err != nil {
 			return fmt.Errorf("got error: %s while reseting external replication on old master: %s", err, oldMaster)
 		}
@@ -1332,7 +1338,7 @@ func (app *App) performSwitchover(clusterState map[string]*NodeState, activeNode
 	}
 
 	// enable external replication
-	err = newMasterNode.SetExternalReplication()
+	err = app.externalReplication.Set(newMasterNode)
 	if err != nil {
 		app.logger.Errorf("failed to set external replication on new master")
 	}
@@ -1615,11 +1621,11 @@ func (app *App) repairSlaveNode(node *mysql.Node, clusterState map[string]*NodeS
 		if err != nil {
 			app.logger.Errorf("repair: %s", err)
 		}
-		err = node.StopExternalReplication()
+		err = app.externalReplication.Stop(node)
 		if err != nil {
 			app.logger.Errorf("repair: %s", err)
 		}
-		err = node.ResetExternalReplicationAll()
+		err = app.externalReplication.Reset(node)
 		if err != nil {
 			app.logger.Errorf("repair: %s", err)
 		}
@@ -1790,7 +1796,7 @@ func (app *App) repairCascadeNode(node *mysql.Node, clusterState map[string]*Nod
 }
 
 func (app *App) repairExternalReplication(masterNode *mysql.Node) {
-	extReplStatus, err := masterNode.GetExternalReplicaStatus()
+	extReplStatus, err := app.externalReplication.GetReplicaStatus(masterNode)
 	if err != nil {
 		if !mysql.IsErrorChannelDoesNotExists(err) {
 			app.logger.Errorf("repair (external): host %s failed to get external replica status %v", masterNode.Host(), err)
@@ -1802,7 +1808,7 @@ func (app *App) repairExternalReplication(masterNode *mysql.Node) {
 		return
 	}
 
-	if masterNode.IsExternalReplicationRunningByUser() && !extReplStatus.ReplicationRunning() {
+	if app.externalReplication.IsRunningByUser(masterNode) && !extReplStatus.ReplicationRunning() {
 		// TODO: remove "". Master is not needed for external replication now
 		app.TryRepairReplication(masterNode, "", app.config.ExternalReplicationChannel)
 	}

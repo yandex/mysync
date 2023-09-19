@@ -68,7 +68,7 @@ func (app *App) makeReplStateKey(node *mysql.Node, channel string) string {
 func StartSlaveAlgorithm(app *App, node *mysql.Node, _ string, channel string) error {
 	app.logger.Infof("repair: trying to repair replication using StartSlaveAlgorithm...")
 	if channel == app.config.ExternalReplicationChannel {
-		return node.StartExternalReplication()
+		return app.externalReplication.Start(node)
 	}
 	return node.StartSlave()
 }
