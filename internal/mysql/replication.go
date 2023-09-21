@@ -54,10 +54,12 @@ type ExternalReplication struct {
 func NewExternalReplication(replicationType util.ExternalReplicationType, logger *log.Logger) (IExternalReplication, error) {
 	switch replicationType {
 	case util.MyExternalReplication:
+		logger.Info("external replication is enabled")
 		return &ExternalReplication{
 			logger: logger,
 		}, nil
 	default:
+		logger.Info("external replication is disabled")
 		return &UnimplementedExternalReplication{}, nil
 	}
 }
