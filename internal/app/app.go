@@ -2258,7 +2258,9 @@ func (app *App) Run() int {
 	go app.healthChecker(ctx)
 	go app.recoveryChecker(ctx)
 	go app.stateFileHandler(ctx)
-	go app.externalCAFileChecker(ctx)
+	if app.config.ExternalReplicationType != util.Disabled {
+		go app.externalCAFileChecker(ctx)
+	}
 
 	handlers := map[appState](func() appState){
 		stateFirstRun:    app.stateFirstRun,
