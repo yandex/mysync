@@ -34,59 +34,60 @@ type MySQLConfig struct {
 
 // Config contains all mysync configuration
 type Config struct {
-	DevMode                                 bool                `config:"dev_mode" yaml:"dev_mode"`
-	SemiSync                                bool                `config:"semi_sync" yaml:"semi_sync"`
-	SemiSyncEnableLag                       int64               `config:"semi_sync_enable_lag" yaml:"semi_sync_enable_lag"`
-	Failover                                bool                `config:"failover" yaml:"failover"`
-	FailoverCooldown                        time.Duration       `config:"failover_cooldown" yaml:"failover_cooldown"`
-	FailoverDelay                           time.Duration       `config:"failover_delay" yaml:"failover_delay"`
-	InactivationDelay                       time.Duration       `config:"inactivation_delay" yaml:"inactivation_delay"`
-	CriticalDiskUsage                       float64             `config:"critical_disk_usage" yaml:"critical_disk_usage"`
-	NotCriticalDiskUsage                    float64             `config:"not_critical_disk_usage" yaml:"not_critical_disk_usage"`
-	LogLevel                                string              `config:"loglevel"`
-	Log                                     string              `config:"log"`
-	Hostname                                string              `config:"hostname"`
-	Lockfile                                string              `config:"lockfile"`
-	InfoFile                                string              `config:"info_file" yaml:"info_file"`
-	Emergefile                              string              `config:"emergefile"`
-	Resetupfile                             string              `config:"resetupfile"`
-	Maintenancefile                         string              `config:"maintenancefile"`
-	MySQL                                   MySQLConfig         `config:"mysql"`
-	Queries                                 map[string]string   `config:"queries"`
-	Commands                                map[string]string   `config:"commands"`
-	Zookeeper                               dcs.ZookeeperConfig `config:"zookeeper"`
-	DcsWaitTimeout                          time.Duration       `config:"dcs_wait_timeout" yaml:"dcs_wait_timeout"`
-	DBTimeout                               time.Duration       `config:"db_timeout" yaml:"db_timeout"`
-	DBLostCheckTimeout                      time.Duration       `config:"db_lost_check_timeout" yaml:"db_lost_check_timeout"`
-	DBSetRoTimeout                          time.Duration       `config:"db_set_ro_timeout" yaml:"db_set_ro_timeout"`
-	DBSetRoForceTimeout                     time.Duration       `config:"db_set_ro_force_timeout" yaml:"db_set_ro_force_timeout"`
-	DBStopSlaveSQLThreadTimeout             time.Duration       `config:"db_stop_slave_sql_thread_timeout" yaml:"db_stop_slave_sql_thread_timeout"`
-	TickInterval                            time.Duration       `config:"tick_interval" yaml:"tick_interval"`
-	HealthCheckInterval                     time.Duration       `config:"healthcheck_interval" yaml:"healthcheck_interval"`
-	InfoFileHandlerInterval                 time.Duration       `config:"info_file_handler_interval" yaml:"info_file_handler_interval"`
-	RecoveryCheckInterval                   time.Duration       `config:"recoverycheck_interval" yaml:"recoverycheck_interval"`
-	ExternalCAFileCheckInterval             time.Duration       `config:"external_ca_file_check_interval" yaml:"external_ca_file_check_interval"`
-	MaxAcceptableLag                        float64             `config:"max_acceptable_lag" yaml:"max_acceptable_lag"`
-	SlaveCatchUpTimeout                     time.Duration       `config:"slave_catch_up_timeout" yaml:"slave_catch_up_timeout"`
-	DisableSemiSyncReplicationOnMaintenance bool                `config:"disable_semi_sync_replication_on_maintenance" yaml:"disable_semi_sync_replication_on_maintenance"`
-	KeepSuperWritableOnCriticalDiskUsage    bool                `config:"keep_super_writable_on_critical_disk_usage" yaml:"keep_super_writable_on_critical_disk_usage"`
-	ExcludeUsers                            []string            `config:"exclude_users" yaml:"exclude_users"`
-	OfflineModeEnableInterval               time.Duration       `config:"offline_mode_enable_interval" yaml:"offline_mode_enable_interval"`
-	OfflineModeEnableLag                    time.Duration       `config:"offline_mode_enable_lag" yaml:"offline_mode_enable_lag"`
-	OfflineModeDisableLag                   time.Duration       `config:"offline_mode_disable_lag" yaml:"offline_mode_disable_lag"`
-	DisableSetReadonlyOnLost                bool                `config:"disable_set_readonly_on_lost" yaml:"disable_set_readonly_on_lost"`
-	ResetupCrashedHosts                     bool                `config:"resetup_crashed_hosts" yaml:"resetup_crashed_hosts"`
-	StreamFromReasonableLag                 time.Duration       `config:"stream_from_reasonable_lag" yaml:"stream_from_reasonable_lag"`
-	PriorityChoiceMaxLag                    time.Duration       `config:"priority_choice_max_lag" yaml:"priority_choice_max_lag"`
-	TestDiskUsageFile                       string              `config:"test_disk_usage_file" yaml:"test_disk_usage_file"`
-	RplSemiSyncMasterWaitForSlaveCount      int                 `config:"rpl_semi_sync_master_wait_for_slave_count" yaml:"rpl_semi_sync_master_wait_for_slave_count"`
-	WaitReplicationStartTimeout             time.Duration       `config:"wait_start_replication_timeout" yaml:"wait_start_replication_timeout"`
-	ReplicationRepairAggressiveMode         bool                `config:"replication_repair_aggressive_mode" yaml:"replication_repair_aggressive_mode"`
-	ReplicationRepairCooldown               time.Duration       `config:"replication_repair_cooldown" yaml:"replication_repair_cooldown"`
-	ReplicationRepairMaxAttempts            int                 `config:"replication_repair_max_attempts" yaml:"replication_repair_max_attempts"`
-	TestFilesystemReadonlyFile              string              `config:"test_filesystem_readonly_file" yaml:"test_filesystem_readonly_file"`
-	ReplicationChannel                      string              `config:"replication_channel" yaml:"replication_channel"`
-	ExternalReplicationChannel              string              `config:"external_replication_channel" yaml:"external_replication_channel"`
+	DevMode                                 bool                         `config:"dev_mode" yaml:"dev_mode"`
+	SemiSync                                bool                         `config:"semi_sync" yaml:"semi_sync"`
+	SemiSyncEnableLag                       int64                        `config:"semi_sync_enable_lag" yaml:"semi_sync_enable_lag"`
+	Failover                                bool                         `config:"failover" yaml:"failover"`
+	FailoverCooldown                        time.Duration                `config:"failover_cooldown" yaml:"failover_cooldown"`
+	FailoverDelay                           time.Duration                `config:"failover_delay" yaml:"failover_delay"`
+	InactivationDelay                       time.Duration                `config:"inactivation_delay" yaml:"inactivation_delay"`
+	CriticalDiskUsage                       float64                      `config:"critical_disk_usage" yaml:"critical_disk_usage"`
+	NotCriticalDiskUsage                    float64                      `config:"not_critical_disk_usage" yaml:"not_critical_disk_usage"`
+	LogLevel                                string                       `config:"loglevel"`
+	Log                                     string                       `config:"log"`
+	Hostname                                string                       `config:"hostname"`
+	Lockfile                                string                       `config:"lockfile"`
+	InfoFile                                string                       `config:"info_file" yaml:"info_file"`
+	Emergefile                              string                       `config:"emergefile"`
+	Resetupfile                             string                       `config:"resetupfile"`
+	Maintenancefile                         string                       `config:"maintenancefile"`
+	MySQL                                   MySQLConfig                  `config:"mysql"`
+	Queries                                 map[string]string            `config:"queries"`
+	Commands                                map[string]string            `config:"commands"`
+	Zookeeper                               dcs.ZookeeperConfig          `config:"zookeeper"`
+	DcsWaitTimeout                          time.Duration                `config:"dcs_wait_timeout" yaml:"dcs_wait_timeout"`
+	DBTimeout                               time.Duration                `config:"db_timeout" yaml:"db_timeout"`
+	DBLostCheckTimeout                      time.Duration                `config:"db_lost_check_timeout" yaml:"db_lost_check_timeout"`
+	DBSetRoTimeout                          time.Duration                `config:"db_set_ro_timeout" yaml:"db_set_ro_timeout"`
+	DBSetRoForceTimeout                     time.Duration                `config:"db_set_ro_force_timeout" yaml:"db_set_ro_force_timeout"`
+	DBStopSlaveSQLThreadTimeout             time.Duration                `config:"db_stop_slave_sql_thread_timeout" yaml:"db_stop_slave_sql_thread_timeout"`
+	TickInterval                            time.Duration                `config:"tick_interval" yaml:"tick_interval"`
+	HealthCheckInterval                     time.Duration                `config:"healthcheck_interval" yaml:"healthcheck_interval"`
+	InfoFileHandlerInterval                 time.Duration                `config:"info_file_handler_interval" yaml:"info_file_handler_interval"`
+	RecoveryCheckInterval                   time.Duration                `config:"recoverycheck_interval" yaml:"recoverycheck_interval"`
+	ExternalCAFileCheckInterval             time.Duration                `config:"external_ca_file_check_interval" yaml:"external_ca_file_check_interval"`
+	MaxAcceptableLag                        float64                      `config:"max_acceptable_lag" yaml:"max_acceptable_lag"`
+	SlaveCatchUpTimeout                     time.Duration                `config:"slave_catch_up_timeout" yaml:"slave_catch_up_timeout"`
+	DisableSemiSyncReplicationOnMaintenance bool                         `config:"disable_semi_sync_replication_on_maintenance" yaml:"disable_semi_sync_replication_on_maintenance"`
+	KeepSuperWritableOnCriticalDiskUsage    bool                         `config:"keep_super_writable_on_critical_disk_usage" yaml:"keep_super_writable_on_critical_disk_usage"`
+	ExcludeUsers                            []string                     `config:"exclude_users" yaml:"exclude_users"`
+	OfflineModeEnableInterval               time.Duration                `config:"offline_mode_enable_interval" yaml:"offline_mode_enable_interval"`
+	OfflineModeEnableLag                    time.Duration                `config:"offline_mode_enable_lag" yaml:"offline_mode_enable_lag"`
+	OfflineModeDisableLag                   time.Duration                `config:"offline_mode_disable_lag" yaml:"offline_mode_disable_lag"`
+	DisableSetReadonlyOnLost                bool                         `config:"disable_set_readonly_on_lost" yaml:"disable_set_readonly_on_lost"`
+	ResetupCrashedHosts                     bool                         `config:"resetup_crashed_hosts" yaml:"resetup_crashed_hosts"`
+	StreamFromReasonableLag                 time.Duration                `config:"stream_from_reasonable_lag" yaml:"stream_from_reasonable_lag"`
+	PriorityChoiceMaxLag                    time.Duration                `config:"priority_choice_max_lag" yaml:"priority_choice_max_lag"`
+	TestDiskUsageFile                       string                       `config:"test_disk_usage_file" yaml:"test_disk_usage_file"`
+	RplSemiSyncMasterWaitForSlaveCount      int                          `config:"rpl_semi_sync_master_wait_for_slave_count" yaml:"rpl_semi_sync_master_wait_for_slave_count"`
+	WaitReplicationStartTimeout             time.Duration                `config:"wait_start_replication_timeout" yaml:"wait_start_replication_timeout"`
+	ReplicationRepairAggressiveMode         bool                         `config:"replication_repair_aggressive_mode" yaml:"replication_repair_aggressive_mode"`
+	ReplicationRepairCooldown               time.Duration                `config:"replication_repair_cooldown" yaml:"replication_repair_cooldown"`
+	ReplicationRepairMaxAttempts            int                          `config:"replication_repair_max_attempts" yaml:"replication_repair_max_attempts"`
+	TestFilesystemReadonlyFile              string                       `config:"test_filesystem_readonly_file" yaml:"test_filesystem_readonly_file"`
+	ReplicationChannel                      string                       `config:"replication_channel" yaml:"replication_channel"`
+	ExternalReplicationChannel              string                       `config:"external_replication_channel" yaml:"external_replication_channel"`
+	ExternalReplicationType                 util.ExternalReplicationType `config:"external_replication_type" yaml:"external_replication_type"`
 }
 
 // DefaultConfig returns default configuration for MySync
@@ -162,6 +163,7 @@ func DefaultConfig() (Config, error) {
 		TestFilesystemReadonlyFile:              "", // fake readonly status, only for docker tests
 		ReplicationChannel:                      "",
 		ExternalReplicationChannel:              "external",
+		ExternalReplicationType:                 util.Disabled,
 	}
 	return config, nil
 }

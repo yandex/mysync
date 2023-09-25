@@ -55,3 +55,4 @@ replication_repair_cooldown: 10s
 replication_repair_aggressive_mode: ${MYSYNC_REPLICATION_REPAIR_AGGRESSIVE_MODE:-false}
 test_filesystem_readonly_file: /tmp/readonly
 replication_channel: ''
+external_replication_type: 'external'
