@@ -17,10 +17,10 @@ type Cluster struct {
 	sync.Mutex
 	config       *config.Config
 	logger       *log.Logger
-	haNodes      map[string]*Node
-	cascadeNodes map[string]*Node
 	local        *Node
 	dcs          dcs.DCS
+	haNodes      map[string]*Node
+	cascadeNodes map[string]*Node
 }
 
 func (c *Cluster) IsHAHost(hostname string) bool {

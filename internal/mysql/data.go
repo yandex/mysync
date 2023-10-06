@@ -41,8 +41,8 @@ type NodeConfiguration struct {
 }
 
 type ResetupStatus struct {
-	Status     bool
 	UpdateTime time.Time
+	Status     bool
 }
 
 type replicationSettings struct {
