@@ -379,18 +379,6 @@ func (n *Node) GetDiskUsage() (used uint64, total uint64, err error) {
 	return
 }
 
-func (n *Node) isTestFileSystemReadonly(f string) (bool, error) {
-	data, err := os.ReadFile(f)
-	if err != nil {
-		return false, err
-	}
-	value, err := strconv.ParseBool(strings.TrimSpace(string(data)))
-	if err != nil {
-		return false, fmt.Errorf("error while parce test file: %s", err)
-	}
-	return value, nil
-}
-
 func getFlagsFromProcMounts(file, filesystem string) (string, error) {
 	for _, line := range strings.Split(file, "\n") {
 		components := strings.Split(line, " ")
@@ -414,7 +402,7 @@ func getFlagsFromProcMounts(file, filesystem string) (string, error) {
 
 func (n *Node) IsFileSystemReadonly() (bool, error) {
 	if n.config.TestFilesystemReadonlyFile != "" {
-		return n.isTestFileSystemReadonly(n.config.TestFilesystemReadonlyFile)
+		return isTestFileSystemReadonly(n.config.TestFilesystemReadonlyFile)
 	}
 	if !n.IsLocal() {
 		return false, ErrNotLocalNode
@@ -436,6 +424,18 @@ func (n *Node) IsFileSystemReadonly() (bool, error) {
 	} else {
 		return false, nil
 	}
+}
+
+func isTestFileSystemReadonly(f string) (bool, error) {
+	data, err := os.ReadFile(f)
+	if err != nil {
+		return false, err
+	}
+	value, err := strconv.ParseBool(strings.TrimSpace(string(data)))
+	if err != nil {
+		return false, fmt.Errorf("error while parce test file: %s", err)
+	}
+	return value, nil
 }
 
 func (n *Node) GetDaemonStartTime() (time.Time, error) {
@@ -907,7 +907,7 @@ func (n *Node) UpdateExternalCAFile() error {
 		}
 		if data != string(oldDataByte) {
 			n.logger.Infof("saving new CA file to %s", fileName)
-			err := n.SaveCAFile(data, fileName)
+			err := SaveCAFile(data, fileName)
 			if err != nil {
 				return err
 			}
@@ -927,7 +927,7 @@ func (n *Node) UpdateExternalCAFile() error {
 	return nil
 }
 
-func (n *Node) SaveCAFile(data string, path string) error {
+func SaveCAFile(data string, path string) error {
 	rootCertPool := x509.NewCertPool()
 	byteData := []byte(data)
 	if ok := rootCertPool.AppendCertsFromPEM(byteData); !ok {
