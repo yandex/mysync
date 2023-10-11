@@ -13,8 +13,10 @@ var dubiousErrorNumbers = []uint16{
 	1698, // Symbol: ER_ACCESS_DENIED_NO_PASSWORD_ERROR; SQLSTATE: 28000
 }
 
-const channelDoesNotExists = 3074 // Symbol: ER_REPLICA_CHANNEL_DOES_NOT_EXIST; SQLSTATE: HY000
-const tableDoesNotExists = 1146   // Symbol: ER_NO_SUCH_TABLE; SQLSTATE: 42S02
+const (
+	channelDoesNotExists = 3074 // Symbol: ER_REPLICA_CHANNEL_DOES_NOT_EXIST; SQLSTATE: HY000
+	tableDoesNotExists   = 1146 // Symbol: ER_NO_SUCH_TABLE; SQLSTATE: 42S02
+)
 
 // IsErrorDubious check that error may be caused by misconfiguration, mysync/scripts bugs
 // and not related to MySQL/network failure
