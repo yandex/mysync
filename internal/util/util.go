@@ -37,11 +37,9 @@ func TouchFile(fname string) error {
 	_, err := os.Stat(fname)
 	if os.IsNotExist(err) {
 		err := os.WriteFile(fname, []byte(""), 0644)
-		//file, err := os.Create(fname)
 		if err != nil {
 			return err
 		}
-		//defer file.Close()
 	}
 	return nil
 }
