@@ -7,7 +7,7 @@ require (
 	github.com/cucumber/godog v0.13.0
 	github.com/docker/docker v20.10.24+incompatible
 	github.com/go-mysql-org/go-mysql v1.7.0
-	github.com/go-sql-driver/mysql v1.6.0
+	github.com/go-sql-driver/mysql v1.7.1
 	github.com/go-zookeeper/zk v1.0.3
 	github.com/gofrs/flock v0.8.1
 	github.com/gofrs/uuid v4.3.1+incompatible
