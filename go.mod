@@ -3,7 +3,7 @@ module github.com/yandex/mysync
 go 1.18
 
 require (
-	github.com/cenkalti/backoff/v4 v4.1.3
+	github.com/cenkalti/backoff/v4 v4.2.1
 	github.com/cucumber/godog v0.13.0
 	github.com/docker/docker v20.10.24+incompatible
 	github.com/go-mysql-org/go-mysql v1.7.0
