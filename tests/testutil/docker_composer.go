@@ -15,12 +15,12 @@ import (
 	"time"
 
 	"github.com/docker/docker/api/types"
+	"github.com/docker/docker/api/types/container"
 	"github.com/docker/docker/client"
 )
 
 const defaultDockerTimeout = 30 * time.Second
 const defaultDockerComposeTimeout = 90 * time.Second
-const defaultContainerStopTimeout = 30 * time.Second
 const shell = "/bin/bash"
 
 // Composer manipulate images/vm's during integration tests
@@ -286,7 +286,7 @@ func (dc *DockerComposer) Start(service string) error {
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), defaultDockerTimeout)
 	defer cancel()
-	err := dc.api.ContainerRestart(ctx, cont.ID, nil)
+	err := dc.api.ContainerRestart(ctx, cont.ID, container.StopOptions{})
 	if err != nil {
 		return err
 	}
@@ -303,8 +303,7 @@ func (dc *DockerComposer) Stop(service string) error {
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), defaultDockerTimeout)
 	defer cancel()
-	stopTimeout := defaultContainerStopTimeout
-	err := dc.api.ContainerStop(ctx, cont.ID, &stopTimeout)
+	err := dc.api.ContainerStop(ctx, cont.ID, container.StopOptions{})
 	dc.stopped[service] = true
 	return err
 }
