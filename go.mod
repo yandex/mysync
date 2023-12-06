@@ -1,6 +1,6 @@
 module github.com/yandex/mysync
 
-go 1.18
+go 1.21
 
 require (
 	github.com/cenkalti/backoff/v4 v4.2.1
