@@ -5,6 +5,7 @@ import (
 	"time"
 
 	"github.com/yandex/mysync/internal/mysql"
+	"github.com/yandex/mysync/internal/mysql/gtids"
 )
 
 type RepairReplicationAlgorithm func(app *App, node *mysql.Node, master string, channel string) error
@@ -19,7 +20,7 @@ const (
 type ReplicationRepairState struct {
 	LastAttempt      time.Time
 	History          map[ReplicationRepairAlgorithmType]int
-	BeforeRepairGTID string
+	LastGTIDExecuted string
 }
 
 func (app *App) MarkReplicationRunning(node *mysql.Node, channel string) {
@@ -35,8 +36,10 @@ func (app *App) MarkReplicationRunning(node *mysql.Node, channel string) {
 	if err != nil {
 		return
 	}
+	newGtidSet := gtids.ParseGtidSet(status.GetExecutedGtidSet())
+	oldGtidSet := gtids.ParseGtidSet(replState.LastGTIDExecuted)
 	if replState.cooldownPassed(app.config.ReplicationRepairCooldown) &&
-		replState.isGtidExecuted(status.GetExecutedGtidSet()) {
+		!isGTIDLessOrEqual(oldGtidSet, newGtidSet) {
 		delete(app.replRepairState, key)
 	}
 }
@@ -148,39 +151,40 @@ func (state *ReplicationRepairState) cooldownPassed(replicationRepairCooldown ti
 	return state.LastAttempt.Before(cooldown)
 }
 
-func (state *ReplicationRepairState) isGtidExecuted(currentGtid string) bool {
-	return state.BeforeRepairGTID != currentGtid
-}
-
 func (app *App) getOrCreateHostRepairState(stateKey, hostname, channel string) (*ReplicationRepairState, error) {
 	var replState *ReplicationRepairState
 	if state, ok := app.replRepairState[stateKey]; ok {
 		replState = state
 	} else {
-		replState = app.createRepairState()
-		status, err := app.cluster.Get(hostname).ReplicaStatusWithTimeout(app.config.DBTimeout, channel)
+		var err error
+		replState, err = app.createRepairState(hostname, channel)
 		if err != nil {
 			return nil, err
 		}
-		replState.BeforeRepairGTID = status.GetExecutedGtidSet()
+
 		app.replRepairState[stateKey] = replState
 	}
 
 	return replState, nil
 }
 
-func (app *App) createRepairState() *ReplicationRepairState {
+func (app *App) createRepairState(hostname, channel string) (*ReplicationRepairState, error) {
+	status, err := app.cluster.Get(hostname).ReplicaStatusWithTimeout(app.config.DBTimeout, channel)
+	if err != nil {
+		return nil, err
+	}
+
 	result := ReplicationRepairState{
 		LastAttempt:      time.Now(),
 		History:          make(map[ReplicationRepairAlgorithmType]int),
-		BeforeRepairGTID: "",
+		LastGTIDExecuted: status.GetExecutedGtidSet(),
 	}
 
 	for i := range app.getAlgorithmOrder() {
 		result.History[ReplicationRepairAlgorithmType(i)] = 0
 	}
 
-	return &result
+	return &result, nil
 }
 
 var defaultOrder = []ReplicationRepairAlgorithmType{
