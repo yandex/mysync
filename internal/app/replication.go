@@ -32,15 +32,18 @@ func (app *App) MarkReplicationRunning(node *mysql.Node, channel string) {
 		return
 	}
 
-	status, err := node.ReplicaStatusWithTimeout(app.config.DBTimeout, channel)
-	if err != nil {
-		return
-	}
-	newGtidSet := gtids.ParseGtidSet(status.GetExecutedGtidSet())
-	oldGtidSet := gtids.ParseGtidSet(replState.LastGTIDExecuted)
-	if replState.cooldownPassed(app.config.ReplicationRepairCooldown) &&
-		!isGTIDLessOrEqual(oldGtidSet, newGtidSet) {
-		delete(app.replRepairState, key)
+	if replState.cooldownPassed(app.config.ReplicationRepairCooldown) {
+		status, err := node.ReplicaStatusWithTimeout(app.config.DBTimeout, channel)
+		if err != nil {
+			return
+		}
+
+		newGtidSet := gtids.ParseGtidSet(status.GetExecutedGtidSet())
+		oldGtidSet := gtids.ParseGtidSet(replState.LastGTIDExecuted)
+
+		if !isGTIDLessOrEqual(oldGtidSet, newGtidSet) {
+			delete(app.replRepairState, key)
+		}
 	}
 }
 
