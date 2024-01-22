@@ -689,6 +689,10 @@ func (app *App) CliHostRemove(host string) int {
 	if err != nil && err != dcs.ErrNotFound {
 		return 1
 	}
+	err = app.dcs.Delete(dcs.JoinPath(pathResetupStatus, host))
+	if err != nil && err != dcs.ErrNotFound {
+		return 1
+	}
 	fmt.Println("host has been removed")
 	return 0
 }
