@@ -158,9 +158,15 @@ func (n *Node) queryRow(queryName string, arg interface{}, result interface{}) e
 }
 
 func (n *Node) queryRowWithTimeout(queryName string, arg interface{}, result interface{}, timeout time.Duration) error {
-	return n.processQuery(queryName, arg, func(rows *sqlx.Rows) error {
-		var err error
-
+	if arg == nil {
+		arg = struct{}{}
+	}
+	query := n.getQuery(queryName)
+	ctx, cancel := context.WithTimeout(context.Background(), timeout)
+	defer cancel()
+	rows, err := n.db.NamedQueryContext(ctx, query, arg)
+	if err == nil {
+		defer func() { _ = rows.Close() }()
 		if rows.Next() {
 			err = rows.StructScan(result)
 		} else {
@@ -169,13 +175,15 @@ func (n *Node) queryRowWithTimeout(queryName string, arg interface{}, result int
 				err = sql.ErrNoRows
 			}
 		}
-
-		return err
-	}, timeout)
+	}
+	n.traceQuery(query, arg, result, err)
+	return err
 }
 
 // nolint: unparam
 func (n *Node) queryRows(queryName string, arg interface{}, scanner func(*sqlx.Rows) error) error {
+	// TODO we need to rewrite processQuery, to make traceQuery work properly
+	// traceQuery should be called with result, not *Rows
 	return n.processQuery(queryName, arg, func(rows *sqlx.Rows) error {
 		var err error
 
