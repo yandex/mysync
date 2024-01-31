@@ -20,7 +20,7 @@ jobs:
 
       - name: Docker images caching
         id: cache-images
-        uses: actions/cache@v3
+        uses: actions/cache@v4
         with:
           path: ~/mysync-base-img.tgz
           key: mysync-base-img-${{ hashFiles('tests/images/base/*') }}
@@ -79,7 +79,7 @@ jobs:
 
       - name: Load docker images
         id: cache-images
-        uses: actions/cache@v3
+        uses: actions/cache@v4
         with:
           path: ~/mysync-base-img.tgz
           key: mysync-base-img-${{ hashFiles('tests/images/base/*') }}
