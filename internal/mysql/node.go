@@ -243,11 +243,11 @@ func (n *Node) exec(queryName string, arg map[string]interface{}) error {
 	return n.execWithTimeout(queryName, arg, n.config.DBTimeout)
 }
 
-func (n *Node) getRunningQueryIds(excludeUsers []string, timeout time.Duration) ([]int, error) {
+func (n *Node) getRunningQueryIDs(excludeUsers []string, timeout time.Duration) ([]int, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), timeout)
 	defer cancel()
 
-	query := DefaultQueries[queryGetProcessIds]
+	query := DefaultQueries[queryGetProcessIDs]
 
 	bquery, args, err := sqlx.In(query, excludeUsers)
 	if err != nil {
@@ -663,7 +663,7 @@ func (n *Node) SetReadOnlyWithForce(excludeUsers []string, superReadOnly bool) e
 
 	go func() {
 		for {
-			ids, err := n.getRunningQueryIds(excludeUsers, time.Second)
+			ids, err := n.getRunningQueryIDs(excludeUsers, time.Second)
 			if err == nil {
 				for _, id := range ids {
 					_ = n.exec(queryKillQuery, map[string]interface{}{"kill_id": strconv.Itoa(id)})

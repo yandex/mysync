@@ -30,7 +30,7 @@ const (
 	queryEnableEvent                    = "enable_event"
 	querySetLockTimeout                 = "set_lock_timeout"
 	queryKillQuery                      = "kill_query"
-	queryGetProcessIds                  = "get_process_ids"
+	queryGetProcessIDs                  = "get_process_ids"
 	queryEnableOfflineMode              = "enable_offline_mode"
 	queryDisableOfflineMode             = "disable_offline_mode"
 	queryGetOfflineMode                 = "get_offline_mode"
@@ -97,7 +97,7 @@ var DefaultQueries = map[string]string{
 	queryEnableEvent:           `ALTER DEFINER = :user@:host EVENT :schema.:name ENABLE`,
 	querySetLockTimeout:        `SET SESSION lock_wait_timeout = ?`,
 	queryKillQuery:             `KILL :kill_id`,
-	queryGetProcessIds:         `SELECT ID FROM information_schema.PROCESSLIST p WHERE USER NOT IN (?) AND COMMAND != 'Killed'`,
+	queryGetProcessIDs:         `SELECT ID FROM information_schema.PROCESSLIST p WHERE USER NOT IN (?) AND COMMAND != 'Killed'`,
 	queryEnableOfflineMode:     `SET GLOBAL offline_mode = ON`,
 	queryDisableOfflineMode:    `SET GLOBAL offline_mode = OFF`,
 	queryGetOfflineMode:        `SELECT @@GLOBAL.offline_mode AS OfflineMode`,
