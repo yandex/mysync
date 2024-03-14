@@ -700,6 +700,11 @@ func (app *App) stateManager() appState {
 		app.logger.Errorf("failed to update active nodes in dcs: %v", err)
 	}
 
+	err = app.updateMdbReplMonTs(master)
+	if err != nil {
+		app.logger.Errorf("failed to update mdb_repl_mon timestamp: %v", err)
+	}
+
 	return stateManager
 }
 
@@ -2118,8 +2123,26 @@ func (app *App) waitForCatchUp(node *mysql.Node, gtidset gtids.GTIDSet, timeout 
 		if gtidExecuted.Contain(gtidset) {
 			return true, nil
 		}
-		if app.dcs.Get(pathCurrentSwitch, new(Switchover)) == dcs.ErrNotFound {
+		switchover := new(Switchover)
+		if app.dcs.Get(pathCurrentSwitch, switchover) == dcs.ErrNotFound {
 			return false, nil
+		}
+		if app.config.ASync && switchover.Cause == CauseAuto {
+			ts, err := app.GetMdbReplMonTs()
+			if err != nil {
+				app.logger.Errorf("failed to get mdb repl mon ts: %v", err)
+				continue
+			}
+			delay, err := node.CalcMdbReplMonTsDelay(ts)
+			if err != nil {
+				app.logger.Errorf("failed to calc mdb repl mon ts: %v", err)
+				continue
+			}
+			if delay < app.config.ASyncAllowedLag {
+				app.logger.Infof("async allowed lag is %s and current lag on host %s is %s, so we don't wait for catch up any more",
+					app.config.ASyncAllowedLag, node.Host(), delay)
+				break
+			}
 		}
 		time.Sleep(sleep)
 		if time.Now().After(deadline) {
@@ -2222,6 +2245,15 @@ func (app *App) getNodePositions(activeNodes []string) ([]nodePosition, error) {
 	}, activeNodes)
 
 	return positions, util.CombineErrors(errs)
+}
+
+func (app *App) updateMdbReplMonTs(master string) error {
+	masterNode := app.cluster.Get(master)
+	ts, err := masterNode.GetMdbReplMonTs()
+	if err != nil {
+		return fmt.Errorf("failed to get master mdb_repl_mon timestamp: %v", err)
+	}
+	return app.SetMdbReplMonTs(ts)
 }
 
 /*

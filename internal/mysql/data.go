@@ -268,6 +268,14 @@ type Version struct {
 	PatchVersion int `db:"PatchVersion"`
 }
 
+type MdbReplMonTs struct {
+	Timestamp string `db:"ts"`
+}
+
+type MdbReplMonTsDelay struct {
+	Delay int64 `db:"delay"`
+}
+
 const (
 	Version80Major              = 8
 	Version80Minor              = 0

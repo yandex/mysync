@@ -985,3 +985,15 @@ func (n *Node) SetDefaultReplicationSettings(masterNode *Node) error {
 	}
 	return nil
 }
+
+func (n *Node) GetMdbReplMonTs() (string, error) {
+	result := new(MdbReplMonTs)
+	err := n.queryRow(queryGetMdbReplMonTs, nil, result)
+	return result.Timestamp, err
+}
+
+func (n *Node) CalcMdbReplMonTsDelay(ts string) (int64, error) {
+	result := new(MdbReplMonTsDelay)
+	err := n.queryRow(queryCalcMdbReplMonTsDelay, map[string]interface{}{"ts": ts}, result)
+	return result.Delay, err
+}

@@ -88,6 +88,8 @@ type Config struct {
 	ReplicationChannel                      string                       `config:"replication_channel" yaml:"replication_channel"`
 	ExternalReplicationChannel              string                       `config:"external_replication_channel" yaml:"external_replication_channel"`
 	ExternalReplicationType                 util.ExternalReplicationType `config:"external_replication_type" yaml:"external_replication_type"`
+	ASync                                	bool                         `config:"a_sync" yaml:"a_sync"`
+	ASyncAllowedLag                       	int64                        `config:"a_sync_allowed_lag" yaml:"a_sync_allowed_lag"`
 }
 
 // DefaultConfig returns default configuration for MySync
@@ -164,6 +166,8 @@ func DefaultConfig() (Config, error) {
 		ReplicationChannel:                      "",
 		ExternalReplicationChannel:              "external",
 		ExternalReplicationType:                 util.Disabled,
+		ASync:          						false,
+		ASyncAllowedLag: 0,
 	}
 	return config, nil
 }
@@ -204,6 +208,9 @@ func (cfg *Config) SetDynamicDefaults() {
 func (cfg *Config) Validate() error {
 	if cfg.NotCriticalDiskUsage > cfg.CriticalDiskUsage {
 		return fmt.Errorf("not_critical_disk_usage should be <= critical_disk_usage")
+	}
+	if cfg.SemiSync && cfg.ASync {
+		return fmt.Errorf("can't run in both semisync and async mode")
 	}
 	return nil
 }
