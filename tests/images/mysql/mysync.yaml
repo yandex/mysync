@@ -10,6 +10,8 @@ failover_cooldown: ${MYSYNC_FAILOVER_COOLDOWN:-60m}
 failover_delay: ${MYSYNC_FAILOVER_DELAY:-0s}
 inactivation_delay: ${MYSYNC_INACTIVATION_DELAY:-5s}
 semi_sync: ${MYSYNC_SEMISYNC:-true}
+async: ${MYSYNC_ASYNC:-false}
+async_allowed_lag: $(ASYNC_ALLOWED_LAG:-0s}
 resetupfile: /tmp/mysync.resetup
 resetup_crashed_hosts: ${MYSYNC_RESETUP_CRASHED_HOSTS:-false}
 zookeeper:
