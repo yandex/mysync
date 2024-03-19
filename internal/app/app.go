@@ -1275,6 +1275,10 @@ func (app *App) performSwitchover(clusterState map[string]*NodeState, activeNode
 
 	// turn slaves to the new master
 	app.logger.Info("switchover: phase 5: turn to the new master")
+	err = app.cluster.Get(newMaster).SetOnline()
+	if err != nil {
+		return fmt.Errorf("got error on setting new master %s online %v", newMaster, err)
+	}
 	errs = util.RunParallel(func(host string) error {
 		if host == newMaster || !clusterState[host].PingOk {
 			return nil
