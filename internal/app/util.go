@@ -249,9 +249,9 @@ func isSplitBrained(slaveGtidSet, masterGtidSet *gomysql.MysqlGTIDSet, masterUUI
 			continue
 		}
 
-		return false
+		return true
 	}
-	return true
+	return false
 }
 
 func validatePriority(priority *int64) error {
