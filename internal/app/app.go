@@ -2128,6 +2128,7 @@ func (app *App) waitForCatchUp(node *mysql.Node, gtidset gtids.GTIDSet, timeout 
 			return false, nil
 		}
 		if app.config.ASync && switchover.Cause == CauseAuto {
+			app.logger.Infof("async mode is active and this is auto switch so we checking new master delay")
 			ts, err := app.GetMdbReplMonTs()
 			if err != nil {
 				app.logger.Errorf("failed to get mdb repl mon ts: %v", err)
@@ -2139,9 +2140,9 @@ func (app *App) waitForCatchUp(node *mysql.Node, gtidset gtids.GTIDSet, timeout 
 				continue
 			}
 			if delay < app.config.ASyncAllowedLag {
-				app.logger.Infof("async allowed lag is %s and current lag on host %s is %s, so we don't wait for catch up any more",
+				app.logger.Infof("async allowed lag is %d and current lag on host %s is %d, so we don't wait for catch up any more",
 					app.config.ASyncAllowedLag, node.Host(), delay)
-				break
+				return true, nil
 			}
 		}
 		time.Sleep(sleep)
