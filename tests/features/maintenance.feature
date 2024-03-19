@@ -69,7 +69,8 @@ Feature: maintenance mode
     Then SQL result should match regexp
       """
       [{
-          "MasterEnabled":"0",
+          "aaaa":"0",
+          "bbbb":"1",
           "SlaveEnabled":"1"
       }]
       """
