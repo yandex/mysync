@@ -17,10 +17,11 @@ import (
 	"syscall"
 	"time"
 
+	mysql2 "github.com/go-mysql-org/go-mysql/mysql"
 	"github.com/go-sql-driver/mysql"
+	"github.com/google/uuid"
 	"github.com/jmoiron/sqlx"
 	"github.com/shirou/gopsutil/v3/process"
-
 	"github.com/yandex/mysync/internal/config"
 	"github.com/yandex/mysync/internal/log"
 	"github.com/yandex/mysync/internal/mysql/gtids"
@@ -578,7 +579,7 @@ func (n *Node) GTIDExecuted() (*GTIDExecuted, error) {
 }
 
 // GTIDExecuted returns global transaction id executed
-func (n *Node) GTIDExecutedParsed() (gtids.GTIDSet, error) {
+func (n *Node) GTIDExecutedParsed() (*mysql2.MysqlGTIDSet, error) {
 	gtid, err := n.GTIDExecuted()
 	if err != nil {
 		return nil, err
@@ -600,6 +601,16 @@ func (n *Node) GetBinlogs() ([]Binlog, error) {
 		return nil
 	})
 	return binlogs, err
+}
+
+// UUID returns server_uuid
+func (n *Node) UUID() (uuid.UUID, error) {
+	var r ServerUUIDResult
+	err := n.queryRow(queryGetUUID, nil, &r)
+	if err != nil {
+		return uuid.UUID{}, err
+	}
+	return uuid.Parse(r.ServerUUID)
 }
 
 // IsReadOnly returns (true, true) if MySQL Node in (read-only, super-read-only) mode
