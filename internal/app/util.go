@@ -236,21 +236,28 @@ func isGTIDLessOrEqual(slaveGtidSet, masterGtidSet gtids.GTIDSet) bool {
 }
 
 func isSplitBrained(slaveGtidSet, masterGtidSet *gomysql.MysqlGTIDSet, masterUUID uuid.UUID) bool {
-	for _, MasterSet := range masterGtidSet.Sets {
-		slaveSet, ok := slaveGtidSet.Sets[MasterSet.SID.String()]
+	for _, masterSet := range masterGtidSet.Sets {
+		slaveSet, ok := slaveGtidSet.Sets[masterSet.SID.String()]
 		if !ok {
 			continue
 		}
-		if MasterSet.Contain(slaveSet) || MasterSet == slaveSet {
+		if masterSet.Contain(slaveSet) || masterSet == slaveSet {
 			continue
 		}
 
-		if MasterSet.SID == masterUUID {
+		if masterSet.SID == masterUUID {
 			continue
 		}
 
 		return true
 	}
+
+	for _, slaveSet := range slaveGtidSet.Sets {
+		if _, ok := masterGtidSet.Sets[slaveSet.SID.String()]; !ok {
+			return true
+		}
+	}
+
 	return false
 }
 
