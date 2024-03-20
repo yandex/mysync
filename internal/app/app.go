@@ -827,6 +827,12 @@ func (app *App) calcActiveNodes(clusterState, clusterStateDcs map[string]*NodeSt
 		app.logger.Warnf("failed to get master status %v", err)
 		return nil, err
 	}
+	muuid, err := masterNode.UUID()
+	if err != nil {
+		app.logger.Warnf("failed to get master uuid %v", err)
+		return nil, err
+	}
+
 	for host, node := range clusterState {
 		if host == master {
 			activeNodes = append(activeNodes, master)
@@ -869,7 +875,7 @@ func (app *App) calcActiveNodes(clusterState, clusterStateDcs map[string]*NodeSt
 			continue
 		}
 		sgtids := gtids.ParseGtidSet(sstatus.ExecutedGtidSet)
-		if !(sstatus.ReplicationState == mysql.ReplicationRunning && isGTIDLessOrEqual(sgtids, mgtids)) {
+		if sstatus.ReplicationState != mysql.ReplicationRunning || isSplitBrained(sgtids, mgtids, muuid) {
 			app.logger.Errorf("calc active nodes: %s is not replicating or splitbrained, deleting from active...", host)
 			continue
 		}
