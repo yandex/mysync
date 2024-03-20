@@ -1223,8 +1223,13 @@ func (app *App) performSwitchover(clusterState map[string]*NodeState, activeNode
 		newMaster = switchover.To
 	} else if switchover.From != "" {
 		positions2 := filterOutNodeFromPositions(positions, switchover.From)
+		PriorityChoiceMaxLag := app.config.PriorityChoiceMaxLag
+		AsyncAllowedLagTime := time.Duration(app.config.AsyncAllowedLag) * time.Second
+		if app.config.ASync && switchover.Cause == CauseAuto && AsyncAllowedLagTime > app.config.PriorityChoiceMaxLag {
+			PriorityChoiceMaxLag = AsyncAllowedLagTime
+		}
 		// we ignore splitbrain flag as it should be handled during searching most recent host
-		newMaster, err = getMostDesirableNode(app.logger, positions2, app.config.PriorityChoiceMaxLag)
+		newMaster, err = getMostDesirableNode(app.logger, positions2, PriorityChoiceMaxLag)
 		if err != nil {
 			return fmt.Errorf("switchover: error while looking for highest priority node: %s", switchover.From)
 		}
@@ -2143,9 +2148,9 @@ func (app *App) waitForCatchUp(node *mysql.Node, gtidset gtids.GTIDSet, timeout 
 				app.logger.Errorf("failed to calc mdb repl mon ts: %v", err)
 				continue
 			}
-			if delay < app.config.ASyncAllowedLag {
+			if delay < app.config.AsyncAllowedLag {
 				app.logger.Infof("async allowed lag is %d and current lag on host %s is %d, so we don't wait for catch up any more",
-					app.config.ASyncAllowedLag, node.Host(), delay)
+					app.config.AsyncAllowedLag, node.Host(), delay)
 				return true, nil
 			}
 		}

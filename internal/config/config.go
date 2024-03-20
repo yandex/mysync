@@ -89,7 +89,7 @@ type Config struct {
 	ExternalReplicationChannel              string                       `config:"external_replication_channel" yaml:"external_replication_channel"`
 	ExternalReplicationType                 util.ExternalReplicationType `config:"external_replication_type" yaml:"external_replication_type"`
 	ASync                                	bool                         `config:"async" yaml:"async"`
-	ASyncAllowedLag                       	int64                        `config:"async_allowed_lag" yaml:"async_allowed_lag"`
+	AsyncAllowedLag                       	int64                        `config:"async_allowed_lag" yaml:"async_allowed_lag"`
 }
 
 // DefaultConfig returns default configuration for MySync
@@ -167,7 +167,7 @@ func DefaultConfig() (Config, error) {
 		ExternalReplicationChannel:              "external",
 		ExternalReplicationType:                 util.Disabled,
 		ASync:          						false,
-		ASyncAllowedLag: 0,
+		AsyncAllowedLag: 0,
 	}
 	return config, nil
 }

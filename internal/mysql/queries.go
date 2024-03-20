@@ -126,5 +126,5 @@ var DefaultQueries = map[string]string{
 	queryGetReplicationSettings:       `SELECT @@innodb_flush_log_at_trx_commit as InnodbFlushLogAtTrxCommit, @@sync_binlog as SyncBinlog`,
 	querySetSyncBinlog:                `SET GLOBAL sync_binlog = :sync_binlog`,
 	queryGetMdbReplMonTs: 				`SELECT UNIX_TIMESTAMP(ts) AS ts FROM mysql.mdb_repl_mon`,
-	queryCalcMdbReplMonTsDelay: 		`SELECT UNIX_TIMESTAMP(CURRENT_TIMESTAMP(0))  - CAST(:ts AS DECIMAL(20,0)) AS delay`,
+	queryCalcMdbReplMonTsDelay: 		`SELECT FLOOR(CAST(:ts AS DECIMAL(20,3)) - UNIX_TIMESTAMP(ts)) AS ts FROM mysql.mdb_repl_mon AS delay`,
 }
