@@ -335,7 +335,7 @@ func TestIsSplitBrained(t *testing.T) {
 	masterUUID := masterGTID.(*gomysql.MysqlGTIDSet).Sets["6dbc0b04-4b09-43dc-86cc-9af852ded919"].SID
 
 	// equal gtids
-	slaveGTID := mustGTIDSet("6DBC0B04-4B09-43DC-86CC-9AF852DED919:1-101," +
+	slaveGTID := mustGTIDSet("6DBC0B04-4B09-43DC-86CC-9AF852DED919:1-100," +
 		"09978591-5754-4710-BF67-062880ABE1B4:1-100," +
 		"AA6890C8-69F8-4BC4-B3A5-5D3FEA8C28CF:1-100")
 	ok := isSplitBrained(slaveGTID, masterGTID, masterUUID)

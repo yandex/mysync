@@ -244,7 +244,7 @@ func isSplitBrained(slaveGtidSet, masterGtidSet gtids.GTIDSet, masterUUID uuid.U
 			return true
 		}
 
-		if masterSet.Contain(slaveSet) || masterSet == slaveSet {
+		if masterSet.Contain(slaveSet) {
 			continue
 		}
 
