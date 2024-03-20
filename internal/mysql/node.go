@@ -17,7 +17,6 @@ import (
 	"syscall"
 	"time"
 
-	mysql2 "github.com/go-mysql-org/go-mysql/mysql"
 	"github.com/go-sql-driver/mysql"
 	"github.com/google/uuid"
 	"github.com/jmoiron/sqlx"
@@ -35,6 +34,7 @@ type Node struct {
 	db      *sqlx.DB
 	version *Version
 	host    string
+	uuid    uuid.UUID
 }
 
 var (
@@ -579,7 +579,7 @@ func (n *Node) GTIDExecuted() (*GTIDExecuted, error) {
 }
 
 // GTIDExecuted returns global transaction id executed
-func (n *Node) GTIDExecutedParsed() (*mysql2.MysqlGTIDSet, error) {
+func (n *Node) GTIDExecutedParsed() (gtids.GTIDSet, error) {
 	gtid, err := n.GTIDExecuted()
 	if err != nil {
 		return nil, err
@@ -605,6 +605,9 @@ func (n *Node) GetBinlogs() ([]Binlog, error) {
 
 // UUID returns server_uuid
 func (n *Node) UUID() (uuid.UUID, error) {
+	if n.uuid.ID() != 0 {
+		return n.uuid, nil
+	}
 	var r ServerUUIDResult
 	err := n.queryRow(queryGetUUID, nil, &r)
 	if err != nil {

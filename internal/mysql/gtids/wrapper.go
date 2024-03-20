@@ -6,10 +6,10 @@ import (
 
 type GTIDSet = mysql.GTIDSet
 
-func ParseGtidSet(gtidset string) *mysql.MysqlGTIDSet {
-	parsed, err := mysql.ParseMysqlGTIDSet(gtidset)
+func ParseGtidSet(gtidset string) mysql.GTIDSet {
+	parsed, err := mysql.ParseGTIDSet(mysql.MySQLFlavor, gtidset)
 	if err != nil {
 		panic(err)
 	}
-	return parsed.(*mysql.MysqlGTIDSet)
+	return parsed
 }
