@@ -613,7 +613,12 @@ func (n *Node) UUID() (uuid.UUID, error) {
 	if err != nil {
 		return uuid.UUID{}, err
 	}
-	return uuid.Parse(r.ServerUUID)
+	v, err := uuid.Parse(r.ServerUUID)
+	if err != nil {
+		return uuid.UUID{}, err
+	}
+	n.uuid = v
+	return v, err
 }
 
 // IsReadOnly returns (true, true) if MySQL Node in (read-only, super-read-only) mode
