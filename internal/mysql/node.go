@@ -18,9 +18,9 @@ import (
 	"time"
 
 	"github.com/go-sql-driver/mysql"
+	"github.com/google/uuid"
 	"github.com/jmoiron/sqlx"
 	"github.com/shirou/gopsutil/v3/process"
-
 	"github.com/yandex/mysync/internal/config"
 	"github.com/yandex/mysync/internal/log"
 	"github.com/yandex/mysync/internal/mysql/gtids"
@@ -34,6 +34,7 @@ type Node struct {
 	db      *sqlx.DB
 	version *Version
 	host    string
+	uuid    uuid.UUID
 }
 
 var (
@@ -600,6 +601,24 @@ func (n *Node) GetBinlogs() ([]Binlog, error) {
 		return nil
 	})
 	return binlogs, err
+}
+
+// UUID returns server_uuid
+func (n *Node) UUID() (uuid.UUID, error) {
+	if n.uuid.ID() != 0 {
+		return n.uuid, nil
+	}
+	var r ServerUUIDResult
+	err := n.queryRow(queryGetUUID, nil, &r)
+	if err != nil {
+		return uuid.UUID{}, err
+	}
+	v, err := uuid.Parse(r.ServerUUID)
+	if err != nil {
+		return uuid.UUID{}, err
+	}
+	n.uuid = v
+	return v, err
 }
 
 // IsReadOnly returns (true, true) if MySQL Node in (read-only, super-read-only) mode

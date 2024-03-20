@@ -28,6 +28,10 @@ type readOnlyResult struct {
 	SuperReadOnly int `db:"SuperReadOnly"`
 }
 
+type ServerUUIDResult struct {
+	ServerUUID string `db:"server_uuid"`
+}
+
 // CascadeNodeConfiguration is a dcs node configuration for cascade mysql replica
 type CascadeNodeConfiguration struct {
 	// StreamFrom - is a host to stream from. Can be changed from CLI.
