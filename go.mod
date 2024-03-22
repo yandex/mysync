@@ -7,12 +7,12 @@ require (
 	github.com/cucumber/godog v0.14.0
 	github.com/docker/docker v26.0.0+incompatible
 	github.com/go-mysql-org/go-mysql v1.7.0
-	github.com/go-sql-driver/mysql v1.7.1
+	github.com/go-sql-driver/mysql v1.8.0
 	github.com/go-zookeeper/zk v1.0.3
 	github.com/gofrs/flock v0.8.1
 	github.com/gofrs/uuid v4.4.0+incompatible
 	github.com/golang/mock v1.6.0
-	github.com/google/uuid v1.5.0
+	github.com/google/uuid v1.6.0
 	github.com/heetch/confita v0.10.0
 	github.com/jmoiron/sqlx v1.3.5
 	github.com/shirou/gopsutil/v3 v3.24.2
@@ -23,6 +23,7 @@ require (
 )
 
 require (
+	filippo.io/edwards25519 v1.1.0 // indirect
 	github.com/BurntSushi/toml v1.3.2 // indirect
 	github.com/Microsoft/go-winio v0.6.1 // indirect
 	github.com/containerd/log v0.1.0 // indirect
