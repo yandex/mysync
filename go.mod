@@ -12,7 +12,7 @@ require (
 	github.com/gofrs/flock v0.8.1
 	github.com/gofrs/uuid v4.4.0+incompatible
 	github.com/golang/mock v1.6.0
-	github.com/google/uuid v1.5.0
+	github.com/google/uuid v1.6.0
 	github.com/heetch/confita v0.10.0
 	github.com/jmoiron/sqlx v1.3.5
 	github.com/shirou/gopsutil/v3 v3.24.2
