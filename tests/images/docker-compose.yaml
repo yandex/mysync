@@ -95,6 +95,7 @@ services:
       MYSYNC_RESETUP_CRASHED_HOSTS:
       MYSYNC_REPLICATION_REPAIR_AGGRESSIVE_MODE:
       MYSYNC_SET_RO_TIMEOUT:
+      MYSYNC_REPLICATION_LAG_QUERY:
     healthcheck:
       test: "mysql --user=admin --password=admin_pwd -e 'SELECT 1'"
       start_period: 30s
@@ -139,6 +140,7 @@ services:
       MYSYNC_RESETUP_CRASHED_HOSTS:
       MYSYNC_REPLICATION_REPAIR_AGGRESSIVE_MODE:
       MYSYNC_SET_RO_TIMEOUT:
+      MYSYNC_REPLICATION_LAG_QUERY:
     depends_on:
       mysql1:
         condition: service_healthy
@@ -177,6 +179,7 @@ services:
       MYSYNC_RESETUP_CRASHED_HOSTS:
       MYSYNC_REPLICATION_REPAIR_AGGRESSIVE_MODE:
       MYSYNC_SET_RO_TIMEOUT:
+      MYSYNC_REPLICATION_LAG_QUERY:
     depends_on:
       mysql1:
         condition: service_healthy

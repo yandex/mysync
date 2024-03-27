@@ -42,6 +42,7 @@ jobs:
         command:
           - 'VERSION=8.0 GODOG_FEATURE=active_nodes.feature make test'
           - 'VERSION=8.0 GODOG_FEATURE=async.feature make test'
+          - 'VERSION=8.0 GODOG_FEATURE=async_setting.feature.feature make test'
           - 'VERSION=8.0 GODOG_FEATURE=cascade_replicas.feature make test'
           - 'VERSION=8.0 GODOG_FEATURE=CLI.feature make test'
           - 'VERSION=8.0 GODOG_FEATURE=crash_recovery.feature make test'

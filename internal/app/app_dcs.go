@@ -229,7 +229,7 @@ func (app *App) GetMasterHostFromDcs() (string, error) {
 	return "", nil
 }
 
-func (app *App) SetMdbReplMonTs(ts string) error {
+func (app *App) SetMdbReplMonTS(ts string) error {
 	err := app.dcs.Create(pathMasterReplMonTs, ts)
 	if err != nil && err != dcs.ErrExists {
 		return err
@@ -241,7 +241,7 @@ func (app *App) SetMdbReplMonTs(ts string) error {
 	return nil
 }
 
-func (app *App) GetMdbReplMonTs() (string, error) {
+func (app *App) GetMdbReplMonTS() (string, error) {
 	var ts string
 	err := app.dcs.Get(pathMasterReplMonTs, &ts)
 	if errors.Is(err, dcs.ErrNotFound) {

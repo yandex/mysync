@@ -700,7 +700,7 @@ func (app *App) stateManager() appState {
 		app.logger.Errorf("failed to update active nodes in dcs: %v", err)
 	}
 
-	err = app.updateMdbReplMonTs(master)
+	err = app.updateMdbReplMonTS(master)
 	if err != nil {
 		app.logger.Errorf("failed to update mdb_repl_mon timestamp: %v", err)
 	}
@@ -2138,12 +2138,12 @@ func (app *App) waitForCatchUp(node *mysql.Node, gtidset gtids.GTIDSet, timeout 
 		}
 		if app.config.ASync && switchover.Cause == CauseAuto {
 			app.logger.Infof("async mode is active and this is auto switch so we checking new master delay")
-			ts, err := app.GetMdbReplMonTs()
+			ts, err := app.GetMdbReplMonTS()
 			if err != nil {
 				app.logger.Errorf("failed to get mdb repl mon ts: %v", err)
 				continue
 			}
-			delay, err := node.CalcMdbReplMonTsDelay(ts)
+			delay, err := node.CalcMdbReplMonTSDelay(ts)
 			if err != nil {
 				app.logger.Errorf("failed to calc mdb repl mon ts: %v", err)
 				continue
@@ -2257,13 +2257,13 @@ func (app *App) getNodePositions(activeNodes []string) ([]nodePosition, error) {
 	return positions, util.CombineErrors(errs)
 }
 
-func (app *App) updateMdbReplMonTs(master string) error {
+func (app *App) updateMdbReplMonTS(master string) error {
 	masterNode := app.cluster.Get(master)
-	ts, err := masterNode.GetMdbReplMonTs()
+	ts, err := masterNode.GetMdbReplMonTS()
 	if err != nil {
 		return fmt.Errorf("failed to get master mdb_repl_mon timestamp: %v", err)
 	}
-	return app.SetMdbReplMonTs(ts)
+	return app.SetMdbReplMonTS(ts)
 }
 
 /*

@@ -35,6 +35,8 @@ mysql:
   external_replication_ssl_ca: /etc/mysql/ssl/external_CA.pem
   pid_file: /tmp/mysqld.pid
   error_log: /var/log/mysql/error.log
+queries:
+  replication_lag: $MYSYNC_REPLICATION_LAG_QUERY
 disable_semi_sync_replication_on_maintenance: ${MYSYNC_DISABLE_REPLICATION_ON_MAINT:-false}
 rpl_semi_sync_master_wait_for_slave_count: ${MYSYNC_WAIT_FOR_SLAVE_COUNT:-1}
 critical_disk_usage: ${MYSYNC_CRITICAL_DISK_USAGE:-100}

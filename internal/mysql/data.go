@@ -268,11 +268,11 @@ type Version struct {
 	PatchVersion int `db:"PatchVersion"`
 }
 
-type MdbReplMonTs struct {
+type MdbReplMonTS struct {
 	Timestamp string `db:"ts"`
 }
 
-type MdbReplMonTsDelay struct {
+type MdbReplMonTSDelay struct {
 	Delay int64 `db:"delay"`
 }
 
