@@ -69,7 +69,7 @@ const (
 	pathLastShutdownNodeTime = "last_shutdown_node_time"
 
 	// last known timestamp from mysql.mdb_repl_mon
-	pathMasterReplMonTs = "master_repl_mon_ts"
+	pathMasterReplMonTS = "master_repl_mon_ts"
 )
 
 var (

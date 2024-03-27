@@ -988,7 +988,7 @@ func (n *Node) SetDefaultReplicationSettings(masterNode *Node) error {
 
 func (n *Node) GetMdbReplMonTS() (string, error) {
 	result := new(MdbReplMonTS)
-	err := n.queryRow(queryGetMdbReplMonTs, nil, result)
+	err := n.queryRow(queryGetMdbReplMonTS, nil, result)
 	return result.Timestamp, err
 }
 

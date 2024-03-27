@@ -45,7 +45,7 @@ const (
 	querySetInnodbFlushLogAtTrxCommit   = "set_innodb_flush_log_at_trx_commit"
 	querySetSyncBinlog                  = "set_sync_binlog"
 	queryGetReplicationSettings         = "get_replication_settings"
-	queryGetMdbReplMonTs                = "get_mdb_repl_mon_ts"
+	queryGetMdbReplMonTS                = "get_mdb_repl_mon_ts"
 	queryCalcMdbReplMonTSDelay          = "calc_mdb_repl_mon_ts_delay"
 )
 
@@ -125,6 +125,6 @@ var DefaultQueries = map[string]string{
 	querySetInnodbFlushLogAtTrxCommit: `SET GLOBAL innodb_flush_log_at_trx_commit = :level`,
 	queryGetReplicationSettings:       `SELECT @@innodb_flush_log_at_trx_commit as InnodbFlushLogAtTrxCommit, @@sync_binlog as SyncBinlog`,
 	querySetSyncBinlog:                `SET GLOBAL sync_binlog = :sync_binlog`,
-	queryGetMdbReplMonTs:              `SELECT UNIX_TIMESTAMP(ts) AS ts FROM mysql.mdb_repl_mon`,
+	queryGetMdbReplMonTS:              `SELECT UNIX_TIMESTAMP(ts) AS ts FROM mysql.mdb_repl_mon`,
 	queryCalcMdbReplMonTSDelay:        `SELECT FLOOR(CAST(:ts AS DECIMAL(20,3)) - UNIX_TIMESTAMP(ts)) AS delay FROM mysql.mdb_repl_mon`,
 }

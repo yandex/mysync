@@ -42,7 +42,7 @@ jobs:
         command:
           - 'GODOG_FEATURE=active_nodes.feature make test'                                                                        
           - 'GODOG_FEATURE=async.feature make test'
-          - 'GODOG_FEATURE=async_setting.feature.feature make test'
+          - 'GODOG_FEATURE=async_setting.feature make test'
           - 'GODOG_FEATURE=cascade_replicas.feature make test'                                                                    
           - 'GODOG_FEATURE=CLI.feature make test'                                                                                 
           - 'GODOG_FEATURE=crash_recovery.feature make test'                                                                      
