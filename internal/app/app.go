@@ -700,6 +700,11 @@ func (app *App) stateManager() appState {
 		app.logger.Errorf("failed to update active nodes in dcs: %v", err)
 	}
 
+	err = app.updateMdbReplMonTS(master)
+	if err != nil {
+		app.logger.Errorf("failed to update mdb_repl_mon timestamp: %v", err)
+	}
+
 	return stateManager
 }
 
@@ -1224,8 +1229,13 @@ func (app *App) performSwitchover(clusterState map[string]*NodeState, activeNode
 		newMaster = switchover.To
 	} else if switchover.From != "" {
 		positions2 := filterOutNodeFromPositions(positions, switchover.From)
+		PriorityChoiceMaxLag := app.config.PriorityChoiceMaxLag
+		AsyncAllowedLagTime := time.Duration(app.config.AsyncAllowedLag) * time.Second
+		if app.config.ASync && switchover.Cause == CauseAuto && AsyncAllowedLagTime > app.config.PriorityChoiceMaxLag {
+			PriorityChoiceMaxLag = AsyncAllowedLagTime
+		}
 		// we ignore splitbrain flag as it should be handled during searching most recent host
-		newMaster, err = getMostDesirableNode(app.logger, positions2, app.config.PriorityChoiceMaxLag)
+		newMaster, err = getMostDesirableNode(app.logger, positions2, PriorityChoiceMaxLag)
 		if err != nil {
 			return fmt.Errorf("switchover: error while looking for highest priority node: %s", switchover.From)
 		}
@@ -1276,6 +1286,10 @@ func (app *App) performSwitchover(clusterState map[string]*NodeState, activeNode
 
 	// turn slaves to the new master
 	app.logger.Info("switchover: phase 5: turn to the new master")
+	err = app.cluster.Get(newMaster).SetOnline()
+	if err != nil {
+		return fmt.Errorf("got error on setting new master %s online %v", newMaster, err)
+	}
 	errs = util.RunParallel(func(host string) error {
 		if host == newMaster || !clusterState[host].PingOk {
 			return nil
@@ -2124,8 +2138,27 @@ func (app *App) waitForCatchUp(node *mysql.Node, gtidset gtids.GTIDSet, timeout 
 		if gtidExecuted.Contain(gtidset) {
 			return true, nil
 		}
-		if app.dcs.Get(pathCurrentSwitch, new(Switchover)) == dcs.ErrNotFound {
+		switchover := new(Switchover)
+		if app.dcs.Get(pathCurrentSwitch, switchover) == dcs.ErrNotFound {
 			return false, nil
+		}
+		if app.config.ASync && switchover.Cause == CauseAuto {
+			app.logger.Infof("async mode is active and this is auto switch so we checking new master delay")
+			ts, err := app.GetMdbReplMonTS()
+			if err != nil {
+				app.logger.Errorf("failed to get mdb repl mon ts: %v", err)
+				continue
+			}
+			delay, err := node.CalcMdbReplMonTSDelay(ts)
+			if err != nil {
+				app.logger.Errorf("failed to calc mdb repl mon ts: %v", err)
+				continue
+			}
+			if delay < app.config.AsyncAllowedLag {
+				app.logger.Infof("async allowed lag is %d and current lag on host %s is %d, so we don't wait for catch up any more",
+					app.config.AsyncAllowedLag, node.Host(), delay)
+				return true, nil
+			}
 		}
 		time.Sleep(sleep)
 		if time.Now().After(deadline) {
@@ -2228,6 +2261,15 @@ func (app *App) getNodePositions(activeNodes []string) ([]nodePosition, error) {
 	}, activeNodes)
 
 	return positions, util.CombineErrors(errs)
+}
+
+func (app *App) updateMdbReplMonTS(master string) error {
+	masterNode := app.cluster.Get(master)
+	ts, err := masterNode.GetMdbReplMonTS()
+	if err != nil {
+		return fmt.Errorf("failed to get master mdb_repl_mon timestamp: %v", err)
+	}
+	return app.SetMdbReplMonTS(ts)
 }
 
 /*
