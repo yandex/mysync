@@ -33,7 +33,7 @@ jepsen_test:
 	GOOS=linux go build -tags netgo,osusergo -o ./cmd/mysync/mysync ./cmd/mysync/...
 	go build ./tests/...
 	rm -fr ./tests/images/mysql_jepsen/mysync && cp ./cmd/mysync/mysync ./tests/images/mysql_jepsen/mysync
-	docker-compose -p mysync -f ./tests/images/jepsen-compose.yml up -d --force-recreate --build
+	docker compose -p mysync -f ./tests/images/jepsen-compose.yml up -d --force-recreate --build
 	timeout 600 docker exec mysync_zoo1_1 /usr/local/bin/generate_certs_with_restart.sh mysync_zookeeper1_1.mysync_mysql_net
 	timeout 600 docker exec mysync_zoo2_1 /usr/local/bin/generate_certs_with_restart.sh mysync_zookeeper2_1.mysync_mysql_net
 	timeout 600 docker exec mysync_zoo3_1 /usr/local/bin/generate_certs_with_restart.sh mysync_zookeeper3_1.mysync_mysql_net
@@ -48,7 +48,7 @@ jepsen_test:
 	timeout 600 docker exec mysync_mysql1_1 setup.sh
 	mkdir -p ./tests/logs
 	(docker exec mysync_jepsen_1 /root/jepsen/run.sh > ./tests/logs/jepsen.log 2>&1 && tail -n 4 ./tests/logs/jepsen.log) || ./tests/images/jepsen_main/save_logs.sh
-	docker-compose -p mysync -f ./tests/images/jepsen-compose.yml down --rmi all
+	docker compose -p mysync -f ./tests/images/jepsen-compose.yml down --rmi all
 
 clean:
 	docker ps | grep mysync | awk '{print $$1}' | xargs docker rm -f || true
