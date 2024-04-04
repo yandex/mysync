@@ -9,7 +9,6 @@ import (
 	"log"
 	"os"
 	"path/filepath"
-	"strconv"
 	"strings"
 	"sync"
 	"testing"
@@ -371,19 +370,13 @@ func (tctx *testContext) runSlaveStatusQuery(host string) (map[string]string, er
 	if err != nil {
 		return nil, err
 	}
-	MajorVersion, err := strconv.Atoi(res[0]["MajorVersion"].(string))
+	MajorVersion := res[0]["MajorVersion"].(int64)
+	MinorVersion := res[0]["MinorVersion"].(int64)
+	PatchVersion := res[0]["PatchVersion"].(int64)
 	if err != nil {
 		return nil, err
 	}
-	MinorVersion, err := strconv.Atoi(res[0]["MinorVersion"].(string))
-	if err != nil {
-		return nil, err
-	}
-	PatchVersion, err := strconv.Atoi(res[0]["PatchVersion"].(string))
-	if err != nil {
-		return nil, err
-	}
-	v := mysql_internal.Version{MajorVersion: MajorVersion, MinorVersion: MinorVersion, PatchVersion: PatchVersion}
+	v := mysql_internal.Version{MajorVersion: int(MajorVersion), MinorVersion: int(MinorVersion), PatchVersion: int(PatchVersion)}
 	query = mysql_internal.DefaultQueries[v.GetSlaveStatusQuery()]
 	query = mysql_internal.Mogrify(query, map[string]interface{}{
 		"channel": replicationChannel,
@@ -910,7 +903,7 @@ func (tctx *testContext) stepBreakReplicationOnHostInARepairableWay(host string)
 	if err != nil {
 		return err
 	}
-	if _, err := tctx.queryMysql(host, fmt.Sprintf("KILL %s", queryReqult[0]["id"]), struct{}{}); err != nil {
+	if _, err := tctx.queryMysql(host, fmt.Sprintf("KILL %d", queryReqult[0]["id"].(uint64)), struct{}{}); err != nil {
 		return err
 	}
 	return nil
@@ -1036,7 +1029,13 @@ func (tctx *testContext) stepMysqlHostShouldHaveVariableSet(host string, name st
 	if err != nil {
 		return err
 	}
-	actual := res[0]["actual"].(string)
+	actual := ""
+	switch res[0]["actual"].(type) {
+	case int64:
+		actual = fmt.Sprint(res[0]["actual"].(int64))
+	default:
+		actual = res[0]["actual"].(string)
+	}
 	if actual != value {
 		return fmt.Errorf("@@%s is %s, while expected %s", name, actual, value)
 	}
@@ -1218,9 +1217,9 @@ func (tctx *testContext) queryMysqlReadOnlyStatus(host string) (bool, bool, erro
 	if err != nil {
 		return false, false, err
 	}
-	ro := res[0]["ro"].(string)
-	superRo := res[0]["superRo"].(string)
-	return ro == "1", superRo == "1", nil
+	ro := res[0]["ro"].(int64)
+	superRo := res[0]["superRo"].(int64)
+	return ro == 1, superRo == 1, nil
 }
 
 func (tctx *testContext) stepMysqlHostShouldBeReadOnly(host string) error {
