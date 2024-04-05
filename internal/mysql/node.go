@@ -458,7 +458,7 @@ func (n *Node) GetDaemonStartTime() (time.Time, error) {
 		}
 		return time.Time{}, err
 	}
-	pid, err := strconv.Atoi(strings.TrimSpace(string(pidB)))
+	pid, err := strconv.ParseInt(strings.TrimSpace(string(pidB)), 10, 32)
 	if err != nil {
 		return time.Time{}, err
 	}
