@@ -5,7 +5,7 @@ go 1.21
 require (
 	github.com/cenkalti/backoff/v4 v4.3.0
 	github.com/cucumber/godog v0.14.0
-	github.com/docker/docker v26.0.0+incompatible
+	github.com/docker/docker v26.0.2+incompatible
 	github.com/go-mysql-org/go-mysql v1.7.0
 	github.com/go-sql-driver/mysql v1.8.1
 	github.com/go-zookeeper/zk v1.0.3
