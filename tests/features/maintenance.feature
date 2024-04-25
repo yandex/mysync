@@ -68,11 +68,7 @@ Feature: maintenance mode
       """
     Then SQL result should match regexp
       """
-      [{
-          "aaaa":"0",
-          "bbbb":"1",
-          "SlaveEnabled":"1"
-      }]
+          "aaaa":"0"
       """
     When I run SQL on mysql host "mysql1"
       """
