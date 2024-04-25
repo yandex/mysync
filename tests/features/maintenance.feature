@@ -66,15 +66,18 @@ Feature: maintenance mode
       """
       SELECT @@rpl_semi_sync_master_enabled AS MasterEnabled, @@rpl_semi_sync_slave_enabled AS SlaveEnabled;
       """
-    Then SQL result should match regexp
+    Then SQL result should match json
       """
-          "aaaa":"0"
+      [{
+          "MasterEnabled":"0",
+          "SlaveEnabled":"1"
+      }]
       """
     When I run SQL on mysql host "mysql1"
       """
       SELECT @@rpl_semi_sync_master_enabled AS MasterEnabled, @@rpl_semi_sync_slave_enabled AS SlaveEnabled;
       """
-    Then SQL result should match regexp
+    Then SQL result should match json
       """
       [{
           "MasterEnabled":"1",
@@ -102,7 +105,7 @@ Feature: maintenance mode
       """
       SELECT @@rpl_semi_sync_master_enabled AS MasterEnabled, @@rpl_semi_sync_slave_enabled AS SlaveEnabled;
       """
-    Then SQL result should match regexp
+    Then SQL result should match json
       """
       [{
           "MasterEnabled":"0",
@@ -113,7 +116,7 @@ Feature: maintenance mode
       """
       SELECT @@rpl_semi_sync_master_enabled AS MasterEnabled, @@rpl_semi_sync_slave_enabled AS SlaveEnabled;
       """
-    Then SQL result should match regexp
+    Then SQL result should match json
       """
       [{
           "MasterEnabled":"0",
@@ -134,7 +137,7 @@ Feature: maintenance mode
       """
       SELECT @@rpl_semi_sync_master_enabled AS MasterEnabled, @@rpl_semi_sync_slave_enabled AS SlaveEnabled;
       """
-    Then SQL result should match regexp
+    Then SQL result should match json
       """
       [{
           "MasterEnabled":"0",
@@ -145,7 +148,7 @@ Feature: maintenance mode
       """
       SELECT @@rpl_semi_sync_master_enabled AS MasterEnabled, @@rpl_semi_sync_slave_enabled AS SlaveEnabled;
       """
-    Then SQL result should match regexp
+    Then SQL result should match json
       """
       [{
           "MasterEnabled":"1",
