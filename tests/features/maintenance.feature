@@ -64,25 +64,37 @@ Feature: maintenance mode
       """
     When I run SQL on mysql host "mysql2"
       """
-      show global variables like 'rpl_semi_sync_%_enabled'
+      SHOW GLOBAL VARIABLES LIKE 'rpl_semi_sync_%_enabled'
       """
     Then SQL result should match json
       """
-      [{
-          "MasterEnabled":"0",
-          "SlaveEnabled":"1"
-      }]
+      [
+        {
+          "Value":"OFF",
+          "Variable_name":"rpl_semi_sync_master_enabled"
+        },
+        {
+          "Value":"ON",
+          "Variable_name":"rpl_semi_sync_slave_enabled"
+        }
+      ]
       """
     When I run SQL on mysql host "mysql1"
       """
-      show global variables like 'rpl_semi_sync_%_enabled'
+      SHOW GLOBAL VARIABLES LIKE 'rpl_semi_sync_%_enabled'
       """
     Then SQL result should match json
       """
-      [{
-          "MasterEnabled":"1",
-          "SlaveEnabled":"0"
-      }]
+      [
+        {
+          "Value":"ON",
+          "Variable_name":"rpl_semi_sync_master_enabled"
+        },
+        {
+          "Value":"OFF",
+          "Variable_name":"rpl_semi_sync_slave_enabled"
+        }
+      ]
       """
     When I run command on host "mysql1"
       """
@@ -103,25 +115,37 @@ Feature: maintenance mode
     And zookeeper node "/test/active_nodes" should not exist
     When I run SQL on mysql host "mysql2"
       """
-      SELECT @@rpl_semi_sync_master_enabled AS MasterEnabled, @@rpl_semi_sync_slave_enabled AS SlaveEnabled;
+      SHOW GLOBAL VARIABLES LIKE 'rpl_semi_sync_%_enabled'
       """
     Then SQL result should match json
       """
-      [{
-          "MasterEnabled":"0",
-          "SlaveEnabled":"1"
-      }]
+      [
+        {
+          "Value":"OFF",
+          "Variable_name":"rpl_semi_sync_master_enabled"
+        },
+        {
+          "Value":"ON",
+          "Variable_name":"rpl_semi_sync_slave_enabled"
+        }
+      ]
       """
     When I run SQL on mysql host "mysql1"
       """
-      SELECT @@rpl_semi_sync_master_enabled AS MasterEnabled, @@rpl_semi_sync_slave_enabled AS SlaveEnabled;
+      SHOW GLOBAL VARIABLES LIKE 'rpl_semi_sync_%_enabled'
       """
     Then SQL result should match json
       """
-      [{
-          "MasterEnabled":"0",
-          "SlaveEnabled":"0"
-      }]
+      [
+        {
+          "Value":"OFF",
+          "Variable_name":"rpl_semi_sync_master_enabled"
+        },
+        {
+          "Value":"OFF",
+          "Variable_name":"rpl_semi_sync_slave_enabled"
+        }
+      ]
       """
     When I run command on host "mysql1"
       """
@@ -135,25 +159,37 @@ Feature: maintenance mode
       """
     When I run SQL on mysql host "mysql2"
       """
-      SELECT @@rpl_semi_sync_master_enabled AS MasterEnabled, @@rpl_semi_sync_slave_enabled AS SlaveEnabled;
+      SHOW GLOBAL VARIABLES LIKE 'rpl_semi_sync_%_enabled'
       """
     Then SQL result should match json
       """
-      [{
-          "MasterEnabled":"0",
-          "SlaveEnabled":"1"
-      }]
+      [
+        {
+          "Value":"OFF",
+          "Variable_name":"rpl_semi_sync_master_enabled"
+        },
+        {
+          "Value":"ON",
+          "Variable_name":"rpl_semi_sync_slave_enabled"
+        }
+      ]
       """
     When I run SQL on mysql host "mysql1"
       """
-      SELECT @@rpl_semi_sync_master_enabled AS MasterEnabled, @@rpl_semi_sync_slave_enabled AS SlaveEnabled;
+      SHOW GLOBAL VARIABLES LIKE 'rpl_semi_sync_%_enabled'
       """
     Then SQL result should match json
       """
-      [{
-          "MasterEnabled":"1",
-          "SlaveEnabled":"0"
-      }]
+      [
+        {
+          "Value":"ON",
+          "Variable_name":"rpl_semi_sync_master_enabled"
+        },
+        {
+          "Value":"OFF",
+          "Variable_name":"rpl_semi_sync_slave_enabled"
+        }
+      ]
       """
 
   Scenario: master host in DCS updated correctly after manual master change
