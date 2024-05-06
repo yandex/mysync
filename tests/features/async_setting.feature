@@ -208,7 +208,7 @@ Feature: mysync async mode tests
           }
       }
       """
-    And I wait for "5" seconds
+    And I wait for "15" seconds
     When I run SQL on mysql host "mysql2"
       """
       SELECT GROUP_CONCAT(value) as val from (SELECT value from mysql.test_table1 order by value) as t
@@ -225,7 +225,7 @@ Feature: mysync async mode tests
       """
         [{"val":"A,B,C"}]
       """
-    And I wait for "60" seconds
+    And I wait for "40" seconds
     When I run SQL on mysql host "mysql3"
       """
       SELECT GROUP_CONCAT(value) as val from (SELECT value from mysql.test_table1 order by value) as t
