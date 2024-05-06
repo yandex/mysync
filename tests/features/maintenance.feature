@@ -75,7 +75,7 @@ Feature: maintenance mode
       """
     When I run SQL on mysql host "mysql1"
       """
-      SELECT @@rpl_semi_sync_master_enabled AS MasterEnabled, @@rpl_semi_sync_slave_enabled AS SlaveEnabled;
+      show global variables like 'rpl_semi_sync_%_enabled'
       """
     Then SQL result should match json
       """
