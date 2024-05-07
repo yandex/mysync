@@ -4,8 +4,8 @@ go 1.21
 
 require (
 	github.com/cenkalti/backoff/v4 v4.3.0
-	github.com/cucumber/godog v0.14.0
-	github.com/docker/docker v26.0.2+incompatible
+	github.com/cucumber/godog v0.14.1
+	github.com/docker/docker v26.1.1+incompatible
 	github.com/go-mysql-org/go-mysql v1.7.0
 	github.com/go-sql-driver/mysql v1.8.1
 	github.com/go-zookeeper/zk v1.0.3
@@ -14,7 +14,7 @@ require (
 	github.com/golang/mock v1.6.0
 	github.com/google/uuid v1.6.0
 	github.com/heetch/confita v0.10.0
-	github.com/jmoiron/sqlx v1.3.5
+	github.com/jmoiron/sqlx v1.4.0
 	github.com/shirou/gopsutil/v3 v3.24.3
 	github.com/spf13/cobra v1.8.0
 	github.com/spf13/pflag v1.0.5
