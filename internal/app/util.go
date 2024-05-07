@@ -4,6 +4,8 @@ import (
 	"fmt"
 	"time"
 
+	gomysql "github.com/go-mysql-org/go-mysql/mysql"
+	"github.com/google/uuid"
 	"github.com/yandex/mysync/internal/log"
 	"github.com/yandex/mysync/internal/mysql"
 	"github.com/yandex/mysync/internal/mysql/gtids"
@@ -231,6 +233,29 @@ func isSlavePermanentlyLost(sstatus mysql.ReplicaStatus, masterGtidSet gtids.GTI
 
 func isGTIDLessOrEqual(slaveGtidSet, masterGtidSet gtids.GTIDSet) bool {
 	return masterGtidSet.Contain(slaveGtidSet) || masterGtidSet.Equal(slaveGtidSet)
+}
+
+func isSplitBrained(slaveGtidSet, masterGtidSet gtids.GTIDSet, masterUUID uuid.UUID) bool {
+	mysqlSlaveGtidSet := slaveGtidSet.(*gomysql.MysqlGTIDSet)
+	mysqlMasterGtidSet := masterGtidSet.(*gomysql.MysqlGTIDSet)
+	for _, slaveSet := range mysqlSlaveGtidSet.Sets {
+		masterSet, ok := mysqlMasterGtidSet.Sets[slaveSet.SID.String()]
+		if !ok {
+			return true
+		}
+
+		if masterSet.Contain(slaveSet) {
+			continue
+		}
+
+		if masterSet.SID == masterUUID {
+			continue
+		}
+
+		return true
+	}
+
+	return false
 }
 
 func validatePriority(priority *int64) error {
