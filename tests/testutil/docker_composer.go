@@ -56,7 +56,7 @@ type Composer interface {
 	CheckIfFileExist(service, path string) (bool, error)
 }
 
-// DockerComposer is a Composer implementation based on docker and docker-compose
+// DockerComposer is a Composer implementation based on docker and docker compose
 type DockerComposer struct {
 	projectName string
 	config      string
@@ -92,14 +92,14 @@ func NewDockerComposer(project, config string) (*DockerComposer, error) {
 }
 
 func (dc *DockerComposer) runCompose(args []string, env []string) error {
-	args2 := []string{}
+	args2 := []string{"compose"}
 	args2 = append(args2, "-f", dc.config, "-p", dc.projectName)
 	args2 = append(args2, args...)
-	cmd := exec.Command("docker-compose", args2...)
+	cmd := exec.Command("docker", args2...)
 	cmd.Env = append(os.Environ(), env...)
 	out, err := cmd.CombinedOutput()
 	if err != nil {
-		return fmt.Errorf("failed to run 'docker-compose %s': %s\n%s", strings.Join(args2, " "), err, out)
+		return fmt.Errorf("failed to run 'docker compose %s': %s\n%s", strings.Join(args2, " "), err, out)
 	}
 	return nil
 }

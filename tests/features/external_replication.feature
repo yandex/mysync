@@ -40,7 +40,7 @@ Feature: external replication
         [{
             "source_host": "test_source_2",
             "source_password": "test_pass_2",
-            "source_port": "2222",
+            "source_port": 2222,
             "source_user": "test_user_2"
         }]
         """
@@ -53,7 +53,7 @@ Feature: external replication
         """
         [{
             "source_host": "test_source_2",
-            "source_port": "2222",
+            "source_port": 2222,
             "source_password": "test_pass_2",
             "source_user": "test_user_2"
         }]
@@ -86,11 +86,11 @@ Feature: external replication
         Then SQL result should match json
         """
         [{
-            "Exec_Source_Log_Pos": "0",
+            "Exec_Source_Log_Pos": 0,
             "Replica_IO_State": "Connecting to source",
             "Replica_SQL_Running": "Yes",
             "Source_Host": "test_source",
-            "Source_Port": "1111",
+            "Source_Port": 1111,
             "Source_User": "test_user",
             "Replica_IO_Running": "Connecting",
             "Relay_Source_Log_File": "",
@@ -182,12 +182,12 @@ YZQy1bHIhscLf8wjTYbzAg==
         [{
             "Replica_IO_State": "Connecting to source",
             "Source_Host": "test_source_2",
-            "Source_Port": "2222",
+            "Source_Port": 2222,
             "Source_User": "test_user_2",
             "Replica_IO_Running": "Connecting",
             "Replica_SQL_Running": "Yes",
             "Relay_Source_Log_File": "",
-            "Exec_Source_Log_Pos": "0",
+            "Exec_Source_Log_Pos": 0,
             "Channel_Name": "external",
             "Replicate_Ignore_DB": "mysql",
             "Source_SSL_CA_File": "/etc/mysql/ssl/external_CA.pem"
@@ -212,7 +212,7 @@ YZQy1bHIhscLf8wjTYbzAg==
             "source_host": "test_source_2",
             "source_user": "test_user_2",
             "source_password": "test_pass_2",
-            "source_port": "2222"
+            "source_port": 2222
         }]
         """
 
@@ -260,13 +260,13 @@ YZQy1bHIhscLf8wjTYbzAg==
         [{
             "Replica_IO_State": "",
             "Source_Host": "test_source",
-            "Source_Port": "1111",
+            "Source_Port": 1111,
             "Source_User": "test_user",
             "Replica_IO_Running": "No",
             "Replica_SQL_Running": "No",
             "Source_SSL_CA_File": "",
             "Relay_Source_Log_File": "",
-            "Exec_Source_Log_Pos": "0",
+            "Exec_Source_Log_Pos": 0,
             "Channel_Name": "external"
         }]
         """
@@ -280,13 +280,13 @@ YZQy1bHIhscLf8wjTYbzAg==
         [{
             "Replica_IO_State": "",
             "Source_Host": "test_source",
-            "Source_Port": "1111",
+            "Source_Port": 1111,
             "Source_User": "test_user",
             "Replica_IO_Running": "No",
             "Replica_SQL_Running": "No",
             "Source_SSL_CA_File": "",
             "Relay_Source_Log_File": "",
-            "Exec_Source_Log_Pos": "0",
+            "Exec_Source_Log_Pos": 0,
             "Channel_Name": "external"
         }]
         """
@@ -324,13 +324,13 @@ YZQy1bHIhscLf8wjTYbzAg==
         [{
             "Replica_IO_State": "",
             "Source_Host": "test_source",
-            "Source_Port": "1111",
+            "Source_Port": 1111,
             "Source_User": "test_user",
             "Replica_IO_Running": "No",
             "Replica_SQL_Running": "No",
             "Source_SSL_CA_File": "",
             "Relay_Source_Log_File": "",
-            "Exec_Source_Log_Pos": "0",
+            "Exec_Source_Log_Pos": 0,
             "Channel_Name": "external"
         }]
         """
@@ -350,13 +350,13 @@ YZQy1bHIhscLf8wjTYbzAg==
         [{
             "Replica_IO_State": "",
             "Source_Host": "test_source",
-            "Source_Port": "1111",
+            "Source_Port": 1111,
             "Source_User": "test_user",
             "Replica_IO_Running": "No",
             "Replica_SQL_Running": "No",
             "Source_SSL_CA_File": "",
             "Relay_Source_Log_File": "",
-            "Exec_Source_Log_Pos": "0",
+            "Exec_Source_Log_Pos": 0,
             "Channel_Name": "external"
         }]
         """
@@ -394,13 +394,13 @@ Y2AirKuDzA5GErKOfQ==
         [{
             "Replica_IO_State": "",
             "Source_Host": "test_source",
-            "Source_Port": "1111",
+            "Source_Port": 1111,
             "Source_User": "test_user",
             "Replica_IO_Running": "No",
             "Replica_SQL_Running": "No",
             "Source_SSL_CA_File": "",
             "Relay_Source_Log_File": "",
-            "Exec_Source_Log_Pos": "0",
+            "Exec_Source_Log_Pos": 0,
             "Channel_Name": "external"
         }]
         """
@@ -418,13 +418,13 @@ Y2AirKuDzA5GErKOfQ==
         [{
             "Replica_IO_State": "Connecting to source",
             "Source_Host": "test_source",
-            "Source_Port": "1111",
+            "Source_Port": 1111,
             "Source_User": "test_user",
             "Replica_IO_Running": "Connecting",
             "Replica_SQL_Running": "Yes",
             "Source_SSL_CA_File": "",
             "Relay_Source_Log_File": "",
-            "Exec_Source_Log_Pos": "0",
+            "Exec_Source_Log_Pos": 0,
             "Channel_Name": "external"
         }]
         """
@@ -469,7 +469,7 @@ Y2AirKuDzA5GErKOfQ==
         [{
             "source_host": "test_source_2",
             "source_password": "test_pass_2",
-            "source_port": "2222",
+            "source_port": 2222,
             "source_user": "test_user_2"
         }]
         """
@@ -482,7 +482,7 @@ Y2AirKuDzA5GErKOfQ==
         """
         [{
             "source_host": "test_source_2",
-            "source_port": "2222",
+            "source_port": 2222,
             "source_password": "test_pass_2",
             "source_user": "test_user_2"
         }]
@@ -515,10 +515,10 @@ Y2AirKuDzA5GErKOfQ==
         Then SQL result should match json
         """
         [{
-            "Exec_Source_Log_Pos": "0",
+            "Exec_Source_Log_Pos": 0,
             "Replica_IO_State": "Connecting to source",
             "Source_Host": "test_source",
-            "Source_Port": "1111",
+            "Source_Port": 1111,
             "Source_User": "test_user",
             "Replica_IO_Running": "Connecting",
             "Replica_SQL_Running": "Yes",
@@ -564,12 +564,12 @@ Y2AirKuDzA5GErKOfQ==
         [{
             "Replica_IO_State": "",
             "Source_Host": "test_source_2",
-            "Source_Port": "2222",
+            "Source_Port": 2222,
             "Source_User": "test_user_2",
             "Replica_IO_Running": "No",
             "Replica_SQL_Running": "No",
             "Relay_Source_Log_File": "",
-            "Exec_Source_Log_Pos": "0",
+            "Exec_Source_Log_Pos": 0,
             "Channel_Name": "external",
             "Replicate_Ignore_DB": "mysql",
             "Source_SSL_CA_File": ""
@@ -592,7 +592,7 @@ Y2AirKuDzA5GErKOfQ==
             "source_host": "test_source_2",
             "source_user": "test_user_2",
             "source_password": "test_pass_2",
-            "source_port": "2222"
+            "source_port": 2222
         }]
         """
 

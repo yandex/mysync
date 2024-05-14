@@ -327,3 +327,52 @@ func getLogger() *log.Logger {
 	}
 	return l
 }
+
+func TestIsSplitBrained(t *testing.T) {
+	masterGTID := mustGTIDSet("6DBC0B04-4B09-43DC-86CC-9AF852DED919:1-100," +
+		"09978591-5754-4710-BF67-062880ABE1B4:1-100," +
+		"AA6890C8-69F8-4BC4-B3A5-5D3FEA8C28CF:1-100")
+	masterUUID := masterGTID.(*gomysql.MysqlGTIDSet).Sets["6dbc0b04-4b09-43dc-86cc-9af852ded919"].SID
+
+	// equal gtids
+	slaveGTID := mustGTIDSet("6DBC0B04-4B09-43DC-86CC-9AF852DED919:1-100," +
+		"09978591-5754-4710-BF67-062880ABE1B4:1-100," +
+		"AA6890C8-69F8-4BC4-B3A5-5D3FEA8C28CF:1-100")
+	ok := isSplitBrained(slaveGTID, masterGTID, masterUUID)
+	require.False(t, ok)
+
+	// the replica is lagging behind the master
+	slaveGTID = mustGTIDSet("6DBC0B04-4B09-43DC-86CC-9AF852DED919:1-99," +
+		"09978591-5754-4710-BF67-062880ABE1B4:1-100," +
+		"AA6890C8-69F8-4BC4-B3A5-5D3FEA8C28CF:1-100")
+	ok = isSplitBrained(slaveGTID, masterGTID, masterUUID)
+	require.False(t, ok)
+
+	// the replica is lagging behind the new master
+	slaveGTID = mustGTIDSet("6DBC0B04-4B09-43DC-86CC-9AF852DED919:1-100," +
+		"09978591-5754-4710-BF67-062880ABE1B4:1-100")
+	ok = isSplitBrained(slaveGTID, masterGTID, masterUUID)
+	require.False(t, ok)
+
+	// the replica applied the transaction from the master before the master
+	slaveGTID = mustGTIDSet("6DBC0B04-4B09-43DC-86CC-9AF852DED919:1-101," +
+		"09978591-5754-4710-BF67-062880ABE1B4:1-100," +
+		"AA6890C8-69F8-4BC4-B3A5-5D3FEA8C28CF:1-100")
+	ok = isSplitBrained(slaveGTID, masterGTID, masterUUID)
+	require.False(t, ok)
+
+	// the replica applied a transaction not from the master
+	slaveGTID = mustGTIDSet("6DBC0B04-4B09-43DC-86CC-9AF852DED919:1-100," +
+		"09978591-5754-4710-BF67-062880ABE1B4:1-100," +
+		"AA6890C8-69F8-4BC4-B3A5-5D3FEA8C28CF:1-101")
+	ok = isSplitBrained(slaveGTID, masterGTID, masterUUID)
+	require.True(t, ok)
+
+	// the replica applied a new transaction not from the master
+	slaveGTID = mustGTIDSet("6DBC0B04-4B09-43DC-86CC-9AF852DED919:1-101," +
+		"09978591-5754-4710-BF67-062880ABE1B4:1-100," +
+		"AA6890C8-69F8-4BC4-B3A5-5D3FEA8C28CF:1-100," +
+		"BB6890C8-69F8-4BC4-B3A5-5D3FEA8C28CF:1-100")
+	ok = isSplitBrained(slaveGTID, masterGTID, masterUUID)
+	require.True(t, ok)
+}
