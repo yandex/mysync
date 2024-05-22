@@ -1007,22 +1007,23 @@ func (n *Node) SetDefaultReplicationSettings(masterNode *Node) error {
 
 func (n *Node) GetReplMonTS(replMonTable string) (string, error) {
 	result := new(ReplMonTS)
-	err := n.queryRow(queryGetReplMonTS, map[string]interface{}{"replMonTable": replMonTable}, result)
+	err := n.queryRow(strings.ReplaceAll(queryGetReplMonTS, "replMonTable", replMonTable), nil, result)
 	return result.Timestamp, err
 }
 
 func (n *Node) CalcReplMonTSDelay(replMonTable string, ts string) (int64, error) {
 	result := new(ReplMonTSDelay)
-	err := n.queryRow(queryCalcReplMonTSDelay, map[string]interface{}{"ts": ts, "replMonTable": replMonTable}, result)
+	err := n.queryRow(strings.ReplaceAll(queryCalcReplMonTSDelay, "replMonTable", replMonTable),
+		map[string]interface{}{"ts": ts}, result)
 	return result.Delay, err
 }
 
 func (n *Node) CreateReplMonTable(replMonTable string) error {
-	err := n.exec(queryCreateReplMonTable, map[string]interface{}{"replMonTable": replMonTable})
+	err := n.exec(strings.ReplaceAll(queryCreateReplMonTable, "replMonTable", replMonTable), nil)
 	return err
 }
 
 func (n *Node) UpdateReplMonTable(replMonTable string) error {
-	err := n.exec(queryUpdateReplMon, map[string]interface{}{"replMonTable": replMonTable})
+	err := n.exec(strings.ReplaceAll(queryUpdateReplMon, "replMonTable", replMonTable), nil)
 	return err
 }

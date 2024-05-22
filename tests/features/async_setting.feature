@@ -119,25 +119,6 @@ Feature: mysync async mode tests
     And mysql host "mysql3" should have variable "rpl_semi_sync_master_enabled" set to "0"
     And mysql host "mysql3" should have variable "rpl_semi_sync_slave_enabled" set to "0"
 
-
-    When I run SQL on mysql host "mysql1"
-      """
-      CREATE TABLE mysql.mdb_repl_mon(
-          ts TIMESTAMP(3)
-      ) ENGINE=INNODB;
-      """
-    And I run SQL on mysql host "mysql1"
-      """
-      INSERT INTO mysql.mdb_repl_mon VALUES(CURRENT_TIMESTAMP(3));
-      """
-    And I run SQL on mysql host "mysql1"
-      """
-      CREATE EVENT mysql.mdb_repl_mon_event
-      ON SCHEDULE EVERY 1 SECOND
-      DO UPDATE mysql.mdb_repl_mon SET ts = CURRENT_TIMESTAMP(3);
-      """
-    Then mysql host "mysql1" should have event "mysql.mdb_repl_mon_event" in status "ENABLED"
-
     And I wait for "2" seconds
     And I run SQL on mysql host "mysql1"
       """
@@ -241,25 +222,6 @@ Feature: mysync async mode tests
     And mysql host "mysql2" should have variable "rpl_semi_sync_slave_enabled" set to "0"
     And mysql host "mysql3" should have variable "rpl_semi_sync_master_enabled" set to "0"
     And mysql host "mysql3" should have variable "rpl_semi_sync_slave_enabled" set to "0"
-
-
-    When I run SQL on mysql host "mysql1"
-      """
-      CREATE TABLE mysql.mdb_repl_mon(
-          ts TIMESTAMP(3)
-      ) ENGINE=INNODB;
-      """
-    And I run SQL on mysql host "mysql1"
-      """
-      INSERT INTO mysql.mdb_repl_mon VALUES(CURRENT_TIMESTAMP(3));
-      """
-    And I run SQL on mysql host "mysql1"
-      """
-      CREATE EVENT mysql.mdb_repl_mon_event
-      ON SCHEDULE EVERY 1 SECOND
-      DO UPDATE mysql.mdb_repl_mon SET ts = CURRENT_TIMESTAMP(3);
-      """
-    Then mysql host "mysql1" should have event "mysql.mdb_repl_mon_event" in status "ENABLED"
 
     And I wait for "2" seconds
     And I run SQL on mysql host "mysql1"
@@ -367,25 +329,6 @@ Feature: mysync async mode tests
     And mysql host "mysql2" should have variable "rpl_semi_sync_slave_enabled" set to "0"
     And mysql host "mysql3" should have variable "rpl_semi_sync_master_enabled" set to "0"
     And mysql host "mysql3" should have variable "rpl_semi_sync_slave_enabled" set to "0"
-
-
-    When I run SQL on mysql host "mysql1"
-      """
-      CREATE TABLE mysql.mdb_repl_mon(
-          ts TIMESTAMP(3)
-      ) ENGINE=INNODB;
-      """
-    And I run SQL on mysql host "mysql1"
-      """
-      INSERT INTO mysql.mdb_repl_mon VALUES(CURRENT_TIMESTAMP(3));
-      """
-    And I run SQL on mysql host "mysql1"
-      """
-      CREATE EVENT mysql.mdb_repl_mon_event
-      ON SCHEDULE EVERY 1 SECOND
-      DO UPDATE mysql.mdb_repl_mon SET ts = CURRENT_TIMESTAMP(3);
-      """
-    Then mysql host "mysql1" should have event "mysql.mdb_repl_mon_event" in status "ENABLED"
 
     And I wait for "2" seconds
     And I run SQL on mysql host "mysql1"
