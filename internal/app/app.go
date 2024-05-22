@@ -320,7 +320,12 @@ func (app *App) checkRecovery() {
 	app.logger.Infof("recovery: local node %s has GTIDs %s", localNode.Host(), sstatus.GetExecutedGtidSet())
 
 	if isSlavePermanentlyLost(sstatus, mgtids) {
-		app.logger.Errorf("recovery: local node %s is NOT behind the master %s, need RESETUP", localNode.Host(), masterNode)
+		rp, err := localNode.GetReplicaStatus()
+		if err != nil {
+			app.logger.Errorf("recovery: local node %s is NOT behind the master %s, need RESETUP", localNode.Host(), masterNode)
+		} else {
+			app.logger.Errorf("recovery: local node %s is NOT behind the master %s, need RESETUP, last IO errno: %d", localNode.Host(), masterNode, rp.GetLastIOErrno())
+		}
 		app.writeResetupFile("")
 	} else {
 		readOnly, _, err := localNode.IsReadOnly()
@@ -1070,6 +1075,11 @@ func (app *App) enableSemiSyncOnSlave(host string) error {
 	err = node.RestartSlaveIOThread()
 	if err != nil {
 		app.logger.Errorf("failed restart slave io thread after set semi_sync_slave on %s: %s", host, err)
+		return err
+	}
+	err = node.RestartReplication()
+	if err != nil {
+		app.logger.Errorf("failed restart replication after set semi_sync_slave on %s: %s", host, err)
 		return err
 	}
 	return nil
