@@ -1016,3 +1016,13 @@ func (n *Node) CalcMdbReplMonTSDelay(ts string) (int64, error) {
 	err := n.queryRow(queryCalcMdbReplMonTSDelay, map[string]interface{}{"ts": ts}, result)
 	return result.Delay, err
 }
+
+func (n *Node) CreateReplMonTable(replMonTable string) error {
+	err := n.exec(queryCreateReplMonTable, map[string]interface{}{"replMonTable": replMonTable})
+	return err
+}
+
+func (n *Node) UpdateReplMonTable(replMonTable string) error {
+	err := n.exec(queryUpdateReplMon, map[string]interface{}{"replMonTable": replMonTable})
+	return err
+}

@@ -48,6 +48,8 @@ const (
 	queryGetReplicationSettings         = "get_replication_settings"
 	queryGetMdbReplMonTS                = "get_mdb_repl_mon_ts"
 	queryCalcMdbReplMonTSDelay          = "calc_mdb_repl_mon_ts_delay"
+	queryCreateReplMonTable				= "create_repl_mon_table"
+	queryUpdateReplMon					= "update_repl_mon"
 )
 
 var DefaultQueries = map[string]string{
@@ -129,4 +131,15 @@ var DefaultQueries = map[string]string{
 	querySetSyncBinlog:                `SET GLOBAL sync_binlog = :sync_binlog`,
 	queryGetMdbReplMonTS:              `SELECT UNIX_TIMESTAMP(ts) AS ts FROM mysql.mdb_repl_mon`,
 	queryCalcMdbReplMonTSDelay:        `SELECT FLOOR(CAST(:ts AS DECIMAL(20,3)) - UNIX_TIMESTAMP(ts)) AS delay FROM mysql.mdb_repl_mon`,
+	queryCreateReplMonTable:			`CREATE TABLE IF NOT EXISTS :replMonTable (
+												id INT NOT NULL PRIMARY KEY,
+												ts TIMESTAMP(3)
+										)
+										ENGINE=INNODB`,
+	queryUpdateReplMon: 				`INSERT INTO :replMonTable (id, ts)
+										(
+											SELECT 1, CURRENT_TIMESTAMP(3)
+											WHERE @@read_only = 0
+										)
+									ON DUPLICATE KEY UPDATE ts = CURRENT_TIMESTAMP(3)`,
 }

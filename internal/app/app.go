@@ -256,6 +256,51 @@ func (app *App) externalCAFileChecker(ctx context.Context) {
 	}
 }
 
+func (app *App) replMonWriter(ctx context.Context) {
+	ticker := time.NewTicker(app.config.ReplMonWriteInterval)
+	for {
+		select {
+		case <-ticker.C:
+			localNode := app.cluster.Local()
+			sstatus, err := localNode.GetReplicaStatus()
+			if err != nil {
+				app.logger.Errorf("repl mon writer: got error %v while checking replica status", err)
+				time.Sleep(app.config.ReplMonErrorWaitInterval)
+				continue
+			}
+			if sstatus != nil {
+				app.logger.Infof("repl mon writer: host is replica")
+				time.Sleep(app.config.ReplMonSlaveWaitInterval)
+				continue
+			}
+			readOnly, _, err := localNode.IsReadOnly()
+			if err != nil {
+				app.logger.Errorf("repl mon writer: got error %v while checking read only status", err)
+				time.Sleep(app.config.ReplMonErrorWaitInterval)
+				continue
+			}
+			if readOnly {
+				app.logger.Infof("repl mon writer: host is read only")
+				time.Sleep(app.config.ReplMonSlaveWaitInterval)
+				continue
+			}
+			err = localNode.UpdateReplMonTable(app.config.ReplMonTableName)
+			if err != nil {
+				if mysql.IsErrorTableDoesNotExists(err) {
+					err = localNode.CreateReplMonTable(app.config.ReplMonTableName)
+					if err != nil {
+						app.logger.Errorf("repl mon writer: got error %v while creating repl mon table", err)
+					}
+					continue
+				}
+				app.logger.Errorf("repl mon writer: got error %v while writing in repl mon table", err)
+			}
+		case <-ctx.Done():
+			return
+		}
+	}
+}
+
 func (app *App) SetResetupStatus() {
 	err := app.setResetupStatus(app.cluster.Local().Host(), app.doesResetupFileExist())
 	if err != nil {
@@ -2284,6 +2329,9 @@ func (app *App) Run() int {
 	go app.stateFileHandler(ctx)
 	if app.config.ExternalReplicationType != util.Disabled {
 		go app.externalCAFileChecker(ctx)
+	}
+	if app.config.ASync {
+		go app.replMonWriter(ctx)
 	}
 
 	handlers := map[appState](func() appState){

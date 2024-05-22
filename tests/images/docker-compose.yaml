@@ -96,6 +96,7 @@ services:
       MYSYNC_REPLICATION_REPAIR_AGGRESSIVE_MODE:
       MYSYNC_SET_RO_TIMEOUT:
       MYSYNC_REPLICATION_LAG_QUERY:
+      REPL_MON:
     healthcheck:
       test: "mysql --user=admin --password=admin_pwd -e 'SELECT 1'"
       start_period: 30s
@@ -141,6 +142,7 @@ services:
       MYSYNC_REPLICATION_REPAIR_AGGRESSIVE_MODE:
       MYSYNC_SET_RO_TIMEOUT:
       MYSYNC_REPLICATION_LAG_QUERY:
+      REPL_MON:
     depends_on:
       mysql1:
         condition: service_healthy
@@ -180,6 +182,7 @@ services:
       MYSYNC_REPLICATION_REPAIR_AGGRESSIVE_MODE:
       MYSYNC_SET_RO_TIMEOUT:
       MYSYNC_REPLICATION_LAG_QUERY:
+      REPL_MON:
     depends_on:
       mysql1:
         condition: service_healthy
