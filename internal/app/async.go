@@ -8,12 +8,12 @@ import (
 func (app *App) CheckAsyncSwitchAllowed(node *mysql.Node, switchover *Switchover) bool {
 	if app.config.ASync && switchover.Cause == CauseAuto {
 		app.logger.Infof("async mode is active and this is auto switch so we checking new master delay")
-		ts, err := app.GetMdbReplMonTS()
+		ts, err := app.GetReplMonTS()
 		if err != nil {
 			app.logger.Errorf("failed to get mdb repl mon ts: %v", err)
 			return false
 		}
-		delay, err := node.CalcMdbReplMonTSDelay(ts)
+		delay, err := node.CalcReplMonTSDelay(app.config.ReplMonTableName, ts)
 		if err != nil {
 			app.logger.Errorf("failed to calc mdb repl mon ts: %v", err)
 			return false
@@ -27,11 +27,11 @@ func (app *App) CheckAsyncSwitchAllowed(node *mysql.Node, switchover *Switchover
 	return false
 }
 
-func (app *App) updateMdbReplMonTS(master string) error {
+func (app *App) updateReplMonTS(master string) error {
 	masterNode := app.cluster.Get(master)
-	ts, err := masterNode.GetMdbReplMonTS()
+	ts, err := masterNode.GetReplMonTS(app.config.ReplMonTableName)
 	if err != nil {
-		return fmt.Errorf("failed to get master mdb_repl_mon timestamp: %v", err)
+		return fmt.Errorf("failed to get master repl_mon timestamp: %v", err)
 	}
-	return app.SetMdbReplMonTS(ts)
+	return app.SetReplMonTS(ts)
 }

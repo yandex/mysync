@@ -1005,15 +1005,15 @@ func (n *Node) SetDefaultReplicationSettings(masterNode *Node) error {
 	return nil
 }
 
-func (n *Node) GetMdbReplMonTS() (string, error) {
-	result := new(MdbReplMonTS)
-	err := n.queryRow(queryGetMdbReplMonTS, nil, result)
+func (n *Node) GetReplMonTS(replMonTable string) (string, error) {
+	result := new(ReplMonTS)
+	err := n.queryRow(queryGetReplMonTS, map[string]interface{}{"replMonTable": replMonTable}, result)
 	return result.Timestamp, err
 }
 
-func (n *Node) CalcMdbReplMonTSDelay(ts string) (int64, error) {
-	result := new(MdbReplMonTSDelay)
-	err := n.queryRow(queryCalcMdbReplMonTSDelay, map[string]interface{}{"ts": ts}, result)
+func (n *Node) CalcReplMonTSDelay(replMonTable string, ts string) (int64, error) {
+	result := new(ReplMonTSDelay)
+	err := n.queryRow(queryCalcReplMonTSDelay, map[string]interface{}{"ts": ts, "replMonTable": replMonTable}, result)
 	return result.Delay, err
 }
 
