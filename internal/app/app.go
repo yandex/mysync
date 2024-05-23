@@ -321,10 +321,10 @@ func (app *App) checkRecovery() {
 
 	if isSlavePermanentlyLost(sstatus, mgtids) {
 		rp, err := localNode.GetReplicaStatus()
-		if err != nil {
-			app.logger.Errorf("recovery: local node %s is NOT behind the master %s, need RESETUP", localNode.Host(), masterNode)
+		if err == nil {
+			app.logger.Errorf("recovery: local node %s has IO errno: %d", localNode.Host(), rp.GetLastIOErrno())
 		} else {
-			app.logger.Errorf("recovery: local node %s is NOT behind the master %s, need RESETUP, last IO errno: %d", localNode.Host(), masterNode, rp.GetLastIOErrno())
+			app.logger.Errorf("recovery: local node %s is NOT behind the master %s, need RESETUP", localNode.Host(), masterNode)
 		}
 		app.writeResetupFile("")
 	} else {
@@ -1072,12 +1072,7 @@ func (app *App) enableSemiSyncOnSlave(host string) error {
 		app.logger.Errorf("failed to enable semi_sync_slave on %s: %s", host, err)
 		return err
 	}
-	err = node.RestartSlaveIOThread()
-	if err != nil {
-		app.logger.Errorf("failed restart slave io thread after set semi_sync_slave on %s: %s", host, err)
-		return err
-	}
-	err = node.RestartReplication()
+	err = node.RestartReplica()
 	if err != nil {
 		app.logger.Errorf("failed restart replication after set semi_sync_slave on %s: %s", host, err)
 		return err

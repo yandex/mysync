@@ -722,8 +722,8 @@ func (n *Node) StartSlave() error {
 	})
 }
 
-// RestartReplication restart replication
-func (n *Node) RestartReplication() error {
+// RestartReplica restart replication
+func (n *Node) RestartReplica() error {
 	err := n.StopSlave()
 	if err != nil {
 		return err
