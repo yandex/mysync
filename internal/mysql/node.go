@@ -344,6 +344,11 @@ func (n *Node) queryRowMogrifyWithTimeout(queryName string, arg map[string]inter
 	return err
 }
 
+func (n *Node) queryRowMogrify(queryName string, arg map[string]interface{}, result interface{}) error {
+	return n.queryRowMogrifyWithTimeout(queryName, arg, result, n.config.DBTimeout)
+
+}
+
 // IsRunning checks if daemon process is running
 func (n *Node) IsRunning() (bool, error) {
 	if !n.IsLocal() {
@@ -1007,23 +1012,28 @@ func (n *Node) SetDefaultReplicationSettings(masterNode *Node) error {
 
 func (n *Node) GetReplMonTS(replMonTable string) (string, error) {
 	result := new(ReplMonTS)
-	err := n.queryRow(strings.ReplaceAll(queryGetReplMonTS, "replMonTable", replMonTable), nil, result)
+	err := n.queryRowMogrify(queryGetReplMonTS,
+		map[string]interface{}{"replMonTable": replMonTable},
+		result)
 	return result.Timestamp, err
 }
 
 func (n *Node) CalcReplMonTSDelay(replMonTable string, ts string) (int64, error) {
 	result := new(ReplMonTSDelay)
-	err := n.queryRow(strings.ReplaceAll(queryCalcReplMonTSDelay, "replMonTable", replMonTable),
-		map[string]interface{}{"ts": ts}, result)
+	err := n.queryRowMogrify(queryCalcReplMonTSDelay,
+		map[string]interface{}{"ts": ts, "replMonTable": replMonTable},
+		result)
 	return result.Delay, err
 }
 
 func (n *Node) CreateReplMonTable(replMonTable string) error {
-	err := n.exec(strings.ReplaceAll(queryCreateReplMonTable, "replMonTable", replMonTable), nil)
-	return err
+	return n.execMogrify(queryCreateReplMonTable, map[string]interface{}{
+		"replMonTable": replMonTable,
+	})
 }
 
 func (n *Node) UpdateReplMonTable(replMonTable string) error {
-	err := n.exec(strings.ReplaceAll(queryUpdateReplMon, "replMonTable", replMonTable), nil)
-	return err
+	return n.execMogrify(queryUpdateReplMon, map[string]interface{}{
+		"replMonTable": replMonTable,
+	})
 }

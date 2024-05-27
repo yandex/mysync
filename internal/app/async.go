@@ -6,7 +6,7 @@ import (
 )
 
 func (app *App) CheckAsyncSwitchAllowed(node *mysql.Node, switchover *Switchover) bool {
-	if app.config.ASync && switchover.Cause == CauseAuto {
+	if app.config.ASync && switchover.Cause == CauseAuto && app.config.AsyncAllowedLag > 0 {
 		app.logger.Infof("async mode is active and this is auto switch so we checking new master delay")
 		ts, err := app.GetReplMonTS()
 		if err != nil {

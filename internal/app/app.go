@@ -2330,7 +2330,7 @@ func (app *App) Run() int {
 	if app.config.ExternalReplicationType != util.Disabled {
 		go app.externalCAFileChecker(ctx)
 	}
-	if app.config.ASync {
+	if app.config.ReplMon {
 		go app.replMonWriter(ctx)
 	}
 
