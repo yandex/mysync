@@ -322,7 +322,12 @@ func (app *App) checkRecovery() {
 	if isSlavePermanentlyLost(sstatus, mgtids) {
 		rp, err := localNode.GetReplicaStatus()
 		if err == nil {
-			app.logger.Errorf("recovery: local node %s has IO errno: %d", localNode.Host(), rp.GetLastIOErrno())
+			if rp.GetLastError() != "" {
+				app.logger.Errorf("recovery: local node %s has error: %s", localNode.Host(), rp.GetLastError())
+			}
+			if rp.GetLastIOError() != "" {
+				app.logger.Errorf("recovery: local node %s has IO error: %s", localNode.Host(), rp.GetLastIOError())
+			}
 		} else {
 			app.logger.Errorf("recovery: local node %s is NOT behind the master %s, need RESETUP", localNode.Host(), masterNode)
 		}

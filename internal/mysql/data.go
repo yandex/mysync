@@ -68,9 +68,11 @@ type SlaveStatusStruct struct {
 	ReadMasterLogPos int64           `db:"Read_Master_Log_Pos"`
 	SlaveIORunning   string          `db:"Slave_IO_Running"`
 	SlaveSQLRunning  string          `db:"Slave_SQL_Running"`
+	LastError        string          `db:"Last_Error"`
 	RetrievedGtidSet string          `db:"Retrieved_Gtid_Set"`
 	ExecutedGtidSet  string          `db:"Executed_Gtid_Set"`
 	LastIOErrno      int             `db:"Last_IO_Errno"`
+	LastIOError      string          `db:"Last_IO_Error"`
 	LastSQLErrno     int             `db:"Last_SQL_Errno"`
 	Lag              sql.NullFloat64 `db:"Seconds_Behind_Master"`
 }
@@ -83,9 +85,11 @@ type ReplicaStatusStruct struct {
 	ReadSourceLogPos  int64           `db:"Read_Source_Log_Pos"`
 	ReplicaIORunning  string          `db:"Replica_IO_Running"`
 	ReplicaSQLRunning string          `db:"Replica_SQL_Running"`
+	LastError         string          `db:"Last_Error"`
 	RetrievedGtidSet  string          `db:"Retrieved_Gtid_Set"`
 	ExecutedGtidSet   string          `db:"Executed_Gtid_Set"`
 	LastIOErrno       int             `db:"Last_IO_Errno"`
+	LastIOError       string          `db:"Last_IO_Error"`
 	LastSQLErrno      int             `db:"Last_SQL_Errno"`
 	Lag               sql.NullFloat64 `db:"Seconds_Behind_Source"`
 }
@@ -95,12 +99,14 @@ type ReplicaStatus interface {
 	ReplicationSQLRunning() bool
 	ReplicationRunning() bool
 	ReplicationState() string
+	GetLastError() string
 	GetMasterHost() string
 	GetMasterLogFile() string
 	GetReadMasterLogPos() int64
 	GetExecutedGtidSet() string
 	GetRetrievedGtidSet() string
 	GetLastIOErrno() int
+	GetLastIOError() string
 	GetLastSQLErrno() int
 	GetReplicationLag() sql.NullFloat64
 }
@@ -142,6 +148,14 @@ func (ss *SlaveStatusStruct) GetRetrievedGtidSet() string {
 
 func (ss *SlaveStatusStruct) GetLastIOErrno() int {
 	return ss.LastIOErrno
+}
+
+func (ss *SlaveStatusStruct) GetLastError() string {
+	return ss.LastError
+}
+
+func (ss *SlaveStatusStruct) GetLastIOError() string {
+	return ss.LastIOError
 }
 
 func (ss *SlaveStatusStruct) GetLastSQLErrno() int {
@@ -211,7 +225,13 @@ func (ss *ReplicaStatusStruct) GetReplicationLag() sql.NullFloat64 {
 	return ss.Lag
 }
 
-//GetReplicationLag
+func (ss *ReplicaStatusStruct) GetLastError() string {
+	return ss.LastError
+}
+
+func (ss *ReplicaStatusStruct) GetLastIOError() string {
+	return ss.LastIOError
+}
 
 // ReplicationState ...
 func (ss *SlaveStatusStruct) ReplicationState() string {
