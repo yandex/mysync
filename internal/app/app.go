@@ -284,10 +284,10 @@ func (app *App) replMonWriter(ctx context.Context) {
 				time.Sleep(app.config.ReplMonSlaveWaitInterval)
 				continue
 			}
-			err = localNode.UpdateReplMonTable(app.config.ReplMonTableName)
+			err = localNode.UpdateReplMonTable(app.config.ReplMonSchemeName, app.config.ReplMonTableName)
 			if err != nil {
 				if mysql.IsErrorTableDoesNotExists(err) {
-					err = localNode.CreateReplMonTable(app.config.ReplMonTableName)
+					err = localNode.CreateReplMonTable(app.config.ReplMonSchemeName, app.config.ReplMonTableName)
 					if err != nil {
 						app.logger.Errorf("repl mon writer: got error %v while creating repl mon table", err)
 					}

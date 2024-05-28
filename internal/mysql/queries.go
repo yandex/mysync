@@ -129,14 +129,14 @@ var DefaultQueries = map[string]string{
 	querySetInnodbFlushLogAtTrxCommit: `SET GLOBAL innodb_flush_log_at_trx_commit = :level`,
 	queryGetReplicationSettings:       `SELECT @@innodb_flush_log_at_trx_commit as InnodbFlushLogAtTrxCommit, @@sync_binlog as SyncBinlog`,
 	querySetSyncBinlog:                `SET GLOBAL sync_binlog = :sync_binlog`,
-	queryGetReplMonTS:              `SELECT UNIX_TIMESTAMP(ts) AS ts FROM :replMonTable`,
-	queryCalcReplMonTSDelay:        `SELECT FLOOR(CAST(:ts AS DECIMAL(20,3)) - UNIX_TIMESTAMP(ts)) AS delay FROM :replMonTable`,
-	queryCreateReplMonTable:			`CREATE TABLE IF NOT EXISTS :replMonTable(
+	queryGetReplMonTS:              `SELECT UNIX_TIMESTAMP(ts) AS ts FROM :replMonSchemeName.:replMonTable`,
+	queryCalcReplMonTSDelay:        `SELECT FLOOR(CAST(:ts AS DECIMAL(20,3)) - UNIX_TIMESTAMP(ts)) AS delay FROM :replMonSchemeName.:replMonTable`,
+	queryCreateReplMonTable:			`CREATE TABLE IF NOT EXISTS :replMonSchemeName.:replMonTable(
 												id INT NOT NULL PRIMARY KEY,
 												ts TIMESTAMP(3)
 										)
 										ENGINE=INNODB`,
-	queryUpdateReplMon: 				`INSERT INTO :replMonTable(id, ts)
+	queryUpdateReplMon: 				`INSERT INTO :replMonSchemeName.:replMonTable(id, ts)
 										(
 											SELECT 1, CURRENT_TIMESTAMP(3)
 											WHERE @@read_only = 0

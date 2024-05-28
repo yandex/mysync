@@ -13,7 +13,7 @@ func (app *App) CheckAsyncSwitchAllowed(node *mysql.Node, switchover *Switchover
 			app.logger.Errorf("failed to get mdb repl mon ts: %v", err)
 			return false
 		}
-		delay, err := node.CalcReplMonTSDelay(app.config.ReplMonTableName, ts)
+		delay, err := node.CalcReplMonTSDelay(app.config.ReplMonSchemeName, app.config.ReplMonTableName, ts)
 		if err != nil {
 			app.logger.Errorf("failed to calc mdb repl mon ts: %v", err)
 			return false
@@ -29,7 +29,7 @@ func (app *App) CheckAsyncSwitchAllowed(node *mysql.Node, switchover *Switchover
 
 func (app *App) updateReplMonTS(master string) error {
 	masterNode := app.cluster.Get(master)
-	ts, err := masterNode.GetReplMonTS(app.config.ReplMonTableName)
+	ts, err := masterNode.GetReplMonTS(app.config.ReplMonSchemeName, app.config.ReplMonTableName)
 	if err != nil {
 		return fmt.Errorf("failed to get master repl_mon timestamp: %v", err)
 	}

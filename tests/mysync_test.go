@@ -826,6 +826,10 @@ func (tctx *testContext) stepIRunSQLOnHostExpectingErrorOfNumber(host string, er
 	query := strings.TrimSpace(body.Content)
 	_, err := tctx.queryMysql(host, query, struct{}{})
 	mysqlErr, ok := err.(*mysql.MySQLError)
+	if mysqlErr == nil {
+		err = fmt.Errorf("there is no expected sql error")
+		return err
+	}
 	if !ok {
 		return err
 	}

@@ -91,6 +91,7 @@ type Config struct {
 	ASync                                   bool                         `config:"async" yaml:"async"`
 	AsyncAllowedLag                         int64                        `config:"async_allowed_lag" yaml:"async_allowed_lag"`
 	ReplMon                                 bool                         `config:"repl_mon" yaml:"repl_mon"`
+	ReplMonSchemeName						string						 `config:"repl_mon_scheme_name" yaml:"repl_mon_scheme_name"`
 	ReplMonTableName						string                       `config:"repl_mon_table_name" yaml:"repl_mon_table_name"`
 	ReplMonWriteInterval					time.Duration                `config:"repl_mon_write_interval" yaml:"repl_mon_write_interval"`
 	ReplMonErrorWaitInterval				time.Duration                `config:"repl_mon_error_wait_interval" yaml:"repl_mon_error_wait_interval"`
@@ -174,7 +175,8 @@ func DefaultConfig() (Config, error) {
 		ASync:                                   false,
 		AsyncAllowedLag:                         0,
 		ReplMon: 								 false,
-		ReplMonTableName: 						"mysql.mysync_repl_mon",
+		ReplMonSchemeName:						"mysql",
+		ReplMonTableName: 						"mysync_repl_mon",
 		ReplMonWriteInterval:					 1 * time.Second,
 		ReplMonErrorWaitInterval:				 10 * time.Second,
 		ReplMonSlaveWaitInterval:				 10 * time.Second,
