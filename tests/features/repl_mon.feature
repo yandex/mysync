@@ -1,0 +1,57 @@
+Feature: repl_mon tests
+
+  Scenario: repl_mon enabled
+    Given cluster environment is
+      """
+      REPL_MON=true
+      """
+    Given cluster is up and running
+    When I wait for "10" seconds
+    Then zookeeper node "/test/active_nodes" should match json_exactly within "20" seconds
+      """
+      ["mysql1","mysql2","mysql3"]
+      """
+    And I wait for "5" seconds
+    And I run SQL on mysql host "mysql1" expecting error on number "1050"
+      """
+        CREATE TABLE mysql.mysync_repl_mon(
+            ts TIMESTAMP(3)
+        ) ENGINE=INNODB;
+      """
+    And I run SQL on mysql host "mysql1"
+      """
+        SELECT (CURRENT_TIMESTAMP(3) - ts) < 2 as res FROM mysql.mysync_repl_mon
+      """
+    Then SQL result should match json
+      """
+      [{"res":1}]
+      """
+
+  Scenario: repl_mon disabled
+    Given cluster environment is
+      """
+      REPL_MON=false
+      """
+    Given cluster is up and running
+    When I wait for "10" seconds
+    Then zookeeper node "/test/active_nodes" should match json_exactly within "20" seconds
+      """
+      ["mysql1","mysql2","mysql3"]
+      """
+    And I wait for "5" seconds
+    And I run SQL on mysql host "mysql1"
+    """
+        CREATE TABLE mysql.mysync_repl_mon(
+            ts TIMESTAMP(3)
+        ) ENGINE=INNODB;
+    """
+    And I wait for "5" seconds
+    And I run SQL on mysql host "mysql1"
+    """
+        SELECT count(*) as res FROM mysql.mysync_repl_mon
+    """
+    Then SQL result should match json
+      """
+      [{"res":0}]
+      """
+
