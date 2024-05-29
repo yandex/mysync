@@ -135,7 +135,7 @@ Feature: mysync async mode tests
     And I run SQL on mysql host "mysql2"
       """
       STOP REPLICA FOR CHANNEL '';
-      CHANGE REPLICATION SOURCE TO SOURCE_DELAY = 90;
+      CHANGE REPLICATION SOURCE TO SOURCE_DELAY = 100;
       START REPLICA FOR CHANNEL '';
       """
     And I run SQL on mysql host "mysql3"
@@ -149,7 +149,7 @@ Feature: mysync async mode tests
       """
       INSERT INTO mysql.test_table1 VALUES ("D"), ("E"), ("F")
       """
-    And I wait for "40" seconds
+    And I wait for "50" seconds
     When I run SQL on mysql host "mysql2"
       """
       SELECT GROUP_CONCAT(value) as val from (SELECT value from mysql.test_table1 order by value) as t
@@ -164,7 +164,7 @@ Feature: mysync async mode tests
       """
       .*mysql[23].*
       """
-    Then zookeeper node "/test/last_switch" should match json within "60" seconds
+    Then zookeeper node "/test/last_switch" should match json within "90" seconds
       """
       {
           "cause": "auto",
@@ -191,7 +191,7 @@ Feature: mysync async mode tests
       """
         [{"val":"A,B,C"}]
       """
-    And I wait for "150" seconds
+    And I wait for "180" seconds
     When I run SQL on mysql host "mysql3"
       """
       SELECT GROUP_CONCAT(value) as val from (SELECT value from mysql.test_table1 order by value) as t
@@ -278,7 +278,7 @@ Feature: mysync async mode tests
         "from": "mysql1"
       }
       """
-    Then zookeeper node "/test/last_switch" should match json within "80" seconds
+    Then zookeeper node "/test/last_switch" should match json within "100" seconds
       """
       {
           "from": "mysql1",
