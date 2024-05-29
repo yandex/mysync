@@ -26,6 +26,14 @@ Feature: repl_mon tests
       """
       [{"res":1}]
       """
+    And I run SQL on mysql host "mysql2" expecting error on number "1146"
+      """
+        SELECT ts FROM mysql.mysync_repl_mon
+      """
+    And I run SQL on mysql host "mysql3" expecting error on number "1146"
+      """
+        SELECT ts FROM mysql.mysync_repl_mon
+      """
 
   Scenario: repl_mon disabled
     Given cluster environment is
@@ -54,4 +62,11 @@ Feature: repl_mon tests
       """
       [{"res":0}]
       """
-
+    And I run SQL on mysql host "mysql2" expecting error on number "1146"
+      """
+        SELECT ts FROM mysql.mysync_repl_mon
+      """
+    And I run SQL on mysql host "mysql3" expecting error on number "1146"
+      """
+        SELECT ts FROM mysql.mysync_repl_mon
+      """
