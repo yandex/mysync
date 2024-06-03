@@ -38,7 +38,7 @@ type App struct {
 	daemonMutex         sync.Mutex
 	replRepairState     map[string]*ReplicationRepairState
 	externalReplication mysql.IExternalReplication
-	switchHelper 		mysql.ISwitchHelper
+	switchHelper        mysql.ISwitchHelper
 }
 
 // NewApp returns new App. Suddenly.
@@ -72,7 +72,7 @@ func NewApp(configFile, logLevel string, interactive bool) (*App, error) {
 		streamFromFailedAt:  make(map[string]time.Time),
 		replRepairState:     make(map[string]*ReplicationRepairState),
 		externalReplication: externalReplication,
-		switchHelper: switchHelper,
+		switchHelper:        switchHelper,
 	}
 	return app, nil
 }
