@@ -63,7 +63,7 @@ func NewApp(configFile, logLevel string, interactive bool) (*App, error) {
 	if err != nil {
 		return nil, err
 	}
-	switchHelper := mysql.NewSwitchHelper(config, logger)
+	switchHelper := mysql.NewSwitchHelper(config)
 	app := &App{
 		state:               stateFirstRun,
 		config:              config,
