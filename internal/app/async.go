@@ -2,6 +2,7 @@ package app
 
 import (
 	"fmt"
+
 	"github.com/yandex/mysync/internal/mysql"
 )
 
