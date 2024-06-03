@@ -280,7 +280,7 @@ func (app *App) CliSwitch(switchFrom, switchTo string, waitTimeout time.Duration
 				app.logger.Errorf(err.Error())
 				return 1
 			}
-			toHost, err = getMostDesirableNode(app.logger, positions, app.config.PriorityChoiceMaxLag)
+			toHost, err = getMostDesirableNode(app.logger, positions, app.switchHelper.GetPriorityChoiceMaxLag())
 			if err != nil {
 				app.logger.Errorf(err.Error())
 				return 1

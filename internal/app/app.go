@@ -38,6 +38,7 @@ type App struct {
 	daemonMutex         sync.Mutex
 	replRepairState     map[string]*ReplicationRepairState
 	externalReplication mysql.IExternalReplication
+	switchHelper 		mysql.ISwitchHelper
 }
 
 // NewApp returns new App. Suddenly.
@@ -62,6 +63,7 @@ func NewApp(configFile, logLevel string, interactive bool) (*App, error) {
 	if err != nil {
 		return nil, err
 	}
+	switchHelper := mysql.NewSwitchHelper(config, logger)
 	app := &App{
 		state:               stateFirstRun,
 		config:              config,
@@ -70,6 +72,7 @@ func NewApp(configFile, logLevel string, interactive bool) (*App, error) {
 		streamFromFailedAt:  make(map[string]time.Time),
 		replRepairState:     make(map[string]*ReplicationRepairState),
 		externalReplication: externalReplication,
+		switchHelper: switchHelper,
 	}
 	return app, nil
 }
@@ -1274,13 +1277,8 @@ func (app *App) performSwitchover(clusterState map[string]*NodeState, activeNode
 		newMaster = switchover.To
 	} else if switchover.From != "" {
 		positions2 := filterOutNodeFromPositions(positions, switchover.From)
-		PriorityChoiceMaxLag := app.config.PriorityChoiceMaxLag
-		AsyncAllowedLagTime := time.Duration(app.config.AsyncAllowedLag) * time.Second
-		if app.config.ASync && switchover.Cause == CauseAuto && AsyncAllowedLagTime > app.config.PriorityChoiceMaxLag {
-			PriorityChoiceMaxLag = AsyncAllowedLagTime
-		}
 		// we ignore splitbrain flag as it should be handled during searching most recent host
-		newMaster, err = getMostDesirableNode(app.logger, positions2, PriorityChoiceMaxLag)
+		newMaster, err = getMostDesirableNode(app.logger, positions2, app.switchHelper.GetPriorityChoiceMaxLag())
 		if err != nil {
 			return fmt.Errorf("switchover: error while looking for highest priority node: %s", switchover.From)
 		}
