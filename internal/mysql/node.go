@@ -346,7 +346,6 @@ func (n *Node) queryRowMogrifyWithTimeout(queryName string, arg map[string]inter
 
 func (n *Node) queryRowMogrify(queryName string, arg map[string]interface{}, result interface{}) error {
 	return n.queryRowMogrifyWithTimeout(queryName, arg, result, n.config.DBTimeout)
-
 }
 
 // IsRunning checks if daemon process is running
