@@ -1015,7 +1015,7 @@ func (n *Node) GetReplMonTS(replMonSchemeName string, replMonTable string) (stri
 	err := n.queryRowMogrify(queryGetReplMonTS,
 		map[string]interface{}{
 			"replMonSchemeName": schemaname(replMonSchemeName),
-			"replMonTable": schemaname(replMonTable),
+			"replMonTable":      schemaname(replMonTable),
 		},
 		result)
 	return result.Timestamp, err
@@ -1025,9 +1025,9 @@ func (n *Node) CalcReplMonTSDelay(replMonSchemeName string, replMonTable string,
 	result := new(ReplMonTSDelay)
 	err := n.queryRowMogrify(queryCalcReplMonTSDelay,
 		map[string]interface{}{
-			"ts": ts,
+			"ts":                ts,
 			"replMonSchemeName": schemaname(replMonSchemeName),
-			"replMonTable": schemaname(replMonTable),
+			"replMonTable":      schemaname(replMonTable),
 		},
 		result)
 	return result.Delay, err
@@ -1036,13 +1036,13 @@ func (n *Node) CalcReplMonTSDelay(replMonSchemeName string, replMonTable string,
 func (n *Node) CreateReplMonTable(replMonSchemeName string, replMonTable string) error {
 	return n.execMogrify(queryCreateReplMonTable, map[string]interface{}{
 		"replMonSchemeName": schemaname(replMonSchemeName),
-		"replMonTable": schemaname(replMonTable),
+		"replMonTable":      schemaname(replMonTable),
 	})
 }
 
 func (n *Node) UpdateReplMonTable(replMonSchemeName string, replMonTable string) error {
 	return n.execMogrify(queryUpdateReplMon, map[string]interface{}{
 		"replMonSchemeName": schemaname(replMonSchemeName),
-		"replMonTable": schemaname(replMonTable),
+		"replMonTable":      schemaname(replMonTable),
 	})
 }
