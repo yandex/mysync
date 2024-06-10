@@ -726,6 +726,15 @@ func (n *Node) StartSlave() error {
 	})
 }
 
+// RestartReplica restart replication
+func (n *Node) RestartReplica() error {
+	err := n.StopSlave()
+	if err != nil {
+		return err
+	}
+	return n.StartSlave()
+}
+
 // StopSlaveIOThread stops IO replication thread
 func (n *Node) StopSlaveIOThread() error {
 	return n.execMogrify(queryStopSlaveIOThread, map[string]interface{}{
@@ -740,7 +749,7 @@ func (n *Node) StartSlaveIOThread() error {
 	})
 }
 
-// RestartSlaveIOThread stops IO replication thread
+// RestartSlaveIOThread restart IO replication thread
 func (n *Node) RestartSlaveIOThread() error {
 	err := n.StopSlaveIOThread()
 	if err != nil {
