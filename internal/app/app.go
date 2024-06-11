@@ -896,7 +896,7 @@ func (app *App) calcActiveNodes(clusterState, clusterStateDcs map[string]*NodeSt
 	return activeNodes, nil
 }
 
-func (app *App) calcActiveNodesChanges(clusterState map[string]*NodeState, activeNodes []string, master string) (becomeActive, becomeInactive []string, err error) {
+func (app *App) calcActiveNodesChanges(clusterState map[string]*NodeState, activeNodes []string, oldActiveNodes []string, master string) (becomeActive, becomeInactive []string, err error) {
 	masterNode := app.cluster.Get(master)
 	var syncReplicas []string
 	var deadReplicas []string
@@ -911,6 +911,17 @@ func (app *App) calcActiveNodesChanges(clusterState map[string]*NodeState, activ
 	}
 	becomeActive = filterOut(filterOut(activeNodes, syncReplicas), deadReplicas)
 	becomeInactive = filterOut(syncReplicas, activeNodes)
+
+	if len(oldActiveNodes) == 1 && oldActiveNodes[0] == master && len(becomeActive) == 0 {
+		// When replicas with semi-sync enabled returns to lone master,
+		// we should mark all of them as "become active" to restart replication
+		// because master may become stuck otherwise
+		for _, host := range activeNodes {
+			if host != master {
+				becomeActive = append(becomeActive, host)
+			}
+		}
+	}
 
 	if len(becomeActive) > 0 {
 		// Some replicas are going to become semi-sync.
@@ -973,7 +984,7 @@ func (app *App) updateActiveNodes(clusterState, clusterStateDcs map[string]*Node
 		return nil
 	}
 
-	becomeActive, becomeInactive, err := app.calcActiveNodesChanges(clusterState, activeNodes, master)
+	becomeActive, becomeInactive, err := app.calcActiveNodesChanges(clusterState, activeNodes, oldActiveNodes, master)
 	if err != nil {
 		app.logger.Errorf("update active nodes: failed to calc active nodes changes: %v", err)
 		return err
