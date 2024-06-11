@@ -95,10 +95,6 @@ func (app *App) setResetupStatus(host string, status bool) error {
 		Status:     status,
 		UpdateTime: time.Now(),
 	}
-	err = app.dcs.Create(dcs.JoinPath(pathResetupStatus, host), resetupStatus)
-	if err != nil && err != dcs.ErrExists {
-		return err
-	}
 	err = app.dcs.Set(dcs.JoinPath(pathResetupStatus, host), resetupStatus)
 	if err != nil {
 		return err
@@ -113,11 +109,7 @@ func (app *App) GetResetupStatus(host string) (mysql.ResetupStatus, error) {
 }
 
 func (app *App) UpdateLastShutdownNodeTime() error {
-	err := app.dcs.Create(pathLastShutdownNodeTime, time.Now())
-	if err != nil && err != dcs.ErrExists {
-		return err
-	}
-	err = app.dcs.Set(pathLastShutdownNodeTime, time.Now())
+	err := app.dcs.Set(pathLastShutdownNodeTime, time.Now())
 	if err != nil {
 		return err
 	}
