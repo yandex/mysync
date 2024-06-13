@@ -10,33 +10,23 @@ type ISwitchHelper interface {
 	GetPriorityChoiceMaxLag() time.Duration
 }
 
-type DefaultSwitchHelper struct {
-	config *config.Config
-}
-
-type AsyncSwitchHelper struct {
-	config *config.Config
+type SwitchHelper struct {
+	priorityChoiceMaxLag time.Duration
 }
 
 func NewSwitchHelper(config *config.Config) ISwitchHelper {
+	priorityChoiceMaxLag := config.PriorityChoiceMaxLag
 	if config.ASync {
-		return &AsyncSwitchHelper{
-			config: config,
+		AsyncAllowedLagTime := time.Duration(config.AsyncAllowedLag) * time.Second
+		if AsyncAllowedLagTime > config.PriorityChoiceMaxLag {
+			priorityChoiceMaxLag = AsyncAllowedLagTime
 		}
 	}
-	return &DefaultSwitchHelper{
-		config: config,
+	return &SwitchHelper{
+		priorityChoiceMaxLag: priorityChoiceMaxLag,
 	}
 }
 
-func (sh *DefaultSwitchHelper) GetPriorityChoiceMaxLag() time.Duration {
-	return sh.config.PriorityChoiceMaxLag
-}
-
-func (sh *AsyncSwitchHelper) GetPriorityChoiceMaxLag() time.Duration {
-	AsyncAllowedLagTime := time.Duration(sh.config.AsyncAllowedLag) * time.Second
-	if AsyncAllowedLagTime > sh.config.PriorityChoiceMaxLag {
-		return AsyncAllowedLagTime
-	}
-	return sh.config.PriorityChoiceMaxLag
+func (sh *SwitchHelper) GetPriorityChoiceMaxLag() time.Duration {
+	return sh.priorityChoiceMaxLag
 }

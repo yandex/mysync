@@ -53,7 +53,7 @@ Feature: mysync async mode tests
       """
       INSERT INTO mysql.test_table1 VALUES ("D"), ("E"), ("F")
       """
-    And I wait for "70" seconds
+    And I wait for "40" seconds
     When I run SQL on mysql host "mysql2"
       """
       SELECT GROUP_CONCAT(value) as val from (SELECT value from mysql.test_table1 order by value) as t
