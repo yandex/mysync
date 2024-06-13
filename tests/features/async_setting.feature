@@ -135,16 +135,16 @@ Feature: mysync async mode tests
     And I run SQL on mysql host "mysql2"
       """
       STOP REPLICA FOR CHANNEL '';
-      CHANGE REPLICATION SOURCE TO SOURCE_DELAY = 100;
+      CHANGE REPLICATION SOURCE TO SOURCE_DELAY = 90;
       START REPLICA FOR CHANNEL '';
       """
     And I run SQL on mysql host "mysql3"
       """
       STOP REPLICA FOR CHANNEL '';
-      CHANGE REPLICATION SOURCE TO SOURCE_DELAY = 120;
+      CHANGE REPLICATION SOURCE TO SOURCE_DELAY = 110;
       START REPLICA FOR CHANNEL '';
       """
-    And I wait for "150" seconds
+    And I wait for "120" seconds
     And I run SQL on mysql host "mysql1"
       """
       INSERT INTO mysql.test_table1 VALUES ("D"), ("E"), ("F")
@@ -191,7 +191,7 @@ Feature: mysync async mode tests
       """
         [{"val":"A,B,C"}]
       """
-    And I wait for "180" seconds
+    And I wait for "150" seconds
     When I run SQL on mysql host "mysql3"
       """
       SELECT GROUP_CONCAT(value) as val from (SELECT value from mysql.test_table1 order by value) as t
