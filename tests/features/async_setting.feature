@@ -45,15 +45,15 @@ Feature: mysync async mode tests
     And I run SQL on mysql host "mysql3"
       """
       STOP REPLICA FOR CHANNEL '';
-      CHANGE REPLICATION SOURCE TO SOURCE_DELAY = 150;
+      CHANGE REPLICATION SOURCE TO SOURCE_DELAY = 120;
       START REPLICA FOR CHANNEL '';
       """
-    And I wait for "180" seconds
+    And I wait for "150" seconds
     And I run SQL on mysql host "mysql1"
       """
       INSERT INTO mysql.test_table1 VALUES ("D"), ("E"), ("F")
       """
-    And I wait for "30" seconds
+    And I wait for "70" seconds
     When I run SQL on mysql host "mysql2"
       """
       SELECT GROUP_CONCAT(value) as val from (SELECT value from mysql.test_table1 order by value) as t
@@ -149,7 +149,7 @@ Feature: mysync async mode tests
       """
       INSERT INTO mysql.test_table1 VALUES ("D"), ("E"), ("F")
       """
-    And I wait for "60" seconds
+    And I wait for "70" seconds
     When I run SQL on mysql host "mysql2"
       """
       SELECT GROUP_CONCAT(value) as val from (SELECT value from mysql.test_table1 order by value) as t
