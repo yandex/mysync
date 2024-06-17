@@ -89,7 +89,7 @@ type Config struct {
 	ExternalReplicationChannel              string                       `config:"external_replication_channel" yaml:"external_replication_channel"`
 	ExternalReplicationType                 util.ExternalReplicationType `config:"external_replication_type" yaml:"external_replication_type"`
 	ASync                                   bool                         `config:"async" yaml:"async"`
-	AsyncAllowedLag                         int64                        `config:"async_allowed_lag" yaml:"async_allowed_lag"`
+	AsyncAllowedLag                         time.Duration                `config:"async_allowed_lag" yaml:"async_allowed_lag"`
 	ReplMon                                 bool                         `config:"repl_mon" yaml:"repl_mon"`
 	ReplMonSchemeName                       string                       `config:"repl_mon_scheme_name" yaml:"repl_mon_scheme_name"`
 	ReplMonTableName                        string                       `config:"repl_mon_table_name" yaml:"repl_mon_table_name"`
@@ -173,7 +173,7 @@ func DefaultConfig() (Config, error) {
 		ExternalReplicationChannel:              "external",
 		ExternalReplicationType:                 util.Disabled,
 		ASync:                                   false,
-		AsyncAllowedLag:                         0,
+		AsyncAllowedLag:                         0 * time.Second,
 		ReplMon:                                 false,
 		ReplMonSchemeName:                       "mysql",
 		ReplMonTableName:                        "mysync_repl_mon",
