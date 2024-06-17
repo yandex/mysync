@@ -17,9 +17,8 @@ type SwitchHelper struct {
 func NewSwitchHelper(config *config.Config) ISwitchHelper {
 	priorityChoiceMaxLag := config.PriorityChoiceMaxLag
 	if config.ASync {
-		AsyncAllowedLagTime := time.Duration(config.AsyncAllowedLag) * time.Second
-		if AsyncAllowedLagTime > config.PriorityChoiceMaxLag {
-			priorityChoiceMaxLag = AsyncAllowedLagTime
+		if config.AsyncAllowedLag > config.PriorityChoiceMaxLag {
+			priorityChoiceMaxLag = config.AsyncAllowedLag
 		}
 	}
 	return &SwitchHelper{

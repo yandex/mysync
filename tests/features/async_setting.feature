@@ -5,7 +5,7 @@ Feature: mysync async mode tests
       """
       MYSYNC_SEMISYNC=false
       MYSYNC_ASYNC=true
-      ASYNC_ALLOWED_LAG=120
+      ASYNC_ALLOWED_LAG=120s
       MYSYNC_REPLICATION_LAG_QUERY="SELECT UNIX_TIMESTAMP(CURRENT_TIMESTAMP(3)) - UNIX_TIMESTAMP(ts) AS Seconds_Behind_Master FROM mysql.mysync_repl_mon"
       MYSYNC_FAILOVER=true
       MYSYNC_FAILOVER_DELAY=0s
@@ -101,7 +101,7 @@ Feature: mysync async mode tests
       """
       MYSYNC_SEMISYNC=false
       MYSYNC_ASYNC=true
-      ASYNC_ALLOWED_LAG=60
+      ASYNC_ALLOWED_LAG=60s
       MYSYNC_REPLICATION_LAG_QUERY="SELECT UNIX_TIMESTAMP(CURRENT_TIMESTAMP(3)) - UNIX_TIMESTAMP(ts) AS Seconds_Behind_Master FROM mysql.mysync_repl_mon"
       MYSYNC_FAILOVER=true
       MYSYNC_FAILOVER_DELAY=0s
@@ -206,7 +206,7 @@ Feature: mysync async mode tests
       """
       MYSYNC_SEMISYNC=false
       MYSYNC_ASYNC=true
-      ASYNC_ALLOWED_LAG=120
+      ASYNC_ALLOWED_LAG=120s
       MYSYNC_REPLICATION_LAG_QUERY="SELECT UNIX_TIMESTAMP(CURRENT_TIMESTAMP(3)) - UNIX_TIMESTAMP(ts) AS Seconds_Behind_Master FROM mysql.mysync_repl_mon"
       MYSYNC_FAILOVER=true
       MYSYNC_FAILOVER_DELAY=0s
@@ -314,7 +314,7 @@ Feature: mysync async mode tests
       """
       MYSYNC_SEMISYNC=false
       MYSYNC_ASYNC=true
-      ASYNC_ALLOWED_LAG=50
+      ASYNC_ALLOWED_LAG=50s
       MYSYNC_REPLICATION_LAG_QUERY="SELECT UNIX_TIMESTAMP(CURRENT_TIMESTAMP(3)) - UNIX_TIMESTAMP(ts) AS Seconds_Behind_Master FROM mysql.mysync_repl_mon"
       MYSYNC_FAILOVER=true
       MYSYNC_FAILOVER_DELAY=0s

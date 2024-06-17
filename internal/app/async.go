@@ -2,6 +2,7 @@ package app
 
 import (
 	"fmt"
+	"time"
 
 	"github.com/yandex/mysync/internal/mysql"
 )
@@ -19,7 +20,7 @@ func (app *App) CheckAsyncSwitchAllowed(node *mysql.Node, switchover *Switchover
 			app.logger.Errorf("failed to calc mdb repl mon ts: %v", err)
 			return false
 		}
-		if delay < app.config.AsyncAllowedLag {
+		if time.Duration(delay)*time.Second < app.config.AsyncAllowedLag {
 			app.logger.Infof("async allowed lag is %d and current lag on host %s is %d, so we don't wait for catch up any more",
 				app.config.AsyncAllowedLag, node.Host(), delay)
 			return true
