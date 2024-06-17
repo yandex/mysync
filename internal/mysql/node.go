@@ -344,6 +344,10 @@ func (n *Node) queryRowMogrifyWithTimeout(queryName string, arg map[string]inter
 	return err
 }
 
+func (n *Node) queryRowMogrify(queryName string, arg map[string]interface{}, result interface{}) error {
+	return n.queryRowMogrifyWithTimeout(queryName, arg, result, n.config.DBTimeout)
+}
+
 // IsRunning checks if daemon process is running
 func (n *Node) IsRunning() (bool, error) {
 	if !n.IsLocal() {
@@ -1012,4 +1016,41 @@ func (n *Node) SetDefaultReplicationSettings(masterNode *Node) error {
 		return err
 	}
 	return nil
+}
+
+func (n *Node) GetReplMonTS(replMonSchemeName string, replMonTable string) (string, error) {
+	result := new(ReplMonTS)
+	err := n.queryRowMogrify(queryGetReplMonTS,
+		map[string]interface{}{
+			"replMonSchemeName": schemaname(replMonSchemeName),
+			"replMonTable":      schemaname(replMonTable),
+		},
+		result)
+	return result.Timestamp, err
+}
+
+func (n *Node) CalcReplMonTSDelay(replMonSchemeName string, replMonTable string, ts string) (int64, error) {
+	result := new(ReplMonTSDelay)
+	err := n.queryRowMogrify(queryCalcReplMonTSDelay,
+		map[string]interface{}{
+			"ts":                ts,
+			"replMonSchemeName": schemaname(replMonSchemeName),
+			"replMonTable":      schemaname(replMonTable),
+		},
+		result)
+	return result.Delay, err
+}
+
+func (n *Node) CreateReplMonTable(replMonSchemeName string, replMonTable string) error {
+	return n.execMogrify(queryCreateReplMonTable, map[string]interface{}{
+		"replMonSchemeName": schemaname(replMonSchemeName),
+		"replMonTable":      schemaname(replMonTable),
+	})
+}
+
+func (n *Node) UpdateReplMonTable(replMonSchemeName string, replMonTable string) error {
+	return n.execMogrify(queryUpdateReplMon, map[string]interface{}{
+		"replMonSchemeName": schemaname(replMonSchemeName),
+		"replMonTable":      schemaname(replMonTable),
+	})
 }

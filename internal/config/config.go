@@ -88,6 +88,14 @@ type Config struct {
 	ReplicationChannel                      string                       `config:"replication_channel" yaml:"replication_channel"`
 	ExternalReplicationChannel              string                       `config:"external_replication_channel" yaml:"external_replication_channel"`
 	ExternalReplicationType                 util.ExternalReplicationType `config:"external_replication_type" yaml:"external_replication_type"`
+	ASync                                   bool                         `config:"async" yaml:"async"`
+	AsyncAllowedLag                         int64                        `config:"async_allowed_lag" yaml:"async_allowed_lag"`
+	ReplMon                                 bool                         `config:"repl_mon" yaml:"repl_mon"`
+	ReplMonSchemeName                       string                       `config:"repl_mon_scheme_name" yaml:"repl_mon_scheme_name"`
+	ReplMonTableName                        string                       `config:"repl_mon_table_name" yaml:"repl_mon_table_name"`
+	ReplMonWriteInterval                    time.Duration                `config:"repl_mon_write_interval" yaml:"repl_mon_write_interval"`
+	ReplMonErrorWaitInterval                time.Duration                `config:"repl_mon_error_wait_interval" yaml:"repl_mon_error_wait_interval"`
+	ReplMonSlaveWaitInterval                time.Duration                `config:"repl_mon_slave_wait_interval" yaml:"repl_mon_slave_wait_interval"`
 }
 
 // DefaultConfig returns default configuration for MySync
@@ -164,6 +172,14 @@ func DefaultConfig() (Config, error) {
 		ReplicationChannel:                      "",
 		ExternalReplicationChannel:              "external",
 		ExternalReplicationType:                 util.Disabled,
+		ASync:                                   false,
+		AsyncAllowedLag:                         0,
+		ReplMon:                                 false,
+		ReplMonSchemeName:                       "mysql",
+		ReplMonTableName:                        "mysync_repl_mon",
+		ReplMonWriteInterval:                    1 * time.Second,
+		ReplMonErrorWaitInterval:                10 * time.Second,
+		ReplMonSlaveWaitInterval:                10 * time.Second,
 	}
 	return config, nil
 }
@@ -204,6 +220,9 @@ func (cfg *Config) SetDynamicDefaults() {
 func (cfg *Config) Validate() error {
 	if cfg.NotCriticalDiskUsage > cfg.CriticalDiskUsage {
 		return fmt.Errorf("not_critical_disk_usage should be <= critical_disk_usage")
+	}
+	if cfg.SemiSync && cfg.ASync {
+		return fmt.Errorf("can't run in both semisync and async mode")
 	}
 	return nil
 }

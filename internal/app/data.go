@@ -67,6 +67,9 @@ const (
 	pathResetupStatus = "resetup_status"
 
 	pathLastShutdownNodeTime = "last_shutdown_node_time"
+
+	// last known timestamp from repl_mon table
+	pathMasterReplMonTS = "master_repl_mon_ts"
 )
 
 var (

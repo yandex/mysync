@@ -42,6 +42,7 @@ jobs:
         command:
           - 'VERSION=8.0 GODOG_FEATURE=active_nodes.feature make test'
           - 'VERSION=8.0 GODOG_FEATURE=async.feature make test'
+          - 'VERSION=8.0 GODOG_FEATURE=async_setting.feature make test'
           - 'VERSION=8.0 GODOG_FEATURE=cascade_replicas.feature make test'
           - 'VERSION=8.0 GODOG_FEATURE=CLI.feature make test'
           - 'VERSION=8.0 GODOG_FEATURE=crash_recovery.feature make test'
@@ -57,6 +58,7 @@ jobs:
           - 'VERSION=8.0 GODOG_FEATURE=readonly_filesystem.feature make test'
           - 'VERSION=8.0 GODOG_FEATURE=recovery.feature make test'
           - 'VERSION=8.0 GODOG_FEATURE=repair.feature make test'
+          - 'VERSION=8.0 GODOG_FEATURE=repl_mon.feature make test'
           - 'VERSION=8.0 GODOG_FEATURE=statefile.feature make test'
           - 'VERSION=8.0 GODOG_FEATURE=switchover_from.feature make test'
           - 'VERSION=8.0 GODOG_FEATURE=switchover_to.feature make test'

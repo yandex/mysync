@@ -10,6 +10,8 @@ failover_cooldown: ${MYSYNC_FAILOVER_COOLDOWN:-60m}
 failover_delay: ${MYSYNC_FAILOVER_DELAY:-0s}
 inactivation_delay: ${MYSYNC_INACTIVATION_DELAY:-5s}
 semi_sync: ${MYSYNC_SEMISYNC:-true}
+async: ${MYSYNC_ASYNC:-false}
+async_allowed_lag: ${ASYNC_ALLOWED_LAG:-0}
 resetupfile: /tmp/mysync.resetup
 resetup_crashed_hosts: ${MYSYNC_RESETUP_CRASHED_HOSTS:-false}
 zookeeper:
@@ -33,6 +35,8 @@ mysql:
   external_replication_ssl_ca: /etc/mysql/ssl/external_CA.pem
   pid_file: /tmp/mysqld.pid
   error_log: /var/log/mysql/error.log
+queries:
+  replication_lag: $MYSYNC_REPLICATION_LAG_QUERY
 disable_semi_sync_replication_on_maintenance: ${MYSYNC_DISABLE_REPLICATION_ON_MAINT:-false}
 rpl_semi_sync_master_wait_for_slave_count: ${MYSYNC_WAIT_FOR_SLAVE_COUNT:-1}
 critical_disk_usage: ${MYSYNC_CRITICAL_DISK_USAGE:-100}
@@ -56,3 +60,4 @@ replication_repair_aggressive_mode: ${MYSYNC_REPLICATION_REPAIR_AGGRESSIVE_MODE:
 test_filesystem_readonly_file: /tmp/readonly
 replication_channel: ''
 external_replication_type: 'external'
+repl_mon: ${REPL_MON:-false}

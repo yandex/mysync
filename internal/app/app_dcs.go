@@ -220,3 +220,24 @@ func (app *App) GetMasterHostFromDcs() (string, error) {
 	}
 	return "", nil
 }
+
+func (app *App) SetReplMonTS(ts string) error {
+	err := app.dcs.Create(pathMasterReplMonTS, ts)
+	if err != nil && err != dcs.ErrExists {
+		return err
+	}
+	err = app.dcs.Set(pathMasterReplMonTS, ts)
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
+func (app *App) GetReplMonTS() (string, error) {
+	var ts string
+	err := app.dcs.Get(pathMasterReplMonTS, &ts)
+	if errors.Is(err, dcs.ErrNotFound) {
+		return "", nil
+	}
+	return ts, err
+}

@@ -41,8 +41,8 @@ jobs:
       matrix:
         command:
           - 'GODOG_FEATURE=active_nodes.feature make test'                                                                        
-          - 'GODOG_FEATURE=async.feature make test'                                                                               
-          - 'GODOG_FEATURE=cascade_replicas.feature make test'                                                                    
+          - 'GODOG_FEATURE=async.feature make test'
+          - 'GODOG_FEATURE=cascade_replicas.feature make test'
           - 'GODOG_FEATURE=CLI.feature make test'                                                                                 
           - 'GODOG_FEATURE=crash_recovery.feature make test'                                                                      
           - 'GODOG_FEATURE=events_reenable.feature make test'                                                                     
@@ -55,8 +55,9 @@ jobs:
           - 'GODOG_FEATURE=priority.feature make test'                                                                            
           - 'GODOG_FEATURE=readonly_filesystem.feature make test'                                                                 
           - 'GODOG_FEATURE=recovery.feature make test'                                                                            
-          - 'GODOG_FEATURE=repair.feature make test'                                                                              
-          - 'GODOG_FEATURE=statefile.feature make test'                                                                           
+          - 'GODOG_FEATURE=repair.feature make test'
+          - 'GODOG_FEATURE=repl_mon.feature make test'
+          - 'GODOG_FEATURE=statefile.feature make test'
           - 'GODOG_FEATURE=switchover_from.feature make test'                                                                     
           - 'GODOG_FEATURE=switchover_to.feature make test'                                                                       
           - 'GODOG_FEATURE=zk_failure.feature make test'                                                                          

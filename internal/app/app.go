@@ -38,6 +38,7 @@ type App struct {
 	daemonMutex         sync.Mutex
 	replRepairState     map[string]*ReplicationRepairState
 	externalReplication mysql.IExternalReplication
+	switchHelper        mysql.ISwitchHelper
 }
 
 // NewApp returns new App. Suddenly.
@@ -62,6 +63,7 @@ func NewApp(configFile, logLevel string, interactive bool) (*App, error) {
 	if err != nil {
 		return nil, err
 	}
+	switchHelper := mysql.NewSwitchHelper(config)
 	app := &App{
 		state:               stateFirstRun,
 		config:              config,
@@ -70,6 +72,7 @@ func NewApp(configFile, logLevel string, interactive bool) (*App, error) {
 		streamFromFailedAt:  make(map[string]time.Time),
 		replRepairState:     make(map[string]*ReplicationRepairState),
 		externalReplication: externalReplication,
+		switchHelper:        switchHelper,
 	}
 	return app, nil
 }
@@ -249,6 +252,51 @@ func (app *App) externalCAFileChecker(ctx context.Context) {
 			err = localNode.UpdateExternalCAFile()
 			if err != nil {
 				app.logger.Errorf("external CA file checker: failed check and update CA file: %s", err)
+			}
+		case <-ctx.Done():
+			return
+		}
+	}
+}
+
+func (app *App) replMonWriter(ctx context.Context) {
+	ticker := time.NewTicker(app.config.ReplMonWriteInterval)
+	for {
+		select {
+		case <-ticker.C:
+			localNode := app.cluster.Local()
+			sstatus, err := localNode.GetReplicaStatus()
+			if err != nil {
+				app.logger.Errorf("repl mon writer: got error %v while checking replica status", err)
+				time.Sleep(app.config.ReplMonErrorWaitInterval)
+				continue
+			}
+			if sstatus != nil {
+				app.logger.Infof("repl mon writer: host is replica")
+				time.Sleep(app.config.ReplMonSlaveWaitInterval)
+				continue
+			}
+			readOnly, _, err := localNode.IsReadOnly()
+			if err != nil {
+				app.logger.Errorf("repl mon writer: got error %v while checking read only status", err)
+				time.Sleep(app.config.ReplMonErrorWaitInterval)
+				continue
+			}
+			if readOnly {
+				app.logger.Infof("repl mon writer: host is read only")
+				time.Sleep(app.config.ReplMonSlaveWaitInterval)
+				continue
+			}
+			err = localNode.UpdateReplMonTable(app.config.ReplMonSchemeName, app.config.ReplMonTableName)
+			if err != nil {
+				if mysql.IsErrorTableDoesNotExists(err) {
+					err = localNode.CreateReplMonTable(app.config.ReplMonSchemeName, app.config.ReplMonTableName)
+					if err != nil {
+						app.logger.Errorf("repl mon writer: got error %v while creating repl mon table", err)
+					}
+					continue
+				}
+				app.logger.Errorf("repl mon writer: got error %v while writing in repl mon table", err)
 			}
 		case <-ctx.Done():
 			return
@@ -708,6 +756,11 @@ func (app *App) stateManager() appState {
 	err = app.updateActiveNodes(clusterState, clusterStateDcs, activeNodes, master)
 	if err != nil {
 		app.logger.Errorf("failed to update active nodes in dcs: %v", err)
+	}
+
+	err = app.updateReplMonTS(master)
+	if err != nil {
+		app.logger.Errorf("failed to update repl_mon timestamp: %v", err)
 	}
 
 	return stateManager
@@ -1246,7 +1299,7 @@ func (app *App) performSwitchover(clusterState map[string]*NodeState, activeNode
 	} else if switchover.From != "" {
 		positions2 := filterOutNodeFromPositions(positions, switchover.From)
 		// we ignore splitbrain flag as it should be handled during searching most recent host
-		newMaster, err = getMostDesirableNode(app.logger, positions2, app.config.PriorityChoiceMaxLag)
+		newMaster, err = getMostDesirableNode(app.logger, positions2, app.switchHelper.GetPriorityChoiceMaxLag())
 		if err != nil {
 			return fmt.Errorf("switchover: error while looking for highest priority node: %s", switchover.From)
 		}
@@ -1297,6 +1350,10 @@ func (app *App) performSwitchover(clusterState map[string]*NodeState, activeNode
 
 	// turn slaves to the new master
 	app.logger.Info("switchover: phase 5: turn to the new master")
+	err = app.cluster.Get(newMaster).SetOnline()
+	if err != nil {
+		return fmt.Errorf("got error on setting new master %s online %v", newMaster, err)
+	}
 	errs = util.RunParallel(func(host string) error {
 		if host == newMaster || !clusterState[host].PingOk {
 			return nil
@@ -2145,8 +2202,12 @@ func (app *App) waitForCatchUp(node *mysql.Node, gtidset gtids.GTIDSet, timeout 
 		if gtidExecuted.Contain(gtidset) {
 			return true, nil
 		}
-		if app.dcs.Get(pathCurrentSwitch, new(Switchover)) == dcs.ErrNotFound {
+		switchover := new(Switchover)
+		if app.dcs.Get(pathCurrentSwitch, switchover) == dcs.ErrNotFound {
 			return false, nil
+		}
+		if app.CheckAsyncSwitchAllowed(node, switchover) {
+			return true, nil
 		}
 		time.Sleep(sleep)
 		if time.Now().After(deadline) {
@@ -2287,6 +2348,9 @@ func (app *App) Run() int {
 	go app.stateFileHandler(ctx)
 	if app.config.ExternalReplicationType != util.Disabled {
 		go app.externalCAFileChecker(ctx)
+	}
+	if app.config.ReplMon {
+		go app.replMonWriter(ctx)
 	}
 
 	handlers := map[appState](func() appState){
