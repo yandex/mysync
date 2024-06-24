@@ -220,6 +220,15 @@ func getNodeStatesInParallel(hosts []string, getter func(string) (*NodeState, er
 	if err != nil {
 		return nil, err
 	}
+
+	// adding information about source to each replica
+	for host := range clusterState {
+		if clusterState[host].SlaveState == nil {
+			continue
+		}
+		masterHost := clusterState[host].SlaveState.MasterHost
+		clusterState[host].MasterState = clusterState[masterHost].MasterState
+	}
 	return clusterState, nil
 }
 
