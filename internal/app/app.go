@@ -758,9 +758,11 @@ func (app *App) stateManager() appState {
 		app.logger.Errorf("failed to update active nodes in dcs: %v", err)
 	}
 
-	err = app.updateReplMonTS(master)
-	if err != nil {
-		app.logger.Errorf("failed to update repl_mon timestamp: %v", err)
+	if app.config.ReplMon {
+		err = app.updateReplMonTS(master)
+		if err != nil {
+			app.logger.Errorf("failed to update repl_mon timestamp: %v", err)
+		}
 	}
 
 	return stateManager

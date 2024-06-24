@@ -224,5 +224,8 @@ func (cfg *Config) Validate() error {
 	if cfg.SemiSync && cfg.ASync {
 		return fmt.Errorf("can't run in both semisync and async mode")
 	}
+	if cfg.ASync && !cfg.ReplMon {
+		return fmt.Errorf("repl mon must be enabled to run mysync in async mode")
+	}
 	return nil
 }
