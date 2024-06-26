@@ -10,6 +10,7 @@ import (
 	gomysql "github.com/go-mysql-org/go-mysql/mysql"
 	"github.com/yandex/mysync/internal/log"
 	"github.com/yandex/mysync/internal/mysql"
+	"github.com/yandex/mysync/internal/mysql/gtids"
 )
 
 func mustGTIDSet(s string) gomysql.GTIDSet {
@@ -338,34 +339,34 @@ func TestIsSplitBrained(t *testing.T) {
 	slaveGTID := mustGTIDSet("6DBC0B04-4B09-43DC-86CC-9AF852DED919:1-100," +
 		"09978591-5754-4710-BF67-062880ABE1B4:1-100," +
 		"AA6890C8-69F8-4BC4-B3A5-5D3FEA8C28CF:1-100")
-	ok := isSplitBrained(slaveGTID, masterGTID, masterUUID)
+	ok := gtids.IsSplitBrained(slaveGTID, masterGTID, masterUUID)
 	require.False(t, ok)
 
 	// the replica is lagging behind the master
 	slaveGTID = mustGTIDSet("6DBC0B04-4B09-43DC-86CC-9AF852DED919:1-99," +
 		"09978591-5754-4710-BF67-062880ABE1B4:1-100," +
 		"AA6890C8-69F8-4BC4-B3A5-5D3FEA8C28CF:1-100")
-	ok = isSplitBrained(slaveGTID, masterGTID, masterUUID)
+	ok = gtids.IsSplitBrained(slaveGTID, masterGTID, masterUUID)
 	require.False(t, ok)
 
 	// the replica is lagging behind the new master
 	slaveGTID = mustGTIDSet("6DBC0B04-4B09-43DC-86CC-9AF852DED919:1-100," +
 		"09978591-5754-4710-BF67-062880ABE1B4:1-100")
-	ok = isSplitBrained(slaveGTID, masterGTID, masterUUID)
+	ok = gtids.IsSplitBrained(slaveGTID, masterGTID, masterUUID)
 	require.False(t, ok)
 
 	// the replica applied the transaction from the master before the master
 	slaveGTID = mustGTIDSet("6DBC0B04-4B09-43DC-86CC-9AF852DED919:1-101," +
 		"09978591-5754-4710-BF67-062880ABE1B4:1-100," +
 		"AA6890C8-69F8-4BC4-B3A5-5D3FEA8C28CF:1-100")
-	ok = isSplitBrained(slaveGTID, masterGTID, masterUUID)
+	ok = gtids.IsSplitBrained(slaveGTID, masterGTID, masterUUID)
 	require.False(t, ok)
 
 	// the replica applied a transaction not from the master
 	slaveGTID = mustGTIDSet("6DBC0B04-4B09-43DC-86CC-9AF852DED919:1-100," +
 		"09978591-5754-4710-BF67-062880ABE1B4:1-100," +
 		"AA6890C8-69F8-4BC4-B3A5-5D3FEA8C28CF:1-101")
-	ok = isSplitBrained(slaveGTID, masterGTID, masterUUID)
+	ok = gtids.IsSplitBrained(slaveGTID, masterGTID, masterUUID)
 	require.True(t, ok)
 
 	// the replica applied a new transaction not from the master
@@ -373,6 +374,6 @@ func TestIsSplitBrained(t *testing.T) {
 		"09978591-5754-4710-BF67-062880ABE1B4:1-100," +
 		"AA6890C8-69F8-4BC4-B3A5-5D3FEA8C28CF:1-100," +
 		"BB6890C8-69F8-4BC4-B3A5-5D3FEA8C28CF:1-100")
-	ok = isSplitBrained(slaveGTID, masterGTID, masterUUID)
+	ok = gtids.IsSplitBrained(slaveGTID, masterGTID, masterUUID)
 	require.True(t, ok)
 }
