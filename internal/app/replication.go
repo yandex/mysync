@@ -41,7 +41,7 @@ func (app *App) MarkReplicationRunning(node *mysql.Node, channel string) {
 		newGtidSet := gtids.ParseGtidSet(status.GetExecutedGtidSet())
 		oldGtidSet := gtids.ParseGtidSet(replState.LastGTIDExecuted)
 
-		if !gtids.IsSlaveBehindOrEqual(newGtidSet, oldGtidSet) {
+		if gtids.IsSlaveAhead(newGtidSet, oldGtidSet) {
 			delete(app.replRepairState, key)
 		}
 	}

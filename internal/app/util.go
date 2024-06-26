@@ -226,7 +226,8 @@ func isSlavePermanentlyLost(sstatus mysql.ReplicaStatus, masterGtidSet gtids.GTI
 		return true
 	}
 	slaveGtidSet := gtids.ParseGtidSet(sstatus.GetExecutedGtidSet())
-	return !gtids.IsSlaveBehindOrEqual(slaveGtidSet, masterGtidSet)
+	// TODO: why ahead = lost?..
+	return gtids.IsSlaveAhead(slaveGtidSet, masterGtidSet)
 }
 
 func validatePriority(priority *int64) error {
