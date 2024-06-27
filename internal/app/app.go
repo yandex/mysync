@@ -940,7 +940,7 @@ func (app *App) calcActiveNodes(clusterState, clusterStateDcs map[string]*NodeSt
 			continue
 		}
 		sgtids := gtids.ParseGtidSet(sstatus.ExecutedGtidSet)
-		if sstatus.ReplicationState != mysql.ReplicationRunning || isSplitBrained(sgtids, mgtids, muuid) {
+		if sstatus.ReplicationState != mysql.ReplicationRunning || gtids.IsSplitBrained(sgtids, mgtids, muuid) {
 			app.logger.Errorf("calc active nodes: %s is not replicating or splitbrained, deleting from active...", host)
 			continue
 		}
@@ -1069,7 +1069,7 @@ func (app *App) updateActiveNodes(clusterState, clusterStateDcs map[string]*Node
 
 	// first, shrink HA-group, if needed
 	if waitSlaveCount > oldWaitSlaveCount {
-		err := app.adjustSemiSyncOnMaster(masterNode, clusterState[master], waitSlaveCount)
+		err := app.adjustSemiSyncOnMaster(masterNode, masterState, waitSlaveCount)
 		if err != nil {
 			app.logger.Errorf("failed to adjust semi-sync on master %s to %d: %v", masterNode.Host(), waitSlaveCount, err)
 			return err
@@ -1092,13 +1092,13 @@ func (app *App) updateActiveNodes(clusterState, clusterStateDcs map[string]*Node
 
 	// and finally enlarge HA-group, if needed
 	for _, host := range becomeActive {
-		err := app.enableSemiSyncOnSlave(host)
+		err := app.enableSemiSyncOnSlave(host, clusterState[host], masterState)
 		if err != nil {
 			app.logger.Errorf("failed to enable semi-sync on slave %s: %v", host, err)
 		}
 	}
 	if waitSlaveCount < oldWaitSlaveCount {
-		err := app.adjustSemiSyncOnMaster(masterNode, clusterState[master], waitSlaveCount)
+		err := app.adjustSemiSyncOnMaster(masterNode, masterState, waitSlaveCount)
 		if err != nil {
 			app.logger.Errorf("failed to adjust semi-sync on master %s to %d: %v", masterNode.Host(), waitSlaveCount, err)
 		}
@@ -1136,18 +1136,31 @@ func (app *App) adjustSemiSyncOnMaster(node *mysql.Node, state *NodeState, waitS
 	return nil
 }
 
-func (app *App) enableSemiSyncOnSlave(host string) error {
+func (app *App) enableSemiSyncOnSlave(host string, slaveState, masterState *NodeState) error {
 	node := app.cluster.Get(host)
 	err := node.SemiSyncSetSlave()
 	if err != nil {
 		app.logger.Errorf("failed to enable semi_sync_slave on %s: %s", host, err)
 		return err
 	}
-	err = node.RestartReplica()
-	if err != nil {
-		app.logger.Errorf("failed restart replication after set semi_sync_slave on %s: %s", host, err)
-		return err
+	masterGtidSet := gtids.ParseGtidSet(masterState.MasterState.ExecutedGtidSet)
+	slaveGtidSet := gtids.ParseGtidSet(slaveState.SlaveState.ExecutedGtidSet)
+
+	if gtids.IsSlaveAhead(slaveGtidSet, masterGtidSet) {
+		// we should restart only replicas ahead of the master
+		err = node.RestartReplica()
+		if err != nil {
+			app.logger.Errorf("failed restart replication after set semi_sync_slave on %s: %s", host, err)
+			return err
+		}
+	} else {
+		err = node.RestartSlaveIOThread()
+		if err != nil {
+			app.logger.Errorf("failed restart slave io thread after set semi_sync_slave on %s: %s", host, err)
+			return err
+		}
 	}
+
 	return nil
 }
 
@@ -1859,12 +1872,13 @@ func (app *App) repairCascadeNode(node *mysql.Node, clusterState map[string]*Nod
 		}
 		app.logger.Debugf("repair: %s GTID set = %v, new stream_from GTID set is %v", host, myGITIDs, candidateGTIDs)
 
-		if !isGTIDLessOrEqual(myGITIDs, candidateGTIDs) && !isGTIDLessOrEqual(candidateGTIDs, myGITIDs) {
+		// TODO: replace with IsSplitBrained
+		if gtids.IsSlaveAhead(myGITIDs, candidateGTIDs) && gtids.IsSlaveAhead(candidateGTIDs, myGITIDs) {
 			app.logger.Errorf("repair: %s and %s are splitbrained...", host, upstreamCandidate)
 			app.writeEmergeFile("cascade replica splitbain detected")
 			return
 		}
-		if isGTIDLessOrEqual(myGITIDs, candidateGTIDs) {
+		if gtids.IsSlaveBehindOrEqual(myGITIDs, candidateGTIDs) {
 			app.logger.Infof("repair: new stream_from host GTID set is superset of our GTID set. Switching Master_Host, Starting replication")
 			err = app.performChangeMaster(host, upstreamCandidate)
 			if err != nil {
