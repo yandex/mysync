@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/yandex/mysync/internal/mysql"
+	"github.com/yandex/mysync/internal/mysql/gtids"
 )
 
 type appState string
@@ -128,6 +129,19 @@ func (ns *NodeState) IsReplicationPermanentlyBroken() (bool, int) {
 	return false, 0
 }
 
+func (ns *NodeState) CalcGTIDDiffWithMaster() (string, error) {
+	if ns.SlaveState == nil {
+		return "", fmt.Errorf("slave state not defined")
+	}
+	replicaGTID := gtids.ParseGtidSet(ns.SlaveState.ExecutedGtidSet)
+	if ns.MasterState == nil {
+		return "", fmt.Errorf("master state not defined")
+	}
+	sourceGTID := gtids.ParseGtidSet(ns.MasterState.ExecutedGtidSet)
+
+	return gtids.GTIDDiff(replicaGTID, sourceGTID)
+}
+
 func (ns *NodeState) String() string {
 	ping := "ok"
 	if !ns.PingOk {
@@ -140,17 +154,21 @@ func (ns *NodeState) String() string {
 	repl := unknown
 	gtid := unknown
 	lag := 0.0
-	if ns.MasterState != nil {
-		repl = "master"
-		gtid = strings.ReplaceAll(ns.MasterState.ExecutedGtidSet, "\n", "")
-	} else if ns.SlaveState != nil {
+	if ns.SlaveState != nil {
 		repl = ns.SlaveState.ReplicationState
-		gtid = strings.ReplaceAll(ns.SlaveState.ExecutedGtidSet, "\n", "")
+		var err error
+		gtid, err = ns.CalcGTIDDiffWithMaster()
+		if err != nil {
+			gtid = fmt.Sprintf("%s", err)
+		}
 		if ns.SlaveState.ReplicationLag != nil {
 			lag = *ns.SlaveState.ReplicationLag
 		} else {
 			lag = math.NaN()
 		}
+	} else if ns.MasterState != nil {
+		repl = "master"
+		gtid = strings.ReplaceAll(ns.MasterState.ExecutedGtidSet, "\n", "")
 	}
 	sync := unknown
 	if ns.SemiSyncState != nil {
