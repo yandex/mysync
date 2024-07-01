@@ -1,22 +1,23 @@
 module github.com/yandex/mysync
 
 go 1.21
+toolchain go1.22.4
 
 require (
 	github.com/cenkalti/backoff/v4 v4.3.0
 	github.com/cucumber/godog v0.14.1
-	github.com/docker/docker v26.1.3+incompatible
+	github.com/docker/docker v27.0.2+incompatible
 	github.com/go-mysql-org/go-mysql v1.8.0
 	github.com/go-sql-driver/mysql v1.8.1
 	github.com/go-zookeeper/zk v1.0.3
-	github.com/gofrs/flock v0.8.1
+	github.com/gofrs/flock v0.11.0
 	github.com/gofrs/uuid v4.4.0+incompatible
 	github.com/golang/mock v1.6.0
 	github.com/google/uuid v1.6.0
 	github.com/heetch/confita v0.10.0
 	github.com/jmoiron/sqlx v1.4.0
 	github.com/shirou/gopsutil/v3 v3.24.5
-	github.com/spf13/cobra v1.8.0
+	github.com/spf13/cobra v1.8.1
 	github.com/spf13/pflag v1.0.5
 	github.com/stretchr/testify v1.9.0
 	gopkg.in/yaml.v2 v2.4.0
@@ -67,7 +68,7 @@ require (
 	go.opentelemetry.io/otel/trace v1.22.0 // indirect
 	go.uber.org/atomic v1.11.0 // indirect
 	golang.org/x/mod v0.14.0 // indirect
-	golang.org/x/sys v0.20.0 // indirect
+	golang.org/x/sys v0.21.0 // indirect
 	golang.org/x/text v0.14.0 // indirect
 	golang.org/x/tools v0.17.0 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
