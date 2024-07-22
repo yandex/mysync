@@ -161,26 +161,6 @@ func (app *App) removeMaintenanceFile() {
 	}
 }
 
-// Dynamically calculated version of RplSemiSyncMasterWaitForSlaveCount.
-// This variable can be lower than hard-configured RplSemiSyncMasterWaitForSlaveCount
-// when some semi-sync replicas are dead.
-func (app *App) getRequiredWaitSlaveCount(activeNodes []string) int {
-	wsc := len(activeNodes) / 2
-	if wsc > app.config.RplSemiSyncMasterWaitForSlaveCount {
-		wsc = app.config.RplSemiSyncMasterWaitForSlaveCount
-	}
-	return wsc
-}
-
-// Number of HA nodes to be alive to failover/switchover
-func (app *App) getFailoverQuorum(activeNodes []string) int {
-	fq := len(activeNodes) - app.getRequiredWaitSlaveCount(activeNodes)
-	if fq < 1 {
-		fq = 1
-	}
-	return fq
-}
-
 // separate goroutine performing health checks
 func (app *App) healthChecker(ctx context.Context) {
 	ticker := time.NewTicker(app.config.HealthCheckInterval)
@@ -795,19 +775,13 @@ func (app *App) approveFailover(clusterState, clusterStateDcs map[string]*NodeSt
 	app.logger.Infof("approve failover: active nodes are %v", activeNodes)
 	// number of active slaves that we can use to perform switchover
 	permissibleSlaves := countAliveHASlavesWithinNodes(activeNodes, clusterState)
-	if app.config.SemiSync {
-		failoverQuorum := app.getFailoverQuorum(activeNodes)
-		if permissibleSlaves < failoverQuorum {
-			return fmt.Errorf("no quorum, have %d replics while %d is required", permissibleSlaves, failoverQuorum)
-		}
-	} else {
-		if permissibleSlaves == 0 {
-			return fmt.Errorf("no alive active replica found")
-		}
+	err := app.switchHelper.CheckFailoverQuorum(activeNodes, permissibleSlaves)
+	if err != nil {
+		return err
 	}
 
 	var lastSwitchover Switchover
-	err := app.dcs.Get(pathLastSwitch, &lastSwitchover)
+	err = app.dcs.Get(pathLastSwitch, &lastSwitchover)
 	if err != dcs.ErrNotFound {
 		if err != nil {
 			return err
@@ -865,15 +839,8 @@ func (app *App) approveSwitchover(switchover *Switchover, activeNodes []string, 
 	if switchover.RunCount > 0 {
 		return nil
 	}
-	if app.config.SemiSync {
-		// number of active slaves that we can use to perform switchover
-		permissibleSlaves := countAliveHASlavesWithinNodes(activeNodes, clusterState)
-		failoverQuorum := app.getFailoverQuorum(activeNodes)
-		if permissibleSlaves < failoverQuorum {
-			return fmt.Errorf("no quorum, have %d replics while %d is required", permissibleSlaves, failoverQuorum)
-		}
-	}
-	return nil
+	permissibleSlaves := countAliveHASlavesWithinNodes(activeNodes, clusterState)
+	return app.switchHelper.CheckFailoverQuorum(activeNodes, permissibleSlaves)
 }
 
 /*
@@ -1048,7 +1015,7 @@ func (app *App) updateActiveNodes(clusterState, clusterStateDcs map[string]*Node
 	if masterState.SemiSyncState != nil && masterState.SemiSyncState.MasterEnabled {
 		oldWaitSlaveCount = masterState.SemiSyncState.WaitSlaveCount
 	}
-	waitSlaveCount := app.getRequiredWaitSlaveCount(activeNodes)
+	waitSlaveCount := app.switchHelper.GetRequiredWaitSlaveCount(activeNodes)
 
 	app.logger.Infof("update active nodes: active nodes are: %v, wait_slave_count %d", activeNodes, waitSlaveCount)
 	if len(becomeActive) > 0 {
@@ -1202,9 +1169,7 @@ func (app *App) performSwitchover(clusterState map[string]*NodeState, activeNode
 		return fmt.Errorf("switchover: failed to ping hosts: %v with dubious errors", dubious)
 	}
 
-	// calc failoverQuorum before filtering out old master
-	failoverQuorum := app.getFailoverQuorum(activeNodes)
-	oldActiveNodes := activeNodes
+	activeNodesWithoutOldMaster := activeNodes
 
 	// filter out old master as may hang and timeout in different ways
 	if switchover.Cause == CauseAuto && switchover.From == oldMaster {
@@ -1273,8 +1238,9 @@ func (app *App) performSwitchover(clusterState map[string]*NodeState, activeNode
 			frozenActiveNodes = append(frozenActiveNodes, host)
 		}
 	}
-	if len(frozenActiveNodes) < failoverQuorum {
-		return fmt.Errorf("no failoverQuorum: has %d frozen active nodes, while %d is required", len(frozenActiveNodes), failoverQuorum)
+	err := app.switchHelper.CheckFailoverQuorum(activeNodesWithoutOldMaster, len(frozenActiveNodes))
+	if err != nil {
+		return err
 	}
 
 	// setting server read-only may take a while so we need to ensure we are still a manager
@@ -1415,7 +1381,7 @@ func (app *App) performSwitchover(clusterState map[string]*NodeState, activeNode
 
 	// adjust semi-sync before finishing switchover
 	clusterState = app.getClusterStateFromDB()
-	err = app.updateActiveNodes(clusterState, clusterState, oldActiveNodes, newMaster)
+	err = app.updateActiveNodes(clusterState, clusterState, activeNodesWithoutOldMaster, newMaster)
 	if err != nil || app.emulateError("update_active_nodes") {
 		app.logger.Warnf("switchover: failed to update active nodes after switchover: %v", err)
 	}
