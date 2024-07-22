@@ -15,9 +15,9 @@ type ISwitchHelper interface {
 }
 
 type SwitchHelper struct {
-	priorityChoiceMaxLag time.Duration
+	priorityChoiceMaxLag               time.Duration
 	rplSemiSyncMasterWaitForSlaveCount int
-	SemiSync bool
+	SemiSync                           bool
 }
 
 func NewSwitchHelper(config *config.Config) ISwitchHelper {
@@ -28,9 +28,9 @@ func NewSwitchHelper(config *config.Config) ISwitchHelper {
 		}
 	}
 	return &SwitchHelper{
-		priorityChoiceMaxLag: priorityChoiceMaxLag,
+		priorityChoiceMaxLag:               priorityChoiceMaxLag,
 		rplSemiSyncMasterWaitForSlaveCount: config.RplSemiSyncMasterWaitForSlaveCount,
-		SemiSync: config.SemiSync,
+		SemiSync:                           config.SemiSync,
 	}
 }
 
