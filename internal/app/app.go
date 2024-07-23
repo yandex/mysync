@@ -1169,7 +1169,7 @@ func (app *App) performSwitchover(clusterState map[string]*NodeState, activeNode
 		return fmt.Errorf("switchover: failed to ping hosts: %v with dubious errors", dubious)
 	}
 
-	activeNodesWithoutOldMaster := activeNodes
+	activeNodesWithOldMaster := activeNodes
 
 	// filter out old master as may hang and timeout in different ways
 	if switchover.Cause == CauseAuto && switchover.From == oldMaster {
@@ -1238,7 +1238,7 @@ func (app *App) performSwitchover(clusterState map[string]*NodeState, activeNode
 			frozenActiveNodes = append(frozenActiveNodes, host)
 		}
 	}
-	err := app.switchHelper.CheckFailoverQuorum(activeNodesWithoutOldMaster, len(frozenActiveNodes))
+	err := app.switchHelper.CheckFailoverQuorum(activeNodesWithOldMaster, len(frozenActiveNodes))
 	if err != nil {
 		return err
 	}
@@ -1381,7 +1381,7 @@ func (app *App) performSwitchover(clusterState map[string]*NodeState, activeNode
 
 	// adjust semi-sync before finishing switchover
 	clusterState = app.getClusterStateFromDB()
-	err = app.updateActiveNodes(clusterState, clusterState, activeNodesWithoutOldMaster, newMaster)
+	err = app.updateActiveNodes(clusterState, clusterState, activeNodesWithOldMaster, newMaster)
 	if err != nil || app.emulateError("update_active_nodes") {
 		app.logger.Warnf("switchover: failed to update active nodes after switchover: %v", err)
 	}
