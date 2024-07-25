@@ -31,12 +31,14 @@ type ZookeeperConfig struct {
 }
 
 type RandomHostProviderConfig struct {
-	LookupTTL time.Duration `config:"lookup_ttl" yaml:"lookup_ttl"`
+	LookupTimeout time.Duration `config:"lookup_timeout" yaml:"lookup_timeout"`
+	LookupTTL     time.Duration `config:"lookup_ttl" yaml:"lookup_ttl"`
 }
 
 func DefaultRandomHostProviderConfig() RandomHostProviderConfig {
 	return RandomHostProviderConfig{
-		LookupTTL: 300 * time.Second,
+		LookupTimeout: 3 * time.Second,
+		LookupTTL:     300 * time.Second,
 	}
 }
 
