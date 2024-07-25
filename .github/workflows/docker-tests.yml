@@ -13,7 +13,7 @@ env:
 jobs:
   buildimages:
     name: Build images
-    runs-on: ubuntu-20.04
+    runs-on: ubuntu-22.04
     steps:
       - name: Check out code into the Go module directory
         uses: actions/checkout@v4
@@ -35,7 +35,7 @@ jobs:
     
   test:
     name: test
-    runs-on: ubuntu-20.04
+    runs-on: ubuntu-22.04
     needs: [ buildimages ]
     strategy:
       matrix:

@@ -18,8 +18,8 @@ apt-get install \
     software-properties-common
 
 apt-key add - < /var/lib/dist/base/percona.gpg
-add-apt-repository 'deb http://mirror.yandex.ru/mirrors/percona/percona/apt bionic main'
-add-apt-repository 'deb http://mirror.yandex.ru/mirrors/percona/ps-80/apt bionic main'
+add-apt-repository 'deb http://mirror.yandex.ru/mirrors/percona/percona/apt jammy main'
+add-apt-repository 'deb http://mirror.yandex.ru/mirrors/percona/ps-80/apt jammy main'
 
 # common
 apt-get update
