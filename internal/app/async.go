@@ -21,8 +21,8 @@ func (app *App) CheckAsyncSwitchAllowed(node *mysql.Node, switchover *Switchover
 			return false
 		}
 		if time.Duration(delay)*time.Second < app.config.AsyncAllowedLag {
-			app.logger.Infof("async allowed lag is %d and current lag on host %s is %d, so we don't wait for catch up any more",
-				app.config.AsyncAllowedLag, node.Host(), delay)
+			app.logger.Infof("async allowed lag is %f seconds and current lag on host %s is %d, so we don't wait for catch up any more",
+				app.config.AsyncAllowedLag.Seconds(), node.Host(), delay)
 			return true
 		}
 	}
