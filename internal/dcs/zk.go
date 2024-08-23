@@ -1,6 +1,7 @@
 package dcs
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"net"
@@ -52,7 +53,7 @@ func retry(config *ZookeeperConfig, operation func() error) error {
 }
 
 // NewZookeeper returns Zookeeper based DCS storage
-func NewZookeeper(config *ZookeeperConfig, logger *log.Logger) (DCS, error) {
+func NewZookeeper(ctx context.Context, config *ZookeeperConfig, logger *log.Logger) (DCS, error) {
 	if len(config.Hosts) == 0 {
 		return nil, fmt.Errorf("zookeeper not configured, fill zookeeper/hosts in config")
 	}
@@ -70,7 +71,7 @@ func NewZookeeper(config *ZookeeperConfig, logger *log.Logger) (DCS, error) {
 	var ec <-chan zk.Event
 	var err error
 	var operation func() error
-	hostProvider := NewRandomHostProvider(&config.RandomHostProvider, logger)
+	hostProvider := NewRandomHostProvider(ctx, &config.RandomHostProvider, logger)
 	if config.UseSSL {
 		if config.CACert == "" || config.KeyFile == "" || config.CertFile == "" {
 			return nil, fmt.Errorf("zookeeper ssl not configured, fill ca_cert/key_file/cert_file in config or disable use_ssl flag")
