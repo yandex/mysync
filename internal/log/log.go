@@ -125,23 +125,23 @@ func (l *Logger) printf(lvl Level, msg string, args ...interface{}) {
 }
 
 func (l *Logger) Debug(msg string) {
-	l.Debugf(msg)
+	l.Debugf("%s", msg)
 }
 
 func (l *Logger) Info(msg string) {
-	l.Infof(msg)
+	l.Infof("%s", msg)
 }
 
 func (l *Logger) Warn(msg string) {
-	l.Warnf(msg)
+	l.Warnf("%s", msg)
 }
 
 func (l *Logger) Error(msg string) {
-	l.Errorf(msg)
+	l.Errorf("%s", msg)
 }
 
 func (l *Logger) Fatal(msg string) {
-	l.Fatalf(msg)
+	l.Fatalf("%s", msg)
 }
 
 func (l *Logger) Debugf(msg string, args ...interface{}) {

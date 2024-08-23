@@ -20,7 +20,7 @@ import (
 func (app *App) CliInfo(short bool) int {
 	err := app.connectDCS()
 	if err != nil {
-		app.logger.Errorf(err.Error())
+		app.logger.Error(err.Error())
 		return 1
 	}
 	app.dcs.Initialize()
@@ -28,12 +28,12 @@ func (app *App) CliInfo(short bool) int {
 
 	err = app.newDBCluster()
 	if err != nil {
-		app.logger.Errorf(err.Error())
+		app.logger.Error(err.Error())
 		return 1
 	}
 	defer app.cluster.Close()
 	if err := app.cluster.UpdateHostsInfo(); err != nil {
-		app.logger.Errorf(err.Error())
+		app.logger.Error(err.Error())
 		return 1
 	}
 
@@ -57,7 +57,7 @@ func (app *App) CliInfo(short bool) int {
 
 		activeNodes, err := app.GetActiveNodes()
 		if err != nil {
-			app.logger.Errorf(err.Error())
+			app.logger.Error(err.Error())
 			return 1
 		}
 		sort.Strings(activeNodes)
@@ -123,7 +123,7 @@ func (app *App) CliInfo(short bool) int {
 	} else {
 		tree, err = app.dcs.GetTree("")
 		if err != nil {
-			app.logger.Errorf(err.Error())
+			app.logger.Error(err.Error())
 			return 1
 		}
 	}
@@ -140,20 +140,20 @@ func (app *App) CliInfo(short bool) int {
 func (app *App) CliState(short bool) int {
 	err := app.connectDCS()
 	if err != nil {
-		app.logger.Errorf(err.Error())
+		app.logger.Error(err.Error())
 		return 1
 	}
 	defer app.dcs.Close()
 	app.dcs.Initialize()
 	err = app.newDBCluster()
 	if err != nil {
-		app.logger.Errorf(err.Error())
+		app.logger.Error(err.Error())
 		return 1
 	}
 	defer app.cluster.Close()
 
 	if err := app.cluster.UpdateHostsInfo(); err != nil {
-		app.logger.Errorf(err.Error())
+		app.logger.Error(err.Error())
 		return 1
 	}
 
@@ -191,20 +191,20 @@ func (app *App) CliSwitch(switchFrom, switchTo string, waitTimeout time.Duration
 	}
 	err := app.connectDCS()
 	if err != nil {
-		app.logger.Errorf(err.Error())
+		app.logger.Error(err.Error())
 		return 1
 	}
 	defer app.dcs.Close()
 	app.dcs.Initialize()
 	err = app.newDBCluster()
 	if err != nil {
-		app.logger.Errorf(err.Error())
+		app.logger.Error(err.Error())
 		return 1
 	}
 	defer app.cluster.Close()
 
 	if err := app.cluster.UpdateHostsInfo(); err != nil {
-		app.logger.Errorf(err.Error())
+		app.logger.Error(err.Error())
 		return 1
 	}
 
@@ -223,7 +223,7 @@ func (app *App) CliSwitch(switchFrom, switchTo string, waitTimeout time.Duration
 	}
 	activeNodes, err := app.GetActiveNodes()
 	if err != nil {
-		app.logger.Errorf(err.Error())
+		app.logger.Error(err.Error())
 		return 1
 	}
 
@@ -277,12 +277,12 @@ func (app *App) CliSwitch(switchFrom, switchTo string, waitTimeout time.Duration
 			// to avoid switching from one to another, use switch to behavior
 			positions, err := app.getNodePositions(candidates)
 			if err != nil {
-				app.logger.Errorf(err.Error())
+				app.logger.Error(err.Error())
 				return 1
 			}
 			toHost, err = getMostDesirableNode(app.logger, positions, app.switchHelper.GetPriorityChoiceMaxLag())
 			if err != nil {
-				app.logger.Errorf(err.Error())
+				app.logger.Error(err.Error())
 				return 1
 			}
 		}
@@ -295,7 +295,7 @@ func (app *App) CliSwitch(switchFrom, switchTo string, waitTimeout time.Duration
 		return 2
 	}
 	if err != dcs.ErrNotFound {
-		app.logger.Errorf(err.Error())
+		app.logger.Error(err.Error())
 		return 2
 	}
 
@@ -311,7 +311,7 @@ func (app *App) CliSwitch(switchFrom, switchTo string, waitTimeout time.Duration
 		return 2
 	}
 	if err != nil {
-		app.logger.Errorf(err.Error())
+		app.logger.Error(err.Error())
 		return 1
 	}
 	// wait for switchover to complete
@@ -353,7 +353,7 @@ func (app *App) CliEnableMaintenance(waitTimeout time.Duration) int {
 	ctx := app.baseContext()
 	err := app.connectDCS()
 	if err != nil {
-		app.logger.Errorf(err.Error())
+		app.logger.Error(err.Error())
 		return 1
 	}
 	defer app.dcs.Close()
@@ -365,7 +365,7 @@ func (app *App) CliEnableMaintenance(waitTimeout time.Duration) int {
 	}
 	err = app.dcs.Create(pathMaintenance, maintenance)
 	if err != nil && err != dcs.ErrExists {
-		app.logger.Errorf(err.Error())
+		app.logger.Error(err.Error())
 		return 1
 	}
 	// wait for mysync to pause
@@ -379,7 +379,7 @@ func (app *App) CliEnableMaintenance(waitTimeout time.Duration) int {
 			case <-ticker.C:
 				err = app.dcs.Get(pathMaintenance, maintenance)
 				if err != nil {
-					app.logger.Errorf(err.Error())
+					app.logger.Error(err.Error())
 				}
 				if maintenance.MySyncPaused {
 					break Out
@@ -404,7 +404,7 @@ func (app *App) CliDisableMaintenance(waitTimeout time.Duration) int {
 	ctx := app.baseContext()
 	err := app.connectDCS()
 	if err != nil {
-		app.logger.Errorf(err.Error())
+		app.logger.Error(err.Error())
 		return 1
 	}
 	defer app.dcs.Close()
@@ -439,7 +439,7 @@ func (app *App) CliDisableMaintenance(waitTimeout time.Duration) int {
 					break Out
 				}
 				if err != nil {
-					app.logger.Errorf(err.Error())
+					app.logger.Error(err.Error())
 				}
 			case <-waitCtx.Done():
 				break Out
@@ -495,7 +495,7 @@ func (app *App) CliAbort() int {
 		return 0
 	}
 	if err != nil {
-		app.logger.Errorf(err.Error())
+		app.logger.Error(err.Error())
 		return 1
 	}
 
@@ -514,7 +514,7 @@ func (app *App) CliAbort() int {
 
 	err = app.dcs.Delete(pathCurrentSwitch)
 	if err != nil {
-		app.logger.Errorf(err.Error())
+		app.logger.Error(err.Error())
 		return 1
 	}
 
@@ -526,7 +526,7 @@ func (app *App) CliAbort() int {
 func (app *App) CliHostList() int {
 	err := app.connectDCS()
 	if err != nil {
-		app.logger.Errorf(err.Error())
+		app.logger.Error(err.Error())
 		return 1
 	}
 	app.dcs.Initialize()
@@ -534,7 +534,7 @@ func (app *App) CliHostList() int {
 
 	err = app.newDBCluster()
 	if err != nil {
-		app.logger.Errorf(err.Error())
+		app.logger.Error(err.Error())
 		return 1
 	}
 	defer app.cluster.Close()
@@ -584,7 +584,7 @@ func (app *App) CliHostAdd(host string, streamFrom *string, priority *int64, dry
 
 	err = app.newDBCluster()
 	if err != nil {
-		app.logger.Errorf(err.Error())
+		app.logger.Error(err.Error())
 		return 1
 	}
 	defer app.cluster.Close()
@@ -601,7 +601,7 @@ func (app *App) CliHostAdd(host string, streamFrom *string, priority *int64, dry
 
 	err = app.cluster.UpdateHostsInfo()
 	if err != nil {
-		app.logger.Errorf(err.Error())
+		app.logger.Error(err.Error())
 		return 1
 	}
 
@@ -667,7 +667,7 @@ func (app *App) CliHostRemove(host string) int {
 
 	err = app.newDBCluster()
 	if err != nil {
-		app.logger.Errorf(err.Error())
+		app.logger.Error(err.Error())
 		return 1
 	}
 	defer app.cluster.Close()
