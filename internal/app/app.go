@@ -109,7 +109,7 @@ func (app *App) baseContext() context.Context {
 func (app *App) connectDCS() error {
 	var err error
 	// TODO: support other DCS systems
-	app.dcs, err = dcs.NewZookeeper(&app.config.Zookeeper, app.logger)
+	app.dcs, err = dcs.NewZookeeper(app.baseContext(), &app.config.Zookeeper, app.logger)
 	if err != nil {
 		return fmt.Errorf("failed to connect to zkDCS: %s", err.Error())
 	}
@@ -618,7 +618,7 @@ func (app *App) stateManager() appState {
 	// activeNodes are master + alive running replicas
 	activeNodes, err := app.GetActiveNodes()
 	if err != nil {
-		app.logger.Errorf(err.Error())
+		app.logger.Error(err.Error())
 		return stateManager
 	}
 	app.logger.Infof("active: %v", activeNodes)
@@ -683,7 +683,7 @@ func (app *App) stateManager() appState {
 		}
 		return stateManager
 	} else if err != dcs.ErrNotFound {
-		app.logger.Errorf(err.Error())
+		app.logger.Error(err.Error())
 		return stateManager
 	}
 
@@ -2327,7 +2327,7 @@ func (app *App) Run() int {
 
 	err := app.lockFile()
 	if err != nil {
-		app.logger.Errorf(err.Error())
+		app.logger.Error(err.Error())
 		return 1
 	}
 	defer app.unlockFile()
@@ -2337,14 +2337,14 @@ func (app *App) Run() int {
 
 	err = app.connectDCS()
 	if err != nil {
-		app.logger.Errorf(err.Error())
+		app.logger.Error(err.Error())
 		return 1
 	}
 	defer app.dcs.Close()
 
 	err = app.newDBCluster()
 	if err != nil {
-		app.logger.Errorf(err.Error())
+		app.logger.Error(err.Error())
 		return 1
 	}
 	defer app.cluster.Close()
