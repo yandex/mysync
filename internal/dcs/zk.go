@@ -332,7 +332,7 @@ func (z *zkDCS) AcquireLock(path string) bool {
 		if err != nil {
 			panic(fmt.Sprintf("failed to serialize to JSON %#v", self))
 		}
-		_, err = z.retryCreate(fullPath, data, zk.FlagEphemeral, nil)
+		_, err = z.retryCreate(fullPath, data, zk.FlagEphemeral, z.acl)
 		if err != nil {
 			if err != zk.ErrNodeExists {
 				z.logger.Errorf("failed to acquire lock %s: %v", fullPath, err)
@@ -377,7 +377,7 @@ func (z *zkDCS) create(path string, val interface{}, flags int32) error {
 	if err != nil {
 		panic(fmt.Sprintf("failed to serialize to JSON %#v", val))
 	}
-	_, err = z.retryCreate(fullPath, data, flags, nil)
+	_, err = z.retryCreate(fullPath, data, flags, z.acl)
 	if err != nil {
 		if err == zk.ErrNodeExists {
 			return ErrExists
@@ -412,7 +412,7 @@ func (z *zkDCS) set(path string, val interface{}, flags int32) error {
 		if err != nil {
 			return err
 		}
-		_, err = z.retryCreate(fullPath, data, flags, nil)
+		_, err = z.retryCreate(fullPath, data, flags, z.acl)
 		if err != nil {
 			z.logger.Errorf("failed to create node %s with %v: %v", fullPath, val, err)
 		}
