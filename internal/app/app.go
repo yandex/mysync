@@ -963,18 +963,18 @@ func (app *App) calcActiveNodesChanges(clusterState map[string]*NodeState, activ
 			slaveState := clusterState[host].SlaveState
 			dataLag := calcLagBytes(masterBinlogs, slaveState.MasterLogFile, slaveState.MasterLogPos)
 			if dataLag > app.config.SemiSyncEnableLag {
-				newBinLog := fmt.Sprintf("%s%019d", slaveState.MasterLogFile, slaveState.MasterLogPos)
-				oldBinLog := app.slaveReadPositions[host]
+				newBinLogPos := fmt.Sprintf("%s%019d", slaveState.MasterLogFile, slaveState.MasterLogPos)
+				oldBinLogPos := app.slaveReadPositions[host]
 
-				if newBinLog <= oldBinLog {
+				if newBinLogPos <= oldBinLogPos {
 					app.logger.Warnf("calc active nodes: %v should become active, but it has data lag %d and it's IO is stopped, delaying...", host, dataLag)
 					becomeInactive = append(becomeInactive, host)
 				} else {
-					app.logger.Warnf("calc active nodes: %v has data lag %d, but it's IO is working", host, dataLag)
+					app.logger.Warnf("calc active nodes: %v has data lag %d, but it's IO is working. Old binlog position is %s, new binlog position is %s", host, dataLag, oldBinLogPos, newBinLogPos)
 					dataLagging = append(dataLagging, host)
 				}
 
-				app.slaveReadPositions[host] = newBinLog
+				app.slaveReadPositions[host] = newBinLogPos
 			}
 		}
 		becomeActive = filterOut(becomeActive, dataLagging)
@@ -1056,14 +1056,14 @@ func (app *App) updateActiveNodes(clusterState, clusterStateDcs map[string]*Node
 		}
 	}
 	for _, host := range becomeInactive {
-		err = app.disableSemiSyncOnSlave(host, false)
+		err = app.disableSemiSyncOnSlave(host, true)
 		if err != nil {
 			app.logger.Warnf("failed to disable semi-sync on slave %s: %v", host, err)
 			return err
 		}
 	}
 	for _, host := range becomeDataLag {
-		err = app.disableSemiSyncOnSlave(host, true)
+		err = app.disableSemiSyncOnSlave(host, false)
 		if err != nil {
 			app.logger.Warnf("failed to disable semi-sync on slave %s: %v", host, err)
 			return err
@@ -1151,7 +1151,7 @@ func (app *App) enableSemiSyncOnSlave(host string, slaveState, masterState *Node
 	return nil
 }
 
-func (app *App) disableSemiSyncOnSlave(host string, isSlaveWorking bool) error {
+func (app *App) disableSemiSyncOnSlave(host string, restartIOThread bool) error {
 	node := app.cluster.Get(host)
 	err := node.SemiSyncDisable()
 	if err != nil {
@@ -1159,7 +1159,7 @@ func (app *App) disableSemiSyncOnSlave(host string, isSlaveWorking bool) error {
 		return err
 	}
 
-	if !isSlaveWorking {
+	if restartIOThread {
 		err = node.RestartSlaveIOThread()
 		if err != nil {
 			app.logger.Errorf("failed restart slave io thread after set semi_sync_slave on %s: %s", host, err)
