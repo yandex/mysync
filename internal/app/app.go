@@ -970,7 +970,7 @@ func (app *App) calcActiveNodesChanges(clusterState map[string]*NodeState, activ
 					app.logger.Warnf("calc active nodes: %v should become active, but it has data lag %d and it's IO is stopped, delaying...", host, dataLag)
 					becomeInactive = append(becomeInactive, host)
 				} else {
-					app.logger.Warnf("calc active nodes: %v has data lag %d, but it's IO is working. Old binlog position is %s, new binlog position is %s", host, dataLag, oldBinLogPos, newBinLogPos)
+					app.logger.Warnf("calc active nodes: %v has data lag %d, but it's IO is working. Old binlog: %s, new binlog: %s", host, dataLag, oldBinLogPos, newBinLogPos)
 					dataLagging = append(dataLagging, host)
 				}
 
