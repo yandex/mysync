@@ -1,6 +1,6 @@
 set -xe
 
-rat <<EOF >/etc/apt/apt.conf.d/01buildconfig
+cat <<EOF >/etc/apt/apt.conf.d/01buildconfig
 APT::Install-Recommends "0";
 APT::Get::Assume-Yes "true";
 APT::Install-Suggests "0";
