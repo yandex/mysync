@@ -1,7 +1,6 @@
-
 set -xe
 
-cat <<EOF > /etc/apt/apt.conf.d/01buildconfig
+rat <<EOF >/etc/apt/apt.conf.d/01buildconfig
 APT::Install-Recommends "0";
 APT::Get::Assume-Yes "true";
 APT::Install-Suggests "0";
@@ -10,41 +9,41 @@ EOF
 apt-get update
 
 apt-get install \
-    wget \
-    ca-certificates \
-    lsb-release \
-    gpg-agent \
-    apt-utils \
-    software-properties-common
+  wget \
+  ca-certificates \
+  lsb-release \
+  gpg-agent \
+  apt-utils \
+  software-properties-common
 
-apt-key add - < /var/lib/dist/base/percona.gpg
+apt-key add - </var/lib/dist/base/percona.gpg
 add-apt-repository 'deb http://mirror.yandex.ru/mirrors/percona/percona/apt jammy main'
 add-apt-repository 'deb http://mirror.yandex.ru/mirrors/percona/ps-80/apt jammy main'
 
 # common
 apt-get update
 apt-get install \
-    apt-utils \
-    openjdk-11-jre-headless \
-    less \
-    bind9-host \
-    net-tools \
-    netcat \
-    iputils-ping \
-    sudo \
-    telnet \
-    git \
-    python3-pip \
-    python3-setuptools \
-    faketime \
-    rsync \
-    vim \
-    iptables
+  apt-utils \
+  openjdk-11-jre-headless \
+  less \
+  bind9-host \
+  net-tools \
+  netcat \
+  iputils-ping \
+  sudo \
+  telnet \
+  git \
+  python3-pip \
+  python3-setuptools \
+  faketime \
+  rsync \
+  vim \
+  iptables
 rm -rf /var/run
 ln -s /dev/shm /var/run
 
 # ssh
-apt-get install  openssh-server
+apt-get install openssh-server
 mkdir -p /run/sshd
 cp /var/lib/dist/base/sshd_config /etc/ssh/sshd_config
 mkdir /root/.ssh
@@ -68,11 +67,11 @@ fi
 rm -rf /var/lib/mysql/*
 
 # supervisor
-pip3 install git+https://github.com/Supervisor/supervisor.git@4619168a4d820b37641a4719e211cf867bd7f49d
+pip3 install git+https://github.com/Supervisor/supervisor.git@18b59a1403778766561ab49b18cf2558e8a4d227
 mkdir -p /etc/supervisor/conf.d
 cp /var/lib/dist/base/supervisor.conf /etc/supervisor/supervisord.conf
 cp /var/lib/dist/base/supervisor_ssh.conf /etc/supervisor/conf.d
 
 # zookeeper
-wget -nc -O - --quiet https://archive.apache.org/dist/zookeeper/zookeeper-${ZK_VERSION}/apache-zookeeper-${ZK_VERSION}-bin.tar.gz | tar -xz -C /opt && \
-mv /opt/apache-zookeeper* /opt/zookeeper
+wget -nc -O - --quiet https://archive.apache.org/dist/zookeeper/zookeeper-${ZK_VERSION}/apache-zookeeper-${ZK_VERSION}-bin.tar.gz | tar -xz -C /opt &&
+  mv /opt/apache-zookeeper* /opt/zookeeper
