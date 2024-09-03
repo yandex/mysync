@@ -1,6 +1,7 @@
 package dcs
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"net"
@@ -52,7 +53,7 @@ func retry(config *ZookeeperConfig, operation func() error) error {
 }
 
 // NewZookeeper returns Zookeeper based DCS storage
-func NewZookeeper(config *ZookeeperConfig, logger *log.Logger) (DCS, error) {
+func NewZookeeper(ctx context.Context, config *ZookeeperConfig, logger *log.Logger) (DCS, error) {
 	if len(config.Hosts) == 0 {
 		return nil, fmt.Errorf("zookeeper not configured, fill zookeeper/hosts in config")
 	}
@@ -70,7 +71,7 @@ func NewZookeeper(config *ZookeeperConfig, logger *log.Logger) (DCS, error) {
 	var ec <-chan zk.Event
 	var err error
 	var operation func() error
-	hostProvider := NewRandomHostProvider(&config.RandomHostProvider, logger)
+	hostProvider := NewRandomHostProvider(ctx, &config.RandomHostProvider, logger)
 	if config.UseSSL {
 		if config.CACert == "" || config.KeyFile == "" || config.CertFile == "" {
 			return nil, fmt.Errorf("zookeeper ssl not configured, fill ca_cert/key_file/cert_file in config or disable use_ssl flag")
@@ -331,7 +332,7 @@ func (z *zkDCS) AcquireLock(path string) bool {
 		if err != nil {
 			panic(fmt.Sprintf("failed to serialize to JSON %#v", self))
 		}
-		_, err = z.retryCreate(fullPath, data, zk.FlagEphemeral, nil)
+		_, err = z.retryCreate(fullPath, data, zk.FlagEphemeral, z.acl)
 		if err != nil {
 			if err != zk.ErrNodeExists {
 				z.logger.Errorf("failed to acquire lock %s: %v", fullPath, err)
@@ -376,7 +377,7 @@ func (z *zkDCS) create(path string, val interface{}, flags int32) error {
 	if err != nil {
 		panic(fmt.Sprintf("failed to serialize to JSON %#v", val))
 	}
-	_, err = z.retryCreate(fullPath, data, flags, nil)
+	_, err = z.retryCreate(fullPath, data, flags, z.acl)
 	if err != nil {
 		if err == zk.ErrNodeExists {
 			return ErrExists
@@ -411,7 +412,7 @@ func (z *zkDCS) set(path string, val interface{}, flags int32) error {
 		if err != nil {
 			return err
 		}
-		_, err = z.retryCreate(fullPath, data, flags, nil)
+		_, err = z.retryCreate(fullPath, data, flags, z.acl)
 		if err != nil {
 			z.logger.Errorf("failed to create node %s with %v: %v", fullPath, val, err)
 		}
