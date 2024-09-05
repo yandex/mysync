@@ -142,7 +142,7 @@ func (ns *NodeState) CalcGTIDDiffWithMaster() (string, error) {
 	return gtids.GTIDDiff(replicaGTID, sourceGTID)
 }
 
-func (ns *NodeState) String() string {
+func (ns *NodeState) String(showOnlyGTIDDiff bool) string {
 	ping := "ok"
 	if !ns.PingOk {
 		ping = "ERR"
@@ -156,11 +156,17 @@ func (ns *NodeState) String() string {
 	lag := 0.0
 	if ns.SlaveState != nil {
 		repl = ns.SlaveState.ReplicationState
-		var err error
-		gtid, err = ns.CalcGTIDDiffWithMaster()
-		if err != nil {
-			gtid = fmt.Sprintf("%s", err)
+
+		if showOnlyGTIDDiff {
+			var err error
+			gtid, err = ns.CalcGTIDDiffWithMaster()
+			if err != nil {
+				gtid = fmt.Sprintf("%s", err)
+			}
+		} else {
+			gtid = strings.ReplaceAll(ns.SlaveState.ExecutedGtidSet, "\n", "")
 		}
+
 		if ns.SlaveState.ReplicationLag != nil {
 			lag = *ns.SlaveState.ReplicationLag
 		} else {
