@@ -80,7 +80,7 @@ func (app *App) CliInfo(short bool) int {
 		}
 		health := make(map[string]interface{})
 		for host, state := range clusterState {
-			health[host] = state.String()
+			health[host] = state.String(app.config.ShowOnlyGTIDDiff)
 		}
 		data[pathHealthPrefix] = health
 
@@ -162,7 +162,7 @@ func (app *App) CliState(short bool) int {
 	if short {
 		clusterStateStrings := make(map[string]string)
 		for host, state := range clusterState {
-			clusterStateStrings[host] = state.String()
+			clusterStateStrings[host] = state.String(app.config.ShowOnlyGTIDDiff)
 		}
 		tree = clusterStateStrings
 	} else {

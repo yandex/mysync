@@ -96,6 +96,7 @@ type Config struct {
 	ReplMonWriteInterval                    time.Duration                `config:"repl_mon_write_interval" yaml:"repl_mon_write_interval"`
 	ReplMonErrorWaitInterval                time.Duration                `config:"repl_mon_error_wait_interval" yaml:"repl_mon_error_wait_interval"`
 	ReplMonSlaveWaitInterval                time.Duration                `config:"repl_mon_slave_wait_interval" yaml:"repl_mon_slave_wait_interval"`
+	ShowOnlyGTIDDiff                        bool                         `config:"show_only_gtid_diff" yaml:"show_only_gtid_diff"`
 }
 
 // DefaultConfig returns default configuration for MySync
@@ -180,6 +181,7 @@ func DefaultConfig() (Config, error) {
 		ReplMonWriteInterval:                    1 * time.Second,
 		ReplMonErrorWaitInterval:                10 * time.Second,
 		ReplMonSlaveWaitInterval:                10 * time.Second,
+		ShowOnlyGTIDDiff:                        false,
 	}
 	return config, nil
 }
