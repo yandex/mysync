@@ -249,7 +249,7 @@
    :name      "mysync"
    :os        os/noop
    :db        (db)
-   :ssh       {:private-key-path "/root/.ssh/id_rsa"}
+   :ssh       {:private-key-path "/root/.ssh/id_rsa" :strict-host-key-checking :no}
    :net       net/iptables
    :client    (mysql-client nil)
    :nemesis   (nemesis/compose {{:start-halves :start} (nemesis/partition-random-halves)

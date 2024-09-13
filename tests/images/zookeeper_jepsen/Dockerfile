@@ -4,3 +4,5 @@ COPY ./supervisor_zookeeper.conf /etc/supervisor/conf.d
 COPY ./retriable_path_create.sh /usr/local/bin/retriable_path_create.sh
 COPY ./generate_certs_with_restart.sh /usr/local/bin/generate_certs_with_restart.sh
 RUN chmod 755 /usr/local/bin/generate_certs_with_restart.sh
+
+COPY ../jepsen_sshd_config /etc/sshd/sshd_config

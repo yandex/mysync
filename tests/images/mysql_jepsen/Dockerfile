@@ -8,6 +8,7 @@ COPY ./setup.sh /usr/local/bin/setup.sh
 COPY ./my.cnf /etc/mysql/my.cnf
 COPY ./.my.cnf /root/.my.cnf
 COPY ./supervisor_mysql.conf /etc/supervisor/conf.d
+COPY ../jepsen_sshd_config /etc/sshd/sshd_config
 RUN chown mysql:root /etc/mysql
 RUN touch /etc/mysync.yaml
 RUN chown mysql:mysql /etc/mysync.yaml
