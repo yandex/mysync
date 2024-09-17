@@ -1212,14 +1212,12 @@ func (app *App) performSwitchover(clusterState map[string]*NodeState, activeNode
 		if app.config.ForceSwitchover {
 			err := node.SetOffline()
 			if err != nil {
-				app.logger.Infof("switchover: failed to set node %s offline: %v", host, err)
-				return fmt.Errorf("failed to set node %s read-only: %v", host, err)
+				return fmt.Errorf("switchover: failed to set node %s offline: %v", host, err)
 			}
 
 			err = node.SemiSyncDisable()
 			if err != nil {
-				app.logger.Infof("switchover: failed to disable semi-sync on node %s: %v", host, err)
-				return fmt.Errorf("failed to set node %s read-only: %v", host, err)
+				return fmt.Errorf("switchover: failed to disable semi-sync on node %s: %v", host, err)
 			}
 		}
 
