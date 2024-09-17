@@ -91,7 +91,7 @@
 
     (invoke! [this test op]
       (try
-          (timeout 5000 (assoc op :type :info, :error "timeout")
+          (timeout 10000 (assoc op :type :info, :error "timeout")
             (with-conn [c conn]
               (case (:f op)
                 :read (cond (= (count (j/query c ["show slave status for channel ''"])) 0)
@@ -266,16 +266,16 @@
                        (fn [] (map gen/once
                                    [{:type :info, :f (rand-nth nemesis-starts)}
                                     {:type :info, :f (rand-nth nemesis-starts)}
-                                    {:type :sleep, :value 60}
+                                    {:type :sleep, :value 120}
                                     {:type :info, :f :stop}
-                                    {:type :sleep, :value 60}])))
-                     (gen/time-limit 7200))
+                                    {:type :sleep, :value 120}])))
+                     (gen/time-limit 14400))
                 (->> r
                      (gen/stagger 1)
                      (gen/nemesis
                        (fn [] (map gen/once
                                    [{:type :info, :f :stop}
-                                    {:type :sleep, :value 60}])))
-                     (gen/time-limit 600)))
+                                    {:type :sleep, :value 120}])))
+                     (gen/time-limit 1200)))
    :checker   mysync-set
    :remote    control/ssh})
