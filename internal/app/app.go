@@ -1208,6 +1208,21 @@ func (app *App) performSwitchover(clusterState map[string]*NodeState, activeNode
 		}
 		node := app.cluster.Get(host)
 		// in case node is a master
+
+		if app.config.ForceSwitchover {
+			err := node.SetOffline()
+			if err != nil {
+				app.logger.Infof("switchover: failed to set node %s offline: %v", host, err)
+				return fmt.Errorf("failed to set node %s read-only: %v", host, err)
+			}
+
+			err = node.SemiSyncDisable()
+			if err != nil {
+				app.logger.Infof("switchover: failed to disable semi-sync on node %s: %v", host, err)
+				return fmt.Errorf("failed to set node %s read-only: %v", host, err)
+			}
+		}
+
 		err := node.SetReadOnly(true)
 		if err != nil || app.emulateError("freeze_ro") {
 			app.logger.Infof("switchover: failed to set node %s read-only, trying kill bad queries: %v", host, err)
