@@ -1210,15 +1210,8 @@ func (app *App) performSwitchover(clusterState map[string]*NodeState, activeNode
 		// in case node is a master
 
 		if app.config.ForceSwitchover {
-			err := node.SetOffline()
-			if err != nil {
-				return fmt.Errorf("switchover: failed to set node %s offline: %v", host, err)
-			}
-
-			err = node.SemiSyncDisable()
-			if err != nil {
-				return fmt.Errorf("switchover: failed to disable semi-sync on node %s: %v", host, err)
-			}
+			node.SetOfflineForce()
+			defer node.SetOnline()
 		}
 
 		err := node.SetReadOnly(true)
