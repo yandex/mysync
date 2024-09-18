@@ -37,46 +37,11 @@ Feature: manual switchover from old master
       }
       """
 
-  Scenario: if switchover was approved, it will not be rejected
-    Given cluster is up and running
-    Then zookeeper node "/test/active_nodes" should match json_exactly within "20" seconds
-      """
-      ["mysql1","mysql2","mysql3"]
-      """
-    When mysql on host "mysql3" is killed
-    And mysql on host "mysql2" is killed
-    And I set zookeeper node "/test/switch" to
-      """
-      {
-          "from": "mysql1",
-          "to": "",
-          "cause": "manual",
-          "initiated_by": "mysql1",
-          "run_count": 1
-      }
-      """
-    Then zookeeper node "/test/last_switch" should not exist within "30" seconds  
-    Then zookeeper node "/test/last_rejected_switch" should not exist within "30" seconds  
-    When mysql on host "mysql3" is started
-    And mysql on host "mysql2" is started
-    Then zookeeper node "/test/last_switch" should match json within "30" seconds
-      """
-      {
-          "from": "mysql1",
-          "to": "",
-          "cause": "manual",
-          "initiated_by": "mysql1",
-          "result": {
-              "ok": true
-          }
-      }
-      """
-
-  Scenario: force switchover works from
+  Scenario Outline: if switchover was approved, it will not be rejected
     Given cluster environment is
-    """
-    FORCE_SWITCHOVER=true
-    """
+      """
+      FORCE_SWITCHOVER=<force_switchover>
+      """
     Given cluster is up and running
     Then zookeeper node "/test/active_nodes" should match json_exactly within "20" seconds
       """
@@ -110,6 +75,10 @@ Feature: manual switchover from old master
           }
       }
       """
+    Examples:
+      | force_switchover  |
+      | true              |
+      | false             |
 
   Scenario Outline: switchover from works on healthy cluster
     Given cluster environment is

@@ -1,64 +1,10 @@
 Feature: manual switchover to new master
 
 
-  Scenario: switchover on kill all running query on old master
-    Given cluster is up and running
-    Then mysql host "mysql1" should be master
-    And mysql host "mysql2" should be replica of "mysql1"
-    And mysql replication on host "mysql2" should run fine within "5" seconds
-    And mysql host "mysql3" should be replica of "mysql1"
-    And mysql replication on host "mysql3" should run fine within "5" seconds
-    And zookeeper node "/test/active_nodes" should match json_exactly within "30" seconds
-    """
-       ["mysql1","mysql2","mysql3"]
-    """
-    When I run heavy user requests on host "mysql1" for "3600" seconds
-    When I run command on host "mysql1"
-      """
-      mysync switch --to mysql2 --wait=0s
-      """
-    Then command return code should be "0"
-    And command output should match regexp
-      """
-      switchover scheduled
-      """
-    And zookeeper node "/test/switch" should match json
-      """
-      {
-        "from": "",
-        "to": "mysql2"
-      }
-      """
-    Then zookeeper node "/test/last_switch" should match json within "120" seconds
-      """
-      {
-        "from": "",
-        "to": "mysql2",
-        "result": {
-          "ok": true
-        }
-      }
-
-      """
-    Then mysql host "mysql2" should be master
-    And mysql host "mysql2" should have variable "rpl_semi_sync_master_enabled" set to "1"
-    And mysql host "mysql2" should have variable "rpl_semi_sync_slave_enabled" set to "0"
-    And mysql host "mysql2" should be writable
-    And mysql host "mysql1" should be replica of "mysql2"
-    And mysql host "mysql1" should have variable "rpl_semi_sync_slave_enabled" set to "1"
-    And mysql host "mysql1" should have variable "rpl_semi_sync_master_enabled" set to "0"
-    And mysql replication on host "mysql1" should run fine within "3" seconds
-    And mysql host "mysql1" should be read only
-    And mysql host "mysql3" should be replica of "mysql2"
-    And mysql host "mysql3" should have variable "rpl_semi_sync_slave_enabled" set to "1"
-    And mysql host "mysql3" should have variable "rpl_semi_sync_master_enabled" set to "0"
-    And mysql replication on host "mysql3" should run fine within "3" seconds
-    And mysql host "mysql3" should be read only
-
-  Scenario: force switchover works to
+  Scenario Outline: switchover on kill all running query on old master
     Given cluster environment is
     """
-    FORCE_SWITCHOVER=true
+    FORCE_SWITCHOVER=<force_switchover>
     """
     Given cluster is up and running
     Then mysql host "mysql1" should be master
@@ -96,6 +42,7 @@ Feature: manual switchover to new master
           "ok": true
         }
       }
+
       """
     Then mysql host "mysql2" should be master
     And mysql host "mysql2" should have variable "rpl_semi_sync_master_enabled" set to "1"
@@ -111,7 +58,10 @@ Feature: manual switchover to new master
     And mysql host "mysql3" should have variable "rpl_semi_sync_master_enabled" set to "0"
     And mysql replication on host "mysql3" should run fine within "3" seconds
     And mysql host "mysql3" should be read only
-
+    Examples:
+      | force_switchover  |
+      | true              |
+      | false             |
 
   Scenario Outline: switchover to works on healthy cluster
     Given cluster environment is
