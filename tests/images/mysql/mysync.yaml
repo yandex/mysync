@@ -62,4 +62,4 @@ replication_channel: ''
 external_replication_type: 'external'
 show_only_gtid_diff: false
 repl_mon: ${REPL_MON:-false}
-force_switchover: false
+force_switchover: ${FORCE_SWITCHOVER:-false}

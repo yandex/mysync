@@ -836,15 +836,9 @@ func (n *Node) SetOnline() error {
 func (n *Node) SetOfflineForce() error {
 	err := n.SemiSyncDisable()
 	if err != nil {
-		return fmt.Errorf("failed to disable semi-sync on node %s: %v", n.host, err)
+		return err
 	}
-
-	err = n.SetOffline()
-	if err != nil {
-		return fmt.Errorf("failed to set node %s offline: %v", n.host, err)
-	}
-
-	return nil
+	return n.SetOffline()
 }
 
 // ChangeMaster changes master of MySQL Node, demoting it to slave

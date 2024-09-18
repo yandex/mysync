@@ -1210,8 +1210,17 @@ func (app *App) performSwitchover(clusterState map[string]*NodeState, activeNode
 		// in case node is a master
 
 		if app.config.ForceSwitchover {
-			node.SetOfflineForce()
-			defer node.SetOnline()
+			err := node.SetOfflineForce()
+			if err != nil {
+				return fmt.Errorf("failed to set node %s force offline: %v", host, err)
+			}
+
+			defer func() {
+				err := node.SetOnline()
+				if err != nil {
+					app.logger.Errorf("failed to set node %s online after setting force offline: %v", host, err)
+				}
+			}()
 		}
 
 		err := node.SetReadOnly(true)
