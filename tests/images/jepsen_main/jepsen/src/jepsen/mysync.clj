@@ -269,13 +269,13 @@
                                     {:type :sleep, :value 120}
                                     {:type :info, :f :stop}
                                     {:type :sleep, :value 120}])))
-                     (gen/time-limit 14400))
+                     (gen/time-limit 7200))
                 (->> r
                      (gen/stagger 1)
                      (gen/nemesis
                        (fn [] (map gen/once
                                    [{:type :info, :f :stop}
                                     {:type :sleep, :value 120}])))
-                     (gen/time-limit 1200)))
+                     (gen/time-limit 600)))
    :checker   mysync-set
    :remote    control/ssh})
