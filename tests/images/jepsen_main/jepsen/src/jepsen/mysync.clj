@@ -91,7 +91,7 @@
 
     (invoke! [this test op]
       (try
-          (timeout 10000 (assoc op :type :info, :error "timeout")
+          (timeout 5000 (assoc op :type :info, :error "timeout")
             (with-conn [c conn]
               (case (:f op)
                 :read (cond (= (count (j/query c ["show slave status for channel ''"])) 0)
