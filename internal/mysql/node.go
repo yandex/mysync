@@ -833,6 +833,14 @@ func (n *Node) SetOnline() error {
 	return n.exec(queryDisableOfflineMode, nil)
 }
 
+func (n *Node) SetOfflineForce() error {
+	err := n.SemiSyncDisable()
+	if err != nil {
+		return err
+	}
+	return n.SetOffline()
+}
+
 // ChangeMaster changes master of MySQL Node, demoting it to slave
 func (n *Node) ChangeMaster(host string) error {
 	useSsl := 0

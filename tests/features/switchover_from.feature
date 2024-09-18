@@ -37,7 +37,11 @@ Feature: manual switchover from old master
       }
       """
 
-  Scenario: if switchover was approved, it will not be rejected
+  Scenario Outline: if switchover was approved, it will not be rejected
+    Given cluster environment is
+      """
+      FORCE_SWITCHOVER=<force_switchover>
+      """
     Given cluster is up and running
     Then zookeeper node "/test/active_nodes" should match json_exactly within "20" seconds
       """
@@ -71,6 +75,10 @@ Feature: manual switchover from old master
           }
       }
       """
+    Examples:
+      | force_switchover  |
+      | true              |
+      | false             |
 
   Scenario Outline: switchover from works on healthy cluster
     Given cluster environment is
