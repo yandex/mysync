@@ -2195,7 +2195,7 @@ func (app *App) getClusterStateFromDB() map[string]*NodeState {
 	getter := func(host string) (*NodeState, error) {
 		return app.getNodeState(host), nil
 	}
-	clusterState, _ := getNodeStatesInParallel(hosts, getter)
+	clusterState, _ := getNodeStatesInParallel(hosts, getter, app.logger)
 	return clusterState
 }
 
@@ -2209,7 +2209,7 @@ func (app *App) getClusterStateFromDcs() (map[string]*NodeState, error) {
 		}
 		return nodeState, nil
 	}
-	return getNodeStatesInParallel(hosts, getter)
+	return getNodeStatesInParallel(hosts, getter, app.logger)
 }
 
 func (app *App) waitForCatchUp(node *mysql.Node, gtidset gtids.GTIDSet, timeout time.Duration, sleep time.Duration) (bool, error) {
