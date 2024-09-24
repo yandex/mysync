@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"net"
 	"os"
-	"slices"
 	"strings"
 	"sync"
 	"time"
@@ -158,30 +157,12 @@ func (z *zkDCS) getSelfLockOwner() LockOwner {
 func (z *zkDCS) makePath(path string) error {
 	parts := strings.Split(path, sep)
 	prefix := ""
-	var paths []string
 	for _, part := range parts {
 		if part == "" {
 			continue
 		}
 		prefix = JoinPath(prefix, part)
-		paths = append(paths, prefix)
-	}
-	slices.Reverse(paths)
-	var createPaths []string
-	for _, path := range paths {
-		_, _, err := z.retryGet(path)
-		if err == nil {
-			break
-		}
-		if err == zk.ErrNoNode {
-			createPaths = append(createPaths, path)
-		} else {
-			return err
-		}
-	}
-	slices.Reverse(createPaths)
-	for _, path := range createPaths {
-		_, err := z.retryCreate(path, []byte{}, 0, z.acl)
+		_, err := z.retryCreate(prefix, []byte{}, 0, z.acl)
 		if err != nil && err != zk.ErrNodeExists {
 			return err
 		}
