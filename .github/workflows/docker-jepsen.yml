@@ -3,6 +3,10 @@ name: Jepsen tests
 on:
   schedule:
     - cron: '0 0 * * *'
+  push:
+    branches: [ master ]
+  pull_request:
+    branches: [ master ]
 
 env:
   GO_VERSION: 1.22.4
