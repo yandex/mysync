@@ -1028,7 +1028,9 @@ func (app *App) updateActiveNodes(clusterState, clusterStateDcs map[string]*Node
 	if masterState.SemiSyncState != nil && masterState.SemiSyncState.MasterEnabled {
 		oldWaitSlaveCount = masterState.SemiSyncState.WaitSlaveCount
 	}
-	waitSlaveCount := app.switchHelper.GetRequiredWaitSlaveCount(activeNodes)
+	// data lagging replicas should not affect WaitSlaveCount
+	notLaggingActive := filterOut(activeNodes, becomeDataLag)
+	waitSlaveCount := app.switchHelper.GetRequiredWaitSlaveCount(notLaggingActive)
 
 	app.logger.Infof("update active nodes: active nodes are: %v, wait_slave_count %d", activeNodes, waitSlaveCount)
 	if len(becomeActive) > 0 {
