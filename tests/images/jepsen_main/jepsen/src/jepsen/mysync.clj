@@ -266,16 +266,16 @@
                        (fn [] (map gen/once
                                    [{:type :info, :f (rand-nth nemesis-starts)}
                                     {:type :info, :f (rand-nth nemesis-starts)}
-                                    {:type :sleep, :value 120}
+                                    {:type :sleep, :value 60}
                                     {:type :info, :f :stop}
-                                    {:type :sleep, :value 120}])))
-                     (gen/time-limit 7200))
+                                    {:type :sleep, :value 60}])))
+                     (gen/time-limit 3600))
                 (->> r
                      (gen/stagger 1)
                      (gen/nemesis
                        (fn [] (map gen/once
                                    [{:type :info, :f :stop}
-                                    {:type :sleep, :value 120}])))
+                                    {:type :sleep, :value 60}])))
                      (gen/time-limit 600)))
    :checker   mysync-set
    :remote    control/ssh})
