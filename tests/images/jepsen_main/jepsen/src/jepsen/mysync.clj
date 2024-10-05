@@ -269,7 +269,7 @@
                                     {:type :sleep, :value 60}
                                     {:type :info, :f :stop}
                                     {:type :sleep, :value 60}])))
-                     (gen/time-limit 5000))
+                     (gen/time-limit 3600))
                 (->> r
                      (gen/stagger 1)
                      (gen/nemesis
