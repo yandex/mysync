@@ -15,7 +15,6 @@ jobs:
   test:
     name: jepsen
     runs-on: ubuntu-22.04
-    timeout-minutes: 720
     steps:
       - name: Set up Go 1.x
         uses: actions/setup-go@v5
