@@ -276,7 +276,7 @@
                      (gen/nemesis
                        (fn [] (map gen/once
                                    [{:type :info, :f :stop}
-                                    {:type :sleep, :value 60}])))
+                                    {:type :sleep, :value 120}])))
                      (gen/time-limit 600)))
    :checker   mysync-set
    :remote    control/ssh})
