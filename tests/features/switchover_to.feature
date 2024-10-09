@@ -1,7 +1,11 @@
 Feature: manual switchover to new master
 
 
-  Scenario: switchover on kill all running query on old master
+  Scenario Outline: switchover on kill all running query on old master
+    Given cluster environment is
+    """
+    FORCE_SWITCHOVER=<force_switchover>
+    """
     Given cluster is up and running
     Then mysql host "mysql1" should be master
     And mysql host "mysql2" should be replica of "mysql1"
@@ -54,6 +58,10 @@ Feature: manual switchover to new master
     And mysql host "mysql3" should have variable "rpl_semi_sync_master_enabled" set to "0"
     And mysql replication on host "mysql3" should run fine within "3" seconds
     And mysql host "mysql3" should be read only
+    Examples:
+      | force_switchover  |
+      | true              |
+      | false             |
 
   Scenario Outline: switchover to works on healthy cluster
     Given cluster environment is
@@ -274,4 +282,3 @@ Feature: manual switchover to new master
     """
     mysql2 is not active
     """
-

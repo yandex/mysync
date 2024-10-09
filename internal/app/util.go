@@ -192,7 +192,7 @@ func getDubiousHAHosts(clusterState map[string]*NodeState) []string {
 	return dubious
 }
 
-func getNodeStatesInParallel(hosts []string, getter func(string) (*NodeState, error)) (map[string]*NodeState, error) {
+func getNodeStatesInParallel(hosts []string, getter func(string) (*NodeState, error), logger *log.Logger) (map[string]*NodeState, error) {
 	type result struct {
 		name  string
 		state *NodeState
@@ -217,6 +217,20 @@ func getNodeStatesInParallel(hosts []string, getter func(string) (*NodeState, er
 	}
 	if err != nil {
 		return nil, err
+	}
+
+	// adding information about source to each replica
+	for host := range clusterState {
+		if clusterState[host].SlaveState == nil {
+			continue
+		}
+		masterHost := clusterState[host].SlaveState.MasterHost
+
+		if clusterState[masterHost] != nil {
+			clusterState[host].MasterState = clusterState[masterHost].MasterState
+		} else {
+			logger.Error("Can not get master state")
+		}
 	}
 	return clusterState, nil
 }

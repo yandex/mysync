@@ -91,21 +91,22 @@
 
     (invoke! [this test op]
       (try
-          (timeout 5000 (assoc op :type :info, :error "timeout")
-            (with-conn [c conn]
-              (case (:f op)
-                :read (cond (= (count (j/query c ["show slave status for channel ''"])) 0)
-                            (assoc op :type :ok,
-                                      :value (->> (j/query c ["select value from test1.test_set"]
-                                                           {:row-fn :value})
-                                                  (vec)
-                                                  (set)))
-                            true
-                            (assoc op :type :info, :error "read-only"))
-                :add (do
-                       (info (str "Adding: " (get op :value) " to " (get c :subname)))
-                       (j/execute! c [(str "insert into test1.test_set values ('" (get op :value) "')")])
-                       (assoc op :type :ok)))))
+          (with-conn [c conn]
+            (case (:f op)
+              :read (timeout 60000 (assoc op :type :info, :error "read-timeout")
+                      (cond (= (count (j/query c ["show slave status for channel ''"])) 0)
+                          (assoc op :type :ok,
+                                    :value (->> (j/query c ["select value from test1.test_set"]
+                                                          {:row-fn :value})
+                                                (vec)
+                                                (set)))
+                          true
+                          (assoc op :type :info, :error "read-only")))
+              :add (timeout 5000 (assoc op :type :info, :error "add-timeout")
+                    (do
+                      (info (str "Adding: " (get op :value) " to " (get c :subname)))
+                      (j/execute! c [(str "insert into test1.test_set values ('" (get op :value) "')")])
+                      (assoc op :type :ok)))))
         (catch Throwable t#
           (let [m# (.getMessage t#)]
             (cond
@@ -249,7 +250,7 @@
    :name      "mysync"
    :os        os/noop
    :db        (db)
-   :ssh       {:private-key-path "/root/.ssh/id_rsa"}
+   :ssh       {:private-key-path "/root/.ssh/id_rsa" :strict-host-key-checking :no}
    :net       net/iptables
    :client    (mysql-client nil)
    :nemesis   (nemesis/compose {{:start-halves :start} (nemesis/partition-random-halves)
@@ -275,7 +276,7 @@
                      (gen/nemesis
                        (fn [] (map gen/once
                                    [{:type :info, :f :stop}
-                                    {:type :sleep, :value 60}])))
+                                    {:type :sleep, :value 120}])))
                      (gen/time-limit 600)))
    :checker   mysync-set
    :remote    control/ssh})

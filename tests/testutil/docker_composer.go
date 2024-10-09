@@ -79,7 +79,7 @@ func NewDockerComposer(project, config string) (*DockerComposer, error) {
 		project = filepath.Base(filepath.Dir(config))
 	}
 	dc := new(DockerComposer)
-	api, err := client.NewClientWithOpts(client.FromEnv)
+	api, err := client.NewClientWithOpts(client.FromEnv, client.WithVersion("1.43"))
 	if err != nil {
 		return nil, fmt.Errorf("failed to connect to docker: %s", err)
 	}

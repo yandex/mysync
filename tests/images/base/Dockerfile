@@ -1,4 +1,4 @@
-FROM ubuntu:bionic
+FROM ubuntu:jammy
 ENV container docker
 ENV DEBIAN_FRONTEND noninteractive
 ENV ZK_VERSION=3.7.1

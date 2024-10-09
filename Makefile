@@ -46,6 +46,7 @@ jepsen_test:
 	timeout 600 docker exec mysync_mysql2_1 sh -c "/var/lib/dist/base/generate_certs.sh mysync_mysql2_1.mysync_mysql_net && supervisorctl restart mysync && supervisorctl start mysqld"
 	timeout 600 docker exec mysync_mysql3_1 sh -c "/var/lib/dist/base/generate_certs.sh mysync_mysql3_1.mysync_mysql_net && supervisorctl restart mysync && supervisorctl start mysqld"
 	timeout 600 docker exec mysync_mysql1_1 setup.sh
+	timeout 600 bash ./tests/images/copy_keys.sh
 	mkdir -p ./tests/logs
 	(docker exec mysync_jepsen_1 /root/jepsen/run.sh > ./tests/logs/jepsen.log 2>&1 && tail -n 4 ./tests/logs/jepsen.log) || ./tests/images/jepsen_main/save_logs.sh
 	docker compose -p mysync -f ./tests/images/jepsen-compose.yml down --rmi all

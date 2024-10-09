@@ -114,6 +114,9 @@ replication_repair_aggressive_mode: False
 replication_repair_cooldown: 60s
 replication_repair_max_attempts: 3
 
+external_replication_type: off
+show_only_gtid_diff: False
+force_switchover: False
 ```
 
 ### Usage
