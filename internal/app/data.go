@@ -163,7 +163,7 @@ func (ns *NodeState) String() string {
 			var err error
 			gtid, err = ns.CalcGTIDDiffWithMaster()
 			if err != nil {
-				gtid = fmt.Sprintf("%s", err.Error())
+				gtid = fmt.Sprintf("%s", err)
 			}
 		} else {
 			gtid = strings.ReplaceAll(ns.SlaveState.ExecutedGtidSet, "\n", "")
