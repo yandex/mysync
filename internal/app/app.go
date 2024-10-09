@@ -1260,13 +1260,17 @@ func (app *App) performSwitchover(clusterState map[string]*NodeState, activeNode
 
 	errs2 := util.RunParallel(func(host string) error {
 		if !clusterState[host].PingOk {
-			return fmt.Errorf("switchover: failed to ping host %s", host)
+			errMessage := fmt.Sprintf("switchover: failed to ping host %s", host)
+			app.logger.Warn(errMessage)
+			return fmt.Errorf("%s", errMessage)
 		}
 		node := app.cluster.Get(host)
 		// in case node is a replica
 		err := node.StopSlaveIOThread()
 		if err != nil || app.emulateError("freeze_stop_slave_io") {
-			return fmt.Errorf("failed to stop slave on host %s: %s", host, err)
+			errMessage := fmt.Sprintf("failed to stop slave on host %s: %s", host, err)
+			app.logger.Warn(errMessage)
+			return fmt.Errorf("%s", errMessage)
 		}
 		app.logger.Infof("switchover: host %s replication IO thread stopped", host)
 		return nil
