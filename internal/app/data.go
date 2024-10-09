@@ -97,6 +97,8 @@ type NodeState struct {
 	MasterState          *MasterState   `json:"master_state"`
 	SlaveState           *SlaveState    `json:"slave_state"`
 	SemiSyncState        *SemiSyncState `json:"semi_sync_state"`
+
+	ShowOnlyGTIDDiff bool
 }
 
 // Last_SQL_Errno codes, that disallow to restart replication
@@ -142,7 +144,7 @@ func (ns *NodeState) CalcGTIDDiffWithMaster() (string, error) {
 	return gtids.GTIDDiff(replicaGTID, sourceGTID)
 }
 
-func (ns *NodeState) String(showOnlyGTIDDiff bool) string {
+func (ns *NodeState) String() string {
 	ping := "ok"
 	if !ns.PingOk {
 		ping = "ERR"
@@ -157,7 +159,7 @@ func (ns *NodeState) String(showOnlyGTIDDiff bool) string {
 	if ns.SlaveState != nil {
 		repl = ns.SlaveState.ReplicationState
 
-		if showOnlyGTIDDiff {
+		if ns.ShowOnlyGTIDDiff {
 			var err error
 			gtid, err = ns.CalcGTIDDiffWithMaster()
 			if err != nil {

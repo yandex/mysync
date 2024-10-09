@@ -1817,7 +1817,7 @@ func (app *App) repairCascadeNode(node *mysql.Node, clusterState map[string]*Nod
 	}
 
 	isReplicationRunning := state.SlaveState.ReplicationState == mysql.ReplicationRunning
-	app.logger.Infof("repair: checking cascade node %s. Replication=%v, cnc=%+v, slaveSate=%+v", host, isReplicationRunning, cnc, state.SlaveState)
+	app.logger.Infof("repair: checking cascade node %s. Replication=%v, cnc=%+v, slaveState=%+v", host, isReplicationRunning, cnc, state.String())
 
 	upstreamMaster := state.SlaveState.MasterHost
 	upstreamCandidate := app.findBestStreamFrom(node, clusterState, master, cascadeTopology)
@@ -1886,7 +1886,7 @@ func (app *App) repairCascadeNode(node *mysql.Node, clusterState map[string]*Nod
 		// TODO: replace with IsSplitBrained
 		if gtids.IsSlaveAhead(myGITIDs, candidateGTIDs) && gtids.IsSlaveAhead(candidateGTIDs, myGITIDs) {
 			app.logger.Errorf("repair: %s and %s are splitbrained...", host, upstreamCandidate)
-			app.writeEmergeFile("cascade replica splitbain detected")
+			app.writeEmergeFile("cascade replica splitbrain detected")
 			return
 		}
 		if gtids.IsSlaveBehindOrEqual(myGITIDs, candidateGTIDs) {
@@ -2078,7 +2078,7 @@ func (app *App) getNodeState(host string) *NodeState {
 			return err
 		}
 		if !pingOk {
-			return fmt.Errorf("ping is no ok")
+			return fmt.Errorf("ping is not ok")
 		}
 		nodeState.IsReadOnly, nodeState.IsSuperReadOnly, err = node.IsReadOnly()
 		if err != nil {
@@ -2199,7 +2199,9 @@ func (app *App) getLocalDaemonState() (*DaemonState, error) {
 func (app *App) getClusterStateFromDB() map[string]*NodeState {
 	hosts := app.cluster.AllNodeHosts()
 	getter := func(host string) (*NodeState, error) {
-		return app.getNodeState(host), nil
+		ns := app.getNodeState(host)
+		ns.ShowOnlyGTIDDiff = app.config.ShowOnlyGTIDDiff
+		return ns, nil
 	}
 	clusterState, _ := getNodeStatesInParallel(hosts, getter, app.logger)
 	return clusterState
@@ -2213,6 +2215,7 @@ func (app *App) getClusterStateFromDcs() (map[string]*NodeState, error) {
 		if err != nil && err != dcs.ErrNotFound {
 			return nil, err
 		}
+		nodeState.ShowOnlyGTIDDiff = app.config.ShowOnlyGTIDDiff
 		return nodeState, nil
 	}
 	return getNodeStatesInParallel(hosts, getter, app.logger)
