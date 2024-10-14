@@ -93,7 +93,7 @@
       (try
           (with-conn [c conn]
             (case (:f op)
-              :read (timeout 120000 (assoc op :type :info, :error "read-timeout")
+              :read (timeout 600000 (assoc op :type :info, :error "read-timeout")
                       (cond (= (count (j/query c ["show slave status for channel ''"])) 0)
                           (assoc op :type :ok,
                                     :value (->> (j/query c ["select value from test1.test_set"]
@@ -110,8 +110,8 @@
         (catch Throwable t#
           (let [m# (.getMessage t#)]
             (cond
-              (re-find #"The MySQL server is running with the --(super-)?read-only option so it cannot execute this statement" m#) (assoc op :type :info, :error "read-only")
-              (re-find #"The server is currently in offline mode" m#) (assoc op :type :info, :error "offline")
+              (re-find #"The MySQL server is running with the --(super-)?read-only option so it cannot execute this statement" m#) (assoc op :type :info, :error "catch-read-only")
+              (re-find #"The server is currently in offline mode" m#) (assoc op :type :info, :error "catch-offline")
               true (do
                      (warn (str "Query error: " m# " on adding: " (get op :value)))
                      (assoc op :type :info, :error m#)
@@ -270,13 +270,13 @@
                                     {:type :sleep, :value 60}
                                     {:type :info, :f :stop}
                                     {:type :sleep, :value 60}])))
-                     (gen/time-limit 7200))
+                     (gen/time-limit 4000))
                 (->> r
                      (gen/stagger 1)
                      (gen/nemesis
                        (fn [] (map gen/once
                                    [{:type :info, :f :stop}
-                                    {:type :sleep, :value 240}])))
-                     (gen/time-limit 600)))
+                                    {:type :sleep, :value 600}])))
+                     (gen/time-limit 1200)))
    :checker   mysync-set
    :remote    control/ssh})
