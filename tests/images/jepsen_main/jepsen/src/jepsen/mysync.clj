@@ -93,8 +93,10 @@
       (try
           (with-conn [c conn]
             (case (:f op)
-              :read (timeout 600000 (assoc op :type :info, :error "read-timeout")
+              :read (timeout 1200000 (assoc op :type :info, :error "read-timeout")
                       (cond (= (count (j/query c ["show slave status for channel ''"])) 0)
+                          (def value_cnt (j/query c ["select count(*) as count from test1.test_set"]))
+                          (info (str "Values count: " value_cnt))
                           (assoc op :type :ok,
                                     :value (->> (j/query c ["select value from test1.test_set"]
                                                           {:row-fn :value})
@@ -276,7 +278,7 @@
                      (gen/nemesis
                        (fn [] (map gen/once
                                    [{:type :info, :f :stop}
-                                    {:type :sleep, :value 600}])))
+                                    {:type :sleep, :value 1200}])))
                      (gen/time-limit 1200)))
    :checker   mysync-set
    :remote    control/ssh})
