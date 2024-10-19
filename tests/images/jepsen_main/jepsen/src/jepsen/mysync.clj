@@ -76,6 +76,15 @@
     client/Reusable
     (reusable? [_ test] true)))
 
+(defn read_portion [c n chunk_size]
+  (def q (str "select value from test1.test_set order by value desc limit " chunk_size " offset " (* n chunk_size)))
+  (info (str "Query: " q))
+  (def result_value (->> (j/query c [q]
+                              {:row-fn :value})
+                    (vec)
+                    (set)))
+  result_value)
+
 (defn mysql-client
   "MySQL client"
   [conn]
@@ -93,15 +102,22 @@
       (try
           (with-conn [c conn]
             (case (:f op)
-              :read (timeout 600000 (assoc op :type :info, :error "read-timeout")
-                      (cond (= (count (j/query c ["show slave status for channel ''"])) 0)
+              :read (timeout 1200000 (assoc op :type :info, :error "read-timeout")
+                    (cond (= (count (j/query c ["show slave status for channel ''"])) 0)
+                      (do
+                          (def value_cnt (:count (first (j/query c ["select count(*) as count from test1.test_set"]))))
+                          (def chunk_size 5000)
+                          (def portion_cnt (Math/ceil (/ value_cnt chunk_size)))
+                          (info (str "Values count: " value_cnt))
+                          (info (str "Portions count: " portion_cnt))
+                          (def result_set (set '()))
+                          (dotimes [n (+ portion_cnt 1)]
+                              (info (str "Reading portion " n))
+                              (def result_set (set/union result_set (read_portion c n chunk_size))))
                           (assoc op :type :ok,
-                                    :value (->> (j/query c ["select value from test1.test_set"]
-                                                          {:row-fn :value})
-                                                (vec)
-                                                (set)))
-                          true
-                          (assoc op :type :info, :error "read-only")))
+                                    :value result_set))
+                        true
+                        (assoc op :type :info, :error "read-only")))
               :add (timeout 5000 (assoc op :type :info, :error "add-timeout")
                     (do
                       (info (str "Adding: " (get op :value) " to " (get c :subname)))
@@ -276,7 +292,7 @@
                      (gen/nemesis
                        (fn [] (map gen/once
                                    [{:type :info, :f :stop}
-                                    {:type :sleep, :value 600}])))
+                                    {:type :sleep, :value 1200}])))
                      (gen/time-limit 1200)))
    :checker   mysync-set
    :remote    control/ssh})
