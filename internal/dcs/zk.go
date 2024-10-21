@@ -72,7 +72,7 @@ func NewZookeeper(ctx context.Context, config *ZookeeperConfig, logger *log.Logg
 	var ec <-chan zk.Event
 	var err error
 	var operation func() error
-	hostProvider := NewRandomHostProvider(ctx, &config.RandomHostProvider, logger)
+	hostProvider := NewRandomHostProvider(ctx, &config.RandomHostProvider, !config.UseSSL, logger)
 	if config.UseSSL {
 		if config.CACert == "" || config.KeyFile == "" || config.CertFile == "" {
 			return nil, fmt.Errorf("zookeeper ssl not configured, fill ca_cert/key_file/cert_file in config or disable use_ssl flag")
@@ -82,7 +82,7 @@ func NewZookeeper(ctx context.Context, config *ZookeeperConfig, logger *log.Logg
 			return nil, err
 		}
 		baseDialer := net.Dialer{Timeout: config.SessionTimeout}
-		dialer, err := GetTLSDialer(config.Hosts, &baseDialer, tlsConfig)
+		dialer, err := GetTLSDialer(&baseDialer, tlsConfig)
 		if err != nil {
 			return nil, err
 		}
