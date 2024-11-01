@@ -4,7 +4,7 @@ go 1.22
 
 require (
 	github.com/cenkalti/backoff/v4 v4.3.0
-	github.com/cucumber/godog v0.14.1
+	github.com/cucumber/godog v0.15.0
 	github.com/docker/docker v27.3.1+incompatible
 	github.com/go-mysql-org/go-mysql v1.9.1
 	github.com/go-sql-driver/mysql v1.8.1
