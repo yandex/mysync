@@ -21,7 +21,7 @@ func GetEnvVariable(name, def string) string {
 }
 
 // SelectNode returns host (from given list) starting specified match string
-// If match starts with ^ it's discareded (backward compatibility)
+// If match starts with ^ it's discarded (backward compatibility)
 func SelectNodes(hosts []string, match string) []string {
 	match = strings.TrimPrefix(match, "^")
 	res := make([]string, 0)

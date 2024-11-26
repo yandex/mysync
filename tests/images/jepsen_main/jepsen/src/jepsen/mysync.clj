@@ -245,7 +245,7 @@
                              (let [master (clojure.string/replace (String. (get (zk/data client "/test/master") :data))
                                                                   #"\"" "")
                                    node (rand-nth (filter (fn [x] (not (string/includes? (name x) "zookeeper"))) (:nodes test)))]
-                                (info (str "runnning switchover from " master))
+                                (info (str "running switchover from " master))
                                 (control/on node
                                   (control/exec :mysync :switch :--from master))))
                              (catch Throwable t#

@@ -764,7 +764,7 @@ func (app *App) approveFailover(clusterState, clusterStateDcs map[string]*NodeSt
 		app.logger.Infof("approve failover: filesystem is readonly, skip replication and delay checks")
 	} else {
 		if countRunningHASlaves(clusterState) == countHANodes(clusterState)-1 {
-			return fmt.Errorf("all replics are alive and running replication, seems zk problems")
+			return fmt.Errorf("all replicas are alive and running replication, seems zk problems")
 		}
 		if app.config.FailoverDelay > 0 {
 			failingTime := time.Since(app.nodeFailedAt[master])
@@ -880,7 +880,7 @@ func (app *App) calcActiveNodes(clusterState, clusterStateDcs map[string]*NodeSt
 		}
 		if !node.PingOk {
 			if node.PingDubious || clusterStateDcs[host].PingOk {
-				// we can't rely on ping and slave status if ping was dubios
+				// we can't rely on ping and slave status if ping was dubious
 				if util.ContainsString(oldActiveNodes, host) {
 					app.logger.Warnf("calc active nodes: %s is dubious or keep health lock in dcs, keeping active...", host)
 					activeNodes = append(activeNodes, host)
@@ -1408,7 +1408,7 @@ func (app *App) performSwitchover(clusterState map[string]*NodeState, activeNode
 		app.logger.Infof("switchover: old master %s does not need recovery", oldMaster)
 		err = app.externalReplication.Reset(oldMasterNode)
 		if err != nil {
-			return fmt.Errorf("got error: %s while reseting external replication on old master: %s", err, oldMaster)
+			return fmt.Errorf("got error: %s while resetting external replication on old master: %s", err, oldMaster)
 		}
 	}
 

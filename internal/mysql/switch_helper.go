@@ -62,7 +62,7 @@ func (sh *SwitchHelper) CheckFailoverQuorum(activeNodes []string, permissibleSla
 	if sh.SemiSync {
 		failoverQuorum := sh.GetFailoverQuorum(activeNodes)
 		if permissibleSlaves < failoverQuorum {
-			return fmt.Errorf("no quorum, have %d replics while %d is required", permissibleSlaves, failoverQuorum)
+			return fmt.Errorf("no quorum, have %d replicas while %d is required", permissibleSlaves, failoverQuorum)
 		}
 	} else {
 		if permissibleSlaves == 0 {

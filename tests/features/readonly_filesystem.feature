@@ -1,5 +1,5 @@
 Feature: readonly filesystem
-  Scenario: check master failture when disk on muster become readonly
+  Scenario: check master failure when disk on muster become readonly
     Given cluster environment is
         """
         MYSYNC_FAILOVER=true

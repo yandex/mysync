@@ -82,7 +82,7 @@ Feature: failover
       And mysql on host "mysql2" is killed
       Then mysql host "mysql1" should become unavailable within "10" seconds
       And mysql host "mysql2" should become unavailable within "10" seconds
-      # give a change to perform (actualy not) failover
+      # give a change to perform (actually not) failover
       When I wait for "30" seconds
       Then mysql host "mysql3" should be replica of "{{.master}}"
       And zookeeper node "/test/master" should match regexp
@@ -102,7 +102,7 @@ Feature: failover
         .*failover was not approved:.*no quorum.*
         """
 
-    Scenario: failover works well with dymanic quorum
+    Scenario: failover works well with dynamic quorum
       Given cluster environment is
         """
         MYSYNC_FAILOVER=true
@@ -193,7 +193,7 @@ Feature: failover
 
       When host "{{.new_master}}" is stopped
       Then mysql host "{{.new_master}}" should become unavailable within "10" seconds
-      # give a change to perform (actualy not) failover
+      # give a change to perform (actually not) failover
       When I wait for "30" seconds
       Then mysql host "mysql1" should be replica of "{{.new_master}}"
       And mysql host "{{.old_slave}}" should be replica of "{{.new_master}}"

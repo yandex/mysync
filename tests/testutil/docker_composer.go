@@ -39,9 +39,9 @@ type Composer interface {
 	Stop(service string) error
 	// Starts container/VM
 	Start(service string) error
-	// Detachs container/VM from network
+	// Detaches container/VM from network
 	DetachFromNet(service string) error
-	// Attachs container/VM to network
+	// Attaches container/VM to network
 	AttachToNet(service string) error
 	// Executes command inside container/VM with given timeout.
 	// Returns command retcode and output (stdoud and stderr are mixed)
@@ -249,7 +249,7 @@ func (dc *DockerComposer) RunAsyncCommand(service string, cmd string) error {
 	return dc.api.ContainerExecStart(context.Background(), execResp.ID, container.ExecStartOptions{})
 }
 
-// GetFile returns content of the fail from continer by path
+// GetFile returns content of the fail from container by path
 func (dc *DockerComposer) GetFile(service, path string) (io.ReadCloser, error) {
 	cont, ok := dc.containers[service]
 	if !ok {
@@ -308,7 +308,7 @@ func (dc *DockerComposer) Stop(service string) error {
 	return err
 }
 
-// AttachToNet attachs container to network
+// AttachToNet attaches container to network
 func (dc *DockerComposer) AttachToNet(service string) error {
 	_, ok := dc.containers[service]
 	if !ok {
