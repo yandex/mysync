@@ -704,7 +704,7 @@ func (tctx *testContext) stepSetReadonlyStatus(host string, value string) error 
 	cmd := fmt.Sprintf("rm /tmp/readonly && echo %s > /tmp/readonly", value)
 	code, output, err := tctx.composer.RunCommand(host, cmd, commandExecutionTimeout)
 	if code != 0 {
-		return fmt.Errorf("comand exit with code %d and output: %s", code, output)
+		return fmt.Errorf("command exit with code %d and output: %s", code, output)
 	}
 	return err
 }
@@ -1286,7 +1286,7 @@ func (tctx *testContext) stepMysqlHostShouldBecomeWritableWithin(host string, ti
 	return err
 }
 
-func (tctx *testContext) stepISaveZookeperQueryResultAs(varname string) error {
+func (tctx *testContext) stepISaveZookeeperQueryResultAs(varname string) error {
 	var j interface{}
 	if tctx.zkQueryResult != "" {
 		if err := json.Unmarshal([]byte(tctx.zkQueryResult), &j); err != nil {
@@ -1465,7 +1465,7 @@ func InitializeScenario(s *godog.ScenarioContext) {
 	s.Step(`^I have no SQL execution error at mysql host "([^"]*)" within "(\d+)" seconds$`, tctx.stepThereIsNoSQLErrorWithin)
 
 	// variables
-	s.Step(`^I save zookeeper query result as "([^"]*)"$`, tctx.stepISaveZookeperQueryResultAs)
+	s.Step(`^I save zookeeper query result as "([^"]*)"$`, tctx.stepISaveZookeeperQueryResultAs)
 	s.Step(`^I save command output as "([^"]*)"$`, tctx.stepISaveCommandOutputAs)
 	s.Step(`^I save SQL result as "([^"]*)"$`, tctx.stepISaveSQLResultAs)
 	s.Step(`^I save "([^"]*)" as "([^"]*)"$`, tctx.stepISaveValAs)

@@ -308,7 +308,7 @@ func Mogrify(query string, arg map[string]interface{}) string {
 	})
 }
 
-// not all queries may be parametrized with placeholders
+// not all queries may be parameterized with placeholders
 func (n *Node) execMogrifyWithTimeout(queryName string, arg map[string]interface{}, timeout time.Duration) error {
 	query := n.getQuery(queryName)
 	query = Mogrify(query, arg)

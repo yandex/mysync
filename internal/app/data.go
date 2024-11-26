@@ -270,7 +270,7 @@ type SemiSyncState struct {
 const (
 	// CauseManual means switchover was issued via command line
 	CauseManual = "manual"
-	// CauseWorker means switchover was initated via MDB worker (set directly to dcs)
+	// CauseWorker means switchover was initiated via MDB worker (set directly to dcs)
 	CauseWorker = "worker"
 	// CauseAuto  means failover was started automatically by failure detection process
 	CauseAuto = "auto"

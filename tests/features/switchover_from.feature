@@ -32,7 +32,7 @@ Feature: manual switchover from old master
           "initiated_by": "mysql1",
           "result": {
               "ok": false,
-              "error": "no quorum, have 0 replics while 2 is required"
+              "error": "no quorum, have 0 replicas while 2 is required"
           }
       }
       """

@@ -108,7 +108,7 @@ Feature: repair hosts in cluster
     Given cluster is up and running
     Then mysql host "mysql1" should be master
     And mysql host "mysql1" should be writable
-    # jsut to have stable tests - turn on maintenance mode
+    # just to have stable tests - turn on maintenance mode
     And I run command on host "mysql1"
     """
       mysync maint on

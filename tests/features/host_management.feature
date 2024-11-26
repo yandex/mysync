@@ -46,13 +46,13 @@ Feature: update host topology using CLI
     Then zookeeper node "/test/ha_nodes/mysql2" should not exist
     Then zookeeper node "/test/cascade_nodes/mysql2" should exist
 
-    # loops are forbiden:
+    # loops are forbidden:
     When I run command on host "mysql1"
         """
         mysync host add mysql2 --stream-from mysql2
         """
     Then command return code should be "1"
-    # loops are forbiden:
+    # loops are forbidden:
     When I run command on host "mysql1"
         """
         mysync host add mysql1 --stream-from mysql2
