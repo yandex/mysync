@@ -1,5 +1,7 @@
 package mysql
 
+import "strings"
+
 const (
 	queryPing                           = "ping"
 	querySlaveStatus                    = "slave_status"
@@ -57,7 +59,7 @@ var DefaultQueries = map[string]string{
 	querySlaveStatus:         `SHOW SLAVE STATUS FOR CHANNEL :channel`,
 	queryReplicaStatus:       `SHOW REPLICA STATUS FOR CHANNEL :channel`,
 	queryGetVersion:          `SELECT sys.version_major() AS MajorVersion, sys.version_minor() AS MinorVersion, sys.version_patch() AS PatchVersion`,
-	queryGTIDExecuted:        `SELECT @@GLOBAL.gtid_executed  as Executed_Gtid_Set`,
+	queryGTIDExecuted:        `SELECT @@GLOBAL.gtid_executed as Executed_Gtid_Set`,
 	queryGetUUID:             `SELECT @@server_uuid as server_uuid`,
 	queryShowBinaryLogs:      `SHOW BINARY LOGS`,
 	querySlaveHosts:          `SHOW SLAVE HOSTS`,
@@ -142,4 +144,9 @@ var DefaultQueries = map[string]string{
 											WHERE @@read_only = 0
 										)
 									ON DUPLICATE KEY UPDATE ts = CURRENT_TIMESTAMP(3)`,
+}
+
+var UtilityQueries = map[string]string{
+	querySlaveStatus:   strings.ReplaceAll(DefaultQueries[querySlaveStatus], ":channel", ""),
+	queryReplicaStatus: strings.ReplaceAll(DefaultQueries[queryReplicaStatus], ":channel", ""),
 }

@@ -147,10 +147,36 @@ func (n *Node) getQuery(name string) string {
 
 func (n *Node) traceQuery(query string, arg interface{}, result interface{}, err error) {
 	query = queryOnliner.ReplaceAllString(query, " ")
+	strings.HasPrefix(query, DefaultQueries[querySlaveStatus])
+	if n.config.ShowOnlyGTIDDiff && IsGtidQuery(query) {
+		return
+	}
 	msg := fmt.Sprintf("node %s running query '%s' with args %#v, result: %#v, error: %v", n.host, query, arg, result, err)
 	msg = strings.ReplaceAll(msg, n.config.MySQL.Password, "********")
 	msg = strings.ReplaceAll(msg, n.config.MySQL.ReplicationPassword, "********")
 	n.logger.Debug(msg)
+}
+
+func IsGtidQuery(query string) bool {
+	if query == DefaultQueries[queryGTIDExecuted] {
+		return true
+	}
+
+	if strings.HasPrefix(
+		query,
+		UtilityQueries[querySlaveStatus],
+	) {
+		return true
+	}
+
+	if strings.HasPrefix(
+		query,
+		UtilityQueries[queryReplicaStatus],
+	) {
+		return true
+	}
+
+	return false
 }
 
 //nolint:unparam
