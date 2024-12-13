@@ -147,7 +147,6 @@ func (n *Node) getQuery(name string) string {
 
 func (n *Node) traceQuery(query string, arg interface{}, result interface{}, err error) {
 	query = queryOnliner.ReplaceAllString(query, " ")
-	strings.HasPrefix(query, DefaultQueries[querySlaveStatus])
 	if n.config.ShowOnlyGTIDDiff && IsGtidQuery(query) {
 		return
 	}
