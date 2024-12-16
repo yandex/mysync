@@ -157,25 +157,19 @@ func (n *Node) traceQuery(query string, arg interface{}, result interface{}, err
 }
 
 func IsGtidQuery(query string) bool {
-	if query == DefaultQueries[queryGTIDExecuted] {
-		return true
-	}
-
-	if strings.HasPrefix(
-		query,
-		UtilityQueries[querySlaveStatus],
-	) {
-		return true
-	}
-
-	if strings.HasPrefix(
-		query,
-		UtilityQueries[queryReplicaStatus],
-	) {
-		return true
+	for _, gtidQuery := range GtidQueries {
+		if strings.HasPrefix(query, gtidQuery) {
+			return true
+		}
 	}
 
 	return false
+}
+
+var GtidQueries = []string{
+	DefaultQueries[queryGTIDExecuted],
+	strings.ReplaceAll(DefaultQueries[querySlaveStatus], ":channel", "''"),
+	strings.ReplaceAll(DefaultQueries[queryReplicaStatus], ":channel", ""),
 }
 
 //nolint:unparam

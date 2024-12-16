@@ -1,7 +1,5 @@
 package mysql
 
-import "strings"
-
 const (
 	queryPing                           = "ping"
 	querySlaveStatus                    = "slave_status"
@@ -144,9 +142,4 @@ var DefaultQueries = map[string]string{
 											WHERE @@read_only = 0
 										)
 									ON DUPLICATE KEY UPDATE ts = CURRENT_TIMESTAMP(3)`,
-}
-
-var UtilityQueries = map[string]string{
-	querySlaveStatus:   strings.ReplaceAll(DefaultQueries[querySlaveStatus], ":channel", ""),
-	queryReplicaStatus: strings.ReplaceAll(DefaultQueries[queryReplicaStatus], ":channel", ""),
 }
