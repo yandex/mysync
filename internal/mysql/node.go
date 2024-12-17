@@ -148,6 +148,7 @@ func (n *Node) getQuery(name string) string {
 func (n *Node) traceQuery(query string, arg interface{}, result interface{}, err error) {
 	query = queryOnliner.ReplaceAllString(query, " ")
 	if n.config.ShowOnlyGTIDDiff && IsGtidQuery(query) {
+		n.logger.Debug("<gtid query was ignored>")
 		return
 	}
 	msg := fmt.Sprintf("node %s running query '%s' with args %#v, result: %#v, error: %v", n.host, query, arg, result, err)
