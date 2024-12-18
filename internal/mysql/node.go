@@ -170,7 +170,7 @@ func IsGtidQuery(query string) bool {
 var GtidQueries = []string{
 	DefaultQueries[queryGTIDExecuted],
 	strings.ReplaceAll(DefaultQueries[querySlaveStatus], ":channel", "''"),
-	strings.ReplaceAll(DefaultQueries[queryReplicaStatus], ":channel", ""),
+	strings.ReplaceAll(DefaultQueries[queryReplicaStatus], ":channel", "''"),
 }
 
 //nolint:unparam
