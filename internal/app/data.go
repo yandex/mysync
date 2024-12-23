@@ -91,6 +91,7 @@ type NodeState struct {
 	IsOffline            bool           `json:"is_offline"`
 	IsCascade            bool           `json:"is_cascade"`
 	IsFileSystemReadonly bool           `json:"is_file_system_readonly"`
+	IsLoadingBinlog      bool           `json:"is_loading_binlog"`
 	Error                string         `json:"error"`
 	DiskState            *DiskState     `json:"disk_state"`
 	DaemonState          *DaemonState   `json:"daemon_state"`
@@ -142,6 +143,20 @@ func (ns *NodeState) CalcGTIDDiffWithMaster() (string, error) {
 	sourceGTID := gtids.ParseGtidSet(ns.MasterState.ExecutedGtidSet)
 
 	return gtids.GTIDDiff(replicaGTID, sourceGTID)
+}
+
+func (ns *NodeState) UpdateBinlogStatus(oldBinloPos string) (newBinlogPos string) {
+	if ns.SlaveState != nil {
+		newBinlogPos = fmt.Sprintf("%s%019d", ns.SlaveState.MasterLogFile, ns.SlaveState.MasterLogPos)
+
+		if newBinlogPos > oldBinloPos {
+			ns.IsLoadingBinlog = true
+		} else {
+			ns.IsLoadingBinlog = false
+		}
+	}
+
+	return
 }
 
 func (ns *NodeState) String() string {

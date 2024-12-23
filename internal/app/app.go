@@ -166,10 +166,12 @@ func (app *App) removeMaintenanceFile() {
 // separate goroutine performing health checks
 func (app *App) healthChecker(ctx context.Context) {
 	ticker := time.NewTicker(app.config.HealthCheckInterval)
+	var oldBinLogPos string
 	for {
 		select {
 		case <-ticker.C:
 			hc := app.getLocalNodeState()
+			oldBinLogPos = hc.UpdateBinlogStatus(oldBinLogPos)
 			app.logger.Infof("healthcheck: %v", hc)
 			err := app.dcs.SetEphemeral(dcs.JoinPath(pathHealthPrefix, app.config.Hostname), hc)
 			if err != nil {
