@@ -2070,6 +2070,7 @@ func (app *App) getNodeState(host string) *NodeState {
 		node = app.cluster.Get(host)
 	}
 	nodeState := new(NodeState)
+	nodeState.ShowOnlyGTIDDiff = app.config.ShowOnlyGTIDDiff
 	err := func() error {
 		nodeState.CheckAt = time.Now()
 		nodeState.CheckBy = app.config.Hostname
