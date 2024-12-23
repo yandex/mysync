@@ -965,7 +965,7 @@ func (app *App) calcActiveNodesChanges(clusterState map[string]*NodeState, activ
 			slaveState := clusterState[host].SlaveState
 			dataLag := calcLagBytes(masterBinlogs, slaveState.MasterLogFile, slaveState.MasterLogPos)
 			if dataLag > app.config.SemiSyncEnableLag {
-				newBinLogPos := fmt.Sprintf("%s%019d", slaveState.MasterLogFile, slaveState.MasterLogPos)
+				newBinLogPos := slaveState.GetCurrentBinlogPosition()
 				oldBinLogPos := app.slaveReadPositions[host]
 
 				if newBinLogPos <= oldBinLogPos {

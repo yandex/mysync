@@ -145,9 +145,13 @@ func (ns *NodeState) CalcGTIDDiffWithMaster() (string, error) {
 	return gtids.GTIDDiff(replicaGTID, sourceGTID)
 }
 
+func (ss *SlaveState) GetCurrentBinlogPosition() string {
+	return fmt.Sprintf("%s%019d", ss.MasterLogFile, ss.MasterLogPos)
+}
+
 func (ns *NodeState) UpdateBinlogStatus(oldBinloPos string) (newBinlogPos string) {
 	if ns.SlaveState != nil {
-		newBinlogPos = fmt.Sprintf("%s%019d", ns.SlaveState.MasterLogFile, ns.SlaveState.MasterLogPos)
+		newBinlogPos = ns.SlaveState.GetCurrentBinlogPosition()
 
 		if newBinlogPos > oldBinloPos {
 			ns.IsLoadingBinlog = true
