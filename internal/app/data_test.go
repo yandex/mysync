@@ -72,7 +72,6 @@ func TestUpdateBinlogWithChanges(t *testing.T) {
 	require.Equal(t, true, ns.IsLoadingBinlog)
 }
 
-// Написать такой же тест только наоборот
 func TestUpdateBinlogWithoutChanges(t *testing.T) {
 	oldBinlogPostion := "test_master_log_file0000000000000000002"
 	ns := newMockNodeState()

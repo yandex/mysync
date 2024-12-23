@@ -153,11 +153,7 @@ func (ns *NodeState) UpdateBinlogStatus(oldBinloPos string) (newBinlogPos string
 	if ns.SlaveState != nil {
 		newBinlogPos = ns.SlaveState.GetCurrentBinlogPosition()
 
-		if newBinlogPos > oldBinloPos {
-			ns.IsLoadingBinlog = true
-		} else {
-			ns.IsLoadingBinlog = false
-		}
+		ns.IsLoadingBinlog = newBinlogPos > oldBinloPos
 	}
 
 	return
