@@ -26,6 +26,20 @@ Feature: repl_mon tests
       """
       [{"res":1}]
       """
+    And mysql host "mysql2" should be replica of "mysql1"
+    Then zookeeper node "/test/health/mysql2" should match json within "20" seconds
+      """
+      {
+        "is_loading_binlog": true
+      }
+      """
+    And mysql host "mysql3" should be replica of "mysql1"
+    Then zookeeper node "/test/health/mysql3" should match json within "20" seconds
+      """
+      {
+        "is_loading_binlog": true
+      }
+      """
 
   Scenario: repl_mon disabled
     Given cluster environment is
@@ -50,4 +64,18 @@ Feature: repl_mon tests
     And I run SQL on mysql host "mysql3" expecting error on number "1146"
       """
         SELECT ts FROM mysql.mysync_repl_mon
+      """
+    And mysql host "mysql2" should be replica of "mysql1"
+    Then zookeeper node "/test/health/mysql2" should match json within "20" seconds
+      """
+      {
+        "is_loading_binlog": false
+      }
+      """
+    And mysql host "mysql3" should be replica of "mysql1"
+    Then zookeeper node "/test/health/mysql3" should match json within "20" seconds
+      """
+      {
+        "is_loading_binlog": false
+      }
       """

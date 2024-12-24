@@ -166,10 +166,12 @@ func (app *App) removeMaintenanceFile() {
 // separate goroutine performing health checks
 func (app *App) healthChecker(ctx context.Context) {
 	ticker := time.NewTicker(app.config.HealthCheckInterval)
+	var oldBinLogPos string
 	for {
 		select {
 		case <-ticker.C:
 			hc := app.getLocalNodeState()
+			oldBinLogPos = hc.UpdateBinlogStatus(oldBinLogPos)
 			app.logger.Infof("healthcheck: %v", hc)
 			err := app.dcs.SetEphemeral(dcs.JoinPath(pathHealthPrefix, app.config.Hostname), hc)
 			if err != nil {
@@ -963,7 +965,7 @@ func (app *App) calcActiveNodesChanges(clusterState map[string]*NodeState, activ
 			slaveState := clusterState[host].SlaveState
 			dataLag := calcLagBytes(masterBinlogs, slaveState.MasterLogFile, slaveState.MasterLogPos)
 			if dataLag > app.config.SemiSyncEnableLag {
-				newBinLogPos := fmt.Sprintf("%s%019d", slaveState.MasterLogFile, slaveState.MasterLogPos)
+				newBinLogPos := slaveState.GetCurrentBinlogPosition()
 				oldBinLogPos := app.slaveReadPositions[host]
 
 				if newBinLogPos <= oldBinLogPos {

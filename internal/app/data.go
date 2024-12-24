@@ -91,6 +91,7 @@ type NodeState struct {
 	IsOffline            bool           `json:"is_offline"`
 	IsCascade            bool           `json:"is_cascade"`
 	IsFileSystemReadonly bool           `json:"is_file_system_readonly"`
+	IsLoadingBinlog      bool           `json:"is_loading_binlog"`
 	Error                string         `json:"error"`
 	DiskState            *DiskState     `json:"disk_state"`
 	DaemonState          *DaemonState   `json:"daemon_state"`
@@ -142,6 +143,20 @@ func (ns *NodeState) CalcGTIDDiffWithMaster() (string, error) {
 	sourceGTID := gtids.ParseGtidSet(ns.MasterState.ExecutedGtidSet)
 
 	return gtids.GTIDDiff(replicaGTID, sourceGTID)
+}
+
+func (ss *SlaveState) GetCurrentBinlogPosition() string {
+	return fmt.Sprintf("%s%019d", ss.MasterLogFile, ss.MasterLogPos)
+}
+
+func (ns *NodeState) UpdateBinlogStatus(oldBinloPos string) (newBinlogPos string) {
+	if ns.SlaveState != nil {
+		newBinlogPos = ns.SlaveState.GetCurrentBinlogPosition()
+
+		ns.IsLoadingBinlog = newBinlogPos > oldBinloPos
+	}
+
+	return
 }
 
 func (ns *NodeState) String() string {
@@ -249,15 +264,15 @@ type SlaveState struct {
 	LastSQLErrno     int      `json:"last_sql_errno"`
 }
 
-func (ns *SlaveState) FromReplicaStatus(replStatus mysql.ReplicaStatus) {
-	ns.ExecutedGtidSet = replStatus.GetExecutedGtidSet()
-	ns.RetrievedGtidSet = replStatus.GetRetrievedGtidSet()
-	ns.MasterHost = replStatus.GetMasterHost()
-	ns.ReplicationState = replStatus.ReplicationState()
-	ns.MasterLogFile = replStatus.GetMasterLogFile()
-	ns.MasterLogPos = replStatus.GetReadMasterLogPos()
-	ns.LastIOErrno = replStatus.GetLastIOErrno()
-	ns.LastSQLErrno = replStatus.GetLastSQLErrno()
+func (ss *SlaveState) FromReplicaStatus(replStatus mysql.ReplicaStatus) {
+	ss.ExecutedGtidSet = replStatus.GetExecutedGtidSet()
+	ss.RetrievedGtidSet = replStatus.GetRetrievedGtidSet()
+	ss.MasterHost = replStatus.GetMasterHost()
+	ss.ReplicationState = replStatus.ReplicationState()
+	ss.MasterLogFile = replStatus.GetMasterLogFile()
+	ss.MasterLogPos = replStatus.GetReadMasterLogPos()
+	ss.LastIOErrno = replStatus.GetLastIOErrno()
+	ss.LastSQLErrno = replStatus.GetLastSQLErrno()
 }
 
 // SemiSyncState contains semi sync host settings
