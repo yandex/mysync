@@ -264,15 +264,15 @@ type SlaveState struct {
 	LastSQLErrno     int      `json:"last_sql_errno"`
 }
 
-func (ns *SlaveState) FromReplicaStatus(replStatus mysql.ReplicaStatus) {
-	ns.ExecutedGtidSet = replStatus.GetExecutedGtidSet()
-	ns.RetrievedGtidSet = replStatus.GetRetrievedGtidSet()
-	ns.MasterHost = replStatus.GetMasterHost()
-	ns.ReplicationState = replStatus.ReplicationState()
-	ns.MasterLogFile = replStatus.GetMasterLogFile()
-	ns.MasterLogPos = replStatus.GetReadMasterLogPos()
-	ns.LastIOErrno = replStatus.GetLastIOErrno()
-	ns.LastSQLErrno = replStatus.GetLastSQLErrno()
+func (ss *SlaveState) FromReplicaStatus(replStatus mysql.ReplicaStatus) {
+	ss.ExecutedGtidSet = replStatus.GetExecutedGtidSet()
+	ss.RetrievedGtidSet = replStatus.GetRetrievedGtidSet()
+	ss.MasterHost = replStatus.GetMasterHost()
+	ss.ReplicationState = replStatus.ReplicationState()
+	ss.MasterLogFile = replStatus.GetMasterLogFile()
+	ss.MasterLogPos = replStatus.GetReadMasterLogPos()
+	ss.LastIOErrno = replStatus.GetLastIOErrno()
+	ss.LastSQLErrno = replStatus.GetLastSQLErrno()
 }
 
 // SemiSyncState contains semi sync host settings
