@@ -70,18 +70,14 @@ Feature: repl_mon tests
       """
         SELECT ts FROM mysql.mysync_repl_mon
       """
-
     And mysql host "mysql2" should be replica of "mysql1"
-
     Then zookeeper node "/test/health/mysql2" should match json within "20" seconds
       """
       {
         "is_loading_binlog": false
       }
       """
-
     And mysql host "mysql3" should be replica of "mysql1"
-
     Then zookeeper node "/test/health/mysql3" should match json within "20" seconds
       """
       {
