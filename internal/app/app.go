@@ -2202,9 +2202,9 @@ func (app *App) getLocalDaemonState() (*DaemonState, error) {
 func (app *App) getClusterStateFromDB() map[string]*NodeState {
 	hosts := app.cluster.AllNodeHosts()
 	getter := func(host string) (*NodeState, error) {
-    if host == app.cluster.Local().Host() {
-      return app.getLocalNodeState(), nil
-    }
+		if host == app.cluster.Local().Host() {
+			return app.getLocalNodeState(), nil
+		}
 		ns := app.getNodeState(host)
 		return ns, nil
 	}
