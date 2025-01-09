@@ -2144,7 +2144,6 @@ func (app *App) getNodeState(host string) *NodeState {
 func (app *App) getLocalNodeState() *NodeState {
 	node := app.cluster.Local()
 	nodeState := app.getNodeState(node.Host())
-	nodeState.ShowOnlyGTIDDiff = app.config.ShowOnlyGTIDDiff
 
 	diskUsed, diskTotal, err := node.GetDiskUsage()
 	if err == nil {
