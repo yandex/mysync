@@ -219,6 +219,13 @@ func (ns *NodeState) String() string {
 			cr = "no"
 		}
 	}
+
+	// NodeState of replica doesn't know master gtid and always writes "master state not defined" when we calculate gtid diff
+	if ns.ShowOnlyGTIDDiff && ns.MasterState == nil {
+		return fmt.Sprintf("<ping=%s repl=%s sync=%s ro=%v offline=%v lag=%.02f du=%s cr=%s>",
+			ping, repl, sync, ns.IsReadOnly, ns.IsOffline, lag, du, cr)
+	}
+
 	return fmt.Sprintf("<ping=%s repl=%s sync=%s ro=%v offline=%v lag=%.02f du=%s cr=%s gtid=%s>",
 		ping, repl, sync, ns.IsReadOnly, ns.IsOffline, lag, du, cr, gtid)
 }
