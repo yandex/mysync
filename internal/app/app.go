@@ -639,7 +639,7 @@ func (app *App) stateManager() appState {
 
 	if workingHANodesCount > 0 && visibleHAHostsCount <= (workingHANodesCount-1)/2 {
 		app.logger.Debugf("manager sees %d HAHosts of %d", visibleHAHostsCount, workingHANodesCount)
-		lostQuorumDuration := time.Now().Sub(lostQuorumTime)
+		lostQuorumDuration := time.Since(lostQuorumTime)
 
 		if lostQuorumTime.IsZero() {
 			lostQuorumTime = time.Now()
@@ -811,7 +811,7 @@ func (app *App) AcquireLock(path string) bool {
 		return app.dcs.AcquireLock(path)
 	}
 
-	lostQuorumDuration := time.Now().Sub(lostQuorumTime)
+	lostQuorumDuration := time.Since(lostQuorumTime)
 	if lostQuorumDuration < app.config.WaitingRecoveryNetworkTimestamp {
 		app.logger.Debug("manager try to acquire lock")
 		return app.dcs.AcquireLock(path)
