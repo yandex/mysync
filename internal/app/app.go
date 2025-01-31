@@ -42,6 +42,8 @@ type App struct {
 	switchHelper        mysql.ISwitchHelper
 }
 
+var lostQuorumTime time.Time
+
 // NewApp returns new App. Suddenly.
 func NewApp(configFile, logLevel string, interactive bool) (*App, error) {
 	config, err := config.ReadFromFile(configFile)
@@ -484,7 +486,7 @@ func (app *App) stateFirstRun() appState {
 		return stateFirstRun
 	}
 	app.dcs.Initialize()
-	if app.dcs.AcquireLock(pathManagerLock) {
+	if app.AcquireLock(pathManagerLock) {
 		return stateManager
 	}
 	return stateCandidate
@@ -564,7 +566,7 @@ func (app *App) stateMaintenance() appState {
 		return stateMaintenance
 	}
 	if err == dcs.ErrNotFound || maintenance.ShouldLeave {
-		if app.dcs.AcquireLock(pathManagerLock) {
+		if app.AcquireLock(pathManagerLock) {
 			app.logger.Info("leaving maintenance")
 			err := app.leaveMaintenance()
 			if err != nil {
@@ -586,7 +588,7 @@ func (app *App) stateManager() appState {
 	if !app.dcs.IsConnected() {
 		return stateLost
 	}
-	if !app.dcs.AcquireLock(pathManagerLock) {
+	if !app.AcquireLock(pathManagerLock) {
 		return stateCandidate
 	}
 
@@ -605,6 +607,58 @@ func (app *App) stateManager() appState {
 	if err != nil {
 		app.logger.Errorf("failed to get cluster state from DCS: %s", err)
 		return stateManager
+	}
+
+	// Counting the number of HA hosts visible to the manager.
+	visibleHAHostsCount := 0
+	workingHANodesCount := 0
+	HAHosts := app.cluster.HANodeHosts()
+
+	for _, host := range HAHosts {
+		nodeStateFromDB, ok := clusterState[host]
+		if !ok {
+			app.logger.Errorf("app.cluster.HANodesHosts() returns host %s, which does not exist in app.getClusterStateFromDB()", host)
+			break
+		}
+		pingFromDB := nodeStateFromDB.PingOk
+
+		nodeStateFromDcs, ok := clusterStateDcs[host]
+		if !ok {
+			app.logger.Errorf("host %s exists in clusterstate from DB, but does not exit in clusterstate from DCS", host)
+			break
+		}
+		pingFromDcs := nodeStateFromDcs.PingOk
+
+		if pingFromDcs {
+			workingHANodesCount++
+			if pingFromDB {
+				visibleHAHostsCount++
+			}
+		}
+	}
+
+	if workingHANodesCount > 0 && visibleHAHostsCount <= (workingHANodesCount-1)/2 {
+		app.logger.Debugf("manager sees %d HAHosts of %d", visibleHAHostsCount, workingHANodesCount)
+		lostQuorumDuration := time.Now().Sub(lostQuorumTime)
+
+		if lostQuorumTime.IsZero() {
+			lostQuorumTime = time.Now()
+		} else {
+			// Lost quorum less than 15 (default WaitingRecoveryNetworkTimestamp) seconds ago
+			// Just wait manager recover connection
+			if lostQuorumDuration <= app.config.WaitingRecoveryNetworkTimestamp {
+				app.logger.Debugf("manager lost quorum for %f, wait for revery network by manager", lostQuorumDuration.Seconds())
+				// Lost quorum more than 15 (default WaitingRecoveryNetworkTimestamp) seconds ago
+				// Manager should release lock and dont acquire lock for 15 (default DoNotAcquireLockByDisconnectedManager) seconds
+			} else if lostQuorumDuration > app.config.WaitingRecoveryNetworkTimestamp {
+				app.logger.Debugf("manager lost quorum for %f and manager release lock", lostQuorumDuration.Seconds())
+				app.dcs.ReleaseLock(pathManagerLock)
+				return stateCandidate
+			}
+		}
+	} else if workingHANodesCount > 0 {
+		app.logger.Debugf("manager sees %d HAHosts of %d (manager has quorum), then the manager should not release the lock", visibleHAHostsCount, workingHANodesCount)
+		lostQuorumTime = time.Time{}
 	}
 
 	// master is master host that should be on cluster
@@ -752,6 +806,32 @@ func (app *App) stateManager() appState {
 	return stateManager
 }
 
+func (app *App) AcquireLock(path string) bool {
+	if lostQuorumTime.IsZero() {
+		return app.dcs.AcquireLock(path)
+	}
+
+	lostQuorumDuration := time.Now().Sub(lostQuorumTime)
+	if lostQuorumDuration < app.config.WaitingRecoveryNetworkTimestamp {
+		app.logger.Debug("manager try to acquire lock")
+		return app.dcs.AcquireLock(path)
+	} else if lostQuorumDuration <= app.config.WaitingRecoveryNetworkTimestamp+app.config.DoNotAcquireLockByDisconnectedManager {
+		// Manager cant AcquireLock in delay
+		app.logger.Debugf(
+			"manager lost quorum for %f, manager cant acquire lock for %f delay",
+			lostQuorumDuration.Seconds(),
+			app.config.WaitingRecoveryNetworkTimestamp.Seconds()+app.config.DoNotAcquireLockByDisconnectedManager.Seconds(),
+		)
+		return false
+		// Manager start to try to AcquireLock
+	} else if lostQuorumDuration > app.config.WaitingRecoveryNetworkTimestamp+app.config.DoNotAcquireLockByDisconnectedManager {
+		lostQuorumTime = time.Time{}
+		return app.dcs.AcquireLock(path)
+	}
+
+	return false
+}
+
 func (app *App) approveFailover(clusterState, clusterStateDcs map[string]*NodeState, activeNodes []string, master string) error {
 	if !app.config.Failover {
 		return fmt.Errorf("auto_failover is disabled in config")
@@ -819,7 +899,7 @@ func (app *App) stateCandidate() appState {
 	if maintenance != nil && maintenance.MySyncPaused {
 		return stateMaintenance
 	}
-	if app.dcs.AcquireLock(pathManagerLock) {
+	if app.AcquireLock(pathManagerLock) {
 		return stateManager
 	}
 	return stateCandidate
@@ -1291,7 +1371,7 @@ func (app *App) performSwitchover(clusterState map[string]*NodeState, activeNode
 	}
 
 	// setting server read-only may take a while so we need to ensure we are still a manager
-	if !app.dcs.AcquireLock(pathManagerLock) || app.emulateError("set_read_only_lost_lock") {
+	if !app.AcquireLock(pathManagerLock) || app.emulateError("set_read_only_lost_lock") {
 		return errors.New("manger lock lost during switchover, new manager should finish the process, leaving")
 	}
 
@@ -1362,7 +1442,7 @@ func (app *App) performSwitchover(clusterState map[string]*NodeState, activeNode
 			newMaster, mostRecent, app.config.SlaveCatchUpTimeout)
 	}
 	// catching up may take a while so we need to ensure we are still a manager
-	if !app.dcs.AcquireLock(pathManagerLock) || app.emulateError("catchup_lost_lock") {
+	if !app.AcquireLock(pathManagerLock) || app.emulateError("catchup_lost_lock") {
 		return errors.New("manger lock lost during switchover, new manager should finish the process, leaving")
 	}
 	app.logger.Infof("switchover: new master %s caught up", newMaster)

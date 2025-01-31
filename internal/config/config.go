@@ -66,6 +66,8 @@ type Config struct {
 	InfoFileHandlerInterval                 time.Duration                `config:"info_file_handler_interval" yaml:"info_file_handler_interval"`
 	RecoveryCheckInterval                   time.Duration                `config:"recoverycheck_interval" yaml:"recoverycheck_interval"`
 	ExternalCAFileCheckInterval             time.Duration                `config:"external_ca_file_check_interval" yaml:"external_ca_file_check_interval"`
+	WaitingRecoveryNetworkTimestamp         time.Duration                `config:"waiting_recovery_network_timestamp" yaml: "waiting_recovery_network_timestamp"`
+	DoNotAcquireLockByDisconnectedManager   time.Duration                `config:"do_not_acquire_lock_by_disconnected_manager" yaml:"do_not_acquire_lock_by_disconnected_manager"`
 	MaxAcceptableLag                        float64                      `config:"max_acceptable_lag" yaml:"max_acceptable_lag"`
 	SlaveCatchUpTimeout                     time.Duration                `config:"slave_catch_up_timeout" yaml:"slave_catch_up_timeout"`
 	DisableSemiSyncReplicationOnMaintenance bool                         `config:"disable_semi_sync_replication_on_maintenance" yaml:"disable_semi_sync_replication_on_maintenance"`
@@ -154,6 +156,8 @@ func DefaultConfig() (Config, error) {
 		InfoFileHandlerInterval:                 30 * time.Second,
 		RecoveryCheckInterval:                   5 * time.Second,
 		ExternalCAFileCheckInterval:             5 * time.Second,
+		WaitingRecoveryNetworkTimestamp:         15 * time.Second,
+		DoNotAcquireLockByDisconnectedManager:   30 * time.Second,
 		MaxAcceptableLag:                        60.0,
 		SlaveCatchUpTimeout:                     30 * time.Minute,
 		DisableSemiSyncReplicationOnMaintenance: true,
