@@ -156,8 +156,8 @@ func DefaultConfig() (Config, error) {
 		InfoFileHandlerInterval:                 30 * time.Second,
 		RecoveryCheckInterval:                   5 * time.Second,
 		ExternalCAFileCheckInterval:             5 * time.Second,
-		ManagerElectionDelayAfterQuorumLoss:     15 * time.Second,
-		ManagerLockAcquireDelayAfterQuorumLoss:  30 * time.Second,
+		ManagerElectionDelayAfterQuorumLoss:     30 * time.Second, // need more than 15 sec
+		ManagerLockAcquireDelayAfterQuorumLoss:  45 * time.Second,
 		MaxAcceptableLag:                        60.0,
 		SlaveCatchUpTimeout:                     30 * time.Minute,
 		DisableSemiSyncReplicationOnMaintenance: true,
