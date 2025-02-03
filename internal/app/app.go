@@ -608,7 +608,7 @@ func (app *App) stateManager() appState {
 		return stateManager
 	}
 
-	if state, ok := app.checkQuorum(); ok {
+	if state, ok := app.checkQuorum(); !ok {
 		return state
 	}
 
@@ -811,7 +811,7 @@ func (app *App) checkQuorum() (appState, bool) {
 			} else if lostQuorumDuration > managerElectionDelayAfterQuorumLoss {
 				app.logger.Warnf("Quorum loss ongoing (%0.2fs): manager release lock", lostQuorumDuration.Seconds())
 				app.dcs.ReleaseLock(pathManagerLock)
-				return stateCandidate, true
+				return stateCandidate, false
 			}
 		}
 	} else {
@@ -819,7 +819,7 @@ func (app *App) checkQuorum() (appState, bool) {
 		app.lostQuorumTime = time.Time{}
 	}
 
-	return "", false
+	return "", true
 }
 
 func (app *App) AcquireLock(path string) bool {
