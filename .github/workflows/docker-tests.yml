@@ -62,6 +62,7 @@ jobs:
           - 'GODOG_FEATURE=switchover_to.feature make test'                                                                       
           - 'GODOG_FEATURE=zk_failure.feature make test'                                                                          
           - 'GODOG_FEATURE=zk_maintenance.feature make test'     
+          - 'GODOG_FEATURE=manager_switchover.feature make test'
       fail-fast: false
 
     steps:
