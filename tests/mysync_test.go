@@ -690,15 +690,15 @@ func (tctx *testContext) stepFileOnHostHaveContentOf(path string, node string, b
 }
 
 func (tctx *testContext) stepIRunCommandOnHost(host string, body *godog.DocString) error {
-  cmd, err := tctx.templateString(strings.TrimSpace(body.Content))
-  if err != nil {
-    return err
-  }
+	cmd, err := tctx.templateString(strings.TrimSpace(body.Content))
+	if err != nil {
+		return err
+	}
 
-  host, err = tctx.templateString(host)
-  if err != nil {
-    return err
-  }
+	host, err = tctx.templateString(host)
+	if err != nil {
+		return err
+	}
 	tctx.commandRetcode, tctx.commandOutput, err = tctx.composer.RunCommand(host, cmd, commandExecutionTimeout)
 	return err
 }
@@ -730,10 +730,10 @@ func (tctx *testContext) stepIRunAsyncCommandOnHost(host string, body *godog.Doc
 }
 
 func (tctx *testContext) stepIRunCommandOnHostWithTimeout(host string, timeout int, body *godog.DocString) error {
-  cmd, err := tctx.templateString(strings.TrimSpace(body.Content))
-  if err != nil {
-    return err
-  }
+	cmd, err := tctx.templateString(strings.TrimSpace(body.Content))
+	if err != nil {
+		return err
+	}
 	tctx.commandRetcode, tctx.commandOutput, err = tctx.composer.RunCommand(host, cmd, time.Duration(timeout)*time.Second)
 	return err
 }
@@ -997,10 +997,10 @@ func (tctx *testContext) stepZookeeperNodeShouldNotMatch(node, matcher string, b
 	if err != nil {
 		return err
 	}
-  unExpectedExpression := strings.TrimSpace(body.Content)
-  if m(tctx.zkQueryResult, unExpectedExpression) == nil {
-    return fmt.Errorf("Expressions are equal, actual: %s, unexpected: %s", tctx.zkQueryResult, unExpectedExpression)
-  }
+	unExpectedExpression := strings.TrimSpace(body.Content)
+	if m(tctx.zkQueryResult, unExpectedExpression) == nil {
+		return fmt.Errorf("Expressions are equal, actual: %s, unexpected: %s", tctx.zkQueryResult, unExpectedExpression)
+	}
 	return nil
 }
 func (tctx *testContext) stepZookeeperNodeShouldMatchWithin(node, matcher string, timeout int, body *godog.DocString) error {

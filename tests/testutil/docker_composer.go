@@ -361,12 +361,12 @@ func (dc *DockerComposer) AttachToUserNet(service string) error {
 		return fmt.Errorf("no such service: %s", service)
 	}
 	cmds := []string{
-    "ip6tables -D OUTPUT -o eth0 -p tcp --sport 3306 -j DROP",
-    "ip6tables -D INPUT -i eth0 -p tcp --dport 3306 -j DROP",
-    "iptables -D OUTPUT -o eth0 -p tcp --sport 3306 -j DROP",
-    "iptables -D INPUT -i eth0 -p tcp --dport 3306 -j DROP",
-    "ip6tables -D OUTPUT -o eth0 -p tcp --dport 3306 -j DROP",
-    "iptables -D OUTPUT -o eth0 -p tcp --dport 3306 -j DROP",
+		"ip6tables -D OUTPUT -o eth0 -p tcp --sport 3306 -j DROP",
+		"ip6tables -D INPUT -i eth0 -p tcp --dport 3306 -j DROP",
+		"iptables -D OUTPUT -o eth0 -p tcp --sport 3306 -j DROP",
+		"iptables -D INPUT -i eth0 -p tcp --dport 3306 -j DROP",
+		"ip6tables -D OUTPUT -o eth0 -p tcp --dport 3306 -j DROP",
+		"iptables -D OUTPUT -o eth0 -p tcp --dport 3306 -j DROP",
 	}
 	for _, cmd := range cmds {
 		_, _, err := dc.RunCommand(service, cmd, defaultDockerTimeout)
@@ -384,12 +384,12 @@ func (dc *DockerComposer) DetachFromUserNet(service string) error {
 		return fmt.Errorf("no such service: %s", service)
 	}
 	cmds := []string{
-    "ip6tables -A OUTPUT -o eth0 -p tcp --sport 3306 -j DROP",
-    "ip6tables -A INPUT -i eth0 -p tcp --dport 3306 -j DROP",
-    "iptables -A OUTPUT -o eth0 -p tcp --sport 3306 -j DROP",
-    "iptables -A INPUT -i eth0 -p tcp --dport 3306 -j DROP",
-    "ip6tables -A OUTPUT -o eth0 -p tcp --dport 3306 -j DROP",
-    "iptables -A OUTPUT -o eth0 -p tcp --dport 3306 -j DROP",
+		"ip6tables -A OUTPUT -o eth0 -p tcp --sport 3306 -j DROP",
+		"ip6tables -A INPUT -i eth0 -p tcp --dport 3306 -j DROP",
+		"iptables -A OUTPUT -o eth0 -p tcp --sport 3306 -j DROP",
+		"iptables -A INPUT -i eth0 -p tcp --dport 3306 -j DROP",
+		"ip6tables -A OUTPUT -o eth0 -p tcp --dport 3306 -j DROP",
+		"iptables -A OUTPUT -o eth0 -p tcp --dport 3306 -j DROP",
 	}
 	for _, cmd := range cmds {
 		_, _, err := dc.RunCommand(service, cmd, defaultDockerTimeout)
