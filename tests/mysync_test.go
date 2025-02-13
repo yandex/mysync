@@ -989,6 +989,7 @@ func (tctx *testContext) stepZookeeperNodeShouldMatch(node, matcher string, body
 }
 
 func (tctx *testContext) stepZookeeperNodeShouldNotMatch(node, matcher string, body *godog.DocString) error {
+  fmt.Print("Enter stepZookeeperNodeShouldNotMatch")
 	err := tctx.stepIGetZookeeperNode(node)
 	if err != nil {
 		return err
