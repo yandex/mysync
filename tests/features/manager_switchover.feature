@@ -2,6 +2,7 @@ Feature: manager swithover
   Scenario: manager loss quorum than release lock 
     Given cluster environment is
     """
+    MANAGER_SWITCH = true
     MANAGER_ELECTION_DELAY_AFTER_QUORUM_LOSS=180s
     MANAGER_LOCK_ACQUIRE_DELAY_AFTER_QUORUM_LOSS=180s
     """
