@@ -769,7 +769,7 @@ func (app *App) checkMasterVisible(clusterStateFromDB, clusterStateDcs map[strin
 		return false, err
 	}
 
-	if _, ok := clusterStateFromDB[masterHost]; !ok {
+	if state, ok := clusterStateFromDB[masterHost]; !ok || !state.PingOk {
 		retryPingOk, err := app.cluster.PingNode(masterHost)
 		if err != nil {
 			app.logger.Errorf("checkMasterVisible: app.cluster.PingNode(%s) fail with error: %s", masterHost, err)
