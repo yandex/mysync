@@ -59,8 +59,8 @@ Feature: manual switchover from old master
           "run_count": 1
       }
       """
-    Then zookeeper node "/test/last_switch" should not exist within "30" seconds  
-    Then zookeeper node "/test/last_rejected_switch" should not exist within "30" seconds  
+    Then zookeeper node "/test/last_switch" should not exist within "30" seconds
+    Then zookeeper node "/test/last_rejected_switch" should not exist within "30" seconds
     When mysql on host "mysql3" is started
     And mysql on host "mysql2" is started
     Then zookeeper node "/test/last_switch" should match json within "30" seconds
