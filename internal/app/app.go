@@ -1377,8 +1377,8 @@ func (app *App) optimizeReplicaWithSmallestLag(
 	for {
 		select {
 		case <-timer.C:
-			app.logger.Debug("replica optimization: exceeded deadline")
-			return fmt.Errorf("replica optimization: exceeded deadline")
+			app.logger.Debug("replica optimization: deadline exceeded")
+			return errors.New(DeadlineExceeded)
 		default:
 			status, err := replicaToOptimize.GetReplicaStatus()
 			if err != nil {
@@ -1422,7 +1422,7 @@ func (app *App) performSwitchover(clusterState map[string]*NodeState, activeNode
 			app.config.OptimizeReplicationLagThreshold,
 			app.config.OptimizeReplicationConvergenceTimeout,
 		)
-		if err != nil {
+		if err != nil && err.Error() == DeadlineExceeded {
 			switchErr := app.FinishSwitchover(switchover, fmt.Errorf("turbo mode exceeded deadline"))
 			if switchErr != nil {
 				return fmt.Errorf("switchover: failed to reject switchover %s", switchErr)
