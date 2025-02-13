@@ -608,8 +608,13 @@ func (app *App) stateManager() appState {
 		return stateManager
 	}
 
-	if state, ok := app.checkQuorum(); !ok {
-		return state
+	if app.config.ManagerSwitchover {
+		managerSeeMaster, err := app.checkMasterVisible(clusterState, clusterStateDcs)
+		if err == nil && !managerSeeMaster {
+			if state, ok := app.checkQuorum(clusterState, clusterStateDcs); !ok {
+				return state
+			}
+		}
 	}
 
 	// master is master host that should be on cluster
@@ -757,21 +762,34 @@ func (app *App) stateManager() appState {
 	return stateManager
 }
 
-func (app *App) checkQuorum() (appState, bool) {
+func (app *App) checkMasterVisible(clusterStateFromDB, clusterStateDcs map[string]*NodeState) (bool, error) {
+	masterHost, err := app.getMasterHost(clusterStateDcs)
+	if err != nil {
+		app.logger.Errorf("checkMasterVisible: can`t get muster host, error: %s", err)
+		return false, err
+	}
+
+	if _, ok := clusterStateFromDB[masterHost]; !ok {
+		retryPingOk, err := app.cluster.PingNode(masterHost)
+		if err != nil {
+			app.logger.Errorf("checkMasterVisible: app.cluster.PingNode(%s) fail with error: %s", masterHost, err)
+			return retryPingOk, err
+		}
+	}
+
+	app.logger.Debug("Master is visible by manager, than we don`t need manager`s switchover")
+
+	return true, nil
+}
+
+func (app *App) checkQuorum(clusterStateFromDB, clusterStateDcs map[string]*NodeState) (appState, bool) {
 	// Counting the number of HA hosts visible to the manager.
 	visibleHAHostsCount := 0
 	workingHANodesCount := 0
 	HAHosts := app.cluster.HANodeHosts()
 
-	clusterState := app.getClusterStateFromDB()
-	clusterStateDcs, err := app.getClusterStateFromDcs()
-	if err != nil {
-		app.logger.Errorf("failed to get cluster state from DCS: %s", err)
-		return stateManager, false
-	}
-
 	for _, host := range HAHosts {
-		nodeStateFromDB, ok := clusterState[host]
+		nodeStateFromDB, ok := clusterStateFromDB[host]
 		if !ok {
 			app.logger.Errorf("app.cluster.HANodesHosts() returns host %s, which does not exist in app.getClusterStateFromDB()", host)
 			break
