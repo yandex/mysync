@@ -10,6 +10,10 @@ import (
 	"github.com/yandex/mysync/internal/util"
 )
 
+const (
+	DeadlineExceeded = "deadline exceeded"
+)
+
 type nodePosition struct {
 	host     string
 	gtidset  gtids.GTIDSet
