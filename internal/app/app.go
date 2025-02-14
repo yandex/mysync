@@ -1426,7 +1426,7 @@ func (app *App) performSwitchover(clusterState map[string]*NodeState, activeNode
 		}
 	} else {
 		app.logger.Info("switchover: phase 0: turbo mode is skipped")
-  }
+	}
 
 	// set read only everywhere (all HA-nodes) and stop replication
 	app.logger.Info("switchover: phase 1: enter read only")
