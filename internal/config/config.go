@@ -66,6 +66,8 @@ type Config struct {
 	InfoFileHandlerInterval                 time.Duration                `config:"info_file_handler_interval" yaml:"info_file_handler_interval"`
 	RecoveryCheckInterval                   time.Duration                `config:"recoverycheck_interval" yaml:"recoverycheck_interval"`
 	ExternalCAFileCheckInterval             time.Duration                `config:"external_ca_file_check_interval" yaml:"external_ca_file_check_interval"`
+	ManagerElectionDelayAfterQuorumLoss     time.Duration                `config:"manager_election_delay_after_quorum_loss" yaml:"manager_election_delay_after_quorum_loss"`
+	ManagerLockAcquireDelayAfterQuorumLoss  time.Duration                `config:"manager_lock_acquire_delay_after_quorum_loss" yaml:"manager_lock_acquire_delay_after_quorum_loss"`
 	MaxAcceptableLag                        float64                      `config:"max_acceptable_lag" yaml:"max_acceptable_lag"`
 	SlaveCatchUpTimeout                     time.Duration                `config:"slave_catch_up_timeout" yaml:"slave_catch_up_timeout"`
 	DisableSemiSyncReplicationOnMaintenance bool                         `config:"disable_semi_sync_replication_on_maintenance" yaml:"disable_semi_sync_replication_on_maintenance"`
@@ -97,6 +99,7 @@ type Config struct {
 	ReplMonErrorWaitInterval                time.Duration                `config:"repl_mon_error_wait_interval" yaml:"repl_mon_error_wait_interval"`
 	ReplMonSlaveWaitInterval                time.Duration                `config:"repl_mon_slave_wait_interval" yaml:"repl_mon_slave_wait_interval"`
 	ShowOnlyGTIDDiff                        bool                         `config:"show_only_gtid_diff" yaml:"show_only_gtid_diff"`
+	ManagerSwitchover                       bool                         `config:"manager_switchover" yaml:"manager_switchover"`
 	ForceSwitchover                         bool                         `config:"force_switchover" yaml:"force_switchover"` // TODO: Remove when we will be sure it's right way to do switchover
 }
 
@@ -154,6 +157,8 @@ func DefaultConfig() (Config, error) {
 		InfoFileHandlerInterval:                 30 * time.Second,
 		RecoveryCheckInterval:                   5 * time.Second,
 		ExternalCAFileCheckInterval:             5 * time.Second,
+		ManagerElectionDelayAfterQuorumLoss:     30 * time.Second, // need more than 15 sec
+		ManagerLockAcquireDelayAfterQuorumLoss:  45 * time.Second,
 		MaxAcceptableLag:                        60.0,
 		SlaveCatchUpTimeout:                     30 * time.Minute,
 		DisableSemiSyncReplicationOnMaintenance: true,
@@ -183,6 +188,7 @@ func DefaultConfig() (Config, error) {
 		ReplMonErrorWaitInterval:                10 * time.Second,
 		ReplMonSlaveWaitInterval:                10 * time.Second,
 		ShowOnlyGTIDDiff:                        false,
+		ManagerSwitchover:                       false,
 		ForceSwitchover:                         false,
 	}
 	return config, nil
