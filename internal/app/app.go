@@ -1,14 +1,12 @@
 package app
 
 import (
-	"cmp"
 	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"os"
 	"os/signal"
-	"slices"
 	"sort"
 	"strings"
 	"sync"
@@ -1306,26 +1304,6 @@ func (app *App) disableSemiSyncIfNonNeeded(node *mysql.Node, state *NodeState) {
 	}
 }
 
-func (app *App) chooseReplicaWithMinimalLag(
-	replicas []string,
-) (*mysql.Node, error) {
-	positions, err := app.getNodePositions(replicas)
-	if err != nil {
-		return nil, err
-	}
-
-	minLagPos := slices.MinFunc(positions, func(a, b nodePosition) int {
-		return cmp.Compare(a.lag, b.lag)
-	})
-
-	minimalLagNode := app.cluster.Get(minLagPos.host)
-	if minimalLagNode == nil {
-		return nil, fmt.Errorf("can't get node %s", minimalLagNode)
-	}
-
-	return minimalLagNode, nil
-}
-
 func (app *App) optimizeReplicaWithSmallestLag(
 	replicas []string,
 	masterHost string,
@@ -1333,21 +1311,29 @@ func (app *App) optimizeReplicaWithSmallestLag(
 	replicationLagThreshold time.Duration,
 	convergenceTimeout time.Duration,
 ) error {
-	var replicaToOptimize *mysql.Node
+	var hostnameToOptimize string
 	var err error
 
 	if len(optionalReplicaHost) == 0 {
 		app.logger.Debug("replica optimization: calculating replica with the smallest lag")
-		replicaToOptimize, err = app.chooseReplicaWithMinimalLag(replicas)
+
+		positions, err := app.getNodePositions(replicas)
 		if err != nil {
 			return err
 		}
-		app.logger.Debugf("replica optimization: the replica is %s", replicaToOptimize)
+
+		hostnameToOptimize, err = getMostDesirableNode(app.logger, positions, app.switchHelper.GetPriorityChoiceMaxLag())
+		if err != nil {
+			return err
+		}
+
+		app.logger.Debugf("replica optimization: the replica is %s", hostnameToOptimize)
 	} else {
 		app.logger.Debugf("replica optimization: the replica was specified %s", optionalReplicaHost)
-		replicaToOptimize = app.cluster.Get(optionalReplicaHost)
+		hostnameToOptimize = optionalReplicaHost
 	}
 
+	replicaToOptimize := app.cluster.Get(hostnameToOptimize)
 	status, err := replicaToOptimize.GetReplicaStatus()
 	if err != nil {
 		return err
@@ -1384,10 +1370,18 @@ func (app *App) optimizeReplicaWithSmallestLag(
 			if err != nil {
 				return err
 			}
+
 			if status.GetReplicationLag().Float64 < replicationLagThreshold.Seconds() {
 				app.logger.Debug("replica optimization: succeeded")
 				return nil
 			}
+
+			if app.config.ASync && status.GetReplicationLag().Float64 < app.config.AsyncAllowedLag.Seconds() {
+				app.logger.Debug("replica optimization: async succeeded")
+				return nil
+			}
+
+			time.Sleep(time.Second)
 		}
 	}
 }
