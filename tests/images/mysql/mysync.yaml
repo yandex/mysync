@@ -66,6 +66,6 @@ force_switchover: ${FORCE_SWITCHOVER:-false}
 manager_switchover: ${MANAGER_SWITCHOVER:-true}
 manager_election_delay_after_quorum_loss: ${MANAGER_ELECTION_DELAY_AFTER_QUORUM_LOSS:-15s}
 manager_lock_acquire_delay_after_quorum_loss: ${MANAGER_LOCK_ACQUIRE_DELAY_AFTER_QUORUM_LOSS:-30s}
-optimize_replication_before_switchover: true
+optimize_replication_before_switchover: ${OPTIMIZE_REPLICATION_BEFORE_SWITCHOVER:-true}
 optimize_replication_lag_threshold: 60s
 optimize_replication_convergence_timeout: 300s
