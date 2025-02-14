@@ -63,6 +63,6 @@ external_replication_type: 'external'
 show_only_gtid_diff: false
 repl_mon: ${REPL_MON:-false}
 force_switchover: ${FORCE_SWITCHOVER:-false}
-optimize_replication_before_switchover: true
+optimize_replication_before_switchover: ${OPTIMIZE_REPLICATION_BEFORE_SWITCHOVER:-true}
 optimize_replication_lag_threshold: 60s
 optimize_replication_convergence_timeout: 300s
