@@ -3,7 +3,6 @@
 
 # all available settings of specific linters
 linters-settings:
-  modules-download-mode: vendor
   dupl:
     threshold: 400
   funlen:
@@ -52,7 +51,7 @@ linters:
     - bodyclose
     - dupl
     - errcheck
-    - exportloopref
+    - copyloopvar
     - funlen
     - gocritic
     - gocyclo
@@ -74,8 +73,9 @@ linters:
     - whitespace
 
 run:
-  go: 1.18
+  go: "1.22"
   timeout: 5m
+  modules-download-mode: mod
 
 severity:
   default-severity: error
