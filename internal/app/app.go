@@ -1308,8 +1308,6 @@ func (app *App) optimizeReplicaWithSmallestLag(
 	replicas []string,
 	masterHost string,
 	optionalReplicaHost string,
-	replicationLagThreshold time.Duration,
-	convergenceTimeout time.Duration,
 ) error {
 	var hostnameToOptimize string
 	var err error
@@ -1327,9 +1325,9 @@ func (app *App) optimizeReplicaWithSmallestLag(
 			return err
 		}
 
-		app.logger.Debugf("replica optimization: the replica is %s", hostnameToOptimize)
+		app.logger.Infof("replica optimization: the replica is '%s'", hostnameToOptimize)
 	} else {
-		app.logger.Debugf("replica optimization: the replica was specified %s", optionalReplicaHost)
+		app.logger.Infof("replica optimization: the replica was specified '%s'", optionalReplicaHost)
 		hostnameToOptimize = optionalReplicaHost
 	}
 
@@ -1339,9 +1337,13 @@ func (app *App) optimizeReplicaWithSmallestLag(
 		return err
 	}
 
+	lag := status.GetReplicationLag().Float64
+	lagThreshold := app.config.OptimizeReplicationLagThreshold.Seconds()
+	app.logger.Infof("replica optimization: current lag is %fs", lag)
+
 	if status.GetReplicationLag().Valid &&
-		status.GetReplicationLag().Float64 < replicationLagThreshold.Seconds() {
-		app.logger.Debug("replica optimization: lag is below threshold; optimization is complete.")
+		lag < lagThreshold {
+		app.logger.Info("replica optimization: lag is below threshold; optimization is complete.")
 		return nil
 	}
 
@@ -1356,10 +1358,14 @@ func (app *App) optimizeReplicaWithSmallestLag(
 		err = replicaToOptimize.SetDefaultReplicationSettings(masterNode)
 		if err != nil {
 			app.logger.Error("replica optimization: can't set default replication settings")
+		} else {
+			app.logger.Debug("replica optimization: default replication settings are activated")
 		}
 	}()
 
-	timer := time.NewTimer(convergenceTimeout)
+	timer := time.NewTimer(app.config.OptimizeReplicationConvergenceTimeout)
+
+	asyncLagThreshold := app.config.AsyncAllowedLag.Seconds()
 	for {
 		select {
 		case <-timer.C:
@@ -1370,17 +1376,16 @@ func (app *App) optimizeReplicaWithSmallestLag(
 			if err != nil {
 				return err
 			}
+			lag := status.GetReplicationLag().Float64
 
-			if status.GetReplicationLag().Float64 < replicationLagThreshold.Seconds() {
-				app.logger.Debug("replica optimization: succeeded")
+			if !app.config.ASync && lag < lagThreshold {
+				app.logger.Infof("replica optimization: succeeded for '%s'", hostnameToOptimize)
 				return nil
 			}
-
-			if app.config.ASync && status.GetReplicationLag().Float64 < app.config.AsyncAllowedLag.Seconds() {
-				app.logger.Debug("replica optimization: async succeeded")
+			if app.config.ASync && lag < asyncLagThreshold {
+				app.logger.Infof("replica optimization: async succeeded for '%s'", hostnameToOptimize)
 				return nil
 			}
-
 			time.Sleep(time.Second)
 		}
 	}
@@ -1413,8 +1418,6 @@ func (app *App) performSwitchover(clusterState map[string]*NodeState, activeNode
 			appropriateReplicas,
 			oldMaster,
 			switchover.To,
-			app.config.OptimizeReplicationLagThreshold,
-			app.config.OptimizeReplicationConvergenceTimeout,
 		)
 		if err != nil && err.Error() == DeadlineExceeded {
 			switchErr := app.FinishSwitchover(switchover, fmt.Errorf("turbo mode exceeded deadline"))
