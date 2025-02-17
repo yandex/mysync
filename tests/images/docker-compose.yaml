@@ -97,6 +97,8 @@ services:
       MYSYNC_SET_RO_TIMEOUT:
       MYSYNC_REPLICATION_LAG_QUERY:
       REPL_MON:
+      FORCE_SWITCHOVER:
+      OPTIMIZE_REPLICATION_BEFORE_SWITCHOVER:
     healthcheck:
       test: "mysql --user=admin --password=admin_pwd -e 'SELECT 1'"
       start_period: 30s
@@ -143,6 +145,8 @@ services:
       MYSYNC_SET_RO_TIMEOUT:
       MYSYNC_REPLICATION_LAG_QUERY:
       REPL_MON:
+      FORCE_SWITCHOVER:
+      OPTIMIZE_REPLICATION_BEFORE_SWITCHOVER:
     depends_on:
       mysql1:
         condition: service_healthy
@@ -183,6 +187,8 @@ services:
       MYSYNC_SET_RO_TIMEOUT:
       MYSYNC_REPLICATION_LAG_QUERY:
       REPL_MON:
+      FORCE_SWITCHOVER:
+      OPTIMIZE_REPLICATION_BEFORE_SWITCHOVER:
     depends_on:
       mysql1:
         condition: service_healthy
