@@ -768,19 +768,19 @@ func (app *App) checkMasterVisible(clusterStateFromDB, clusterStateDcs map[strin
 		app.logger.Errorf("checkMasterVisible: can`t get muster host, error: %s", err)
 		return false, err
 	}
-  state, ok := clusterStateFromDB[masterHost]
-  app.logger.Debugf("master(%s) state pingOk == %s", masterHost, state)
-  if ok && state.PingOk {
-    app.logger.Debug("Master is visible by manager, than we don`t need manager`s switchover")
-    return true, nil
-  }
+	state, ok := clusterStateFromDB[masterHost]
+	app.logger.Debugf("master(%s) state pingOk == %s", masterHost, state)
+	if ok && state.PingOk {
+		app.logger.Debug("Master is visible by manager, than we don`t need manager`s switchover")
+		return true, nil
+	}
 
-  retryPingOk, err := app.cluster.PingNode(masterHost)
-  if err != nil {
-    app.logger.Errorf("checkMasterVisible: app.cluster.PingNode(%s) fail with error: %s", masterHost, err)
-  } 
+	retryPingOk, err := app.cluster.PingNode(masterHost)
+	if err != nil {
+		app.logger.Errorf("checkMasterVisible: app.cluster.PingNode(%s) fail with error: %s", masterHost, err)
+	}
 
-  return retryPingOk, err
+	return retryPingOk, err
 }
 
 func (app *App) checkQuorum(clusterStateFromDB, clusterStateDcs map[string]*NodeState) (appState, bool) {

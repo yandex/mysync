@@ -1,4 +1,4 @@
-Feature: manager swithover 
+Feature: manager switchover 
   Scenario: manager loss quorum than release lock 
     Given cluster environment is
     """
@@ -58,7 +58,7 @@ Feature: manager swithover
   Scenario: manager switch is off
     Given cluster environment is
     """
-    MANAGER_SWITCHOVER = false
+    MANAGER_SWITCHOVER=false
     """
     And cluster is up and running
 
