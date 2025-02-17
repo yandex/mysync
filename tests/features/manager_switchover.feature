@@ -55,10 +55,10 @@ Feature: manager swithover
         .*{{.manager.hostname}}.*
       """
 
-  Scenario: manger switch is off
+  Scenario: manager switch is off
     Given cluster environment is
     """
-    MANAGER_SWITCH = false
+    MANAGER_SWITCHOVER = false
     """
     And cluster is up and running
 
