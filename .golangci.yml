@@ -73,7 +73,7 @@ linters:
     - whitespace
 
 run:
-  go: 1.18
+  go: "1.18"
   timeout: 5m
   modules-download-mode: vendor
 
