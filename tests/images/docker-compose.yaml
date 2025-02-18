@@ -97,6 +97,9 @@ services:
       MYSYNC_SET_RO_TIMEOUT:
       MYSYNC_REPLICATION_LAG_QUERY:
       REPL_MON:
+      MANAGER_SWITCHOVER: 
+      MANAGER_ELECTION_DELAY_AFTER_QUORUM_LOSS:
+      MANAGER_LOCK_ACQUIRE_DELAY_AFTER_QUORUM_LOSS:
     healthcheck:
       test: "mysql --user=admin --password=admin_pwd -e 'SELECT 1'"
       start_period: 30s
@@ -143,6 +146,9 @@ services:
       MYSYNC_SET_RO_TIMEOUT:
       MYSYNC_REPLICATION_LAG_QUERY:
       REPL_MON:
+      MANAGER_SWITCHOVER:
+      MANAGER_ELECTION_DELAY_AFTER_QUORUM_LOSS:
+      MANAGER_LOCK_ACQUIRE_DELAY_AFTER_QUORUM_LOSS:
     depends_on:
       mysql1:
         condition: service_healthy
@@ -183,6 +189,9 @@ services:
       MYSYNC_SET_RO_TIMEOUT:
       MYSYNC_REPLICATION_LAG_QUERY:
       REPL_MON:
+      MANAGER_SWITCHOVER:
+      MANAGER_ELECTION_DELAY_AFTER_QUORUM_LOSS:
+      MANAGER_LOCK_ACQUIRE_DELAY_AFTER_QUORUM_LOSS:
     depends_on:
       mysql1:
         condition: service_healthy

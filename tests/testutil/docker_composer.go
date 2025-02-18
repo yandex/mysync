@@ -43,6 +43,10 @@ type Composer interface {
 	DetachFromNet(service string) error
 	// Attaches container/VM to network
 	AttachToNet(service string) error
+	// Detaches container/VM from user network
+	DetachFromUserNet(service string) error
+	// Attaches container/VM to user network
+	AttachToUserNet(service string) error
 	// Executes command inside container/VM with given timeout.
 	// Returns command retcode and output (stdoud and stderr are mixed)
 	RunCommand(service, cmd string, timeout time.Duration) (retcode int, output string, err error)
@@ -350,6 +354,51 @@ func (dc *DockerComposer) DetachFromNet(service string) error {
 	return nil
 }
 
+// AttachToUserNet attaches container to user network
+func (dc *DockerComposer) AttachToUserNet(service string) error {
+	_, ok := dc.containers[service]
+	if !ok {
+		return fmt.Errorf("no such service: %s", service)
+	}
+	cmds := []string{
+		"ip6tables -D OUTPUT -o eth0 -p tcp --sport 3306 -j DROP",
+		"ip6tables -D INPUT -i eth0 -p tcp --dport 3306 -j DROP",
+		"iptables -D OUTPUT -o eth0 -p tcp --sport 3306 -j DROP",
+		"iptables -D INPUT -i eth0 -p tcp --dport 3306 -j DROP",
+		"ip6tables -D OUTPUT -o eth0 -p tcp --dport 3306 -j DROP",
+		"iptables -D OUTPUT -o eth0 -p tcp --dport 3306 -j DROP",
+	}
+	for _, cmd := range cmds {
+		_, _, err := dc.RunCommand(service, cmd, defaultDockerTimeout)
+		if err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+// DetachFromUserNet detaches container from user network
+func (dc *DockerComposer) DetachFromUserNet(service string) error {
+	_, ok := dc.containers[service]
+	if !ok {
+		return fmt.Errorf("no such service: %s", service)
+	}
+	cmds := []string{
+		"ip6tables -A OUTPUT -o eth0 -p tcp --sport 3306 -j DROP",
+		"ip6tables -A INPUT -i eth0 -p tcp --dport 3306 -j DROP",
+		"iptables -A OUTPUT -o eth0 -p tcp --sport 3306 -j DROP",
+		"iptables -A INPUT -i eth0 -p tcp --dport 3306 -j DROP",
+		"ip6tables -A OUTPUT -o eth0 -p tcp --dport 3306 -j DROP",
+		"iptables -A OUTPUT -o eth0 -p tcp --dport 3306 -j DROP",
+	}
+	for _, cmd := range cmds {
+		_, _, err := dc.RunCommand(service, cmd, defaultDockerTimeout)
+		if err != nil {
+			return err
+		}
+	}
+	return nil
+}
 func newUntarReaderCloser(reader io.ReadCloser) (io.ReadCloser, error) {
 	tarReader := tar.NewReader(reader)
 	_, err := tarReader.Next()

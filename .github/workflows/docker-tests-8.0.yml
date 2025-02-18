@@ -64,6 +64,7 @@ jobs:
           - 'VERSION=8.0 GODOG_FEATURE=switchover_to.feature make test'
           - 'VERSION=8.0 GODOG_FEATURE=zk_failure.feature make test'
           - 'VERSION=8.0 GODOG_FEATURE=zk_maintenance.feature make test'
+          - 'VERSION=8.0 GODOG_FEATURE=manager_switchover.feature make test'
       fail-fast: false
 
     steps:

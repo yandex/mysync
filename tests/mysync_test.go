@@ -512,12 +512,20 @@ func (tctx *testContext) stepHostIsDetachedFromTheNetwork(host string) error {
 	return tctx.composer.DetachFromNet(host)
 }
 
+func (tctx *testContext) stepHostIsDetachedFromTheUserNetwork(host string) error {
+	return tctx.composer.DetachFromUserNet(host)
+}
+
 func (tctx *testContext) stepHostIsStarted(host string) error {
 	return tctx.composer.Start(host)
 }
 
 func (tctx *testContext) stepHostIsAttachedToTheNetwork(host string) error {
 	return tctx.composer.AttachToNet(host)
+}
+
+func (tctx *testContext) stepHostIsAttachedToTheUserNetwork(host string) error {
+	return tctx.composer.AttachToUserNet(host)
 }
 
 func (tctx *testContext) stepHostIsAdded(host string) error {
@@ -682,8 +690,15 @@ func (tctx *testContext) stepFileOnHostHaveContentOf(path string, node string, b
 }
 
 func (tctx *testContext) stepIRunCommandOnHost(host string, body *godog.DocString) error {
-	cmd := strings.TrimSpace(body.Content)
-	var err error
+	cmd, err := tctx.templateString(strings.TrimSpace(body.Content))
+	if err != nil {
+		return err
+	}
+
+	host, err = tctx.templateString(host)
+	if err != nil {
+		return err
+	}
 	tctx.commandRetcode, tctx.commandOutput, err = tctx.composer.RunCommand(host, cmd, commandExecutionTimeout)
 	return err
 }
@@ -715,8 +730,10 @@ func (tctx *testContext) stepIRunAsyncCommandOnHost(host string, body *godog.Doc
 }
 
 func (tctx *testContext) stepIRunCommandOnHostWithTimeout(host string, timeout int, body *godog.DocString) error {
-	cmd := strings.TrimSpace(body.Content)
-	var err error
+	cmd, err := tctx.templateString(strings.TrimSpace(body.Content))
+	if err != nil {
+		return err
+	}
 	tctx.commandRetcode, tctx.commandOutput, err = tctx.composer.RunCommand(host, cmd, time.Duration(timeout)*time.Second)
 	return err
 }
@@ -971,10 +988,34 @@ func (tctx *testContext) stepZookeeperNodeShouldMatch(node, matcher string, body
 	return m(tctx.zkQueryResult, strings.TrimSpace(body.Content))
 }
 
+func (tctx *testContext) stepZookeeperNodeShouldNotMatch(node, matcher string, body *godog.DocString) error {
+	err := tctx.stepIGetZookeeperNode(node)
+	if err != nil {
+		return err
+	}
+	m, err := matchers.GetMatcher(matcher)
+	if err != nil {
+		return err
+	}
+	unExpectedExpression := strings.TrimSpace(body.Content)
+	if m(tctx.zkQueryResult, unExpectedExpression) == nil {
+		return fmt.Errorf("Expressions are equal, actual: %s, unexpected: %s", tctx.zkQueryResult, unExpectedExpression)
+	}
+	return nil
+}
 func (tctx *testContext) stepZookeeperNodeShouldMatchWithin(node, matcher string, timeout int, body *godog.DocString) error {
 	var err error
 	testutil.Retry(func() bool {
 		err = tctx.stepZookeeperNodeShouldMatch(node, matcher, body)
+		return err == nil
+	}, time.Duration(timeout*int(time.Second)), time.Second)
+	return err
+}
+
+func (tctx *testContext) stepZookeeperNodeShouldNotMatchWithin(node, matcher string, timeout int, body *godog.DocString) error {
+	var err error
+	testutil.Retry(func() bool {
+		err = tctx.stepZookeeperNodeShouldNotMatch(node, matcher, body)
 		return err == nil
 	}, time.Duration(timeout*int(time.Second)), time.Second)
 	return err
@@ -1390,8 +1431,10 @@ func InitializeScenario(s *godog.ScenarioContext) {
 	s.Step(`^cluster is up and running with clean zk$`, func() error { return tctx.stepClusterIsUpAndRunning(false) })
 	s.Step(`^host "([^"]*)" is stopped$`, tctx.stepHostIsStopped)
 	s.Step(`^host "([^"]*)" is detached from the network$`, tctx.stepHostIsDetachedFromTheNetwork)
+	s.Step(`^host "([^"]*)" is detached from the user network$`, tctx.stepHostIsDetachedFromTheUserNetwork)
 	s.Step(`^host "([^"]*)" is started$`, tctx.stepHostIsStarted)
 	s.Step(`^host "([^"]*)" is attached to the network$`, tctx.stepHostIsAttachedToTheNetwork)
+	s.Step(`^host "([^"]*)" is attached to the user network$`, tctx.stepHostIsAttachedToTheUserNetwork)
 	s.Step(`^host "([^"]*)" is added`, tctx.stepHostIsAdded)
 	s.Step(`^host "([^"]*)" is deleted$`, tctx.stepHostIsDeleted)
 
@@ -1424,6 +1467,8 @@ func InitializeScenario(s *godog.ScenarioContext) {
 	// zookeeper checking
 	s.Step(`^zookeeper node "([^"]*)" should match (\w+)$`, tctx.stepZookeeperNodeShouldMatch)
 	s.Step(`^zookeeper node "([^"]*)" should match (\w+) within "(\d+)" seconds$`, tctx.stepZookeeperNodeShouldMatchWithin)
+	s.Step(`^zookeeper node "([^"]*)" should not match (\w+)$`, tctx.stepZookeeperNodeShouldNotMatch)
+	s.Step(`^zookeeper node "([^"]*)" should not match (\w+) within "(\d+)" seconds$`, tctx.stepZookeeperNodeShouldNotMatchWithin)
 	s.Step(`^zookeeper node "([^"]*)" should exist$`, tctx.stepZookeeperNodeShouldExist)
 	s.Step(`^zookeeper node "([^"]*)" should exist within "(\d+)" seconds$`, tctx.stepZookeeperNodeShouldExistWithin)
 	s.Step(`^zookeeper node "([^"]*)" should not exist$`, tctx.stepZookeeperNodeShouldNotExist)

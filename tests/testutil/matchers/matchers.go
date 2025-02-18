@@ -46,6 +46,16 @@ func RegexpMatcher(actual string, expected string) error {
 	return nil
 }
 
+// RegexpUnMatcher checks if the actual string does NOT match the provided regular expression.
+// If the actual string matches the expected regexp, it returns a MatcherError.
+// Otherwise, it returns nil indicating that the actual string does not match the regexp.
+func RegexpUnMatcher(actual string, expected string) error {
+	if regexp.MustCompile(expected).Find([]byte(actual)) == nil {
+		return &MatcherError{actual, expected}
+	}
+	return nil
+}
+
 // nolint: gocyclo
 func jsonContains(a, e interface{}, path []string) []string {
 	av := reflect.ValueOf(a)

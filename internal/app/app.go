@@ -40,6 +40,7 @@ type App struct {
 	replRepairState     map[string]*ReplicationRepairState
 	externalReplication mysql.IExternalReplication
 	switchHelper        mysql.ISwitchHelper
+	lostQuorumTime      time.Time
 }
 
 // NewApp returns new App. Suddenly.
@@ -484,7 +485,7 @@ func (app *App) stateFirstRun() appState {
 		return stateFirstRun
 	}
 	app.dcs.Initialize()
-	if app.dcs.AcquireLock(pathManagerLock) {
+	if app.AcquireLock(pathManagerLock) {
 		return stateManager
 	}
 	return stateCandidate
@@ -564,7 +565,7 @@ func (app *App) stateMaintenance() appState {
 		return stateMaintenance
 	}
 	if err == dcs.ErrNotFound || maintenance.ShouldLeave {
-		if app.dcs.AcquireLock(pathManagerLock) {
+		if app.AcquireLock(pathManagerLock) {
 			app.logger.Info("leaving maintenance")
 			err := app.leaveMaintenance()
 			if err != nil {
@@ -586,7 +587,7 @@ func (app *App) stateManager() appState {
 	if !app.dcs.IsConnected() {
 		return stateLost
 	}
-	if !app.dcs.AcquireLock(pathManagerLock) {
+	if !app.AcquireLock(pathManagerLock) {
 		return stateCandidate
 	}
 
@@ -605,6 +606,15 @@ func (app *App) stateManager() appState {
 	if err != nil {
 		app.logger.Errorf("failed to get cluster state from DCS: %s", err)
 		return stateManager
+	}
+
+	if app.config.ManagerSwitchover {
+		managerSeeMaster, err := app.checkMasterVisible(clusterState, clusterStateDcs)
+		if err == nil && !managerSeeMaster {
+			if state, ok := app.checkQuorum(clusterState, clusterStateDcs); !ok {
+				return state
+			}
+		}
 	}
 
 	// master is master host that should be on cluster
@@ -752,6 +762,115 @@ func (app *App) stateManager() appState {
 	return stateManager
 }
 
+func (app *App) checkMasterVisible(clusterStateFromDB, clusterStateDcs map[string]*NodeState) (bool, error) {
+	masterHost, err := app.getMasterHost(clusterStateDcs)
+	if err != nil {
+		app.logger.Errorf("checkMasterVisible: can`t get muster host, error: %s", err)
+		return false, err
+	}
+	state, ok := clusterStateFromDB[masterHost]
+	app.logger.Debugf("master(%s) state pingOk == %s", masterHost, state)
+	if ok && state.PingOk {
+		app.logger.Debug("Master is visible by manager, than we don`t need manager`s switchover")
+		return true, nil
+	}
+
+	retryPingOk, err := app.cluster.PingNode(masterHost)
+	if err != nil {
+		app.logger.Errorf("checkMasterVisible: app.cluster.PingNode(%s) fail with error: %s", masterHost, err)
+	}
+
+	return retryPingOk, err
+}
+
+func (app *App) checkQuorum(clusterStateFromDB, clusterStateDcs map[string]*NodeState) (appState, bool) {
+	// Counting the number of HA hosts visible to the manager.
+	visibleHAHostsCount := 0
+	workingHANodesCount := 0
+	HAHosts := app.cluster.HANodeHosts()
+
+	for _, host := range HAHosts {
+		nodeStateFromDB, ok := clusterStateFromDB[host]
+		if !ok {
+			app.logger.Errorf("app.cluster.HANodesHosts() returns host %s, which does not exist in app.getClusterStateFromDB()", host)
+			break
+		}
+		pingFromDB := nodeStateFromDB.PingOk
+
+		nodeStateFromDcs, ok := clusterStateDcs[host]
+		if !ok {
+			app.logger.Errorf("host %s exists in clusterstate from DB, but does not exit in clusterstate from DCS", host)
+			break
+		}
+		pingFromDcs := nodeStateFromDcs.PingOk
+
+		if pingFromDcs {
+			workingHANodesCount++
+			if pingFromDB {
+				visibleHAHostsCount++
+			}
+		}
+	}
+
+	managerElectionDelayAfterQuorumLoss := app.config.ManagerElectionDelayAfterQuorumLoss
+
+	if workingHANodesCount > 0 && visibleHAHostsCount <= (workingHANodesCount-1)/2 {
+		app.logger.Infof("manager lost quorum (%d/%d visible HAHosts)", visibleHAHostsCount, workingHANodesCount)
+		lostQuorumDuration := time.Since(app.lostQuorumTime)
+
+		if app.lostQuorumTime.IsZero() {
+			app.lostQuorumTime = time.Now()
+		} else {
+			// Lost quorum less than 15 (default WaitingRecoveryNetworkTimestamp) seconds ago
+			// Just wait manager recover connection
+			if lostQuorumDuration <= managerElectionDelayAfterQuorumLoss {
+				app.logger.Warnf("Quorum loss ongoing (%0.2fs): manager wait for network recovery", lostQuorumDuration.Seconds())
+				// Lost quorum more than 15 (default WaitingRecoveryNetworkTimestamp) seconds ago
+				// Manager should release lock and dont acquire lock for 45 (default ManagerElectionDelayAfterQuorumLoss) seconds
+			} else if lostQuorumDuration > managerElectionDelayAfterQuorumLoss {
+				app.logger.Warnf("Quorum loss ongoing (%0.2fs): manager release lock", lostQuorumDuration.Seconds())
+				app.dcs.ReleaseLock(pathManagerLock)
+				return stateCandidate, false
+			}
+		}
+	} else {
+		app.logger.Debugf("manager sees %d HAHosts of %d (manager has quorum), then the manager should not release the lock", visibleHAHostsCount, workingHANodesCount)
+		app.lostQuorumTime = time.Time{}
+	}
+
+	return "", true
+}
+
+func (app *App) AcquireLock(path string) bool {
+	if app.lostQuorumTime.IsZero() {
+		return app.dcs.AcquireLock(path)
+	}
+
+	managerElectionDelayAfterQuorumLoss := app.config.ManagerElectionDelayAfterQuorumLoss
+	managerLockAcquireDelayAfterQuorumLoss := app.config.ManagerLockAcquireDelayAfterQuorumLoss
+
+	lostQuorumDuration := time.Since(app.lostQuorumTime)
+	if lostQuorumDuration < managerElectionDelayAfterQuorumLoss {
+		app.logger.Debug("manager try to acquire lock")
+		return app.dcs.AcquireLock(path)
+	} else if lostQuorumDuration <= managerElectionDelayAfterQuorumLoss+managerLockAcquireDelayAfterQuorumLoss {
+		// Manager cant AcquireLock in delay
+		app.logger.Debugf(
+			"Quorum loss ongoing (%0.2fs): manager lock acquisition blocked (%0.2fs/%0.2fs cooldown)",
+			lostQuorumDuration.Seconds(),
+			lostQuorumDuration.Seconds()-managerElectionDelayAfterQuorumLoss.Seconds(),
+			managerLockAcquireDelayAfterQuorumLoss.Seconds(),
+		)
+		return false
+		// Manager start to try to AcquireLock
+	} else if lostQuorumDuration > app.config.ManagerElectionDelayAfterQuorumLoss+app.config.ManagerLockAcquireDelayAfterQuorumLoss {
+		app.lostQuorumTime = time.Time{}
+		return app.dcs.AcquireLock(path)
+	}
+
+	return false
+}
+
 func (app *App) approveFailover(clusterState, clusterStateDcs map[string]*NodeState, activeNodes []string, master string) error {
 	if !app.config.Failover {
 		return fmt.Errorf("auto_failover is disabled in config")
@@ -819,7 +938,7 @@ func (app *App) stateCandidate() appState {
 	if maintenance != nil && maintenance.MySyncPaused {
 		return stateMaintenance
 	}
-	if app.dcs.AcquireLock(pathManagerLock) {
+	if app.AcquireLock(pathManagerLock) {
 		return stateManager
 	}
 	return stateCandidate
@@ -1291,7 +1410,7 @@ func (app *App) performSwitchover(clusterState map[string]*NodeState, activeNode
 	}
 
 	// setting server read-only may take a while so we need to ensure we are still a manager
-	if !app.dcs.AcquireLock(pathManagerLock) || app.emulateError("set_read_only_lost_lock") {
+	if !app.AcquireLock(pathManagerLock) || app.emulateError("set_read_only_lost_lock") {
 		return errors.New("manger lock lost during switchover, new manager should finish the process, leaving")
 	}
 
@@ -1362,7 +1481,7 @@ func (app *App) performSwitchover(clusterState map[string]*NodeState, activeNode
 			newMaster, mostRecent, app.config.SlaveCatchUpTimeout)
 	}
 	// catching up may take a while so we need to ensure we are still a manager
-	if !app.dcs.AcquireLock(pathManagerLock) || app.emulateError("catchup_lost_lock") {
+	if !app.AcquireLock(pathManagerLock) || app.emulateError("catchup_lost_lock") {
 		return errors.New("manger lock lost during switchover, new manager should finish the process, leaving")
 	}
 	app.logger.Infof("switchover: new master %s caught up", newMaster)
