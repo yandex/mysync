@@ -148,14 +148,11 @@ services:
       MYSYNC_SET_RO_TIMEOUT:
       MYSYNC_REPLICATION_LAG_QUERY:
       REPL_MON:
-<<<<<<< HEAD
       MANAGER_SWITCHOVER:
       MANAGER_ELECTION_DELAY_AFTER_QUORUM_LOSS:
       MANAGER_LOCK_ACQUIRE_DELAY_AFTER_QUORUM_LOSS:
-=======
       FORCE_SWITCHOVER:
       OPTIMIZE_REPLICATION_BEFORE_SWITCHOVER:
->>>>>>> 862c788 (Add async tests && add options to docker env)
     depends_on:
       mysql1:
         condition: service_healthy
@@ -196,14 +193,11 @@ services:
       MYSYNC_SET_RO_TIMEOUT:
       MYSYNC_REPLICATION_LAG_QUERY:
       REPL_MON:
-<<<<<<< HEAD
       MANAGER_SWITCHOVER:
       MANAGER_ELECTION_DELAY_AFTER_QUORUM_LOSS:
       MANAGER_LOCK_ACQUIRE_DELAY_AFTER_QUORUM_LOSS:
-=======
       FORCE_SWITCHOVER:
       OPTIMIZE_REPLICATION_BEFORE_SWITCHOVER:
->>>>>>> 862c788 (Add async tests && add options to docker env)
     depends_on:
       mysql1:
         condition: service_healthy
