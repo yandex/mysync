@@ -102,7 +102,7 @@ type Config struct {
 	ForceSwitchover                         bool                         `config:"force_switchover" yaml:"force_switchover"` // TODO: Remove when we will be sure it's right way to do switchover
 	DSNSettings                             string                       `config:"dsn_settings" yaml:"dsn_settings"`
 	ManagerSwitchover                       bool                         `config:"manager_switchover" yaml:"manager_switchover"`
-	OptimizeReplicationBeforeSwitchover     bool                         `config:"optimize_replication_before_switchover" yaml:"optimize_replication_before_switchover"` // TODO: Remove when we will be sure it's right way to do switchover
+	OptimizeReplicationBeforeSwitchover     bool                         `config:"optimize_replication_before_switchover" yaml:"optimize_replication_before_switchover"`
 	OptimizeReplicationLagThreshold         time.Duration                `config:"optimize_replication_lag_threshold" yaml:"optimize_replication_lag_threshold"`
 	OptimizeReplicationConvergenceTimeout   time.Duration                `config:"optimize_replication_convergence_timeout" yaml:"optimize_replication_convergence_timeout"`
 }
