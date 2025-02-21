@@ -1363,7 +1363,7 @@ func (app *App) chooseReplicaToOptimize(
 func (app *App) getMostDesirableReplicaToOptimize(positions []nodePosition) (string, error) {
 	lagThreshold := app.config.OptimizeReplicationLagThreshold
 	if app.config.ASync {
-		lagThreshold = app.config.AsyncAllowedLag
+		lagThreshold = app.config.OptimizeReplicationLagThresholdAsync
 	}
 	return getMostDesirableNode(app.logger, positions, lagThreshold)
 }
@@ -1399,7 +1399,7 @@ func (app *App) isReplicationLagUnderThreshold(
 
 	lag := status.GetReplicationLag().Float64
 	lagThreshold := app.config.OptimizeReplicationLagThreshold.Seconds()
-	asyncLagThreshold := app.config.AsyncAllowedLag.Seconds()
+	asyncLagThreshold := app.config.OptimizeReplicationLagThresholdAsync.Seconds()
 
 	if app.config.ASync && lag < asyncLagThreshold {
 		return true, nil
