@@ -104,6 +104,7 @@ type Config struct {
 	ManagerSwitchover                       bool                         `config:"manager_switchover" yaml:"manager_switchover"`
 	OptimizeReplicationBeforeSwitchover     bool                         `config:"optimize_replication_before_switchover" yaml:"optimize_replication_before_switchover"`
 	OptimizeReplicationLagThreshold         time.Duration                `config:"optimize_replication_lag_threshold" yaml:"optimize_replication_lag_threshold"`
+	OptimizeReplicationLagThresholdAsync    time.Duration                `config:"optimize_replication_lag_threshold_async" yaml:"optimize_replication_lag_threshold_async"`
 	OptimizeReplicationConvergenceTimeout   time.Duration                `config:"optimize_replication_convergence_timeout" yaml:"optimize_replication_convergence_timeout"`
 }
 
@@ -197,6 +198,7 @@ func DefaultConfig() (Config, error) {
 		DSNSettings:                             "?autocommit=1&sql_log_off=1",
 		OptimizeReplicationBeforeSwitchover:     false,
 		OptimizeReplicationLagThreshold:         60 * time.Second,
+		OptimizeReplicationLagThresholdAsync:    120 * time.Second,
 		OptimizeReplicationConvergenceTimeout:   300 * time.Second,
 	}
 	return config, nil

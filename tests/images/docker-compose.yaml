@@ -102,6 +102,7 @@ services:
       MANAGER_LOCK_ACQUIRE_DELAY_AFTER_QUORUM_LOSS:
       FORCE_SWITCHOVER:
       OPTIMIZE_REPLICATION_BEFORE_SWITCHOVER:
+      OPTIMIZE_REPLICATION_BEFORE_SWITCHOVER_ASYNC:
     healthcheck:
       test: "mysql --user=admin --password=admin_pwd -e 'SELECT 1'"
       start_period: 30s
@@ -153,6 +154,7 @@ services:
       MANAGER_LOCK_ACQUIRE_DELAY_AFTER_QUORUM_LOSS:
       FORCE_SWITCHOVER:
       OPTIMIZE_REPLICATION_BEFORE_SWITCHOVER:
+      OPTIMIZE_REPLICATION_BEFORE_SWITCHOVER_ASYNC:
     depends_on:
       mysql1:
         condition: service_healthy
@@ -198,6 +200,7 @@ services:
       MANAGER_LOCK_ACQUIRE_DELAY_AFTER_QUORUM_LOSS:
       FORCE_SWITCHOVER:
       OPTIMIZE_REPLICATION_BEFORE_SWITCHOVER:
+      OPTIMIZE_REPLICATION_BEFORE_SWITCHOVER_ASYNC:
     depends_on:
       mysql1:
         condition: service_healthy
