@@ -108,7 +108,7 @@ Feature: mysync async mode tests
       MYSYNC_FAILOVER_COOLDOWN=0s
       REPL_MON=true
       OPTIMIZE_REPLICATION_BEFORE_SWITCHOVER=<optimize_replication_before_switchover>
-      OPTIMIZE_REPLICATION_BEFORE_SWITCHOVER=70s
+      OPTIMIZE_REPLICATION_BEFORE_SWITCHOVER_ASYNC=70s
       """
     Given cluster is up and running
     When I wait for "10" seconds
@@ -327,7 +327,7 @@ Feature: mysync async mode tests
       MYSYNC_FAILOVER_COOLDOWN=0s
       REPL_MON=true
       OPTIMIZE_REPLICATION_BEFORE_SWITCHOVER=<optimize_replication_before_switchover>
-      OPTIMIZE_REPLICATION_BEFORE_SWITCHOVER=60s
+      OPTIMIZE_REPLICATION_BEFORE_SWITCHOVER_ASYNC=60s
       """
     Given cluster is up and running
     When I wait for "10" seconds
