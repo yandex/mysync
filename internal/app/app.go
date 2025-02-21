@@ -1351,13 +1351,21 @@ func (app *App) chooseReplicaToOptimize(
 		return "", err
 	}
 
-	hostnameToOptimize, err := getMostDesirableNode(app.logger, positions, app.switchHelper.GetPriorityChoiceMaxLag())
+	hostnameToOptimize, err := app.getMostDesirableReplicaToOptimize(positions)
 	if err != nil {
 		return "", err
 	}
 	app.logger.Infof("replica optimization: the replica is '%s'", hostnameToOptimize)
 
 	return hostnameToOptimize, nil
+}
+
+func (app *App) getMostDesirableReplicaToOptimize(positions []nodePosition) (string, error) {
+	lagThreshold := app.config.OptimizeReplicationLagThreshold
+	if app.config.ASync {
+		lagThreshold = app.config.AsyncAllowedLag
+	}
+	return getMostDesirableNode(app.logger, positions, lagThreshold)
 }
 
 func (app *App) waitReplicaToConverge(
