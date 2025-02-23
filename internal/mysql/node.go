@@ -21,6 +21,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/jmoiron/sqlx"
 	"github.com/shirou/gopsutil/v3/process"
+	"github.com/yandex/mysync/internal/app"
 	"github.com/yandex/mysync/internal/config"
 	"github.com/yandex/mysync/internal/log"
 	"github.com/yandex/mysync/internal/mysql/gtids"
@@ -56,6 +57,7 @@ func NewNode(config *config.Config, logger *log.Logger, host string) (*Node, err
 		dsn += "?tls=custom"
 	}
 	db, err := sqlx.Open("mysql", dsn)
+  db.MustExec("SET session autocommit=true;")
 	if err != nil {
 		return nil, err
 	}
@@ -707,11 +709,14 @@ func (n *Node) SetReadOnlyWithForce(excludeUsers []string, superReadOnly bool) e
 	go func() {
 		for {
 			ids, err := n.getRunningQueryIDs(excludeUsers, time.Second)
+      n.logger.Debugf("====== runnung Queries IDs =======")
 			if err == nil {
 				for _, id := range ids {
+          n.logger.Debugf("id: ", id)
 					_ = n.exec(queryKillQuery, map[string]interface{}{"kill_id": strconv.Itoa(id)})
 				}
 			}
+      n.logger.Debugf("==================================")
 
 			select {
 			case <-quit:
