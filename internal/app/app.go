@@ -1402,9 +1402,11 @@ func (app *App) isReplicationLagUnderThreshold(
 	asyncLagThreshold := app.config.OptimizeReplicationLagThresholdAsync.Seconds()
 
 	if app.config.ASync && lag < asyncLagThreshold {
+    app.logger.Debugf("the replica is '%s', current lag is %f, max lag is %f", replica.Host(), lag, asyncLagThreshold)
 		return true, nil
 	}
 	if !app.config.ASync && lag < lagThreshold {
+    app.logger.Debugf("the replica is '%s', current lag is %f, max lag is %f", replica.Host(), lag, lagThreshold)
 		return true, nil
 	}
 	return false, nil
