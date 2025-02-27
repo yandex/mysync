@@ -189,7 +189,7 @@ Feature: mysync async mode tests
       """
     Then SQL result should match json
       """
-      [{"val":"A,B,C"}]
+        [{"val":"A,B,C"}]
       """
     And I wait for "150" seconds
     When I run SQL on mysql host "mysql3"

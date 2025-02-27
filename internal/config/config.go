@@ -102,6 +102,7 @@ type Config struct {
 	ForceSwitchover                         bool                         `config:"force_switchover" yaml:"force_switchover"` // TODO: Remove when we will be sure it's right way to do switchover
 	DSNSettings                             string                       `config:"dsn_settings" yaml:"dsn_settings"`
 	ManagerSwitchover                       bool                         `config:"manager_switchover" yaml:"manager_switchover"`
+	ForceSwitchover                         bool                         `config:"force_switchover" yaml:"force_switchover"`
 	OptimizeReplicationBeforeSwitchover     bool                         `config:"optimize_replication_before_switchover" yaml:"optimize_replication_before_switchover"`
 	OptimizeReplicationLagThreshold         time.Duration                `config:"optimize_replication_lag_threshold" yaml:"optimize_replication_lag_threshold"`
 	OptimizeReplicationLagThresholdAsync    time.Duration                `config:"optimize_replication_lag_threshold_async" yaml:"optimize_replication_lag_threshold_async"`
@@ -195,8 +196,11 @@ func DefaultConfig() (Config, error) {
 		ShowOnlyGTIDDiff:                        false,
 		ManagerSwitchover:                       false,
 		ForceSwitchover:                         false,
+<<<<<<< HEAD
 		DSNSettings:                             "?autocommit=1&sql_log_off=1",
 		OptimizeReplicationBeforeSwitchover:     false,
+=======
+>>>>>>> 04a56d6 (Delegate responsability of applying turbo mode to ISwitchHelper)
 		OptimizeReplicationLagThreshold:         60 * time.Second,
 		OptimizeReplicationLagThresholdAsync:    120 * time.Second,
 		OptimizeReplicationConvergenceTimeout:   300 * time.Second,
