@@ -101,7 +101,6 @@ type Config struct {
 	ShowOnlyGTIDDiff                        bool                         `config:"show_only_gtid_diff" yaml:"show_only_gtid_diff"`
 	ManagerSwitchover                       bool                         `config:"manager_switchover" yaml:"manager_switchover"`
 	ForceSwitchover                         bool                         `config:"force_switchover" yaml:"force_switchover"`
-	OptimizeReplicationBeforeSwitchover     bool                         `config:"optimize_replication_before_switchover" yaml:"optimize_replication_before_switchover"`
 	OptimizeReplicationLagThreshold         time.Duration                `config:"optimize_replication_lag_threshold" yaml:"optimize_replication_lag_threshold"`
 	OptimizeReplicationLagThresholdAsync    time.Duration                `config:"optimize_replication_lag_threshold_async" yaml:"optimize_replication_lag_threshold_async"`
 	OptimizeReplicationConvergenceTimeout   time.Duration                `config:"optimize_replication_convergence_timeout" yaml:"optimize_replication_convergence_timeout"`
@@ -194,7 +193,6 @@ func DefaultConfig() (Config, error) {
 		ShowOnlyGTIDDiff:                        false,
 		ManagerSwitchover:                       false,
 		ForceSwitchover:                         false,
-		OptimizeReplicationBeforeSwitchover:     false,
 		OptimizeReplicationLagThreshold:         60 * time.Second,
 		OptimizeReplicationLagThresholdAsync:    120 * time.Second,
 		OptimizeReplicationConvergenceTimeout:   300 * time.Second,
