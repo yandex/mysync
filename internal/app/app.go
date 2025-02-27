@@ -1724,10 +1724,10 @@ func (app *App) optimizationPhase(activeNodes []string, switchover *Switchover, 
 		return err
 	}
 
-  // Conceptually, we should only reject the switchover if we encounter a DeadlineExceeded error.
-  // This indicates that the replica with the freshest data is too far from convergence,
-  // and we can't optimize it within a limited time frame.
-  // Other cases can be handled in subsequent steps, so no special action is needed here.
+	// Conceptually, we should only reject the switchover if we encounter a DeadlineExceeded error.
+	// This indicates that the replica with the freshest data is too far from convergence,
+	// and we can't optimize it within a limited time frame.
+	// Other cases can be handled in subsequent steps, so no special action is needed here.
 	app.logger.Info("switchover: phase 0: turbo mode is complete")
 	return nil
 }
