@@ -96,7 +96,7 @@ Feature: mysync async mode tests
       [{"val":"A,B,C"}]
       """
 
-  Scenario Outline: failover with lag greater then allowed
+  Scenario: failover with lag greater then allowed
     Given cluster environment is
       """
       MYSYNC_SEMISYNC=false
@@ -107,8 +107,6 @@ Feature: mysync async mode tests
       MYSYNC_FAILOVER_DELAY=0s
       MYSYNC_FAILOVER_COOLDOWN=0s
       REPL_MON=true
-      OPTIMIZE_REPLICATION_BEFORE_SWITCHOVER=<optimize_replication_before_switchover>
-      OPTIMIZE_REPLICATION_LAG_THRESHOLD_ASYNC=60s
       """
     Given cluster is up and running
     When I wait for "10" seconds
@@ -191,7 +189,7 @@ Feature: mysync async mode tests
       """
     Then SQL result should match json
       """
-        <collection>
+      [{"val":"A,B,C"}]
       """
     And I wait for "150" seconds
     When I run SQL on mysql host "mysql3"
@@ -202,10 +200,6 @@ Feature: mysync async mode tests
       """
       [{"val":"A,B,C,D,E,F"}]
       """
-    Examples:
-      | optimize_replication_before_switchover | collection              |
-      | true                                   | [{"val":"A,B,C,D,E,F"}] |
-      | false                                  | [{"val":"A,B,C"}]       |
 
   Scenario: manual switchover ignores async
     Given cluster environment is
@@ -315,7 +309,7 @@ Feature: mysync async mode tests
       [{"val":"A,B,C,D,E,F"}]
       """
 
-  Scenario Outline: failover with lag less then allowed and less then default PriorityChoiceMaxLag
+  Scenario: failover with lag less then allowed and less then default PriorityChoiceMaxLag
     Given cluster environment is
       """
       MYSYNC_SEMISYNC=false
@@ -326,8 +320,6 @@ Feature: mysync async mode tests
       MYSYNC_FAILOVER_DELAY=0s
       MYSYNC_FAILOVER_COOLDOWN=0s
       REPL_MON=true
-      OPTIMIZE_REPLICATION_BEFORE_SWITCHOVER=<optimize_replication_before_switchover>
-      OPTIMIZE_REPLICATION_LAG_THRESHOLD_ASYNC=70s
       """
     Given cluster is up and running
     When I wait for "10" seconds
@@ -413,7 +405,3 @@ Feature: mysync async mode tests
       """
       [{"val":"A,B,C"}]
       """
-    Examples:
-      | optimize_replication_before_switchover |
-      | true                                   |
-      | false                                  |
