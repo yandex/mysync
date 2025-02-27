@@ -1429,33 +1429,9 @@ func (app *App) performSwitchover(clusterState map[string]*NodeState, activeNode
 		activeNodes = filterOut(activeNodes, []string{oldMaster})
 	}
 
-	if app.config.OptimizeReplicationBeforeSwitchover {
-		appropriateReplicas := filterOut(activeNodes, []string{oldMaster, switchover.From})
-		desirableReplica := switchover.To
-
-		app.logger.Infof(
-			"switchover: phase 0: enter turbo mode; replicas: %v, oldMaster: %s, desirable replica: %s",
-			appropriateReplicas,
-			oldMaster,
-			desirableReplica,
-		)
-		err := app.optimizeReplicaWithSmallestLag(
-			appropriateReplicas,
-			oldMaster,
-			desirableReplica,
-		)
-		if err != nil && err.Error() == DeadlineExceeded {
-			app.logger.Infof("switchover: phase 0: turbo mode failed: %v", err)
-			switchErr := app.FinishSwitchover(switchover, fmt.Errorf("turbo mode exceeded deadline"))
-			if switchErr != nil {
-				return fmt.Errorf("switchover: failed to reject switchover %s", switchErr)
-			}
-			app.logger.Info("switchover: rejected")
-			return err
-		}
-		app.logger.Info("switchover: phase 0: turbo mode is complete")
-	} else {
-		app.logger.Info("switchover: phase 0: turbo mode is skipped")
+	err := app.optimizationPhase(activeNodes, switchover, oldMaster)
+	if err != nil {
+		return err
 	}
 
 	// set read only everywhere (all HA-nodes) and stop replication
@@ -1539,7 +1515,7 @@ func (app *App) performSwitchover(clusterState map[string]*NodeState, activeNode
 			frozenActiveNodes = append(frozenActiveNodes, host)
 		}
 	}
-	err := app.switchHelper.CheckFailoverQuorum(activeNodesWithOldMaster, len(frozenActiveNodes))
+	err = app.switchHelper.CheckFailoverQuorum(activeNodesWithOldMaster, len(frozenActiveNodes))
 	if err != nil {
 		return err
 	}
@@ -1715,6 +1691,40 @@ func (app *App) performSwitchover(clusterState map[string]*NodeState, activeNode
 		return fmt.Errorf("failed to set new master to dcs: %s", err)
 	}
 
+	return nil
+}
+
+func (app *App) optimizationPhase(activeNodes []string, switchover *Switchover, oldMaster string) error {
+	if !app.switchHelper.IsOptimizationPhaseAllowed() {
+		app.logger.Info("switchover: phase 0: turbo mode is skipped")
+		return nil
+	}
+
+	appropriateReplicas := filterOut(activeNodes, []string{oldMaster, switchover.From})
+	desirableReplica := switchover.To
+
+	app.logger.Infof(
+		"switchover: phase 0: enter turbo mode; replicas: %v, oldMaster: '%s', desirable replica: '%s'",
+		appropriateReplicas,
+		oldMaster,
+		desirableReplica,
+	)
+	err := app.optimizeReplicaWithSmallestLag(
+		appropriateReplicas,
+		oldMaster,
+		desirableReplica,
+	)
+	if err != nil && err.Error() == DeadlineExceeded {
+		app.logger.Infof("switchover: phase 0: turbo mode failed: %v", err)
+		switchErr := app.FinishSwitchover(switchover, fmt.Errorf("turbo mode exceeded deadline"))
+		if switchErr != nil {
+			return fmt.Errorf("switchover: failed to reject switchover %s", switchErr)
+		}
+		app.logger.Info("switchover: rejected")
+		return err
+	}
+
+	app.logger.Info("switchover: phase 0: turbo mode is complete")
 	return nil
 }
 
