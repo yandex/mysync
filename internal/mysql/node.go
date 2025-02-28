@@ -51,8 +51,8 @@ const (
 // NewNode returns new Node
 func NewNode(config *config.Config, logger *log.Logger, host string) (*Node, error) {
 	addr := util.JoinHostPort(host, config.MySQL.Port)
-	dsn := fmt.Sprintf("%s:%s@tcp(%s)/mysql", config.MySQL.User, config.MySQL.Password, addr)
-	if config.MySQL.SslCA != "" {
+  dsn := fmt.Sprintf("%s:%s@tcp(%s)/mysql?autocommit=1", config.MySQL.User, config.MySQL.Password, addr)
+  if config.MySQL.SslCA != "" {
 		dsn += "?tls=custom"
 	}
 
@@ -244,11 +244,11 @@ func (n *Node) processQuery(queryName string, arg interface{}, rowsProcessor fun
 
 // nolint: unparam
 func (n *Node) execWithTimeout(queryName string, arg map[string]interface{}, timeout time.Duration) error {
-	_, err := n.db.Exec(DefaultQueries[queryEnableSessionAutocommit])
+	// _, err := n.db.Exec(DefaultQueries[queryEnableSessionAutocommit])
 
-	if err != nil {
-		return err
-	}
+	// if err != nil {
+	// 	return err
+	// }
 
 	if arg == nil {
 		arg = map[string]interface{}{}
@@ -263,7 +263,7 @@ func (n *Node) execWithTimeout(queryName string, arg map[string]interface{}, tim
 		return err
 	}
 
-	_, err = n.db.NamedExecContext(ctx, query, arg)
+  _, err := n.db.NamedExecContext(ctx, query, arg)
 	n.traceQuery(query, arg, nil, err)
 	return err
 }
