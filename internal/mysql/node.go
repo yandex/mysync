@@ -53,7 +53,7 @@ func NewNode(config *config.Config, logger *log.Logger, host string) (*Node, err
 	addr := util.JoinHostPort(host, config.MySQL.Port)
 	dsn := fmt.Sprintf("%s:%s@tcp(%s)/mysql?autocommit=1", config.MySQL.User, config.MySQL.Password, addr)
 	if config.MySQL.SslCA != "" {
-		dsn += "?tls=custom"
+		dsn += "&tls=custom"
 	}
 	db, err := sqlx.Open("mysql", dsn)
 	if err != nil {
