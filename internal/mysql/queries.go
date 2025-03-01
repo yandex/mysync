@@ -40,7 +40,6 @@ const (
 	queryGetExternalReplicationSettings = "get_external_replication_settings"
 	queryChangeSource                   = "change_source"
 	queryResetReplicaAll                = "reset_replica_all"
-	queryEnableSessionAutocommit        = "enable_session_autocommit"
 	queryStopReplica                    = "stop_replica"
 	queryStartReplica                   = "start_replica"
 	queryIgnoreDB                       = "ignore_db"
@@ -54,30 +53,29 @@ const (
 )
 
 var DefaultQueries = map[string]string{
-	queryPing:                    `SELECT 1 AS Ok`,
-	querySlaveStatus:             `SHOW SLAVE STATUS FOR CHANNEL :channel`,
-	queryReplicaStatus:           `SHOW REPLICA STATUS FOR CHANNEL :channel`,
-	queryGetVersion:              `SELECT sys.version_major() AS MajorVersion, sys.version_minor() AS MinorVersion, sys.version_patch() AS PatchVersion`,
-	queryGTIDExecuted:            `SELECT @@GLOBAL.gtid_executed as Executed_Gtid_Set`,
-	queryGetUUID:                 `SELECT @@server_uuid as server_uuid`,
-	queryShowBinaryLogs:          `SHOW BINARY LOGS`,
-	querySlaveHosts:              `SHOW SLAVE HOSTS`,
-	queryReplicationLag:          ``,
-	queryIsReadOnly:              `SELECT @@read_only AS ReadOnly, @@super_read_only AS SuperReadOnly`,
-	querySetReadonly:             `SET GLOBAL super_read_only = 1`, // @@read_only will be set automatically
-	querySetReadonlyNoSuper:      `SET GLOBAL read_only = 1, super_read_only = 0`,
-	querySetWritable:             `SET GLOBAL read_only = 0`, // @@super_read_only will be unset automatically
-	queryStopSlave:               `STOP SLAVE FOR CHANNEL :channel`,
-	queryStartSlave:              `START SLAVE FOR CHANNEL :channel`,
-	queryStopReplica:             `STOP REPLICA FOR CHANNEL :channel`,
-	queryStartReplica:            `START REPLICA FOR CHANNEL :channel`,
-	queryStopSlaveIOThread:       `STOP SLAVE IO_THREAD FOR CHANNEL :channel`,
-	queryStartSlaveIOThread:      `START SLAVE IO_THREAD FOR CHANNEL :channel`,
-	queryStopSlaveSQLThread:      `STOP SLAVE SQL_THREAD FOR CHANNEL :channel`,
-	queryStartSlaveSQLThread:     `START SLAVE SQL_THREAD FOR CHANNEL :channel`,
-	queryResetSlaveAll:           `RESET SLAVE ALL FOR CHANNEL :channel`,
-	queryResetReplicaAll:         `RESET REPLICA ALL FOR CHANNEL :channel`,
-	queryEnableSessionAutocommit: `SET SESSION autocommit = 1`,
+	queryPing:                `SELECT 1 AS Ok`,
+	querySlaveStatus:         `SHOW SLAVE STATUS FOR CHANNEL :channel`,
+	queryReplicaStatus:       `SHOW REPLICA STATUS FOR CHANNEL :channel`,
+	queryGetVersion:          `SELECT sys.version_major() AS MajorVersion, sys.version_minor() AS MinorVersion, sys.version_patch() AS PatchVersion`,
+	queryGTIDExecuted:        `SELECT @@GLOBAL.gtid_executed as Executed_Gtid_Set`,
+	queryGetUUID:             `SELECT @@server_uuid as server_uuid`,
+	queryShowBinaryLogs:      `SHOW BINARY LOGS`,
+	querySlaveHosts:          `SHOW SLAVE HOSTS`,
+	queryReplicationLag:      ``,
+	queryIsReadOnly:          `SELECT @@read_only AS ReadOnly, @@super_read_only AS SuperReadOnly`,
+	querySetReadonly:         `SET GLOBAL super_read_only = 1`, // @@read_only will be set automatically
+	querySetReadonlyNoSuper:  `SET GLOBAL read_only = 1, super_read_only = 0`,
+	querySetWritable:         `SET GLOBAL read_only = 0`, // @@super_read_only will be unset automatically
+	queryStopSlave:           `STOP SLAVE FOR CHANNEL :channel`,
+	queryStartSlave:          `START SLAVE FOR CHANNEL :channel`,
+	queryStopReplica:         `STOP REPLICA FOR CHANNEL :channel`,
+	queryStartReplica:        `START REPLICA FOR CHANNEL :channel`,
+	queryStopSlaveIOThread:   `STOP SLAVE IO_THREAD FOR CHANNEL :channel`,
+	queryStartSlaveIOThread:  `START SLAVE IO_THREAD FOR CHANNEL :channel`,
+	queryStopSlaveSQLThread:  `STOP SLAVE SQL_THREAD FOR CHANNEL :channel`,
+	queryStartSlaveSQLThread: `START SLAVE SQL_THREAD FOR CHANNEL :channel`,
+	queryResetSlaveAll:       `RESET SLAVE ALL FOR CHANNEL :channel`,
+	queryResetReplicaAll:     `RESET REPLICA ALL FOR CHANNEL :channel`,
 	queryChangeMaster: `CHANGE MASTER TO
 								MASTER_HOST = :host ,
 								MASTER_PORT = :port ,

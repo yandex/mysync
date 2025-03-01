@@ -55,19 +55,16 @@ func NewNode(config *config.Config, logger *log.Logger, host string) (*Node, err
 	if config.MySQL.SslCA != "" {
 		dsn += "?tls=custom"
 	}
-
 	db, err := sqlx.Open("mysql", dsn)
 	if err != nil {
 		return nil, err
 	}
-
 	// Unsafe option allow us to use queries containing fields missing in structs
 	// eg. when we running "SHOW SLAVE STATUS", but need only few columns
 	db = db.Unsafe()
 	db.SetMaxIdleConns(1)
 	db.SetMaxOpenConns(3)
 	db.SetConnMaxLifetime(3 * config.TickInterval)
-
 	return &Node{
 		config:  config,
 		logger:  logger,
@@ -244,12 +241,6 @@ func (n *Node) processQuery(queryName string, arg interface{}, rowsProcessor fun
 
 // nolint: unparam
 func (n *Node) execWithTimeout(queryName string, arg map[string]interface{}, timeout time.Duration) error {
-	// _, err := n.db.Exec(DefaultQueries[queryEnableSessionAutocommit])
-
-	// if err != nil {
-	// 	return err
-	// }
-
 	if arg == nil {
 		arg = map[string]interface{}{}
 	}
@@ -721,6 +712,7 @@ func (n *Node) SetReadOnlyWithForce(excludeUsers []string, superReadOnly bool) e
 					_ = n.exec(queryKillQuery, map[string]interface{}{"kill_id": strconv.Itoa(id)})
 				}
 			}
+
 			select {
 			case <-quit:
 				return
