@@ -5,9 +5,9 @@ go 1.22
 require (
 	github.com/cenkalti/backoff/v4 v4.3.0
 	github.com/cucumber/godog v0.15.0
-	github.com/docker/docker v27.5.1+incompatible
+	github.com/docker/docker v28.0.1+incompatible
 	github.com/go-mysql-org/go-mysql v1.11.0
-	github.com/go-sql-driver/mysql v1.8.1
+	github.com/go-sql-driver/mysql v1.9.0
 	github.com/go-zookeeper/zk v1.0.4
 	github.com/gofrs/flock v0.12.1
 	github.com/gofrs/uuid v4.4.0+incompatible
@@ -16,7 +16,7 @@ require (
 	github.com/heetch/confita v0.10.0
 	github.com/jmoiron/sqlx v1.4.0
 	github.com/shirou/gopsutil/v3 v3.24.5
-	github.com/spf13/cobra v1.8.1
+	github.com/spf13/cobra v1.9.1
 	github.com/spf13/pflag v1.0.6
 	github.com/stretchr/testify v1.10.0
 	gopkg.in/yaml.v2 v2.4.0
