@@ -55,7 +55,6 @@ const (
 
 // NewNode returns new Node
 func NewNode(config *config.Config, logger *log.Logger, host string) (*Node, error) {
-	fmt.Printf("Enter NewNode(%s)\n", host)
 	var db *sqlx.DB
 
 	return &Node{
@@ -72,7 +71,6 @@ func NewNode(config *config.Config, logger *log.Logger, host string) (*Node, err
 
 // Lazy initialization of db connection
 func (n *Node) GetDB() (*sqlx.DB, error) {
-	fmt.Printf("Enter GetDB(%s)\n", n.host)
 	n.mu.Lock()
 	defer n.mu.Unlock()
 	var err error
@@ -80,8 +78,6 @@ func (n *Node) GetDB() (*sqlx.DB, error) {
 	// First initialization
 	if n.done.Load() == 0 {
 		defer n.done.Store(1)
-
-		fmt.Printf("Make new connection on host %s\n", n.host)
 		addr := util.JoinHostPort(n.host, n.config.MySQL.Port)
 		dsn := fmt.Sprintf("%s:%s@tcp(%s)/mysql?autocommit=1", n.config.MySQL.User, n.config.MySQL.Password, addr)
 		if n.config.MySQL.SslCA != "" {
