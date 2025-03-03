@@ -15,6 +15,7 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"syscall"
 	"time"
 
@@ -37,7 +38,8 @@ type Node struct {
 	host    string
 	uuid    uuid.UUID
 
-	dbOnce sync.Once
+	done atomic.Uint32
+	mu   sync.Mutex
 }
 
 var (
@@ -55,25 +57,30 @@ const (
 func NewNode(config *config.Config, logger *log.Logger, host string) (*Node, error) {
 	fmt.Printf("Enter NewNode(%s)\n", host)
 	var db *sqlx.DB
-	node := &Node{
+
+	return &Node{
 		config:  config,
 		logger:  logger,
 		db:      db,
 		host:    host,
 		version: nil,
 
-		dbOnce: sync.Once{},
-	}
-
-	node.db = db
-	return node, nil
+		done: atomic.Uint32{},
+		mu:   sync.Mutex{},
+	}, nil
 }
 
 // Lazy initialization of db connection
 func (n *Node) GetDB() (*sqlx.DB, error) {
 	fmt.Printf("Enter GetDB(%s)\n", n.host)
+	n.mu.Lock()
+	defer n.mu.Unlock()
 	var err error
-	n.dbOnce.Do(func() {
+
+	// First initialization
+	if n.done.Load() == 0 {
+		defer n.done.Store(1)
+
 		fmt.Printf("Make new connection on host %s\n", n.host)
 		addr := util.JoinHostPort(n.host, n.config.MySQL.Port)
 		dsn := fmt.Sprintf("%s:%s@tcp(%s)/mysql?autocommit=1", n.config.MySQL.User, n.config.MySQL.Password, addr)
@@ -82,19 +89,18 @@ func (n *Node) GetDB() (*sqlx.DB, error) {
 		}
 		n.db, err = sqlx.Open("mysql", dsn)
 		if err != nil {
-			return
+			return nil, err
 		}
+
 		// Unsafe option allow us to use queries containing fields missing in structs
 		// eg. when we running "SHOW SLAVE STATUS", but need only few columns
 		n.db = n.db.Unsafe()
 		n.db.SetMaxIdleConns(1)
 		n.db.SetMaxOpenConns(3)
 		n.db.SetConnMaxLifetime(3 * n.config.TickInterval)
-	})
-
-	if err != nil {
-		return nil, err
 	}
+
+	// Return old value
 	return n.db, nil
 }
 
@@ -131,7 +137,7 @@ func (n *Node) String() string {
 
 // Close closes underlying SQL connection
 func (n *Node) Close() error {
-	if n.db != nil {
+	if n.done.Load() != 0 {
 		return n.db.Close()
 	} else {
 		return nil
