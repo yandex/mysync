@@ -55,12 +55,10 @@ const (
 
 // NewNode returns new Node
 func NewNode(config *config.Config, logger *log.Logger, host string) (*Node, error) {
-	var db *sqlx.DB
-
 	return &Node{
 		config:  config,
 		logger:  logger,
-		db:      db,
+		db:      nil,
 		host:    host,
 		version: nil,
 
@@ -133,6 +131,8 @@ func (n *Node) String() string {
 
 // Close closes underlying SQL connection
 func (n *Node) Close() error {
+	n.mu.Lock()
+	defer n.mu.Unlock()
 	if n.done.Load() != 0 {
 		return n.db.Close()
 	} else {
