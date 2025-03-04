@@ -101,6 +101,7 @@ type Config struct {
 	ShowOnlyGTIDDiff                        bool                         `config:"show_only_gtid_diff" yaml:"show_only_gtid_diff"`
 	ManagerSwitchover                       bool                         `config:"manager_switchover" yaml:"manager_switchover"`
 	ForceSwitchover                         bool                         `config:"force_switchover" yaml:"force_switchover"` // TODO: Remove when we will be sure it's right way to do switchover
+	DSNSettings                             string                       `config:"dsn_settings" yaml:"dsn_settings"`
 }
 
 // DefaultConfig returns default configuration for MySync
@@ -190,6 +191,7 @@ func DefaultConfig() (Config, error) {
 		ShowOnlyGTIDDiff:                        false,
 		ManagerSwitchover:                       false,
 		ForceSwitchover:                         false,
+		DSNSettings:                             "?autocommit=1&sql_log_off=1",
 	}
 	return config, nil
 }
