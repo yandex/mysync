@@ -77,7 +77,7 @@ func (n *Node) GetDB() (*sqlx.DB, error) {
 	if n.done.Load() == 0 {
 		defer n.done.Store(1)
 		addr := util.JoinHostPort(n.host, n.config.MySQL.Port)
-		dsn := fmt.Sprintf("%s:%s@tcp(%s)/mysql?autocommit=1", n.config.MySQL.User, n.config.MySQL.Password, addr)
+		dsn := fmt.Sprintf("%s:%s@tcp(%s)/mysql?autocommit=1&sql_log_off=1", n.config.MySQL.User, n.config.MySQL.Password, addr)
 		if n.config.MySQL.SslCA != "" {
 			dsn += "&tls=custom"
 		}
