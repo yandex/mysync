@@ -1318,6 +1318,7 @@ func (app *App) optimizeReplicaWithSmallestLag(
 	if err != nil {
 		return err
 	}
+
 	replicaToOptimize := app.cluster.Get(hostnameToOptimize)
 	isOptimized, err := app.isReplicationLagUnderThreshold(replicaToOptimize)
 	if err != nil {
@@ -1331,7 +1332,6 @@ func (app *App) optimizeReplicaWithSmallestLag(
 	if err != nil {
 		return err
 	}
-
 	defer func() {
 		masterNode := app.cluster.Get(masterHost)
 		err = replicaToOptimize.SetDefaultReplicationSettings(masterNode)
