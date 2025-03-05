@@ -79,7 +79,7 @@ func (n *Node) GetDB() (*sqlx.DB, error) {
 		addr := util.JoinHostPort(n.host, n.config.MySQL.Port)
 		dsn := fmt.Sprintf("%s:%s@tcp(%s)/mysql", n.config.MySQL.User, n.config.MySQL.Password, addr) + n.config.DSNSettings
 		if n.config.MySQL.SslCA != "" {
-			n.config.DSNSettings += "&tls=custom"
+			dsn += "&tls=custom"
 		}
 		n.db, err = sqlx.Open("mysql", dsn)
 		if err != nil {
