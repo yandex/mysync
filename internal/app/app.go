@@ -1206,6 +1206,11 @@ func (app *App) updateActiveNodes(clusterState, clusterStateDcs map[string]*Node
 		if err != nil {
 			app.logger.Errorf("failed to enable semi-sync on slave %s: %v", host, err)
 		}
+    mysql_host := app.cluster.Get(host)
+    err = mysql_host.SetDefaultReplicationSettings(masterNode)
+		if err != nil {
+			app.logger.Errorf("failed to set default replication settings %s: %v", host, err)
+		}
 	}
 	if waitSlaveCount < oldWaitSlaveCount {
 		err := app.adjustSemiSyncOnMaster(masterNode, masterState, waitSlaveCount)
@@ -1362,9 +1367,6 @@ func (app *App) chooseReplicaToOptimize(
 
 func (app *App) getMostDesirableReplicaToOptimize(positions []nodePosition) (string, error) {
 	lagThreshold := app.config.OptimizeReplicationLagThreshold
-	if app.config.ASync {
-		lagThreshold = app.config.OptimizeReplicationLagThresholdAsync
-	}
 	return getMostDesirableNode(app.logger, positions, lagThreshold)
 }
 
@@ -1399,11 +1401,7 @@ func (app *App) isReplicationLagUnderThreshold(
 
 	lag := status.GetReplicationLag().Float64
 	lagThreshold := app.config.OptimizeReplicationLagThreshold.Seconds()
-	asyncLagThreshold := app.config.OptimizeReplicationLagThresholdAsync.Seconds()
 
-	if app.config.ASync && lag < asyncLagThreshold {
-		return true, nil
-	}
 	if !app.config.ASync && lag < lagThreshold {
 		return true, nil
 	}
