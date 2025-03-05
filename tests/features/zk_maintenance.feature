@@ -65,7 +65,7 @@ Feature: maintenance during dead zookeeper
         "initiated_by": "mysql1"
       }
       """
-    When I run command on host "mysql1"
+    When I run command on host "mysql1" with timeout "30" seconds
       """
       mysync maint off
       """
