@@ -2010,7 +2010,7 @@ func (app *App) repairCascadeNode(node *mysql.Node, clusterState map[string]*Nod
 			app.logger.Errorf("repair: failed to get UUID from new upstream candidate: %s", upstreamCandidate)
 			return
 		}
-		// TODO: replace with IsSplitBrained
+
 		if gtids.IsSplitBrained(myGITIDs, candidateGTIDs, candidateUUID) {
 			app.logger.Errorf("repair: %s and %s are splitbrained...", host, upstreamCandidate)
 			app.writeEmergeFile("cascade replica splitbrain detected")
