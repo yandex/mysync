@@ -46,13 +46,13 @@ func TouchFile(fname string) error {
 
 func RunParallel(f func(string) error, arguments []string) map[string]error {
 	type pair struct {
-		key string
 		err error
+		key string
 	}
 	errs := make(chan pair, len(arguments))
 	for _, argValue := range arguments {
 		go func(dbname string) {
-			errs <- pair{dbname, f(dbname)}
+			errs <- pair{f(dbname), dbname}
 		}(argValue)
 	}
 	result := make(map[string]error)

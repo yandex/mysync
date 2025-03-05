@@ -61,11 +61,11 @@ type Composer interface {
 
 // DockerComposer is a Composer implementation based on docker and docker compose
 type DockerComposer struct {
-	projectName string
-	config      string
 	api         *client.Client
 	containers  map[string]container.Summary
 	stopped     map[string]bool
+	projectName string
+	config      string
 }
 
 // NewDockerComposer returns DockerComposer instance for specified compose file

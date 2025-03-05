@@ -26,21 +26,21 @@ import (
 
 // App is main application structure
 type App struct {
-	state               appState
-	logger              *log.Logger
-	config              *config.Config
+	lostQuorumTime      time.Time
+	externalReplication mysql.IExternalReplication
+	switchHelper        mysql.ISwitchHelper
 	dcs                 dcs.DCS
-	cluster             *mysql.Cluster
-	filelock            *flock.Flock
 	nodeFailedAt        map[string]time.Time
+	filelock            *flock.Flock
 	slaveReadPositions  map[string]string
 	streamFromFailedAt  map[string]time.Time
 	daemonState         *DaemonState
-	daemonMutex         sync.Mutex
 	replRepairState     map[string]*ReplicationRepairState
-	externalReplication mysql.IExternalReplication
-	switchHelper        mysql.ISwitchHelper
-	lostQuorumTime      time.Time
+	cluster             *mysql.Cluster
+	config              *config.Config
+	logger              *log.Logger
+	state               appState
+	daemonMutex         sync.Mutex
 }
 
 // NewApp returns new App. Suddenly.
@@ -2458,7 +2458,7 @@ func (app *App) getNodePositions(activeNodes []string) ([]nodePosition, error) {
 		}
 
 		positionsMutex.Lock()
-		positions = append(positions, nodePosition{host, gtidset, *lag, nc.Priority})
+		positions = append(positions, nodePosition{gtidset, host, *lag, nc.Priority})
 		positionsMutex.Unlock()
 		return nil
 	}, activeNodes)

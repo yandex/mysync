@@ -81,25 +81,24 @@ var (
 
 // NodeState contains status check performed by some mysync process
 type NodeState struct {
-	CheckBy              string         `json:"check_by"`
 	CheckAt              time.Time      `json:"check_at"`
-	PingOk               bool           `json:"ping_ok"`
-	PingDubious          bool           `json:"ping_dubious"`
+	SemiSyncState        *SemiSyncState `json:"semi_sync_state"`
+	SlaveState           *SlaveState    `json:"slave_state"`
+	MasterState          *MasterState   `json:"master_state"`
+	DaemonState          *DaemonState   `json:"daemon_state"`
+	DiskState            *DiskState     `json:"disk_state"`
+	Error                string         `json:"error"`
+	CheckBy              string         `json:"check_by"`
 	IsMaster             bool           `json:"is_master"`
-	IsReadOnly           bool           `json:"is_readonly"`
-	IsSuperReadOnly      bool           `json:"is_super_readonly"`
-	IsOffline            bool           `json:"is_offline"`
-	IsCascade            bool           `json:"is_cascade"`
 	IsFileSystemReadonly bool           `json:"is_file_system_readonly"`
 	IsLoadingBinlog      bool           `json:"is_loading_binlog"`
-	Error                string         `json:"error"`
-	DiskState            *DiskState     `json:"disk_state"`
-	DaemonState          *DaemonState   `json:"daemon_state"`
-	MasterState          *MasterState   `json:"master_state"`
-	SlaveState           *SlaveState    `json:"slave_state"`
-	SemiSyncState        *SemiSyncState `json:"semi_sync_state"`
-
-	ShowOnlyGTIDDiff bool
+	IsCascade            bool           `json:"is_cascade"`
+	IsOffline            bool           `json:"is_offline"`
+	IsSuperReadOnly      bool           `json:"is_super_readonly"`
+	IsReadOnly           bool           `json:"is_readonly"`
+	PingDubious          bool           `json:"ping_dubious"`
+	PingOk               bool           `json:"ping_ok"`
+	ShowOnlyGTIDDiff     bool
 }
 
 // Last_SQL_Errno codes, that disallow to restart replication
@@ -300,14 +299,14 @@ const (
 
 // Switchover contains info about currently running or scheduled switchover/failover process
 type Switchover struct {
+	InitiatedAt time.Time         `json:"initiated_at"`
+	StartedAt   time.Time         `json:"started_at"`
+	Result      *SwitchoverResult `json:"result"`
 	From        string            `json:"from"`
 	To          string            `json:"to"`
 	Cause       string            `json:"cause"`
 	InitiatedBy string            `json:"initiated_by"`
-	InitiatedAt time.Time         `json:"initiated_at"`
 	StartedBy   string            `json:"started_by"`
-	StartedAt   time.Time         `json:"started_at"`
-	Result      *SwitchoverResult `json:"result"`
 	RunCount    int               `json:"run_count,omitempty"`
 }
 
@@ -337,15 +336,15 @@ func (sw *Switchover) String() string {
 
 // SwitchoverResult contains results of finished/failed switchover
 type SwitchoverResult struct {
-	Ok         bool      `json:"ok"`
-	Error      string    `json:"error"`
 	FinishedAt time.Time `json:"finished_at"`
+	Error      string    `json:"error"`
+	Ok         bool      `json:"ok"`
 }
 
 // Maintenance struct presence means that cluster under manual control
 type Maintenance struct {
-	InitiatedBy  string    `json:"initiated_by"`
 	InitiatedAt  time.Time `json:"initiated_at"`
+	InitiatedBy  string    `json:"initiated_by"`
 	MySyncPaused bool      `json:"mysync_paused"`
 	ShouldLeave  bool      `json:"should_leave"`
 }

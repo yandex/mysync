@@ -54,44 +54,44 @@ type replicationSettings struct {
 	SourceHost        string         `db:"SourceHost"`
 	SourceUser        string         `db:"SourceUser"`
 	SourcePassword    string         `db:"SourcePassword"`
-	SourcePort        int            `db:"SourcePort"`
 	SourceSslCa       string         `db:"SourceSslCa"`
-	SourceDelay       int            `db:"SourceDelay"`
 	ReplicationStatus sql.NullString `db:"ReplicationStatus"`
+	SourcePort        int            `db:"SourcePort"`
+	SourceDelay       int            `db:"SourceDelay"`
 }
 
 // SlaveStatusStruct contains SHOW SLAVE STATUS response
 type SlaveStatusStruct struct {
-	MasterHost       string          `db:"Master_Host"`
-	MasterPort       int             `db:"Master_Port"`
+	LastIOError      string          `db:"Last_IO_Error"`
 	MasterLogFile    string          `db:"Master_Log_File"`
-	ReadMasterLogPos int64           `db:"Read_Master_Log_Pos"`
+	MasterHost       string          `db:"Master_Host"`
 	SlaveIORunning   string          `db:"Slave_IO_Running"`
 	SlaveSQLRunning  string          `db:"Slave_SQL_Running"`
 	LastError        string          `db:"Last_Error"`
 	RetrievedGtidSet string          `db:"Retrieved_Gtid_Set"`
 	ExecutedGtidSet  string          `db:"Executed_Gtid_Set"`
-	LastIOErrno      int             `db:"Last_IO_Errno"`
-	LastIOError      string          `db:"Last_IO_Error"`
-	LastSQLErrno     int             `db:"Last_SQL_Errno"`
 	Lag              sql.NullFloat64 `db:"Seconds_Behind_Master"`
+	ReadMasterLogPos int64           `db:"Read_Master_Log_Pos"`
+	LastIOErrno      int             `db:"Last_IO_Errno"`
+	LastSQLErrno     int             `db:"Last_SQL_Errno"`
+	MasterPort       int             `db:"Master_Port"`
 }
 
 // ReplicaStatusStruct contains SHOW REPLICA STATUS response
 type ReplicaStatusStruct struct {
-	SourceHost        string          `db:"Source_Host"`
-	SourcePort        int             `db:"Source_Port"`
+	LastIOError       string          `db:"Last_IO_Error"`
 	SourceLogFile     string          `db:"Source_Log_File"`
-	ReadSourceLogPos  int64           `db:"Read_Source_Log_Pos"`
+	SourceHost        string          `db:"Source_Host"`
 	ReplicaIORunning  string          `db:"Replica_IO_Running"`
 	ReplicaSQLRunning string          `db:"Replica_SQL_Running"`
 	LastError         string          `db:"Last_Error"`
 	RetrievedGtidSet  string          `db:"Retrieved_Gtid_Set"`
 	ExecutedGtidSet   string          `db:"Executed_Gtid_Set"`
-	LastIOErrno       int             `db:"Last_IO_Errno"`
-	LastIOError       string          `db:"Last_IO_Error"`
-	LastSQLErrno      int             `db:"Last_SQL_Errno"`
 	Lag               sql.NullFloat64 `db:"Seconds_Behind_Source"`
+	ReadSourceLogPos  int64           `db:"Read_Source_Log_Pos"`
+	LastIOErrno       int             `db:"Last_IO_Errno"`
+	LastSQLErrno      int             `db:"Last_SQL_Errno"`
+	SourcePort        int             `db:"Source_Port"`
 }
 
 type ReplicaStatus interface {

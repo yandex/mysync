@@ -23,11 +23,11 @@ type zkDCS struct {
 	conn               *zk.Conn
 	eventsChan         <-chan zk.Event
 	disconnectCallback func() error
-	isConnected        bool
-	connectedChans     []chan struct{}
-	connectedLock      sync.Mutex
 	closeTimer         *time.Timer
+	connectedChans     []chan struct{}
 	acl                []zk.ACL
+	connectedLock      sync.Mutex
+	isConnected        bool
 }
 
 type zkLoggerProxy struct{ *log.Logger }
