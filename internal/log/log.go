@@ -62,10 +62,10 @@ func (lvl Level) String() string {
 }
 
 type Logger struct {
-	path string
 	fh   *os.File
-	m    sync.Mutex
+	path string
 	lvl  Level
+	m    sync.Mutex
 }
 
 func Open(path, level string) (*Logger, error) {

@@ -68,18 +68,18 @@ func (noLogger) Printf(string, ...interface{}) {}
 func (noLogger) Print(...interface{}) {}
 
 type testContext struct {
-	variables         map[string]interface{}
 	templateErr       error
 	composer          testutil.Composer
-	composerEnv       []string
+	variables         map[string]interface{}
 	zk                *zk.Conn
 	dbs               map[string]*sqlx.DB
+	sqlUserQueryError sync.Map
 	zkQueryResult     string
-	sqlQueryResult    []map[string]interface{}
-	sqlUserQueryError sync.Map // host -> error
-	commandRetcode    int
 	commandOutput     string
+	composerEnv       []string
+	sqlQueryResult    []map[string]interface{}
 	acl               []zk.ACL
+	commandRetcode    int
 }
 
 func newTestContext() (*testContext, error) {

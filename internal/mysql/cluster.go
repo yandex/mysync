@@ -14,13 +14,13 @@ import (
 
 // Cluster is a simple collection, containing set of MySQL ha_nodes
 type Cluster struct {
-	sync.Mutex
+	dcs          dcs.DCS
 	config       *config.Config
 	logger       *log.Logger
 	local        *Node
-	dcs          dcs.DCS
 	haNodes      map[string]*Node
 	cascadeNodes map[string]*Node
+	sync.Mutex
 }
 
 func (c *Cluster) IsHAHost(hostname string) bool {

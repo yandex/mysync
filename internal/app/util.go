@@ -11,8 +11,8 @@ import (
 )
 
 type nodePosition struct {
-	host     string
 	gtidset  gtids.GTIDSet
+	host     string
 	lag      float64
 	priority int64
 }
@@ -194,15 +194,15 @@ func getDubiousHAHosts(clusterState map[string]*NodeState) []string {
 
 func getNodeStatesInParallel(hosts []string, getter func(string) (*NodeState, error), logger *log.Logger) (map[string]*NodeState, error) {
 	type result struct {
-		name  string
-		state *NodeState
 		err   error
+		state *NodeState
+		name  string
 	}
 	results := make(chan result, len(hosts))
 	for _, host := range hosts {
 		go func(host string) {
 			state, err := getter(host)
-			results <- result{host, state, err}
+			results <- result{err, state, host}
 		}(host)
 	}
 	clusterState := make(map[string]*NodeState)

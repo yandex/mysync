@@ -44,6 +44,9 @@ linters-settings:
       - name: empty-block
       - name: unreachable-code
       - name: redefines-builtin-id
+  govet:
+    enable:
+      - fieldalignment
 
 linters:
   disable-all: true

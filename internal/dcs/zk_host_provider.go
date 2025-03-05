@@ -12,21 +12,21 @@ import (
 )
 
 type zkhost struct {
-	resolved   []string
 	lastLookup time.Time
+	resolved   []string
 }
 
 type RandomHostProvider struct {
 	ctx                context.Context
-	hosts              sync.Map
-	useAddrs           bool
-	hostsKeys          []string
 	tried              map[string]struct{}
 	logger             *log.Logger
+	resolver           *net.Resolver
+	hosts              sync.Map
+	hostsKeys          []string
 	lookupTTL          time.Duration
 	lookupTimeout      time.Duration
 	lookupTickInterval time.Duration
-	resolver           *net.Resolver
+	useAddrs           bool
 }
 
 func NewRandomHostProvider(ctx context.Context, config *RandomHostProviderConfig, useAddrs bool, logger *log.Logger) *RandomHostProvider {
