@@ -1,12 +1,14 @@
 package app
 
 import (
+	"cmp"
 	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"os"
 	"os/signal"
+	"slices"
 	"sort"
 	"strings"
 	"sync"
@@ -1304,6 +1306,92 @@ func (app *App) disableSemiSyncIfNonNeeded(node *mysql.Node, state *NodeState) {
 	}
 }
 
+func (app *App) chooseReplicaWithMinimalLag(
+	replicas []string,
+) (*mysql.Node, error) {
+	positions, err := app.getNodePositions(replicas)
+	if err != nil {
+		return nil, err
+	}
+
+	minLagPos := slices.MinFunc(positions, func(a, b nodePosition) int {
+		return cmp.Compare(a.lag, b.lag)
+	})
+
+	minimalLagNode := app.cluster.Get(minLagPos.host)
+	if minimalLagNode == nil {
+		return nil, fmt.Errorf("can't get node %s", minimalLagNode)
+	}
+
+	return minimalLagNode, nil
+}
+
+func (app *App) optimizeReplicaWithSmallestLag(
+	replicas []string,
+	masterHost string,
+	optionalReplicaHost string,
+	replicationLagThreshold time.Duration,
+	convergenceTimeout time.Duration,
+) error {
+	var replicaToOptimize *mysql.Node
+	var err error
+
+	if len(optionalReplicaHost) == 0 {
+		app.logger.Debug("replica optimization: calculating replica with the smallest lag")
+		replicaToOptimize, err = app.chooseReplicaWithMinimalLag(replicas)
+		if err != nil {
+			return err
+		}
+		app.logger.Debugf("replica optimization: the replica is %s", replicaToOptimize)
+	} else {
+		app.logger.Debugf("replica optimization: the replica was specified %s", optionalReplicaHost)
+		replicaToOptimize = app.cluster.Get(optionalReplicaHost)
+	}
+
+	status, err := replicaToOptimize.GetReplicaStatus()
+	if err != nil {
+		return err
+	}
+
+	if status.GetReplicationLag().Valid &&
+		status.GetReplicationLag().Float64 < replicationLagThreshold.Seconds() {
+		app.logger.Debug("replica optimization: lag is below threshold; optimization is complete.")
+		return nil
+	}
+
+	err = replicaToOptimize.OptimizeReplication()
+	if err != nil {
+		return err
+	}
+	app.logger.Debug("replica optimization: activated")
+
+	defer func() {
+		masterNode := app.cluster.Get(masterHost)
+		err = replicaToOptimize.SetDefaultReplicationSettings(masterNode)
+		if err != nil {
+			app.logger.Error("replica optimization: can't set default replication settings")
+		}
+	}()
+
+	timer := time.NewTimer(convergenceTimeout)
+	for {
+		select {
+		case <-timer.C:
+			app.logger.Debug("replica optimization: exceeded deadline")
+			return fmt.Errorf("replica optimization: exceeded deadline")
+		default:
+			status, err := replicaToOptimize.GetReplicaStatus()
+			if err != nil {
+				return err
+			}
+			if status.GetReplicationLag().Float64 < replicationLagThreshold.Seconds() {
+				app.logger.Debug("replica optimization: succeeded")
+				return nil
+			}
+		}
+	}
+}
+
 // nolint: gocyclo, funlen
 func (app *App) performSwitchover(clusterState map[string]*NodeState, activeNodes []string, switchover *Switchover, oldMaster string) error {
 	if switchover.To != "" {
@@ -1321,6 +1409,27 @@ func (app *App) performSwitchover(clusterState map[string]*NodeState, activeNode
 	// filter out old master as may hang and timeout in different ways
 	if switchover.Cause == CauseAuto && switchover.From == oldMaster {
 		activeNodes = filterOut(activeNodes, []string{oldMaster})
+	}
+
+	if app.config.OptimizeReplicationBeforeSwitchover {
+		app.logger.Info("switchover: phase 0: enter turbo mode")
+		appropriateReplicas := filterOut(activeNodes, []string{oldMaster, switchover.From})
+
+		err := app.optimizeReplicaWithSmallestLag(
+			appropriateReplicas,
+			oldMaster,
+			switchover.To,
+			app.config.OptimizeReplicationLagThreshold,
+			app.config.OptimizeReplicationConvergenceTimeout,
+		)
+		if err != nil {
+			switchErr := app.FinishSwitchover(switchover, fmt.Errorf("turbo mode exceeded deadline"))
+			if switchErr != nil {
+				return fmt.Errorf("switchover: failed to reject switchover %s", switchErr)
+			}
+			app.logger.Info("switchover: rejected")
+			return err
+		}
 	}
 
 	// set read only everywhere (all HA-nodes) and stop replication
