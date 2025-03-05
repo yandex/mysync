@@ -1996,6 +1996,7 @@ func (app *App) repairCascadeNode(node *mysql.Node, clusterState map[string]*Nod
 		myGITIDs := gtids.ParseGtidSet(mySlaveStatus.GetExecutedGtidSet())
 
 		candidateState := clusterState[upstreamCandidate]
+		candidateNode := app.cluster.Get(upstreamCandidate)
 		var candidateGTIDs gtids.GTIDSet
 		if candidateState.IsMaster {
 			candidateGTIDs = gtids.ParseGtidSet(candidateState.MasterState.ExecutedGtidSet)
@@ -2004,8 +2005,13 @@ func (app *App) repairCascadeNode(node *mysql.Node, clusterState map[string]*Nod
 		}
 		app.logger.Debugf("repair: %s GTID set = %v, new stream_from GTID set is %v", host, myGITIDs, candidateGTIDs)
 
-		// TODO: replace with IsSplitBrained
-		if gtids.IsSlaveAhead(myGITIDs, candidateGTIDs) && gtids.IsSlaveAhead(candidateGTIDs, myGITIDs) {
+		candidateUUID, err := candidateNode.UUID()
+		if err != nil {
+			app.logger.Errorf("repair: failed to get UUID from new upstream candidate: %s", upstreamCandidate)
+			return
+		}
+
+		if gtids.IsSplitBrained(myGITIDs, candidateGTIDs, candidateUUID) {
 			app.logger.Errorf("repair: %s and %s are splitbrained...", host, upstreamCandidate)
 			app.writeEmergeFile("cascade replica splitbrain detected")
 			return
