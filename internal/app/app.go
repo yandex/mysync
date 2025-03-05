@@ -1201,15 +1201,16 @@ func (app *App) updateActiveNodes(clusterState, clusterStateDcs map[string]*Node
 	}
 
 	// and finally enlarge HA-group, if needed
-	for _, host := range becomeActive {
-		err := app.enableSemiSyncOnSlave(host, clusterState[host], masterState)
+	for _, hostname := range becomeActive {
+		err := app.enableSemiSyncOnSlave(hostname, clusterState[hostname], masterState)
 		if err != nil {
-			app.logger.Errorf("failed to enable semi-sync on slave %s: %v", host, err)
+			app.logger.Errorf("failed to enable semi-sync on slave %s: %v", hostname, err)
 		}
-    mysql_host := app.cluster.Get(host)
-    err = mysql_host.SetDefaultReplicationSettings(masterNode)
+
+		host := app.cluster.Get(hostname)
+		err = host.SetDefaultReplicationSettings(masterNode)
 		if err != nil {
-			app.logger.Errorf("failed to set default replication settings %s: %v", host, err)
+			app.logger.Errorf("failed to set default replication settings %s: %v", hostname, err)
 		}
 	}
 	if waitSlaveCount < oldWaitSlaveCount {
