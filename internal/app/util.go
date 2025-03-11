@@ -1,6 +1,7 @@
 package app
 
 import (
+	"errors"
 	"fmt"
 	"time"
 
@@ -10,9 +11,7 @@ import (
 	"github.com/yandex/mysync/internal/util"
 )
 
-const (
-	DeadlineExceeded = "deadline exceeded"
-)
+var OptimizationPhaseDeadlineExceeded = errors.New("optimization phase: deadline exceeded")
 
 type nodePosition struct {
 	host     string

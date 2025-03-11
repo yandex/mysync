@@ -99,9 +99,9 @@ type Config struct {
 	ReplMonErrorWaitInterval                time.Duration                `config:"repl_mon_error_wait_interval" yaml:"repl_mon_error_wait_interval"`
 	ReplMonSlaveWaitInterval                time.Duration                `config:"repl_mon_slave_wait_interval" yaml:"repl_mon_slave_wait_interval"`
 	ShowOnlyGTIDDiff                        bool                         `config:"show_only_gtid_diff" yaml:"show_only_gtid_diff"`
+	ManagerSwitchover                       bool                         `config:"manager_switchover" yaml:"manager_switchover"`
 	ForceSwitchover                         bool                         `config:"force_switchover" yaml:"force_switchover"` // TODO: Remove when we will be sure it's right way to do switchover
 	DSNSettings                             string                       `config:"dsn_settings" yaml:"dsn_settings"`
-	ManagerSwitchover                       bool                         `config:"manager_switchover" yaml:"manager_switchover"`
 	OptimizeReplicationLagThreshold         time.Duration                `config:"optimize_replication_lag_threshold" yaml:"optimize_replication_lag_threshold"`
 	OptimizeReplicationConvergenceTimeout   time.Duration                `config:"optimize_replication_convergence_timeout" yaml:"optimize_replication_convergence_timeout"`
 }
