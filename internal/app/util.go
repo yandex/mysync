@@ -11,7 +11,7 @@ import (
 	"github.com/yandex/mysync/internal/util"
 )
 
-var OptimizationPhaseDeadlineExceeded = errors.New("optimization phase: deadline exceeded")
+var ErrOptimizationPhaseDeadlineExceeded = errors.New("optimization phase: deadline exceeded")
 
 type nodePosition struct {
 	host     string

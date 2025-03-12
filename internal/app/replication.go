@@ -285,7 +285,7 @@ func (app *App) waitReplicaToConverge(
 	for {
 		select {
 		case <-timer.C:
-			return OptimizationPhaseDeadlineExceeded
+			return ErrOptimizationPhaseDeadlineExceeded
 		default:
 			lagUnderThreshold, err := app.isReplicationLagUnderThreshold(replica)
 			if err != nil {
@@ -336,7 +336,7 @@ func (app *App) optimizationPhase(activeNodes []string, switchover *Switchover, 
 		oldMaster,
 		desirableReplica,
 	)
-	if err != nil && errors.Is(err, OptimizationPhaseDeadlineExceeded) {
+	if err != nil && errors.Is(err, ErrOptimizationPhaseDeadlineExceeded) {
 		app.logger.Infof("switchover: phase 0: turbo mode failed: %v", err)
 		switchErr := app.FinishSwitchover(switchover, fmt.Errorf("turbo mode exceeded deadline"))
 		if switchErr != nil {
