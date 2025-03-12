@@ -1201,10 +1201,16 @@ func (app *App) updateActiveNodes(clusterState, clusterStateDcs map[string]*Node
 	}
 
 	// and finally enlarge HA-group, if needed
-	for _, host := range becomeActive {
-		err := app.enableSemiSyncOnSlave(host, clusterState[host], masterState)
+	for _, hostname := range becomeActive {
+		err := app.enableSemiSyncOnSlave(hostname, clusterState[hostname], masterState)
 		if err != nil {
-			app.logger.Errorf("failed to enable semi-sync on slave %s: %v", host, err)
+			app.logger.Errorf("failed to enable semi-sync on slave %s: %v", hostname, err)
+		}
+
+		host := app.cluster.Get(hostname)
+		err = host.SetDefaultReplicationSettings(masterNode)
+		if err != nil {
+			app.logger.Errorf("failed to set default replication settings %s: %v", hostname, err)
 		}
 	}
 	if waitSlaveCount < oldWaitSlaveCount {
@@ -1323,6 +1329,11 @@ func (app *App) performSwitchover(clusterState map[string]*NodeState, activeNode
 		activeNodes = filterOut(activeNodes, []string{oldMaster})
 	}
 
+	err := app.optimizationPhase(activeNodes, switchover, oldMaster)
+	if err != nil {
+		return err
+	}
+
 	// set read only everywhere (all HA-nodes) and stop replication
 	app.logger.Info("switchover: phase 1: enter read only")
 	errs := util.RunParallel(func(host string) error {
@@ -1404,7 +1415,7 @@ func (app *App) performSwitchover(clusterState map[string]*NodeState, activeNode
 			frozenActiveNodes = append(frozenActiveNodes, host)
 		}
 	}
-	err := app.switchHelper.CheckFailoverQuorum(activeNodesWithOldMaster, len(frozenActiveNodes))
+	err = app.switchHelper.CheckFailoverQuorum(activeNodesWithOldMaster, len(frozenActiveNodes))
 	if err != nil {
 		return err
 	}

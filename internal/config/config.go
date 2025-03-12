@@ -102,6 +102,8 @@ type Config struct {
 	ManagerSwitchover                       bool                         `config:"manager_switchover" yaml:"manager_switchover"`
 	ForceSwitchover                         bool                         `config:"force_switchover" yaml:"force_switchover"` // TODO: Remove when we will be sure it's right way to do switchover
 	DSNSettings                             string                       `config:"dsn_settings" yaml:"dsn_settings"`
+	OptimizeReplicationLagThreshold         time.Duration                `config:"optimize_replication_lag_threshold" yaml:"optimize_replication_lag_threshold"`
+	OptimizeReplicationConvergenceTimeout   time.Duration                `config:"optimize_replication_convergence_timeout" yaml:"optimize_replication_convergence_timeout"`
 }
 
 // DefaultConfig returns default configuration for MySync
@@ -192,6 +194,8 @@ func DefaultConfig() (Config, error) {
 		ManagerSwitchover:                       false,
 		ForceSwitchover:                         false,
 		DSNSettings:                             "?autocommit=1&sql_log_off=1",
+		OptimizeReplicationLagThreshold:         60 * time.Second,
+		OptimizeReplicationConvergenceTimeout:   300 * time.Second,
 	}
 	return config, nil
 }

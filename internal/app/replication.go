@@ -1,6 +1,7 @@
 package app
 
 import (
+	"errors"
 	"fmt"
 	"time"
 
@@ -214,4 +215,141 @@ var mapping = map[ReplicationRepairAlgorithmType]RepairReplicationAlgorithm{
 
 func getRepairAlgorithm(algoType ReplicationRepairAlgorithmType) RepairReplicationAlgorithm {
 	return mapping[algoType]
+}
+
+func (app *App) optimizeReplicaWithSmallestLag(
+	replicas []string,
+	masterHost string,
+	optionalDesirableReplica string,
+) error {
+	hostnameToOptimize, err := app.chooseReplicaToOptimize(optionalDesirableReplica, replicas)
+	if err != nil {
+		return err
+	}
+
+	replicaToOptimize := app.cluster.Get(hostnameToOptimize)
+	isOptimized, err := app.isReplicationLagUnderThreshold(replicaToOptimize)
+	if err != nil {
+		return err
+	}
+	if isOptimized {
+		return nil
+	}
+
+	err = replicaToOptimize.OptimizeReplication()
+	if err != nil {
+		return err
+	}
+	defer func() {
+		masterNode := app.cluster.Get(masterHost)
+		err = replicaToOptimize.SetDefaultReplicationSettings(masterNode)
+		if err != nil {
+			app.logger.Error("can't set default replication settings")
+		}
+	}()
+
+	return app.waitReplicaToConverge(replicaToOptimize)
+}
+
+func (app *App) chooseReplicaToOptimize(
+	optionalDesirableReplica string,
+	replicas []string,
+) (string, error) {
+	if len(optionalDesirableReplica) > 0 {
+		return optionalDesirableReplica, nil
+	}
+
+	positions, err := app.getNodePositions(replicas)
+	if err != nil {
+		return "", err
+	}
+
+	hostnameToOptimize, err := app.getMostDesirableReplicaToOptimize(positions)
+	if err != nil {
+		return "", err
+	}
+	app.logger.Infof("replica optimization: the replica is '%s'", hostnameToOptimize)
+
+	return hostnameToOptimize, nil
+}
+
+func (app *App) getMostDesirableReplicaToOptimize(positions []nodePosition) (string, error) {
+	lagThreshold := app.config.OptimizeReplicationLagThreshold
+	return getMostDesirableNode(app.logger, positions, lagThreshold)
+}
+
+func (app *App) waitReplicaToConverge(
+	replica *mysql.Node,
+) error {
+	timer := time.NewTimer(app.config.OptimizeReplicationConvergenceTimeout)
+	for {
+		select {
+		case <-timer.C:
+			return ErrOptimizationPhaseDeadlineExceeded
+		default:
+			lagUnderThreshold, err := app.isReplicationLagUnderThreshold(replica)
+			if err != nil {
+				app.logger.Infof("can't check replication status: %s", err.Error())
+			}
+			if lagUnderThreshold {
+				return nil
+			}
+			time.Sleep(time.Second)
+		}
+	}
+}
+
+func (app *App) isReplicationLagUnderThreshold(
+	replica *mysql.Node,
+) (bool, error) {
+	status, err := replica.GetReplicaStatus()
+	if err != nil {
+		return false, err
+	}
+
+	lag := status.GetReplicationLag().Float64
+	lagThreshold := app.config.OptimizeReplicationLagThreshold.Seconds()
+
+	if !app.config.ASync && lag < lagThreshold {
+		return true, nil
+	}
+	return false, nil
+}
+
+func (app *App) optimizationPhase(activeNodes []string, switchover *Switchover, oldMaster string) error {
+	if !app.switchHelper.IsOptimizationPhaseAllowed() {
+		app.logger.Info("switchover: phase 0: turbo mode is skipped")
+		return nil
+	}
+
+	appropriateReplicas := filterOut(activeNodes, []string{oldMaster, switchover.From})
+	desirableReplica := switchover.To
+
+	app.logger.Infof(
+		"switchover: phase 0: enter turbo mode; replicas: %v, oldMaster: '%s', desirable replica: '%s'",
+		appropriateReplicas,
+		oldMaster,
+		desirableReplica,
+	)
+	err := app.optimizeReplicaWithSmallestLag(
+		appropriateReplicas,
+		oldMaster,
+		desirableReplica,
+	)
+	if err != nil && errors.Is(err, ErrOptimizationPhaseDeadlineExceeded) {
+		app.logger.Infof("switchover: phase 0: turbo mode failed: %v", err)
+		switchErr := app.FinishSwitchover(switchover, fmt.Errorf("turbo mode exceeded deadline"))
+		if switchErr != nil {
+			return fmt.Errorf("switchover: failed to reject switchover %s", switchErr)
+		}
+		app.logger.Info("switchover: rejected")
+		return err
+	}
+
+	// Conceptually, we should only reject the switchover if we encounter a DeadlineExceeded error.
+	// This indicates that the replica with the freshest data is too far from convergence,
+	// and we can't optimize it within a limited time frame.
+	// Other cases can be handled in subsequent steps, so no special action is needed here.
+	app.logger.Info("switchover: phase 0: turbo mode is complete")
+	return nil
 }

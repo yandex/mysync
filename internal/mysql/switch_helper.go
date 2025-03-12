@@ -12,6 +12,7 @@ type ISwitchHelper interface {
 	GetRequiredWaitSlaveCount([]string) int
 	GetFailoverQuorum([]string) int
 	CheckFailoverQuorum([]string, int) error
+	IsOptimizationPhaseAllowed() bool
 }
 
 type SwitchHelper struct {
@@ -70,4 +71,8 @@ func (sh *SwitchHelper) CheckFailoverQuorum(activeNodes []string, permissibleSla
 		}
 	}
 	return nil
+}
+
+func (sh *SwitchHelper) IsOptimizationPhaseAllowed() bool {
+	return sh.SemiSync
 }

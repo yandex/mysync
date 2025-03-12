@@ -1,6 +1,7 @@
 package app
 
 import (
+	"errors"
 	"fmt"
 	"time"
 
@@ -9,6 +10,8 @@ import (
 	"github.com/yandex/mysync/internal/mysql/gtids"
 	"github.com/yandex/mysync/internal/util"
 )
+
+var ErrOptimizationPhaseDeadlineExceeded = errors.New("optimization phase: deadline exceeded")
 
 type nodePosition struct {
 	host     string
