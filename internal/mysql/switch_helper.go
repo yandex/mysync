@@ -19,7 +19,6 @@ type SwitchHelper struct {
 	priorityChoiceMaxLag               time.Duration
 	rplSemiSyncMasterWaitForSlaveCount int
 	SemiSync                           bool
-	ASync                              bool
 }
 
 func NewSwitchHelper(config *config.Config) ISwitchHelper {
@@ -33,7 +32,6 @@ func NewSwitchHelper(config *config.Config) ISwitchHelper {
 		priorityChoiceMaxLag:               priorityChoiceMaxLag,
 		rplSemiSyncMasterWaitForSlaveCount: config.RplSemiSyncMasterWaitForSlaveCount,
 		SemiSync:                           config.SemiSync,
-		ASync:                              config.ASync,
 	}
 }
 
@@ -76,5 +74,5 @@ func (sh *SwitchHelper) CheckFailoverQuorum(activeNodes []string, permissibleSla
 }
 
 func (sh *SwitchHelper) IsOptimizationPhaseAllowed() bool {
-	return !sh.ASync
+	return sh.SemiSync
 }
