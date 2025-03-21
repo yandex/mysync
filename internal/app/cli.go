@@ -349,7 +349,7 @@ func (app *App) CliSwitch(switchFrom, switchTo string, waitTimeout time.Duration
 }
 
 // CliEnableMaintenance enables maintenance mode
-func (app *App) CliEnableMaintenance(waitTimeout time.Duration) int {
+func (app *App) CliEnableMaintenance(waitTimeout time.Duration, reason string) int {
 	ctx := app.baseContext()
 	err := app.connectDCS()
 	if err != nil {
@@ -362,6 +362,7 @@ func (app *App) CliEnableMaintenance(waitTimeout time.Duration) int {
 	maintenance := &Maintenance{
 		InitiatedBy: app.config.Hostname,
 		InitiatedAt: time.Now(),
+		Reason:      reason,
 	}
 	err = app.dcs.Create(pathMaintenance, maintenance)
 	if err != nil && err != dcs.ErrExists {

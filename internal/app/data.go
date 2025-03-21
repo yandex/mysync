@@ -348,6 +348,7 @@ type Maintenance struct {
 	InitiatedAt  time.Time `json:"initiated_at"`
 	MySyncPaused bool      `json:"mysync_paused"`
 	ShouldLeave  bool      `json:"should_leave"`
+	Reason       string    `json:"reason,omitempty"`
 }
 
 func (m *Maintenance) String() string {
@@ -358,5 +359,9 @@ func (m *Maintenance) String() string {
 	if m.ShouldLeave {
 		ms = "leaving"
 	}
-	return fmt.Sprintf("<%s by %s at %s>", ms, m.InitiatedBy, m.InitiatedAt)
+	reasonSuffix := ""
+	if m.Reason != "" {
+		reasonSuffix = fmt.Sprintf(" (%s)", m.Reason)
+	}
+	return fmt.Sprintf("<%s by %s at %s%s>", ms, m.InitiatedBy, m.InitiatedAt, reasonSuffix)
 }

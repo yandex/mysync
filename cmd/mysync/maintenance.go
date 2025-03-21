@@ -11,6 +11,7 @@ import (
 )
 
 var maintWait time.Duration
+var maintReason string
 
 var maintCmd = &cobra.Command{
 	Use:     "maintenance",
@@ -29,7 +30,7 @@ var maintOnCmd = &cobra.Command{
 			fmt.Println(err)
 			os.Exit(1)
 		}
-		os.Exit(app.CliEnableMaintenance(maintWait))
+		os.Exit(app.CliEnableMaintenance(maintWait, maintReason))
 	},
 }
 
@@ -64,4 +65,6 @@ func init() {
 	maintCmd.AddCommand(maintOffCmd)
 	maintCmd.AddCommand(maintGetCmd)
 	maintCmd.PersistentFlags().DurationVarP(&maintWait, "wait", "w", 30*time.Second, "how long to wait for maintenance activation, 0s to return immediately")
+
+	maintOnCmd.Flags().StringVarP(&maintReason, "reason", "r", "", "reason for maintenance (e.g. ticket number)")
 }
