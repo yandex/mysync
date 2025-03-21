@@ -69,7 +69,7 @@ Feature: manual switchover from old master
           "from": "mysql1",
           "to": "",
           "cause": "manual",
-          "initiated_by": "REGEXP:.*@mysql1",
+          "initiated_by": "mysql1",
           "result": {
               "ok": true
           }
