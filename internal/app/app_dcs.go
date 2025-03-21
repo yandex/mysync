@@ -241,3 +241,7 @@ func (app *App) GetReplMonTS() (string, error) {
 	}
 	return ts, err
 }
+
+func (app *App) SetLowSpace(lowSpace bool) error {
+	return app.dcs.Set(pathLowSpace, lowSpace)
+}
