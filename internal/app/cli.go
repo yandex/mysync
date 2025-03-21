@@ -301,7 +301,7 @@ func (app *App) CliSwitch(switchFrom, switchTo string, waitTimeout time.Duration
 
 	switchover.From = fromHost
 	switchover.To = toHost
-	switchover.InitiatedBy = app.config.Hostname
+	switchover.InitiatedBy = util.GuessWhoRunning() + "@" + app.config.Hostname
 	switchover.InitiatedAt = time.Now()
 	switchover.Cause = CauseManual
 
