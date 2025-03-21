@@ -360,7 +360,7 @@ func (app *App) CliEnableMaintenance(waitTimeout time.Duration, reason string) i
 	app.dcs.Initialize()
 
 	maintenance := &Maintenance{
-		InitiatedBy: app.config.Hostname,
+		InitiatedBy: util.GuessWhoRunning() + "@" + app.config.Hostname,
 		InitiatedAt: time.Now(),
 		Reason:      reason,
 	}
