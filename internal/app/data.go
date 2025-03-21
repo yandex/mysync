@@ -348,7 +348,7 @@ type Maintenance struct {
 	InitiatedAt  time.Time `json:"initiated_at"`
 	MySyncPaused bool      `json:"mysync_paused"`
 	ShouldLeave  bool      `json:"should_leave"`
-	Reason       string    `json:"reason"`
+	Reason       string    `json:"reason,omitempty"`
 }
 
 func (m *Maintenance) String() string {
