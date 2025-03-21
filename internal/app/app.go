@@ -1783,7 +1783,7 @@ func (app *App) repairReadOnlyOnMaster(masterNode *mysql.Node, masterState *Node
 			app.logger.Errorf("diskusage: failed to set master read-only: %v", err)
 		} else {
 			app.logger.Infof("diskusage: master set read-only")
-			err = app.dcs.Set(pathLowSpace, true)
+			err := app.SetLowSpace(true)
 			if err != nil {
 				app.logger.Errorf("diskusage: failed to set read-only path in dcs: %v", err)
 			}
@@ -1799,7 +1799,7 @@ func (app *App) repairReadOnlyOnMaster(masterNode *mysql.Node, masterState *Node
 			app.logger.Errorf("diskusage: failed to set master writable: %v", err)
 		} else {
 			app.logger.Info("diskusage: master set writable")
-			err := app.dcs.Set(pathLowSpace, false)
+			err := app.SetLowSpace(false)
 			if err != nil {
 				app.logger.Errorf("diskusage: failed to set read-only path in dcs: %v", err)
 			}
