@@ -121,7 +121,15 @@ func jsonContains(a, e interface{}, path []string) []string {
 			return path
 		}
 	case reflect.String:
-		if a.(string) != e.(string) {
+		_a := a.(string)
+		_e := e.(string)
+		prefix := "REGEXP:"
+		if strings.HasPrefix(_e, prefix) {
+			eReg := regexp.MustCompile(_e[len(prefix):])
+			if !eReg.Match([]byte(_a)) {
+				return path
+			}
+		} else if _a != _e {
 			return path
 		}
 	default:

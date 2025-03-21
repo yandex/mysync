@@ -214,7 +214,7 @@ Feature: maintenance mode
     And zookeeper node "/test/maintenance" should match json
       """
       {
-        "initiated_by": "mysql1"
+        "initiated_by": "REGEXP:.*@mysql1"
       }
       """
     When I run command on host "mysql1"
