@@ -29,7 +29,7 @@ Feature: manual switchover from old master
           "from": "mysql1",
           "to": "",
           "cause": "manual",
-          "initiated_by": "mysql1",
+          "initiated_by": "REGEXP:.*@mysql1",
           "result": {
               "ok": false,
               "error": "no quorum, have 0 replicas while 2 is required"
