@@ -62,7 +62,7 @@ Feature: maintenance during dead zookeeper
     Then zookeeper node "/test/maintenance" should match json within "90" seconds
       """
       {
-        "initiated_by": "mysql1"
+        "initiated_by": "REGEXP:.*@mysql1"
       }
       """
     When I run command on host "mysql1" with timeout "30" seconds
