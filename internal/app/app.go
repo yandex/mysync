@@ -518,7 +518,7 @@ func (app *App) stateLost() appState {
 		err = node.SetReadOnlyWithForce(app.config.ExcludeUsers, true)
 
 		merr, ok := err.(*mysql_driver.MySQLError)
-		if !(errors.Is(err, context.DeadlineExceeded) || ok && merr.Number == 1205) { // Error 1205: Lock wait timeout exceeded; try restarting transaction
+		if !errors.Is(err, context.DeadlineExceeded) && (!ok || merr.Number != 1205) { // Error 1205: Lock wait timeout exceeded; try restarting transaction
 			app.logger.Errorf("failed to set node %s read-only: %v", node.Host(), err)
 			return stateLost
 		}
@@ -875,10 +875,7 @@ func (app *App) approveFailover(clusterState, clusterStateDcs map[string]*NodeSt
 	if !app.config.Failover {
 		return fmt.Errorf("auto_failover is disabled in config")
 	}
-	afterCrashRecovery := false
-	if clusterStateDcs[master].DaemonState != nil && clusterStateDcs[master].DaemonState.CrashRecovery && app.config.ResetupCrashedHosts {
-		afterCrashRecovery = true
-	}
+	afterCrashRecovery := clusterStateDcs[master].DaemonState != nil && clusterStateDcs[master].DaemonState.CrashRecovery && app.config.ResetupCrashedHosts
 	if afterCrashRecovery {
 		app.logger.Infof("approve failover: after crash recovery, skip replication and delay checks")
 	} else if clusterStateDcs[master].IsFileSystemReadonly {
@@ -1976,7 +1973,7 @@ func (app *App) repairCascadeNode(node *mysql.Node, clusterState map[string]*Nod
 		return
 	}
 
-	if !isReplicationRunning && (upstreamLostAt == time.Time{}) {
+	if !isReplicationRunning && upstreamLostAt.IsZero() {
 		app.logger.Warnf("repair: replication from stream_from host `%s` stopped. Schedule switch to new stream_from", upstreamMaster)
 		upstreamLostAt = time.Now()
 		app.streamFromFailedAt[host] = upstreamLostAt
