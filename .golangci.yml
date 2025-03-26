@@ -1,81 +1,87 @@
-# This file contains all available configuration options
-# with their default values.
-
-# all available settings of specific linters
-linters-settings:
-  dupl:
-    threshold: 400
-  funlen:
-    lines: 150
-    statements: 100
-  gocritic:
-    enabled-tags:
-      - performance
-    disabled-tags:
-      - diagnostic
-      - experimental
-      - opinionated
-      - style
-  gocyclo:
-    min-complexity: 25
-  misspell:
-    locale: US
-  lll:
-    line-length: 140
-  revive:
-    rules:
-      - name: blank-imports
-      - name: context-as-argument
-      - name: context-keys-type
-      - name: dot-imports
-    # - name: increment-decrement
-      - name: error-return
-      - name: error-naming
-      - name: exported
-      - name: var-naming
-      - name: var-declaration
-      - name: package-comments
-      - name: range
-      - name: receiver-naming
-      - name: time-naming
-      - name: unexported-return
-    # - name: indent-error-flow
-      - name: errorf
-      - name: empty-block
-      - name: unreachable-code
-      - name: redefines-builtin-id
-
+version: "2"
+run:
+  go: "1.22"
+  modules-download-mode: mod
 linters:
-  disable-all: true
+  default: none
   enable:
     - bodyclose
+    - copyloopvar
     - dupl
     - errcheck
-    - copyloopvar
     - funlen
     - gocritic
     - gocyclo
-    - gofmt
-    - goimports
     - govet
     - ineffassign
     - misspell
     - nakedret
     - revive
     - staticcheck
-    - typecheck
     - unconvert
     - unparam
     - unused
-  # - lll
-    - stylecheck
-    - gosimple
     - whitespace
-
-run:
-  go: "1.22"
-  timeout: 5m
-  modules-download-mode: mod
-
+  settings:
+    dupl:
+      threshold: 400
+    funlen:
+      lines: 150
+      statements: 100
+    gocritic:
+      enabled-tags:
+        - performance
+      disabled-tags:
+        - diagnostic
+        - experimental
+        - opinionated
+        - style
+    gocyclo:
+      min-complexity: 25
+    lll:
+      line-length: 140
+    misspell:
+      locale: US
+    revive:
+      rules:
+        - name: blank-imports
+        - name: context-as-argument
+        - name: context-keys-type
+        - name: dot-imports
+        - name: error-return
+        - name: error-naming
+        - name: exported
+        - name: var-naming
+        - name: var-declaration
+        - name: package-comments
+        - name: range
+        - name: receiver-naming
+        - name: time-naming
+        - name: unexported-return
+        - name: errorf
+        - name: empty-block
+        - name: unreachable-code
+        - name: redefines-builtin-id
+  exclusions:
+    generated: lax
+    presets:
+      - comments
+      - common-false-positives
+      - legacy
+      - std-error-handling
+    paths:
+      - third_party$
+      - builtin$
+      - examples$
 severity:
-  default-severity: error
+  default: error
+formatters:
+  enable:
+    - gofmt
+    - goimports
+  exclusions:
+    generated: lax
+    paths:
+      - third_party$
+      - builtin$
+      - examples$

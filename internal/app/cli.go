@@ -468,13 +468,14 @@ func (app *App) CliGetMaintenance() int {
 	app.dcs.Initialize()
 
 	err = app.dcs.Get(pathMaintenance, new(Maintenance))
-	if err == nil {
+	switch err {
+	case nil:
 		fmt.Println("on")
 		return 0
-	} else if err == dcs.ErrNotFound {
+	case dcs.ErrNotFound:
 		fmt.Println("off")
 		return 0
-	} else {
+	default:
 		app.logger.Error(err.Error())
 		return 1
 	}
