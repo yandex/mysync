@@ -1178,30 +1178,23 @@ func (app *App) updateActiveNodes(clusterState, clusterStateDcs map[string]*Node
 	for _, host := range becomeInactive {
 		err = app.disableSemiSyncOnSlave(host, true)
 		if err != nil {
-			app.logger.Warnf("failed to disable semi-sync on slave %s: %v", host, err)
 			return err
 		}
 	}
 	for _, host := range becomeDataLag {
 		err = app.disableSemiSyncOnSlave(host, false)
 		if err != nil {
-			app.logger.Warnf("failed to disable semi-sync on slave %s: %v", host, err)
 			return err
 		}
 	}
 
-	// than update DCS
-	err = app.dcs.Set(pathActiveNodes, activeNodes)
-	if err != nil {
-		app.logger.Errorf("update active nodes: failed to update active nodes in dcs %v", err)
-		return err
-	}
-
-	// and finally enlarge HA-group, if needed
+	// enlarge HA-group, if needed (and if possible)
 	for _, hostname := range becomeActive {
 		err := app.enableSemiSyncOnSlave(hostname, clusterState[hostname], masterState)
 		if err != nil {
-			app.logger.Errorf("failed to enable semi-sync on slave %s: %v", hostname, err)
+			waitSlaveCount--
+			activeNodes = filterOut(activeNodes, []string{hostname})
+			continue
 		}
 
 		host := app.cluster.Get(hostname)
@@ -1215,6 +1208,13 @@ func (app *App) updateActiveNodes(clusterState, clusterStateDcs map[string]*Node
 		if err != nil {
 			app.logger.Errorf("failed to adjust semi-sync on master %s to %d: %v", masterNode.Host(), waitSlaveCount, err)
 		}
+	}
+
+	// than update DCS
+	err = app.dcs.Set(pathActiveNodes, activeNodes)
+	if err != nil {
+		app.logger.Errorf("update active nodes: failed to update active nodes in dcs %v", err)
+		return err
 	}
 
 	return nil
@@ -1281,7 +1281,7 @@ func (app *App) disableSemiSyncOnSlave(host string, restartIOThread bool) error 
 	node := app.cluster.Get(host)
 	err := node.SemiSyncDisable()
 	if err != nil {
-		app.logger.Errorf("failed to enable semi_sync_slave on %s: %s", host, err)
+		app.logger.Errorf("failed to disable semi_sync_slave on %s: %s", host, err)
 		return err
 	}
 
