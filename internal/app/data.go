@@ -156,11 +156,11 @@ func (ns *NodeState) UpdateBinlogStatus(oldLogFile string, maxLogPos int64) (str
 	newLogFile := ns.SlaveState.MasterLogFile
 	newLogPos := ns.SlaveState.MasterLogPos
 
-  // IsLoadingBinlog is reset to false when starting to load a new binlog file.
-  // Example:
-  //   - Current position: MasterLogFile = "mysql-bin.000016", MasterLogPos = 784
-  //   - When switching to "mysql-bin.000017", IsLoadingBinlog becomes false
-  //     until the new file begins processing.
+	// IsLoadingBinlog is reset to false when starting to load a new binlog file.
+	// Example:
+	//   - Current position: MasterLogFile = "mysql-bin.000016", MasterLogPos = 784
+	//   - When switching to "mysql-bin.000017", IsLoadingBinlog becomes false
+	//     until the new file begins processing.
 	if newLogFile != oldLogFile {
 		ns.IsLoadingBinlog = false
 		return newLogFile, newLogPos
