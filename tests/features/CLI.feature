@@ -136,7 +136,6 @@ Feature: CLI
         And mysql host "mysql2" should be replica of "mysql1"
         And mysql host "mysql3" should be replica of "mysql1"
 
-        # Try to optimize host with default settings
         When I run SQL on mysql host "mysql2"
         """
         SELECT @@innodb_flush_log_at_trx_commit as InnodbFlushLogAtTrxCommit, @@sync_binlog as SyncBinlog
@@ -178,7 +177,6 @@ Feature: CLI
         The host is in status 'optimization is running'
         """
 
-        # Try to stop optimization on host with default settings
         When I run command on host "mysql2"
         """
         mysync turbo off
@@ -202,7 +200,12 @@ Feature: CLI
         The host is in status 'can be optimized'
         """
 
-        # Host optimization with non-default option which less than MySync "optimal" ones
+    Scenario: CLI turbo mode works properly with non-default replication options
+        Given cluster is up and running
+        Then mysql host "mysql1" should be master
+        And mysql host "mysql2" should be replica of "mysql1"
+        And mysql host "mysql3" should be replica of "mysql1"
+
         When I run SQL on mysql host "mysql1"
         """
         SET GLOBAL innodb_flush_log_at_trx_commit = 2; SET GLOBAL sync_binlog = 999;
@@ -247,7 +250,12 @@ Feature: CLI
         [{"InnodbFlushLogAtTrxCommit":2,"SyncBinlog":999}]
         """
 
-        # Host optimization with non-default option which more than MySync "optimal" ones
+    Scenario: CLI turbo mode works properly with non-default replication options which are more than MySync optimal ones
+        Given cluster is up and running
+        Then mysql host "mysql1" should be master
+        And mysql host "mysql2" should be replica of "mysql1"
+        And mysql host "mysql3" should be replica of "mysql1"
+
         When I run SQL on mysql host "mysql1"
         """
         SET GLOBAL innodb_flush_log_at_trx_commit = 2; SET GLOBAL sync_binlog = 1001;
@@ -275,7 +283,6 @@ Feature: CLI
         Can't optimize host in status 'configuration of the cluster is already optimized'
         """
 
-        # Host optimization with non-default option 'innodb_flush_log_at_trx_commit'
         When I run SQL on mysql host "mysql1"
         """
         SET GLOBAL innodb_flush_log_at_trx_commit = 0; SET GLOBAL sync_binlog = 3;
@@ -309,7 +316,12 @@ Feature: CLI
         Can't optimize host in status 'host is master'
         """
 
-        # Master host can't be optimizated
+    Scenario: CLI turbo mode works properly on master host
+        Given cluster is up and running
+        Then mysql host "mysql1" should be master
+        And mysql host "mysql2" should be replica of "mysql1"
+        And mysql host "mysql3" should be replica of "mysql1"
+
         When I run command on host "mysql1"
         """
         mysync turbo on
