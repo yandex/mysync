@@ -1090,7 +1090,7 @@ func (lhs *ReplicationSettings) Equal(rhs *ReplicationSettings) bool {
 	return false
 }
 
-// There may be the cases where the user specified master settings that are higher than our "optimal" ones or equal to them.
+// There may be cases where the user specified master settings that are higher than our "optimal" ones or equal to them.
 func (rs *ReplicationSettings) CanBeOptimized() bool {
 	if rs.SyncBinlog >= optimalSyncBinlogValue {
 		return false

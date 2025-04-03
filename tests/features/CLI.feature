@@ -250,7 +250,7 @@ Feature: CLI
         [{"InnodbFlushLogAtTrxCommit":2,"SyncBinlog":999}]
         """
 
-    Scenario: CLI turbo mode works properly with non-default replication options which are more than MySync optimal ones
+    Scenario: CLI turbo mode works properly with non-default replication options, which are more than MySync optimal ones
         Given cluster is up and running
         Then mysql host "mysql1" should be master
         And mysql host "mysql2" should be replica of "mysql1"
