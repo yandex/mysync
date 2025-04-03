@@ -1188,8 +1188,8 @@ func (app *App) updateActiveNodes(clusterState, clusterStateDcs map[string]*Node
 			return err
 		}
 
-    node := app.cluster.Get(host)
-    err = node.OptimizeReplication()
+		node := app.cluster.Get(host)
+		err = node.OptimizeReplication()
 		if err != nil {
 			app.logger.Warnf("failed to enable optimization on slave %s: %v", host, err)
 		}
