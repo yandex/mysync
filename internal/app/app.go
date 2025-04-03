@@ -1187,6 +1187,12 @@ func (app *App) updateActiveNodes(clusterState, clusterStateDcs map[string]*Node
 		if err != nil {
 			return err
 		}
+
+    node := app.cluster.Get(host)
+    err = node.OptimizeReplication()
+		if err != nil {
+			app.logger.Warnf("failed to enable optimization on slave %s: %v", host, err)
+		}
 	}
 
 	// enlarge HA-group, if needed (and if possible)
@@ -1590,6 +1596,15 @@ func (app *App) performSwitchover(clusterState map[string]*NodeState, activeNode
 	}
 
 	return nil
+}
+
+func (app *App) SetDefaultReplicationSettingsForNode(node *mysql.Node) error {
+	masterFqdn, err := app.GetMasterHostFromDcs()
+	if err != nil {
+		return err
+	}
+	master := app.cluster.Get(masterFqdn)
+	return node.SetDefaultReplicationSettings(master)
 }
 
 func (app *App) getCurrentMaster(clusterState map[string]*NodeState) (string, error) {
