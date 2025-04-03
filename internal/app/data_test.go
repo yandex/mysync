@@ -63,21 +63,53 @@ func newMockNodeState() *NodeState {
 }
 
 func TestUpdateBinlogWithChanges(t *testing.T) {
-	oldBinlogPostion := "test_master_log_file0000000000000000001"
+	oldLogFile := "test_master_log_file"
+	maxLogPos := int64(1)
+
 	ns := newMockNodeState()
 
-	newBinlogPos := ns.UpdateBinlogStatus(oldBinlogPostion)
+	oldLogFile, maxLogPos = ns.UpdateBinlogStatus(oldLogFile, maxLogPos)
 
-	require.Equal(t, "test_master_log_file0000000000000000002", newBinlogPos)
+	require.Equal(t, "test_master_log_file", oldLogFile)
+	require.Equal(t, int64(2), maxLogPos)
 	require.Equal(t, true, ns.IsLoadingBinlog)
 }
 
 func TestUpdateBinlogWithoutChanges(t *testing.T) {
-	oldBinlogPostion := "test_master_log_file0000000000000000002"
+	oldLogFile := "test_master_log_file"
+	maxLogPos := int64(2)
+
 	ns := newMockNodeState()
 
-	newBinlogPos := ns.UpdateBinlogStatus(oldBinlogPostion)
+	oldLogFile, maxLogPos = ns.UpdateBinlogStatus(oldLogFile, maxLogPos)
 
-	require.Equal(t, "test_master_log_file0000000000000000002", newBinlogPos)
+	require.Equal(t, "test_master_log_file", oldLogFile)
+	require.Equal(t, int64(2), maxLogPos)
+	require.Equal(t, false, ns.IsLoadingBinlog)
+}
+
+func TestUpdateBinlogAfterReloading(t *testing.T) {
+	oldLogFile := "test_master_log_file"
+	maxLogPos := int64(5)
+
+	ns := newMockNodeState()
+
+	oldLogFile, maxLogPos = ns.UpdateBinlogStatus(oldLogFile, maxLogPos)
+
+	require.Equal(t, "test_master_log_file", oldLogFile)
+	require.Equal(t, int64(5), maxLogPos)
+	require.Equal(t, false, ns.IsLoadingBinlog)
+}
+
+func TestUpdateBinlogAfterMasterSwitch(t *testing.T) {
+	oldLogFile := "old_log_file"
+	maxLogPos := int64(5)
+
+	ns := newMockNodeState()
+
+	oldLogFile, maxLogPos = ns.UpdateBinlogStatus(oldLogFile, maxLogPos)
+
+	require.Equal(t, "test_master_log_file", oldLogFile)
+	require.Equal(t, int64(2), maxLogPos)
 	require.Equal(t, false, ns.IsLoadingBinlog)
 }

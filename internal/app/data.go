@@ -149,14 +149,30 @@ func (ss *SlaveState) GetCurrentBinlogPosition() string {
 	return fmt.Sprintf("%s%019d", ss.MasterLogFile, ss.MasterLogPos)
 }
 
-func (ns *NodeState) UpdateBinlogStatus(oldBinloPos string) (newBinlogPos string) {
-	if ns.SlaveState != nil {
-		newBinlogPos = ns.SlaveState.GetCurrentBinlogPosition()
+func (ns *NodeState) UpdateBinlogStatus(oldLogFile string, maxLogPos int64) (string, int64) {
+	if ns.SlaveState == nil {
+		return "", 0
+	}
+	newLogFile := ns.SlaveState.MasterLogFile
+	newLogPos := ns.SlaveState.MasterLogPos
 
-		ns.IsLoadingBinlog = newBinlogPos > oldBinloPos
+	// IsLoadingBinlog is reset to false when starting to load a new binlog file.
+	// Example:
+	//   - Current position: MasterLogFile = "mysql-bin.000016", MasterLogPos = 784
+	//   - When switching to "mysql-bin.000017", IsLoadingBinlog becomes false
+	//     until the new file begins processing.
+	if newLogFile != oldLogFile {
+		ns.IsLoadingBinlog = false
+		return newLogFile, newLogPos
 	}
 
-	return
+	ns.IsLoadingBinlog = newLogPos > maxLogPos
+
+	if ns.IsLoadingBinlog {
+		return oldLogFile, newLogPos
+	} else {
+		return oldLogFile, maxLogPos
+	}
 }
 
 func (ns *NodeState) String() string {
