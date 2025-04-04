@@ -1082,9 +1082,9 @@ type ReplicationSettings struct {
 	SyncBinlog                int `db:"SyncBinlog"`
 }
 
-func (lhs *ReplicationSettings) Equal(rhs *ReplicationSettings) bool {
-	if lhs.SyncBinlog == rhs.SyncBinlog &&
-		lhs.InnodbFlushLogAtTrxCommit == rhs.InnodbFlushLogAtTrxCommit {
+func (rs *ReplicationSettings) Equal(anotherRs *ReplicationSettings) bool {
+	if rs.SyncBinlog == anotherRs.SyncBinlog &&
+		rs.InnodbFlushLogAtTrxCommit == anotherRs.InnodbFlushLogAtTrxCommit {
 		return true
 	}
 	return false

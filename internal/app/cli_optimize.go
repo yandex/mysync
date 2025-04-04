@@ -113,8 +113,8 @@ type HostOptimizationStatus string
 
 const (
 	OptimizationRunning        HostOptimizationStatus = "optimization is running"
-	Optimizable                                       = "can be optimized"
-	UnoptimizableConfiguration                        = "configuration of the cluster is already optimized"
-	HostRoleMaster                                    = "host is master"
-	Unknown                                           = "unknown"
+	Optimizable                HostOptimizationStatus = "can be optimized"
+	UnoptimizableConfiguration HostOptimizationStatus = "configuration of the cluster is already optimized"
+	HostRoleMaster             HostOptimizationStatus = "host is master"
+	Unknown                    HostOptimizationStatus = "unknown"
 )
