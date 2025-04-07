@@ -138,7 +138,7 @@ Feature: CLI
 
         When I run SQL on mysql host "mysql2"
         """
-        SELECT @@innodb_flush_log_at_trx_commit as InnodbFlushLogAtTrxCommit, @@sync_binlog as SyncBinlog
+        SELECT @@GLOBAL.innodb_flush_log_at_trx_commit as InnodbFlushLogAtTrxCommit, @@GLOBAL.sync_binlog as SyncBinlog
         """
         Then SQL result should match json
         """
@@ -161,7 +161,7 @@ Feature: CLI
         Then command return code should be "0"
         When I run SQL on mysql host "mysql2"
         """
-        SELECT @@innodb_flush_log_at_trx_commit as InnodbFlushLogAtTrxCommit, @@sync_binlog as SyncBinlog
+        SELECT @@GLOBAL.innodb_flush_log_at_trx_commit as InnodbFlushLogAtTrxCommit, @@GLOBAL.sync_binlog as SyncBinlog
         """
         Then SQL result should match json
         """
@@ -184,7 +184,7 @@ Feature: CLI
         Then command return code should be "0"
         When I run SQL on mysql host "mysql2"
         """
-        SELECT @@innodb_flush_log_at_trx_commit as InnodbFlushLogAtTrxCommit, @@sync_binlog as SyncBinlog
+        SELECT @@GLOBAL.innodb_flush_log_at_trx_commit as InnodbFlushLogAtTrxCommit, @@GLOBAL.sync_binlog as SyncBinlog
         """
         Then SQL result should match json
         """
@@ -230,7 +230,7 @@ Feature: CLI
         Then command return code should be "0"
         When I run SQL on mysql host "mysql2"
         """
-        SELECT @@innodb_flush_log_at_trx_commit as InnodbFlushLogAtTrxCommit, @@sync_binlog as SyncBinlog
+        SELECT @@GLOBAL.innodb_flush_log_at_trx_commit as InnodbFlushLogAtTrxCommit, @@GLOBAL.sync_binlog as SyncBinlog
         """
         Then SQL result should match json
         """
@@ -243,7 +243,7 @@ Feature: CLI
         Then command return code should be "0"
         When I run SQL on mysql host "mysql2"
         """
-        SELECT @@innodb_flush_log_at_trx_commit as InnodbFlushLogAtTrxCommit, @@sync_binlog as SyncBinlog
+        SELECT @@GLOBAL.innodb_flush_log_at_trx_commit as InnodbFlushLogAtTrxCommit, @@GLOBAL.sync_binlog as SyncBinlog
         """
         Then SQL result should match json
         """

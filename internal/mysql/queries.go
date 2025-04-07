@@ -127,7 +127,7 @@ var DefaultQueries = map[string]string{
 						FOR CHANNEL :channel`,
 	queryIgnoreDB:                     `CHANGE REPLICATION FILTER REPLICATE_IGNORE_DB = (:ignoreList) FOR CHANNEl :channel`,
 	querySetInnodbFlushLogAtTrxCommit: `SET GLOBAL innodb_flush_log_at_trx_commit = :level`,
-	queryGetReplicationSettings:       `SELECT @@innodb_flush_log_at_trx_commit as InnodbFlushLogAtTrxCommit, @@sync_binlog as SyncBinlog`,
+	queryGetReplicationSettings:       `SELECT @@GLOBAL.innodb_flush_log_at_trx_commit as InnodbFlushLogAtTrxCommit, @@GLOBAL.sync_binlog as SyncBinlog`,
 	querySetSyncBinlog:                `SET GLOBAL sync_binlog = :sync_binlog`,
 	queryGetReplMonTS:                 `SELECT UNIX_TIMESTAMP(ts) AS ts FROM :replMonSchemeName.:replMonTable`,
 	queryCalcReplMonTSDelay:           `SELECT FLOOR(CAST(:ts AS DECIMAL(20,3)) - UNIX_TIMESTAMP(ts)) AS delay FROM :replMonSchemeName.:replMonTable`,
