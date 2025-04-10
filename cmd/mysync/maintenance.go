@@ -17,8 +17,8 @@ var maintCmd = &cobra.Command{
 	Use:     "maintenance",
 	Aliases: []string{"maint", "mnt"},
 	Short:   "Enables or disables maintenance mode",
-	Long: ("When maintenance is enabled MySync manager will not perform any actions.\n" +
-		"When maintenance is disabled MySync will analyze cluster state and remember it as correct."),
+	Long: ("When maintenance is enabled, MySync manager will not perform any actions.\n" +
+		"When maintenance is disabled, MySync will analyze cluster state and remember it as correct."),
 }
 
 var maintOnCmd = &cobra.Command{

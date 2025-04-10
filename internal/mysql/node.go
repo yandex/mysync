@@ -51,6 +51,7 @@ var (
 const (
 	optimalSyncBinlogValue                = 1000
 	optimalInnodbFlushLogAtTrxCommitValue = 2
+	defaultInnodbFlushLogAtTrxCommitValue = 1
 )
 
 // NewNode returns new Node
@@ -1079,6 +1080,35 @@ func (n *Node) OptimizeReplication() error {
 type ReplicationSettings struct {
 	InnodbFlushLogAtTrxCommit int `db:"InnodbFlushLogAtTrxCommit"`
 	SyncBinlog                int `db:"SyncBinlog"`
+}
+
+func (rs *ReplicationSettings) Equal(anotherRs *ReplicationSettings) bool {
+	if rs.SyncBinlog == anotherRs.SyncBinlog &&
+		rs.InnodbFlushLogAtTrxCommit == anotherRs.InnodbFlushLogAtTrxCommit {
+		return true
+	}
+	return false
+}
+
+// There may be cases where the user specified master settings that are higher than our "optimal" ones or equal to them.
+func (rs *ReplicationSettings) CanBeOptimized() bool {
+	if rs.SyncBinlog >= optimalSyncBinlogValue {
+		return false
+	}
+
+	if rs.InnodbFlushLogAtTrxCommit != optimalInnodbFlushLogAtTrxCommitValue &&
+		rs.InnodbFlushLogAtTrxCommit != defaultInnodbFlushLogAtTrxCommitValue {
+		return false
+	}
+
+	return true
+}
+
+// GetReplicationSettings retrieves replication settings from the host
+func (n *Node) GetReplicationSettings() (ReplicationSettings, error) {
+	var rs ReplicationSettings
+	err := n.queryRow(queryGetReplicationSettings, nil, &rs)
+	return rs, err
 }
 
 // SetDefaultReplicationSettings sets default values for replication based on the value on the master

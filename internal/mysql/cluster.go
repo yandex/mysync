@@ -152,7 +152,7 @@ func (c *Cluster) Get(host string) *Node {
 	return c.cascadeNodes[host]
 }
 
-// Local returns MySQL Node running on the same not as current mysync process
+// Local returns a MySQL Node running on the same host as the current mysync process
 func (c *Cluster) Local() *Node {
 	return c.local
 }
