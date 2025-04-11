@@ -2,7 +2,7 @@ package log
 
 import (
 	"fmt"
-	"log"
+	"log/syslog"
 	"os"
 	"os/signal"
 	"strings"
@@ -89,18 +89,18 @@ func (l *Logger) ReOpen() error {
 		l.fh = os.Stderr
 		return nil
 	}
-	if l.fh != nil {
-		_ = l.fh.Close()
-	}
 	fh, err := os.OpenFile(l.path, os.O_WRONLY|os.O_CREATE|os.O_APPEND, 0644)
 	if err != nil {
 		return fmt.Errorf("failed to open log %s: %w", l.path, err)
+	}
+	if l.fh != nil {
+		_ = l.fh.Close()
 	}
 	l.fh = fh
 	return nil
 }
 
-func (l *Logger) ReOpenOnSignal(sig syscall.Signal) {
+func (l *Logger) ReOpenOnSignal(sig syscall.Signal, syslog *syslog.Writer) {
 	sigs := make(chan os.Signal, 1)
 	signal.Notify(sigs, sig)
 	go func() {
@@ -108,7 +108,7 @@ func (l *Logger) ReOpenOnSignal(sig syscall.Signal) {
 			<-sigs
 			err := l.ReOpen()
 			if err != nil {
-				log.Printf("failed to reopen log file: %v", err)
+				WriteSysLogError(syslog, fmt.Sprintf("failed to reopen log file: %v", err))
 			}
 		}
 	}()
