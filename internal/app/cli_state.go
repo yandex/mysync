@@ -7,7 +7,7 @@ import (
 
 // CliState print state of the cluster to the stdout
 func (app *App) CliState(short bool) int {
-  cancel, err := app.cliInitApp()
+	cancel, err := app.cliInitApp()
 	if err != nil {
 		app.logger.Error(err.Error())
 		return 1
@@ -33,4 +33,3 @@ func (app *App) CliState(short bool) int {
 	fmt.Print(string(data))
 	return 0
 }
-

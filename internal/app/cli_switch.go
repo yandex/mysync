@@ -1,12 +1,12 @@
 package app
 
 import (
+	"bufio"
 	"context"
 	"fmt"
+	"os"
+	"strings"
 	"time"
-  "os"
-  "strings"
-  "bufio"
 
 	"github.com/yandex/mysync/internal/dcs"
 	"github.com/yandex/mysync/internal/util"
@@ -25,7 +25,7 @@ func (app *App) CliSwitch(switchFrom, switchTo string, waitTimeout time.Duration
 		return 1
 	}
 
-  cancel, err := app.cliInitApp()
+	cancel, err := app.cliInitApp()
 	if err != nil {
 		app.logger.Error(err.Error())
 		return 1
@@ -214,4 +214,3 @@ func (app *App) CliAbort() int {
 	fmt.Printf("switchover aborted\n")
 	return 0
 }
-

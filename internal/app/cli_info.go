@@ -10,8 +10,8 @@ import (
 )
 
 // CliInfo is CLI command printing information from DCS to the stdout
-func (app *App) CliInfo(short bool) int {	
-  cancel, err := app.cliInitApp()
+func (app *App) CliInfo(short bool) int {
+	cancel, err := app.cliInitApp()
 	if err != nil {
 		app.logger.Error(err.Error())
 		return 1
@@ -116,4 +116,3 @@ func (app *App) CliInfo(short bool) int {
 	fmt.Print(string(data))
 	return 0
 }
-
