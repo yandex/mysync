@@ -19,6 +19,8 @@ apt-get install \
 apt-key add - </var/lib/dist/base/percona.gpg
 add-apt-repository 'deb http://mirror.yandex.ru/mirrors/percona/percona/apt jammy main'
 add-apt-repository 'deb http://mirror.yandex.ru/mirrors/percona/ps-80/apt jammy main'
+add-apt-repository 'deb http://mirror.yandex.ru/mirrors/percona/ps-84-lts/apt jammy main'
+add-apt-repository 'deb http://mirror.yandex.ru/mirrors/percona/pxb-84-lts/apt jammy main'
 
 # common
 apt-get update
