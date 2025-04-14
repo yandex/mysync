@@ -95,7 +95,8 @@ var DefaultQueries = map[string]string{
 								MASTER_AUTO_POSITION = 1,
 								MASTER_CONNECT_RETRY = :connectRetry,
 								MASTER_RETRY_COUNT = :retryCount,
-								MASTER_HEARTBEAT_PERIOD = :heartbeatPeriod
+								MASTER_HEARTBEAT_PERIOD = :heartbeatPeriod,
+								MASTER_DELAY = :delay
 						FOR CHANNEL :channel`,
 	querySemiSyncStatus: `SELECT @@rpl_semi_sync_master_enabled AS MasterEnabled,
 								 @@rpl_semi_sync_slave_enabled AS SlaveEnabled,
@@ -131,7 +132,8 @@ var DefaultQueries = map[string]string{
 								SOURCE_AUTO_POSITION = 1,
 								SOURCE_CONNECT_RETRY = :connectRetry,
 								SOURCE_RETRY_COUNT = :retryCount,
-								SOURCE_DELAY = :sourceDelay
+								SOURCE_HEARTBEAT_PERIOD = :heartbeatPeriod,
+								SOURCE_DELAY = :delay
 						FOR CHANNEL :channel`,
 	queryIgnoreDB:                     `CHANGE REPLICATION FILTER REPLICATE_IGNORE_DB = (:ignoreList) FOR CHANNEl :channel`,
 	querySetInnodbFlushLogAtTrxCommit: `SET GLOBAL innodb_flush_log_at_trx_commit = :level`,

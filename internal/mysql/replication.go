@@ -108,7 +108,7 @@ func (er *ExternalReplication) Set(n *Node) error {
 		"password":        replSettings.SourcePassword,
 		"ssl":             useSsl,
 		"sslCa":           sslCa,
-		"sourceDelay":     replSettings.SourceDelay,
+		"delay":           replSettings.SourceDelay,
 		"retryCount":      n.config.MySQL.ReplicationRetryCount,
 		"connectRetry":    n.config.MySQL.ReplicationConnectRetry,
 		"heartbeatPeriod": n.config.MySQL.ReplicationHeartbeatPeriod,
