@@ -18,8 +18,12 @@ const (
 	queryStartSlave                     = "start_slave"
 	queryStopSlaveIOThread              = "stop_slave_io_thread"
 	queryStartSlaveIOThread             = "start_slave_io_thread"
+	queryStopReplicaIOThread            = "stop_replica_io_thread"
+	queryStartReplicaIOThread           = "start_replica_io_thread"
 	queryStopSlaveSQLThread             = "stop_slave_sql_thread"
 	queryStartSlaveSQLThread            = "start_slave_sql_thread"
+	queryStopReplicaSQLThread           = "stop_replica_sql_thread"
+	queryStartReplicaSQLThread          = "start_replica_sql_thread"
 	queryResetSlaveAll                  = "reset_slave_all"
 	queryChangeMaster                   = "change_master"
 	querySemiSyncStatus                 = "semisync_status"
@@ -53,29 +57,33 @@ const (
 )
 
 var DefaultQueries = map[string]string{
-	queryPing:                `SELECT 1 AS Ok`,
-	querySlaveStatus:         `SHOW SLAVE STATUS FOR CHANNEL :channel`,
-	queryReplicaStatus:       `SHOW REPLICA STATUS FOR CHANNEL :channel`,
-	queryGetVersion:          `SELECT sys.version_major() AS MajorVersion, sys.version_minor() AS MinorVersion, sys.version_patch() AS PatchVersion`,
-	queryGTIDExecuted:        `SELECT @@GLOBAL.gtid_executed as Executed_Gtid_Set`,
-	queryGetUUID:             `SELECT @@server_uuid as server_uuid`,
-	queryShowBinaryLogs:      `SHOW BINARY LOGS`,
-	querySlaveHosts:          `SHOW SLAVE HOSTS`,
-	queryReplicationLag:      ``,
-	queryIsReadOnly:          `SELECT @@read_only AS ReadOnly, @@super_read_only AS SuperReadOnly`,
-	querySetReadonly:         `SET GLOBAL super_read_only = 1`, // @@read_only will be set automatically
-	querySetReadonlyNoSuper:  `SET GLOBAL read_only = 1, super_read_only = 0`,
-	querySetWritable:         `SET GLOBAL read_only = 0`, // @@super_read_only will be unset automatically
-	queryStopSlave:           `STOP SLAVE FOR CHANNEL :channel`,
-	queryStartSlave:          `START SLAVE FOR CHANNEL :channel`,
-	queryStopReplica:         `STOP REPLICA FOR CHANNEL :channel`,
-	queryStartReplica:        `START REPLICA FOR CHANNEL :channel`,
-	queryStopSlaveIOThread:   `STOP SLAVE IO_THREAD FOR CHANNEL :channel`,
-	queryStartSlaveIOThread:  `START SLAVE IO_THREAD FOR CHANNEL :channel`,
-	queryStopSlaveSQLThread:  `STOP SLAVE SQL_THREAD FOR CHANNEL :channel`,
-	queryStartSlaveSQLThread: `START SLAVE SQL_THREAD FOR CHANNEL :channel`,
-	queryResetSlaveAll:       `RESET SLAVE ALL FOR CHANNEL :channel`,
-	queryResetReplicaAll:     `RESET REPLICA ALL FOR CHANNEL :channel`,
+	queryPing:                  `SELECT 1 AS Ok`,
+	querySlaveStatus:           `SHOW SLAVE STATUS FOR CHANNEL :channel`,
+	queryReplicaStatus:         `SHOW REPLICA STATUS FOR CHANNEL :channel`,
+	queryGetVersion:            `SELECT sys.version_major() AS MajorVersion, sys.version_minor() AS MinorVersion, sys.version_patch() AS PatchVersion`,
+	queryGTIDExecuted:          `SELECT @@GLOBAL.gtid_executed as Executed_Gtid_Set`,
+	queryGetUUID:               `SELECT @@server_uuid as server_uuid`,
+	queryShowBinaryLogs:        `SHOW BINARY LOGS`,
+	querySlaveHosts:            `SHOW SLAVE HOSTS`,
+	queryReplicationLag:        ``,
+	queryIsReadOnly:            `SELECT @@read_only AS ReadOnly, @@super_read_only AS SuperReadOnly`,
+	querySetReadonly:           `SET GLOBAL super_read_only = 1`, // @@read_only will be set automatically
+	querySetReadonlyNoSuper:    `SET GLOBAL read_only = 1, super_read_only = 0`,
+	querySetWritable:           `SET GLOBAL read_only = 0`, // @@super_read_only will be unset automatically
+	queryStopSlave:             `STOP SLAVE FOR CHANNEL :channel`,
+	queryStartSlave:            `START SLAVE FOR CHANNEL :channel`,
+	queryStopReplica:           `STOP REPLICA FOR CHANNEL :channel`,
+	queryStartReplica:          `START REPLICA FOR CHANNEL :channel`,
+	queryStopSlaveIOThread:     `STOP SLAVE IO_THREAD FOR CHANNEL :channel`,
+	queryStartSlaveIOThread:    `START SLAVE IO_THREAD FOR CHANNEL :channel`,
+	queryStopReplicaIOThread:   `STOP REPLICA IO_THREAD FOR CHANNEL :channel`,
+	queryStartReplicaIOThread:  `START REPLICA IO_THREAD FOR CHANNEL :channel`,
+	queryStopSlaveSQLThread:    `STOP SLAVE SQL_THREAD FOR CHANNEL :channel`,
+	queryStartSlaveSQLThread:   `START SLAVE SQL_THREAD FOR CHANNEL :channel`,
+	queryStopReplicaSQLThread:  `STOP REPLICA SQL_THREAD FOR CHANNEL :channel`,
+	queryStartReplicaSQLThread: `START REPLICA SQL_THREAD FOR CHANNEL :channel`,
+	queryResetSlaveAll:         `RESET SLAVE ALL FOR CHANNEL :channel`,
+	queryResetReplicaAll:       `RESET REPLICA ALL FOR CHANNEL :channel`,
 	queryChangeMaster: `CHANGE MASTER TO
 								MASTER_HOST = :host ,
 								MASTER_PORT = :port ,

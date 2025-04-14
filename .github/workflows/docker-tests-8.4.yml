@@ -1,0 +1,107 @@
+name: Docker tests (8.4)
+
+on:
+  push:
+    branches: [ master ]
+  pull_request:
+    branches: [ master ]
+
+env:
+  GO_VERSION: 1.22.4
+  DOCKER_API_VERSION: 1.43
+
+jobs:
+  buildimages:
+    name: Build images
+    runs-on: ubuntu-22.04
+    steps:
+      - name: Check out code into the Go module directory
+        uses: actions/checkout@v4
+
+      - name: Docker images caching
+        id: cache-images
+        uses: actions/cache@v4
+        with:
+          path: ~/mysync-base-img8.4.tgz
+          key: mysync-base-img8.4-${{ hashFiles('tests/images/base/*') }}
+
+      - name: Build images
+        if: steps.cache-images.outputs.cache-hit != 'true'
+        run: make base_img_8.4
+      
+      - name: Export image
+        if: steps.cache-images.outputs.cache-hit != 'true'
+        run: docker save mysync-test-base8.4 | gzip -c > ~/mysync-base-img8.4.tgz
+    
+  test:
+    name: test
+    runs-on: ubuntu-22.04
+    needs: [ buildimages ]
+    strategy:
+      matrix:
+        command:
+          - 'VERSION=8.4 GODOG_FEATURE=active_nodes.feature make test'
+          - 'VERSION=8.4 GODOG_FEATURE=async.feature make test'
+          - 'VERSION=8.4 GODOG_FEATURE=async_setting.feature make test'
+          - 'VERSION=8.4 GODOG_FEATURE=cascade_replicas.feature make test'
+          - 'VERSION=8.4 GODOG_FEATURE=CLI.feature make test'
+          - 'VERSION=8.4 GODOG_FEATURE=crash_recovery.feature make test'
+          - 'VERSION=8.4 GODOG_FEATURE=events_reenable.feature make test'
+          - 'VERSION=8.4 GODOG_FEATURE=external_replication.feature make test'
+          - 'VERSION=8.4 GODOG_FEATURE=failover.feature make test'
+          - 'VERSION=8.4 GODOG_FEATURE=free_space.feature make test'
+          - 'VERSION=8.4 GODOG_FEATURE=host_discovery.feature make test'
+          - 'VERSION=8.4 GODOG_FEATURE=host_management.feature make test'
+          - 'VERSION=8.4 GODOG_FEATURE=maintenance.feature make test'
+          - 'VERSION=8.4 GODOG_FEATURE=offline_mode.feature make test'
+          - 'VERSION=8.4 GODOG_FEATURE=priority.feature make test'
+          - 'VERSION=8.4 GODOG_FEATURE=readonly_filesystem.feature make test'
+          - 'VERSION=8.4 GODOG_FEATURE=recovery.feature make test'
+          - 'VERSION=8.4 GODOG_FEATURE=repair.feature make test'
+          - 'VERSION=8.4 GODOG_FEATURE=repl_mon.feature make test'
+          - 'VERSION=8.4 GODOG_FEATURE=statefile.feature make test'
+          - 'VERSION=8.4 GODOG_FEATURE=switchover_from.feature make test'
+          - 'VERSION=8.4 GODOG_FEATURE=switchover_to.feature make test'
+          - 'VERSION=8.4 GODOG_FEATURE=zk_failure.feature make test'
+          - 'VERSION=8.4 GODOG_FEATURE=zk_maintenance.feature make test'
+          - 'VERSION=8.4 GODOG_FEATURE=manager_switchover.feature make test'
+      fail-fast: false
+
+    steps:
+      - name: Set up Go 1.x
+        uses: actions/setup-go@v5
+        with:
+          go-version: ${{ env.GO_VERSION }}
+        id: go
+
+      - name: Check out code into the Go module directory
+        uses: actions/checkout@v4
+
+      - name: Get dependencies
+        run: |
+          go get -v -t -d ./...
+
+      - name: Load docker images
+        id: cache-images
+        uses: actions/cache@v4
+        with:
+          path: ~/mysync-base-img8.4.tgz
+          key: mysync-base-img8.4-${{ hashFiles('tests/images/base/*') }}
+
+      - name: Fail if no cached images
+        if: steps.cache-images.outputs.cache-hit != 'true'
+        run: |
+          echo "Failed to fetch cached docker images. Will now exit..."
+          exit 1
+      
+      - name: Import image
+        run: docker load -i ~/mysync-base-img8.4.tgz
+        
+      - name: Run test
+        run: ${{ matrix.command }}
+        
+      - uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: logs
+          path: tests/logs

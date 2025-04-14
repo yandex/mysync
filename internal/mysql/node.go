@@ -785,14 +785,24 @@ func (n *Node) SetWritable() error {
 
 // StopSlave stops replication (both IO and SQL threads)
 func (n *Node) StopSlave() error {
-	return n.execMogrifyWithTimeout(queryStopSlave, map[string]any{
+	version, err := n.GetVersion()
+	if err != nil {
+		return err
+	}
+	q := version.GetStopSlaveQuery()
+	return n.execMogrifyWithTimeout(q, map[string]any{
 		"channel": n.config.ReplicationChannel,
 	}, n.config.DBStopSlaveSQLThreadTimeout)
 }
 
 // StartSlave starts replication (both IO and SQL threads)
 func (n *Node) StartSlave() error {
-	return n.execMogrify(queryStartSlave, map[string]any{
+	version, err := n.GetVersion()
+	if err != nil {
+		return err
+	}
+	q := version.GetStartSlaveQuery()
+	return n.execMogrify(q, map[string]any{
 		"channel": n.config.ReplicationChannel,
 	})
 }
@@ -808,14 +818,24 @@ func (n *Node) RestartReplica() error {
 
 // StopSlaveIOThread stops IO replication thread
 func (n *Node) StopSlaveIOThread() error {
-	return n.execMogrify(queryStopSlaveIOThread, map[string]any{
+	version, err := n.GetVersion()
+	if err != nil {
+		return err
+	}
+	q := version.GetStopSlaveIOThreadQuery()
+	return n.execMogrify(q, map[string]any{
 		"channel": n.config.ReplicationChannel,
 	})
 }
 
 // StartSlaveIOThread starts IO replication thread
 func (n *Node) StartSlaveIOThread() error {
-	return n.execMogrify(queryStartSlaveIOThread, map[string]any{
+	version, err := n.GetVersion()
+	if err != nil {
+		return err
+	}
+	q := version.GetStartSlaveIOThreadQuery()
+	return n.execMogrify(q, map[string]any{
 		"channel": n.config.ReplicationChannel,
 	})
 }
@@ -831,21 +851,36 @@ func (n *Node) RestartSlaveIOThread() error {
 
 // StopSlaveSQLThread stops SQL replication thread
 func (n *Node) StopSlaveSQLThread() error {
-	return n.execMogrifyWithTimeout(queryStopSlaveSQLThread, map[string]any{
+	version, err := n.GetVersion()
+	if err != nil {
+		return err
+	}
+	q := version.GetStopSlaveSQLThreadQuery()
+	return n.execMogrifyWithTimeout(q, map[string]any{
 		"channel": n.config.ReplicationChannel,
 	}, n.config.DBStopSlaveSQLThreadTimeout)
 }
 
 // StartSlaveSQLThread starts SQL replication thread
 func (n *Node) StartSlaveSQLThread() error {
-	return n.execMogrify(queryStartSlaveSQLThread, map[string]any{
+	version, err := n.GetVersion()
+	if err != nil {
+		return err
+	}
+	q := version.GetStartSlaveSQLThreadQuery()
+	return n.execMogrify(q, map[string]any{
 		"channel": n.config.ReplicationChannel,
 	})
 }
 
 // ResetSlaveAll promotes MySQL Node to be master
 func (n *Node) ResetSlaveAll() error {
-	return n.execMogrify(queryResetSlaveAll, map[string]any{
+	version, err := n.GetVersion()
+	if err != nil {
+		return err
+	}
+	q := version.GetResetSlaveQuery()
+	return n.execMogrify(q, map[string]any{
 		"channel": n.config.ReplicationChannel,
 	})
 }
@@ -918,7 +953,12 @@ func (n *Node) ChangeMaster(host string) error {
 	if n.config.MySQL.ReplicationSslCA != "" {
 		useSsl = 1
 	}
-	return n.execMogrify(queryChangeMaster, map[string]any{
+	version, err := n.GetVersion()
+	if err != nil {
+		return err
+	}
+	q := version.GetChangeMasterQuery()
+	return n.execMogrify(q, map[string]any{
 		"host":            host,
 		"port":            n.config.MySQL.ReplicationPort,
 		"user":            n.config.MySQL.ReplicationUser,

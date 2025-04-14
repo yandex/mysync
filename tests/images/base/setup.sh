@@ -57,6 +57,10 @@ if [[ "$MYSQL_VERSION" == "8.0" ]]; then
   apt-get install \
     percona-server-server=8.0.\* \
     percona-xtrabackup-80
+elif [[ "$MYSQL_VERSION" == "8.4" ]]; then
+  apt-get install \
+    percona-server-server=8.4.\* \
+    percona-xtrabackup-84
 else
   apt-get install \
     percona-xtradb-cluster-server-${MYSQL_VERSION} \

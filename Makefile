@@ -18,6 +18,9 @@ base_img:
 base_img_8.0:
 	docker build --tag=mysync-test-base8.0 tests/images/base --build-arg MYSQL_VERSION=8.0
 
+base_img_8.4:
+	docker build --tag=mysync-test-base8.4 tests/images/base --build-arg MYSQL_VERSION=8.4
+
 jepsen_base_img:
 	docker build --tag=mysync-jepsen-test-base tests/images/jepsen_common
 
