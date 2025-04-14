@@ -24,6 +24,7 @@ if [[ "$MYSQL_VERSION" == "8.0" ]]; then
 elif [[ "$MYSQL_VERSION" == "8.4" ]]; then
   add-apt-repository 'deb http://mirror.yandex.ru/mirrors/percona/ps-84-lts/apt jammy main'
   add-apt-repository 'deb http://mirror.yandex.ru/mirrors/percona/pxb-84-lts/apt jammy main'
+  add-apt-repository 'deb http://mirror.yandex.ru/mirrors/percona/psmdb-60/apt jammy main'
 fi
 
 # common
