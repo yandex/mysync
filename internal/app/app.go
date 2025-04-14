@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"log/syslog"
 	"os"
 	"os/signal"
 	"sort"
@@ -28,6 +29,7 @@ import (
 type App struct {
 	state               appState
 	logger              *log.Logger
+	sysLog              *syslog.Writer
 	config              *config.Config
 	dcs                 dcs.DCS
 	cluster             *mysql.Cluster
@@ -45,6 +47,12 @@ type App struct {
 
 // NewApp returns new App. Suddenly.
 func NewApp(configFile, logLevel string, interactive bool) (*App, error) {
+	sysLog, err := syslog.New(syslog.LOG_INFO, "mysync_sys")
+	if err != nil {
+		// So we would use stderr instead
+		sysLog = nil
+	}
+	log.WriteSysLogInfo(sysLog, "Making new app")
 	config, err := config.ReadFromFile(configFile)
 	if err != nil {
 		return nil, err
@@ -56,19 +64,28 @@ func NewApp(configFile, logLevel string, interactive bool) (*App, error) {
 	}
 	logger, err := log.Open(logPath, logLevel)
 	if err != nil {
+		errStr := fmt.Sprintf("logger creation failed: %s", err)
+		sysErr := sysLog.Err(errStr)
+		if sysErr != nil {
+			return nil, sysErr
+		}
 		return nil, err
 	}
+	log.WriteSysLogInfo(sysLog, "logger created")
 	if logPath != "" {
-		logger.ReOpenOnSignal(syscall.SIGUSR2)
+		logger.ReOpenOnSignal(syscall.SIGUSR2, sysLog)
 	}
+	log.WriteSysLogInfo(sysLog, "logger initilization completed")
 	externalReplication, err := mysql.NewExternalReplication(config.ExternalReplicationType, logger)
 	if err != nil {
+		logger.Errorf("external replication initialization failed: %s", err)
 		return nil, err
 	}
 	switchHelper := mysql.NewSwitchHelper(config)
 	app := &App{
 		state:               stateFirstRun,
 		config:              config,
+		sysLog:              sysLog,
 		logger:              logger,
 		nodeFailedAt:        make(map[string]time.Time),
 		streamFromFailedAt:  make(map[string]time.Time),
@@ -77,6 +94,7 @@ func NewApp(configFile, logLevel string, interactive bool) (*App, error) {
 		externalReplication: externalReplication,
 		switchHelper:        switchHelper,
 	}
+	logger.Info("app created")
 	return app, nil
 }
 
@@ -2501,6 +2519,7 @@ Run enters the main application loop
 When Run exits mysync process is over
 */
 func (app *App) Run() int {
+	app.logger.Info("MYSYNC START")
 	ctx := app.baseContext()
 
 	err := app.lockFile()
@@ -2510,7 +2529,6 @@ func (app *App) Run() int {
 	}
 	defer app.unlockFile()
 
-	app.logger.Infof("MYSYNC START")
 	app.logger.Infof("config failover: %v semisync: %v", app.config.Failover, app.config.SemiSync)
 
 	err = app.connectDCS()
