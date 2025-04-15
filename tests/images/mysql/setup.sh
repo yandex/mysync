@@ -32,7 +32,7 @@ fi
 
 cp /var/lib/dist/mysql/.my.cnf /root/.my.cnf
 if [[ "$VERSION" == "8.4" ]]; then
-  cp /var/lib/dist/mysql/supervisor_mysql.conf.8.4 /etc/supervisor/conf.d
+  cp /var/lib/dist/mysql/supervisor_mysql.conf.8.4 /etc/supervisor/conf.d/supervisor_mysql.conf
 else
-  cp /var/lib/dist/mysql/supervisor_mysql.conf /etc/supervisor/conf.d
+  cp /var/lib/dist/mysql/supervisor_mysql.conf /etc/supervisor/conf.d/supervisor_mysql.conf
 fi
