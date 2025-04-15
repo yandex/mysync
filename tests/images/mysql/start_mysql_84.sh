@@ -5,10 +5,10 @@ set -e
 
 cat <<EOF > /etc/mysql/init.sql
    SET GLOBAL super_read_only = 0;
-   CREATE USER $MYSQL_ADMIN_USER@'%' IDENTIFIED BY '$MYSQL_ADMIN_PASSWORD';
+   CREATE USER $MYSQL_ADMIN_USER@'%' IDENTIFIED WITH mysql_native_password BY '$MYSQL_ADMIN_PASSWORD';
    GRANT ALL ON *.* TO $MYSQL_ADMIN_USER@'%' WITH GRANT OPTION;
-   CREATE USER repl@'%' IDENTIFIED BY 'repl_pwd';
-   CREATE USER user@'%' IDENTIFIED BY 'user_pwd';
+   CREATE USER repl@'%' IDENTIFIED WITH mysql_native_password BY 'repl_pwd';
+   CREATE USER user@'%' IDENTIFIED WITH mysql_native_password BY 'user_pwd';
    GRANT ALL ON *.* TO user@'%';
    GRANT REPLICATION SLAVE ON *.* TO repl@'%';
    CREATE DATABASE test1;
