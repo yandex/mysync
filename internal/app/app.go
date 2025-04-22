@@ -2054,7 +2054,7 @@ func (app *App) repairCascadeNode(node *mysql.Node, clusterState map[string]*Nod
 
 		if gtids.IsSplitBrained(myGITIDs, candidateGTIDs, candidateUUID) {
 			app.logger.Errorf("repair: %s and %s are splitbrained...", host, upstreamCandidate)
-			app.writeEmergeFile("cascade replica splitbrain detected")
+			app.writeEmergeFile(fmt.Sprintf("cascade replica splitbrain detected\nCascade replica gtids:%s\nCandidate gtids:%s\n", myGITIDs, candidateGTIDs))
 			return
 		}
 		if gtids.IsSlaveBehindOrEqual(myGITIDs, candidateGTIDs) {
