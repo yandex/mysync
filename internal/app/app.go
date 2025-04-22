@@ -8,6 +8,7 @@ import (
 	"log/syslog"
 	"os"
 	"os/signal"
+	"slices"
 	"sort"
 	"strings"
 	"sync"
@@ -965,11 +966,9 @@ func (app *App) emulateError(pos string) bool {
 		return false
 	}
 	ee := util.GetEnvVariable("MYSYNC_EMULATE_ERROR", "")
-	for _, emulatedError := range strings.Split(ee, ",") {
-		if pos == emulatedError {
-			app.logger.Debugf("devmode: error emulated: %s", pos)
-			return true
-		}
+	if slices.Contains(strings.Split(ee, ","), pos) {
+		app.logger.Debugf("devmode: error emulated: %s", pos)
+		return true
 	}
 	return false
 }
@@ -1012,13 +1011,13 @@ func (app *App) calcActiveNodes(clusterState, clusterStateDcs map[string]*NodeSt
 		if node.IsCascade {
 			continue
 		}
-		if hostsOnRecovery != nil && util.ContainsString(hostsOnRecovery, host) {
+		if hostsOnRecovery != nil && slices.Contains(hostsOnRecovery, host) {
 			continue
 		}
 		if !node.PingOk {
 			if node.PingDubious || clusterStateDcs[host].PingOk {
 				// we can't rely on ping and slave status if ping was dubious
-				if util.ContainsString(oldActiveNodes, host) {
+				if slices.Contains(oldActiveNodes, host) {
 					app.logger.Warnf("calc active nodes: %s is dubious or keep health lock in dcs, keeping active...", host)
 					activeNodes = append(activeNodes, host)
 				}
@@ -1029,7 +1028,7 @@ func (app *App) calcActiveNodes(clusterState, clusterStateDcs map[string]*NodeSt
 			}
 			failingTime := time.Since(app.nodeFailedAt[host])
 			if failingTime < app.config.InactivationDelay {
-				if util.ContainsString(oldActiveNodes, host) {
+				if slices.Contains(oldActiveNodes, host) {
 					app.logger.Warnf("calc active nodes: %s is failing: remaining %v", host, app.config.InactivationDelay-failingTime)
 					activeNodes = append(activeNodes, host)
 				}
@@ -1335,7 +1334,7 @@ func (app *App) disableSemiSyncIfNonNeeded(node *mysql.Node, state *NodeState) {
 // nolint: gocyclo, funlen
 func (app *App) performSwitchover(clusterState map[string]*NodeState, activeNodes []string, switchover *Switchover, oldMaster string) error {
 	if switchover.To != "" {
-		if !util.ContainsString(activeNodes, switchover.To) {
+		if !slices.Contains(activeNodes, switchover.To) {
 			return errors.New("switchover: failed: replica is not active, can't switch to it")
 		}
 	}
@@ -2104,7 +2103,7 @@ func (app *App) findBestStreamFrom(node *mysql.Node, clusterState map[string]*No
 		if streamFrom == "" {
 			return master
 		}
-		if util.ContainsString(loopDetector, streamFrom) {
+		if slices.Contains(loopDetector, streamFrom) {
 			loopDetector = append(loopDetector, streamFrom)
 			app.logger.Errorf("repair: found loop in stream_from references. Fallback to master. Loop: %s", strings.Join(loopDetector, " -> "))
 			return master

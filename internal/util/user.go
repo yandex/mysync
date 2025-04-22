@@ -17,7 +17,7 @@ func GuessWhoRunning() string {
 		return ""
 	}
 
-	for i := 0; i < 50; i++ {
+	for range 50 {
 		if p == nil {
 			return "unknown_dolphin"
 		}

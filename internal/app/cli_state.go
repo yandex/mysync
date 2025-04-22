@@ -16,7 +16,7 @@ func (app *App) CliState(short bool) int {
 	defer cancel()
 
 	clusterState := app.getClusterStateFromDB()
-	var tree interface{}
+	var tree any
 	if short {
 		clusterStateStrings := make(map[string]string)
 		for host, state := range clusterState {

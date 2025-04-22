@@ -5,6 +5,7 @@ import (
 	"context"
 	"fmt"
 	"os"
+	"slices"
 	"strings"
 	"time"
 
@@ -68,7 +69,7 @@ func (app *App) CliSwitch(switchFrom, switchTo string, waitTimeout time.Duration
 			fmt.Println("switchover done")
 			return 0
 		}
-		if !util.ContainsString(activeNodes, toHost) {
+		if !slices.Contains(activeNodes, toHost) {
 			app.logger.Errorf("%s is not active, can't switch to it", toHost)
 			return 1
 		}
@@ -79,14 +80,14 @@ func (app *App) CliSwitch(switchFrom, switchTo string, waitTimeout time.Duration
 			app.logger.Errorf("no HA-nodes matches '%s', check --from param", switchFrom)
 			return 1
 		}
-		if !util.ContainsString(notDesired, currentMaster) {
+		if !slices.Contains(notDesired, currentMaster) {
 			app.logger.Infof("master is already not on %v, skipping...", notDesired)
 			fmt.Println("switchover done")
 			return 0
 		}
 		var candidates []string
 		for _, node := range activeNodes {
-			if !util.ContainsString(notDesired, node) {
+			if !slices.Contains(notDesired, node) {
 				candidates = append(candidates, node)
 			}
 		}
