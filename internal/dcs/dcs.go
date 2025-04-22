@@ -19,13 +19,13 @@ type DCS interface {
 	SetDisconnectCallback(callback func() error)
 	AcquireLock(path string) bool
 	ReleaseLock(path string)
-	Create(path string, value interface{}) error
-	CreateEphemeral(path string, value interface{}) error
-	Set(path string, value interface{}) error
-	SetEphemeral(path string, value interface{}) error
-	Get(path string, dest interface{}) error
+	Create(path string, value any) error
+	CreateEphemeral(path string, value any) error
+	Set(path string, value any) error
+	SetEphemeral(path string, value any) error
+	Get(path string, dest any) error
 	Delete(path string) error
-	GetTree(path string) (interface{}, error)
+	GetTree(path string) (any, error)
 	GetChildren(path string) ([]string, error)
 	Close()
 }

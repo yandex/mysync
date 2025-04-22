@@ -56,7 +56,7 @@ func RunParallel(f func(string) error, arguments []string) map[string]error {
 		}(argValue)
 	}
 	result := make(map[string]error)
-	for i := 0; i < len(arguments); i++ {
+	for range len(arguments) {
 		pairValue := <-errs
 		result[pairValue.key] = pairValue.err
 	}
@@ -74,15 +74,6 @@ func CombineErrors(allErrors map[string]error) error {
 		return errors.New(errStr)
 	}
 	return nil
-}
-
-func ContainsString(heap []string, s string) bool {
-	for _, v := range heap {
-		if v == s {
-			return true
-		}
-	}
-	return false
 }
 
 func FilterStrings(heap []string, cond func(s string) bool) []string {

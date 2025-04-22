@@ -43,19 +43,13 @@ func (sh *SwitchHelper) GetPriorityChoiceMaxLag() time.Duration {
 // This variable can be lower than hard-configured RplSemiSyncMasterWaitForSlaveCount
 // when some semi-sync replicas are dead.
 func (sh *SwitchHelper) GetRequiredWaitSlaveCount(activeNodes []string) int {
-	wsc := len(activeNodes) / 2
-	if wsc > sh.rplSemiSyncMasterWaitForSlaveCount {
-		wsc = sh.rplSemiSyncMasterWaitForSlaveCount
-	}
+	wsc := min(len(activeNodes)/2, sh.rplSemiSyncMasterWaitForSlaveCount)
 	return wsc
 }
 
 // GetFailoverQuorum Number of HA nodes to be alive to failover/switchover
 func (sh *SwitchHelper) GetFailoverQuorum(activeNodes []string) int {
-	fq := len(activeNodes) - sh.GetRequiredWaitSlaveCount(activeNodes)
-	if fq < 1 {
-		fq = 1
-	}
+	fq := max(len(activeNodes)-sh.GetRequiredWaitSlaveCount(activeNodes), 1)
 	return fq
 }
 

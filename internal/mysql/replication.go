@@ -101,7 +101,7 @@ func (er *ExternalReplication) Set(n *Node) error {
 	if err != nil {
 		return err
 	}
-	err = n.execMogrify(queryChangeSource, map[string]interface{}{
+	err = n.execMogrify(queryChangeSource, map[string]any{
 		"host":            replSettings.SourceHost,
 		"port":            replSettings.SourcePort,
 		"user":            replSettings.SourceUser,
@@ -117,7 +117,7 @@ func (er *ExternalReplication) Set(n *Node) error {
 	if err != nil {
 		return err
 	}
-	err = n.execMogrify(queryIgnoreDB, map[string]interface{}{
+	err = n.execMogrify(queryIgnoreDB, map[string]any{
 		"ignoreList": schemaname("mysql"),
 		"channel":    "external",
 	})
@@ -162,7 +162,7 @@ func (er *ExternalReplication) Start(n *Node) error {
 		return err
 	}
 	if checked {
-		err := n.execMogrify(queryStartReplica, map[string]interface{}{
+		err := n.execMogrify(queryStartReplica, map[string]any{
 			"channel": n.config.ExternalReplicationChannel,
 		})
 		if err != nil {
@@ -179,7 +179,7 @@ func (er *ExternalReplication) Stop(n *Node) error {
 		return err
 	}
 	if checked {
-		err := n.execMogrify(queryStopReplica, map[string]interface{}{
+		err := n.execMogrify(queryStopReplica, map[string]any{
 			"channel": n.config.ExternalReplicationChannel,
 		})
 		if err != nil && !IsErrorChannelDoesNotExists(err) {
@@ -196,7 +196,7 @@ func (er *ExternalReplication) Reset(n *Node) error {
 		return err
 	}
 	if checked {
-		err := n.execMogrify(queryResetReplicaAll, map[string]interface{}{
+		err := n.execMogrify(queryResetReplicaAll, map[string]any{
 			"channel": n.config.ExternalReplicationChannel,
 		})
 		if err != nil && !IsErrorChannelDoesNotExists(err) {

@@ -3,12 +3,12 @@ package app
 import (
 	"errors"
 	"fmt"
+	"slices"
 	"time"
 
 	"github.com/yandex/mysync/internal/log"
 	"github.com/yandex/mysync/internal/mysql"
 	"github.com/yandex/mysync/internal/mysql/gtids"
-	"github.com/yandex/mysync/internal/util"
 )
 
 var ErrOptimizationPhaseDeadlineExceeded = errors.New("optimization phase: deadline exceeded")
@@ -37,9 +37,9 @@ func getMostDesirableNode(logger *log.Logger, positions []nodePosition, priority
 	// hosts with lag < mostPriorityNode.lag - maxLagInSeconds
 	var moreRecentHosts []nodePosition
 	thresholdLag := mostPriorityNode.lag - maxLagInSeconds
-	for i := 0; i < len(positions); i++ {
-		if positions[i].lag < thresholdLag {
-			moreRecentHosts = append(moreRecentHosts, positions[i])
+	for _, n := range positions {
+		if n.lag < thresholdLag {
+			moreRecentHosts = append(moreRecentHosts, n)
 		}
 	}
 
@@ -111,8 +111,8 @@ func findMostRecentNodeAndDetectSplitbrain(positions []nodePosition) (string, gt
 }
 
 func detectSplitbrain(positions []nodePosition, selectedPos nodePosition) bool {
-	for i := 0; i < len(positions); i++ {
-		if !selectedPos.gtidset.Contain(positions[i].gtidset) {
+	for _, n := range positions {
+		if !selectedPos.gtidset.Contain(n.gtidset) {
 			return true
 		}
 	}
@@ -122,7 +122,7 @@ func detectSplitbrain(positions []nodePosition, selectedPos nodePosition) bool {
 
 func filterOut(a, b []string) (res []string) {
 	for _, i := range a {
-		if !util.ContainsString(b, i) {
+		if !slices.Contains(b, i) {
 			res = append(res, i)
 		}
 	}
