@@ -103,7 +103,7 @@ type NodeState struct {
 }
 
 // Last_SQL_Errno codes, that disallow to restart replication
-var permanentReplicationLostSQLErrorCodes = map[int]interface{}{
+var permanentReplicationLostSQLErrorCodes = map[int]any{
 	// Table 'db1.test_table' doesn't exist
 	1146: nil,
 	// Row size too large
@@ -111,7 +111,7 @@ var permanentReplicationLostSQLErrorCodes = map[int]interface{}{
 }
 
 // Last_IO_Errno codes, that disallow to restart replication
-var permanentReplicationLostIOErrorCodes = map[int]interface{}{
+var permanentReplicationLostIOErrorCodes = map[int]any{
 	// 5.7
 	1236: nil,
 	// 8.0

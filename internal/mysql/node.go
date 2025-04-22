@@ -176,7 +176,7 @@ func (n *Node) getQuery(name string) string {
 	return query
 }
 
-func (n *Node) traceQuery(query string, arg interface{}, result interface{}, err error) {
+func (n *Node) traceQuery(query string, arg any, result any, err error) {
 	query = queryOnliner.ReplaceAllString(query, " ")
 	if n.config.ShowOnlyGTIDDiff && IsGtidQuery(query) {
 		n.logger.Debug("<gtid query was ignored>")
@@ -205,11 +205,11 @@ var GtidQueries = []string{
 }
 
 //nolint:unparam
-func (n *Node) queryRow(queryName string, arg interface{}, result interface{}) error {
+func (n *Node) queryRow(queryName string, arg any, result any) error {
 	return n.queryRowWithTimeout(queryName, arg, result, n.config.DBTimeout)
 }
 
-func (n *Node) queryRowWithTimeout(queryName string, arg interface{}, result interface{}, timeout time.Duration) error {
+func (n *Node) queryRowWithTimeout(queryName string, arg any, result any, timeout time.Duration) error {
 	if arg == nil {
 		arg = struct{}{}
 	}
@@ -237,7 +237,7 @@ func (n *Node) queryRowWithTimeout(queryName string, arg interface{}, result int
 }
 
 // nolint: unparam
-func (n *Node) queryRows(queryName string, arg interface{}, scanner func(*sqlx.Rows) error) error {
+func (n *Node) queryRows(queryName string, arg any, scanner func(*sqlx.Rows) error) error {
 	// TODO we need to rewrite processQuery, to make traceQuery work properly
 	// traceQuery should be called with result, not *Rows
 	return n.processQuery(queryName, arg, func(rows *sqlx.Rows) error {
@@ -254,7 +254,7 @@ func (n *Node) queryRows(queryName string, arg interface{}, scanner func(*sqlx.R
 	}, n.config.DBTimeout)
 }
 
-func (n *Node) processQuery(queryName string, arg interface{}, rowsProcessor func(*sqlx.Rows) error, timeout time.Duration) error {
+func (n *Node) processQuery(queryName string, arg any, rowsProcessor func(*sqlx.Rows) error, timeout time.Duration) error {
 	if arg == nil {
 		arg = struct{}{}
 	}
@@ -279,9 +279,9 @@ func (n *Node) processQuery(queryName string, arg interface{}, rowsProcessor fun
 }
 
 // nolint: unparam
-func (n *Node) execWithTimeout(queryName string, arg map[string]interface{}, timeout time.Duration) error {
+func (n *Node) execWithTimeout(queryName string, arg map[string]any, timeout time.Duration) error {
 	if arg == nil {
-		arg = map[string]interface{}{}
+		arg = map[string]any{}
 	}
 	query := n.getQuery(queryName)
 	ctx, cancel := context.WithTimeout(context.Background(), timeout)
@@ -302,7 +302,7 @@ func (n *Node) execWithTimeout(queryName string, arg map[string]interface{}, tim
 }
 
 // nolint: unparam
-func (n *Node) exec(queryName string, arg map[string]interface{}) error {
+func (n *Node) exec(queryName string, arg map[string]any) error {
 	return n.execWithTimeout(queryName, arg, n.config.DBTimeout)
 }
 
@@ -354,7 +354,7 @@ func escape(s string) string {
 
 // Poorman's sql templating with value quotation
 // Because go built-in placeholders don't work for queries like CHANGE MASTER
-func Mogrify(query string, arg map[string]interface{}) string {
+func Mogrify(query string, arg map[string]any) string {
 	return mogrifyRegex.ReplaceAllStringFunc(query, func(n string) string {
 		n = n[1:]
 		if v, ok := arg[n]; ok {
@@ -375,7 +375,7 @@ func Mogrify(query string, arg map[string]interface{}) string {
 }
 
 // not all queries may be parameterized with placeholders
-func (n *Node) execMogrifyWithTimeout(queryName string, arg map[string]interface{}, timeout time.Duration) error {
+func (n *Node) execMogrifyWithTimeout(queryName string, arg map[string]any, timeout time.Duration) error {
 	query := n.getQuery(queryName)
 	query = Mogrify(query, arg)
 	ctx, cancel := context.WithTimeout(context.Background(), timeout)
@@ -389,11 +389,11 @@ func (n *Node) execMogrifyWithTimeout(queryName string, arg map[string]interface
 	return err
 }
 
-func (n *Node) execMogrify(queryName string, arg map[string]interface{}) error {
+func (n *Node) execMogrify(queryName string, arg map[string]any) error {
 	return n.execMogrifyWithTimeout(queryName, arg, n.config.DBTimeout)
 }
 
-func (n *Node) queryRowMogrifyWithTimeout(queryName string, arg map[string]interface{}, result interface{}, timeout time.Duration) error {
+func (n *Node) queryRowMogrifyWithTimeout(queryName string, arg map[string]any, result any, timeout time.Duration) error {
 	query := n.getQuery(queryName)
 	query = Mogrify(query, arg)
 	ctx, cancel := context.WithTimeout(context.Background(), timeout)
@@ -418,7 +418,7 @@ func (n *Node) queryRowMogrifyWithTimeout(queryName string, arg map[string]inter
 	return err
 }
 
-func (n *Node) queryRowMogrify(queryName string, arg map[string]interface{}, result interface{}) error {
+func (n *Node) queryRowMogrify(queryName string, arg map[string]any, result any) error {
 	return n.queryRowMogrifyWithTimeout(queryName, arg, result, n.config.DBTimeout)
 }
 
@@ -458,10 +458,7 @@ func (n *Node) GetDiskUsage() (used uint64, total uint64, err error) {
 	total = uint64(stat.Bsize) * stat.Blocks
 	// on FreeBSD stat.Bavail may be negative
 	bavail := stat.Bavail
-	// nolint: staticcheck
-	if bavail < 0 {
-		bavail = 0
-	}
+	bavail = max(0, bavail)
 	used = total - uint64(stat.Bsize)*uint64(bavail) // nolint: unconvert
 	return
 }
@@ -592,7 +589,7 @@ func (n *Node) ReplicaStatusWithTimeout(timeout time.Duration, channel string) (
 	if err != nil {
 		return nil, err
 	}
-	err = n.queryRowMogrifyWithTimeout(query, map[string]interface{}{
+	err = n.queryRowMogrifyWithTimeout(query, map[string]any{
 		"channel": channel,
 	}, status, timeout)
 	if err == sql.ErrNoRows {
@@ -763,7 +760,7 @@ func (n *Node) SetReadOnlyWithForce(excludeUsers []string, superReadOnly bool) e
 			ids, err := n.getRunningQueryIDs(excludeUsers, time.Second)
 			if err == nil {
 				for _, id := range ids {
-					_ = n.exec(queryKillQuery, map[string]interface{}{"kill_id": strconv.Itoa(id)})
+					_ = n.exec(queryKillQuery, map[string]any{"kill_id": strconv.Itoa(id)})
 				}
 			}
 
@@ -788,14 +785,14 @@ func (n *Node) SetWritable() error {
 
 // StopSlave stops replication (both IO and SQL threads)
 func (n *Node) StopSlave() error {
-	return n.execMogrifyWithTimeout(queryStopSlave, map[string]interface{}{
+	return n.execMogrifyWithTimeout(queryStopSlave, map[string]any{
 		"channel": n.config.ReplicationChannel,
 	}, n.config.DBStopSlaveSQLThreadTimeout)
 }
 
 // StartSlave starts replication (both IO and SQL threads)
 func (n *Node) StartSlave() error {
-	return n.execMogrify(queryStartSlave, map[string]interface{}{
+	return n.execMogrify(queryStartSlave, map[string]any{
 		"channel": n.config.ReplicationChannel,
 	})
 }
@@ -811,14 +808,14 @@ func (n *Node) RestartReplica() error {
 
 // StopSlaveIOThread stops IO replication thread
 func (n *Node) StopSlaveIOThread() error {
-	return n.execMogrify(queryStopSlaveIOThread, map[string]interface{}{
+	return n.execMogrify(queryStopSlaveIOThread, map[string]any{
 		"channel": n.config.ReplicationChannel,
 	})
 }
 
 // StartSlaveIOThread starts IO replication thread
 func (n *Node) StartSlaveIOThread() error {
-	return n.execMogrify(queryStartSlaveIOThread, map[string]interface{}{
+	return n.execMogrify(queryStartSlaveIOThread, map[string]any{
 		"channel": n.config.ReplicationChannel,
 	})
 }
@@ -834,21 +831,21 @@ func (n *Node) RestartSlaveIOThread() error {
 
 // StopSlaveSQLThread stops SQL replication thread
 func (n *Node) StopSlaveSQLThread() error {
-	return n.execMogrifyWithTimeout(queryStopSlaveSQLThread, map[string]interface{}{
+	return n.execMogrifyWithTimeout(queryStopSlaveSQLThread, map[string]any{
 		"channel": n.config.ReplicationChannel,
 	}, n.config.DBStopSlaveSQLThreadTimeout)
 }
 
 // StartSlaveSQLThread starts SQL replication thread
 func (n *Node) StartSlaveSQLThread() error {
-	return n.execMogrify(queryStartSlaveSQLThread, map[string]interface{}{
+	return n.execMogrify(queryStartSlaveSQLThread, map[string]any{
 		"channel": n.config.ReplicationChannel,
 	})
 }
 
 // ResetSlaveAll promotes MySQL Node to be master
 func (n *Node) ResetSlaveAll() error {
-	return n.execMogrify(queryResetSlaveAll, map[string]interface{}{
+	return n.execMogrify(queryResetSlaveAll, map[string]any{
 		"channel": n.config.ReplicationChannel,
 	})
 }
@@ -884,7 +881,7 @@ func (n *Node) SemiSyncDisable() error {
 
 // SemiSyncSetWaitSlaveCount changes rpl_semi_sync_master_wait_for_slave_count
 func (n *Node) SetSemiSyncWaitSlaveCount(c int) error {
-	return n.exec(querySetSemiSyncWaitSlaveCount, map[string]interface{}{"wait_slave_count": c})
+	return n.exec(querySetSemiSyncWaitSlaveCount, map[string]any{"wait_slave_count": c})
 }
 
 // IsOffline returns current 'offline_mode' variable value
@@ -921,7 +918,7 @@ func (n *Node) ChangeMaster(host string) error {
 	if n.config.MySQL.ReplicationSslCA != "" {
 		useSsl = 1
 	}
-	return n.execMogrify(queryChangeMaster, map[string]interface{}{
+	return n.execMogrify(queryChangeMaster, map[string]any{
 		"host":            host,
 		"port":            n.config.MySQL.ReplicationPort,
 		"user":            n.config.MySQL.ReplicationUser,
@@ -939,7 +936,7 @@ const ReenableEventsRetryCount = 3
 
 func (n *Node) ReenableEventsRetry() ([]Event, error) {
 	var err error
-	for attempt := 0; attempt < ReenableEventsRetryCount; attempt++ {
+	for range ReenableEventsRetryCount {
 		events, err := n.ReenableEvents()
 		if err == nil {
 			return events, nil
@@ -975,7 +972,7 @@ func (n *Node) ReenableEvents() ([]Event, error) {
 		if len(definer) > 1 {
 			host = definer[1]
 		}
-		err = n.execMogrify(queryEnableEvent, map[string]interface{}{
+		err = n.execMogrify(queryEnableEvent, map[string]any{
 			"schema": schemaname(event.Schema),
 			"name":   schemaname(event.Name),
 			"user":   user,
@@ -1066,11 +1063,11 @@ func SaveCAFile(data string, path string) error {
 // OptimizeReplication sets the optimal settings for replication, which reduces the replication lag.
 // Cannot be used permanently due to the instability of the replica in this state
 func (n *Node) OptimizeReplication() error {
-	err := n.exec(querySetInnodbFlushLogAtTrxCommit, map[string]interface{}{"level": optimalInnodbFlushLogAtTrxCommitValue})
+	err := n.exec(querySetInnodbFlushLogAtTrxCommit, map[string]any{"level": optimalInnodbFlushLogAtTrxCommitValue})
 	if err != nil {
 		return err
 	}
-	err = n.exec(querySetSyncBinlog, map[string]interface{}{"sync_binlog": optimalSyncBinlogValue})
+	err = n.exec(querySetSyncBinlog, map[string]any{"sync_binlog": optimalSyncBinlogValue})
 	if err != nil {
 		return err
 	}
@@ -1118,11 +1115,11 @@ func (n *Node) SetDefaultReplicationSettings(masterNode *Node) error {
 	if err != nil {
 		return err
 	}
-	err = n.exec(querySetInnodbFlushLogAtTrxCommit, map[string]interface{}{"level": rs.InnodbFlushLogAtTrxCommit})
+	err = n.exec(querySetInnodbFlushLogAtTrxCommit, map[string]any{"level": rs.InnodbFlushLogAtTrxCommit})
 	if err != nil {
 		return err
 	}
-	err = n.exec(querySetSyncBinlog, map[string]interface{}{"sync_binlog": rs.SyncBinlog})
+	err = n.exec(querySetSyncBinlog, map[string]any{"sync_binlog": rs.SyncBinlog})
 	if err != nil {
 		return err
 	}
@@ -1132,7 +1129,7 @@ func (n *Node) SetDefaultReplicationSettings(masterNode *Node) error {
 func (n *Node) GetReplMonTS(replMonSchemeName string, replMonTable string) (string, error) {
 	result := new(ReplMonTS)
 	err := n.queryRowMogrify(queryGetReplMonTS,
-		map[string]interface{}{
+		map[string]any{
 			"replMonSchemeName": schemaname(replMonSchemeName),
 			"replMonTable":      schemaname(replMonTable),
 		},
@@ -1143,7 +1140,7 @@ func (n *Node) GetReplMonTS(replMonSchemeName string, replMonTable string) (stri
 func (n *Node) CalcReplMonTSDelay(replMonSchemeName string, replMonTable string, ts string) (int64, error) {
 	result := new(ReplMonTSDelay)
 	err := n.queryRowMogrify(queryCalcReplMonTSDelay,
-		map[string]interface{}{
+		map[string]any{
 			"ts":                ts,
 			"replMonSchemeName": schemaname(replMonSchemeName),
 			"replMonTable":      schemaname(replMonTable),
@@ -1153,14 +1150,14 @@ func (n *Node) CalcReplMonTSDelay(replMonSchemeName string, replMonTable string,
 }
 
 func (n *Node) CreateReplMonTable(replMonSchemeName string, replMonTable string) error {
-	return n.execMogrify(queryCreateReplMonTable, map[string]interface{}{
+	return n.execMogrify(queryCreateReplMonTable, map[string]any{
 		"replMonSchemeName": schemaname(replMonSchemeName),
 		"replMonTable":      schemaname(replMonTable),
 	})
 }
 
 func (n *Node) UpdateReplMonTable(replMonSchemeName string, replMonTable string) error {
-	return n.execMogrify(queryUpdateReplMon, map[string]interface{}{
+	return n.execMogrify(queryUpdateReplMon, map[string]any{
 		"replMonSchemeName": schemaname(replMonSchemeName),
 		"replMonTable":      schemaname(replMonTable),
 	})

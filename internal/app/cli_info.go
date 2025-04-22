@@ -18,9 +18,9 @@ func (app *App) CliInfo(short bool) int {
 	}
 	defer cancel()
 
-	var tree interface{}
+	var tree any
 	if short {
-		data := make(map[string]interface{})
+		data := make(map[string]any)
 
 		haNodes, err := app.cluster.GetClusterHAHostsFromDcs()
 		if err != nil {
@@ -59,7 +59,7 @@ func (app *App) CliInfo(short bool) int {
 			app.logger.Errorf("failed to get cluster state: %v", err)
 			return 1
 		}
-		health := make(map[string]interface{})
+		health := make(map[string]any)
 		for host, state := range clusterState {
 			health[host] = state.String()
 		}

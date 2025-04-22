@@ -114,7 +114,7 @@ func (l *Logger) ReOpenOnSignal(sig syscall.Signal, syslog *syslog.Writer) {
 	}()
 }
 
-func (l *Logger) printf(lvl Level, msg string, args ...interface{}) {
+func (l *Logger) printf(lvl Level, msg string, args ...any) {
 	if lvl < l.lvl {
 		return
 	}
@@ -144,22 +144,22 @@ func (l *Logger) Fatal(msg string) {
 	l.Fatalf("%s", msg)
 }
 
-func (l *Logger) Debugf(msg string, args ...interface{}) {
+func (l *Logger) Debugf(msg string, args ...any) {
 	l.printf(DEBUG, msg, args...)
 }
 
-func (l *Logger) Infof(msg string, args ...interface{}) {
+func (l *Logger) Infof(msg string, args ...any) {
 	l.printf(INFO, msg, args...)
 }
 
-func (l *Logger) Warnf(msg string, args ...interface{}) {
+func (l *Logger) Warnf(msg string, args ...any) {
 	l.printf(WARN, msg, args...)
 }
 
-func (l *Logger) Errorf(msg string, args ...interface{}) {
+func (l *Logger) Errorf(msg string, args ...any) {
 	l.printf(ERROR, msg, args...)
 }
 
-func (l *Logger) Fatalf(msg string, args ...interface{}) {
+func (l *Logger) Fatalf(msg string, args ...any) {
 	l.printf(FATAL, msg, args...)
 }
