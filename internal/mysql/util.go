@@ -1,6 +1,10 @@
 package mysql
 
-import "github.com/go-sql-driver/mysql"
+import (
+	"slices"
+
+	"github.com/go-sql-driver/mysql"
+)
 
 var dubiousErrorNumbers = []uint16{
 	1040, // Symbol: ER_CON_COUNT_ERROR; SQLSTATE: 08004
@@ -28,12 +32,7 @@ func IsErrorDubious(err error) bool {
 	if !ok {
 		return false
 	}
-	for _, errno := range dubiousErrorNumbers {
-		if mysqlErr.Number == errno {
-			return true
-		}
-	}
-	return false
+	return slices.Contains(dubiousErrorNumbers, mysqlErr.Number)
 }
 
 func IsErrorChannelDoesNotExists(err error) bool {

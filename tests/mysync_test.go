@@ -63,19 +63,19 @@ var zkLogsToSave = map[string]string{
 
 type noLogger struct{}
 
-func (noLogger) Printf(string, ...interface{}) {}
+func (noLogger) Printf(string, ...any) {}
 
-func (noLogger) Print(...interface{}) {}
+func (noLogger) Print(...any) {}
 
 type testContext struct {
-	variables         map[string]interface{}
+	variables         map[string]any
 	templateErr       error
 	composer          testutil.Composer
 	composerEnv       []string
 	zk                *zk.Conn
 	dbs               map[string]*sqlx.DB
 	zkQueryResult     string
-	sqlQueryResult    []map[string]interface{}
+	sqlQueryResult    []map[string]any
 	sqlUserQueryError sync.Map // host -> error
 	commandRetcode    int
 	commandOutput     string
@@ -206,10 +206,10 @@ func (tctx *testContext) cleanup() {
 		log.Printf("failed to tear down compose: %s", err)
 	}
 
-	tctx.variables = make(map[string]interface{})
+	tctx.variables = make(map[string]any)
 	tctx.composerEnv = make([]string, 0)
 	tctx.zkQueryResult = ""
-	tctx.sqlQueryResult = make([]map[string]interface{}, 0)
+	tctx.sqlQueryResult = make([]map[string]any, 0)
 	tctx.sqlUserQueryError = sync.Map{}
 	tctx.commandRetcode = 0
 	tctx.commandOutput = ""
@@ -220,7 +220,7 @@ func (tctx *testContext) connectZookeeper(addrs []string, timeout time.Duration)
 	if err != nil {
 		return nil, err
 	}
-	err = conn.AddAuth("digest", []byte(fmt.Sprintf("%s:%s", testUser, testPassword)))
+	err = conn.AddAuth("digest", fmt.Appendf([]byte{}, "%s:%s", testUser, testPassword))
 	if err != nil {
 		return nil, err
 	}
@@ -289,7 +289,7 @@ func (tctx *testContext) getMysqlConnection(host string) (*sqlx.DB, error) {
 	return db, nil
 }
 
-func (tctx *testContext) queryMysql(host string, query string, args interface{}) ([]map[string]interface{}, error) {
+func (tctx *testContext) queryMysql(host string, query string, args any) ([]map[string]any, error) {
 	if args == nil {
 		args = struct{}{}
 	}
@@ -301,7 +301,7 @@ func (tctx *testContext) queryMysql(host string, query string, args interface{})
 	// sqlx can't execute requests with semicolon
 	// we will execute them in single connection
 	queries := strings.Split(query, ";")
-	var result []map[string]interface{}
+	var result []map[string]any
 
 	for _, q := range queries {
 		tctx.sqlQueryResult = nil
@@ -317,7 +317,7 @@ func (tctx *testContext) queryMysql(host string, query string, args interface{})
 	return result, err
 }
 
-func (tctx *testContext) queryMysqlViaConnection(db *sqlx.DB, host string, query string, args interface{}, timeout time.Duration) ([]map[string]interface{}, error) {
+func (tctx *testContext) queryMysqlViaConnection(db *sqlx.DB, host string, query string, args any, timeout time.Duration) ([]map[string]any, error) {
 	if args == nil {
 		args = struct{}{}
 	}
@@ -332,7 +332,7 @@ func (tctx *testContext) queryMysqlViaConnection(db *sqlx.DB, host string, query
 	return result, err
 }
 
-func (tctx *testContext) doMysqlQuery(db *sqlx.DB, query string, args interface{}, timeout time.Duration) ([]map[string]interface{}, error) {
+func (tctx *testContext) doMysqlQuery(db *sqlx.DB, query string, args any, timeout time.Duration) ([]map[string]any, error) {
 	if args == nil {
 		args = struct{}{}
 	}
@@ -347,9 +347,9 @@ func (tctx *testContext) doMysqlQuery(db *sqlx.DB, query string, args interface{
 		_ = rows.Close()
 	}()
 
-	result := make([]map[string]interface{}, 0)
+	result := make([]map[string]any, 0)
 	for rows.Next() {
-		rowmap := make(map[string]interface{})
+		rowmap := make(map[string]any)
 		err = rows.MapScan(rowmap)
 		if err != nil {
 			return nil, err
@@ -373,12 +373,9 @@ func (tctx *testContext) runSlaveStatusQuery(host string) (map[string]string, er
 	MajorVersion := res[0]["MajorVersion"].(int64)
 	MinorVersion := res[0]["MinorVersion"].(int64)
 	PatchVersion := res[0]["PatchVersion"].(int64)
-	if err != nil {
-		return nil, err
-	}
 	v := mysql_internal.Version{MajorVersion: int(MajorVersion), MinorVersion: int(MinorVersion), PatchVersion: int(PatchVersion)}
 	query = mysql_internal.DefaultQueries[v.GetSlaveStatusQuery()]
-	query = mysql_internal.Mogrify(query, map[string]interface{}{
+	query = mysql_internal.Mogrify(query, map[string]any{
 		"channel": replicationChannel,
 	})
 	res, err = tctx.queryMysql(host, query, nil)
@@ -592,7 +589,7 @@ func (tctx *testContext) stepRunHeavyUserRequests(host string, sleepTime int) er
 	go func() {
 		defer db.Close()
 		timeout := time.Duration(sleepTime+2) * time.Second
-		_, err := tctx.queryMysqlViaConnection(db, host, "UPDATE t1 SET i = sleep(:sleep_time)", map[string]interface{}{
+		_, err := tctx.queryMysqlViaConnection(db, host, "UPDATE t1 SET i = sleep(:sleep_time)", map[string]any{
 			"sleep_time": sleepTime,
 		}, timeout)
 		if err != nil {
@@ -617,7 +614,7 @@ func (tctx *testContext) stepRunHeavyReadUserRequests(host string, sleepTime int
 	go func() {
 		defer db.Close()
 		timeout := time.Duration(sleepTime+2) * time.Second
-		_, err := tctx.queryMysqlViaConnection(db, host, "SELECT *, sleep(:sleep_time) as time FROM sys.session", map[string]interface{}{
+		_, err := tctx.queryMysqlViaConnection(db, host, "SELECT *, sleep(:sleep_time) as time FROM sys.session", map[string]any{
 			"sleep_time": sleepTime,
 		}, timeout)
 		if err != nil {
@@ -676,9 +673,6 @@ func (tctx *testContext) stepFileOnHostHaveContentOf(path string, node string, b
 		if err != nil {
 			return err
 		}
-	}
-	if err != nil {
-		return err
 	}
 	actualContent := res.String()
 	expectedContent := strings.TrimSpace(body.Content)
@@ -798,7 +792,7 @@ func (tctx *testContext) stepIChangeReplicationSource(host, replicationSource st
 	if err != nil {
 		return err
 	}
-	query = mysql_internal.Mogrify(query, map[string]interface{}{
+	query = mysql_internal.Mogrify(query, map[string]any{
 		"host":            replicationSource,
 		"port":            dc.MySQL.Port,
 		"user":            dc.MySQL.ReplicationUser,
@@ -1328,7 +1322,7 @@ func (tctx *testContext) stepMysqlHostShouldBecomeWritableWithin(host string, ti
 }
 
 func (tctx *testContext) stepISaveZookeeperQueryResultAs(varname string) error {
-	var j interface{}
+	var j any
 	if tctx.zkQueryResult != "" {
 		if err := json.Unmarshal([]byte(tctx.zkQueryResult), &j); err != nil {
 			return err

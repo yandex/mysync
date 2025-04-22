@@ -27,7 +27,7 @@ func (app *App) CliHostList() int {
 	}
 	defer app.cluster.Close()
 
-	data := make(map[string]interface{})
+	data := make(map[string]any)
 
 	haNodes, err := app.cluster.GetClusterHAFqdnsFromDcs()
 	if err != nil {
