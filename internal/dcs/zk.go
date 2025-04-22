@@ -509,8 +509,8 @@ func (z *zkDCS) GetTree(path string) (interface{}, error) {
 		var ret interface{}
 		err = json.Unmarshal(data, &ret)
 		if err != nil {
-			z.logger.Errorf("malformed node data %s (%s): %v", fullPath, data, err)
-			return nil, err
+			z.logger.Warnf("malformed node data %s (%s): %v", fullPath, data, err)
+			return string(data[:]), nil
 		}
 		return ret, nil
 	}
