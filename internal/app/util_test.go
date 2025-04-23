@@ -305,7 +305,13 @@ func TestCalcLagBytes(t *testing.T) {
 }
 
 func TestVersionGetQuery(t *testing.T) {
-	v := mysql.Version{MajorVersion: 8, MinorVersion: 0, PatchVersion: 1}
+	v := mysql.Version{MajorVersion: 8, MinorVersion: 4, PatchVersion: 1}
+	require.Equal(t, v.GetSlaveStatusQuery(), "replica_status")
+	v = mysql.Version{MajorVersion: 8, MinorVersion: 4, PatchVersion: 4}
+	require.Equal(t, v.GetSlaveStatusQuery(), "replica_status")
+	v = mysql.Version{MajorVersion: 8, MinorVersion: 4, PatchVersion: 111}
+	require.Equal(t, v.GetSlaveStatusQuery(), "replica_status")
+	v = mysql.Version{MajorVersion: 8, MinorVersion: 0, PatchVersion: 1}
 	require.Equal(t, v.GetSlaveStatusQuery(), "slave_status")
 	v = mysql.Version{MajorVersion: 8, MinorVersion: 0, PatchVersion: 23}
 	require.Equal(t, v.GetSlaveStatusQuery(), "replica_status")
