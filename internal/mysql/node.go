@@ -969,7 +969,6 @@ func (n *Node) ChangeMaster(host string) error {
 		"connectRetry":    n.config.MySQL.ReplicationConnectRetry,
 		"heartbeatPeriod": n.config.MySQL.ReplicationHeartbeatPeriod,
 		"channel":         n.config.ReplicationChannel,
-		"delay":           0,
 	})
 }
 

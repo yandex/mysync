@@ -45,6 +45,7 @@ const (
 	queryGetLastStartupTime             = "get_last_startup_time"
 	queryGetExternalReplicationSettings = "get_external_replication_settings"
 	queryChangeSource                   = "change_source"
+	queryChangeSourceWithDelay          = "change_source_with_delay"
 	queryResetReplicaAll                = "reset_replica_all"
 	queryStopReplica                    = "stop_replica"
 	queryStartReplica                   = "start_replica"
@@ -98,8 +99,7 @@ var DefaultQueries = map[string]string{
 								MASTER_AUTO_POSITION = 1,
 								MASTER_CONNECT_RETRY = :connectRetry,
 								MASTER_RETRY_COUNT = :retryCount,
-								MASTER_HEARTBEAT_PERIOD = :heartbeatPeriod,
-								MASTER_DELAY = :delay
+								MASTER_HEARTBEAT_PERIOD = :heartbeatPeriod
 						FOR CHANNEL :channel`,
 	querySemiSyncStatus: `SELECT @@rpl_semi_sync_master_enabled AS MasterEnabled,
 								 @@rpl_semi_sync_slave_enabled AS SlaveEnabled,
@@ -137,9 +137,22 @@ var DefaultQueries = map[string]string{
 								SOURCE_AUTO_POSITION = 1,
 								SOURCE_CONNECT_RETRY = :connectRetry,
 								SOURCE_RETRY_COUNT = :retryCount,
-								SOURCE_HEARTBEAT_PERIOD = :heartbeatPeriod,
-								SOURCE_DELAY = :delay
+								SOURCE_HEARTBEAT_PERIOD = :heartbeatPeriod
 						FOR CHANNEL :channel`,
+	queryChangeSourceWithDelay: `CHANGE REPLICATION SOURCE TO
+						SOURCE_HOST = :host,
+						SOURCE_PORT = :port,
+						SOURCE_USER = :user,
+						SOURCE_PASSWORD = :password,
+						SOURCE_SSL = :ssl,
+						SOURCE_SSL_CA = :sslCa,
+						SOURCE_SSL_VERIFY_SERVER_CERT = 1,
+						SOURCE_AUTO_POSITION = 1,
+						SOURCE_CONNECT_RETRY = :connectRetry,
+						SOURCE_RETRY_COUNT = :retryCount,
+						SOURCE_HEARTBEAT_PERIOD = :heartbeatPeriod,
+						SOURCE_DELAY = :delay
+				FOR CHANNEL :channel`,
 	queryIgnoreDB:                     `CHANGE REPLICATION FILTER REPLICATE_IGNORE_DB = (:ignoreList) FOR CHANNEl :channel`,
 	querySetInnodbFlushLogAtTrxCommit: `SET GLOBAL innodb_flush_log_at_trx_commit = :level`,
 	queryGetReplicationSettings:       `SELECT @@GLOBAL.innodb_flush_log_at_trx_commit as InnodbFlushLogAtTrxCommit, @@GLOBAL.sync_binlog as SyncBinlog`,
