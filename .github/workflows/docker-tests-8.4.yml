@@ -46,7 +46,7 @@ jobs:
           - 'VERSION=8.4 GODOG_FEATURE=cascade_replicas.84.feature make test'
           - 'VERSION=8.4 GODOG_FEATURE=CLI.feature make test'
           - 'VERSION=8.4 GODOG_FEATURE=crash_recovery.feature make test'
-          - 'VERSION=8.4 GODOG_FEATURE=events_reenable.feature make test'
+          - 'VERSION=8.4 GODOG_FEATURE=events_reenable.84.feature make test'
           - 'VERSION=8.4 GODOG_FEATURE=external_replication.feature make test'
           - 'VERSION=8.4 GODOG_FEATURE=failover.feature make test'
           - 'VERSION=8.4 GODOG_FEATURE=free_space.feature make test'

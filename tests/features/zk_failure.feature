@@ -105,7 +105,7 @@ Feature: mysync handles zookeeper lost
     """
     Then command output should match regexp
     """
-        .*Waiting for semi-sync ACK from slave.*
+        .*Waiting for semi-sync ACK from.*
     """
     # start manual deterministic switchover - we will use this in last check
     When I run command on host "mysql2"
@@ -125,7 +125,7 @@ Feature: mysync handles zookeeper lost
     """
            mysql -s --skip-column-names -e "SELECT (CASE WHEN count(*) = 0 THEN 'OK' ELSE 'STILL_WAITING' END)
                             FROM information_schema.PROCESSLIST
-                            WHERE state = 'Waiting for semi-sync ACK from slave'"
+                            WHERE state like 'Waiting for semi-sync ACK from%'"
     """
     When host "mysql1" is attached to the network
     Then mysql host "mysql1" should become available within "20" seconds

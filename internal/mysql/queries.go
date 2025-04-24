@@ -31,6 +31,7 @@ const (
 	querySemiSyncSetSlave               = "semisync_set_slave"
 	querySemiSyncDisable                = "semisync_disable"
 	querySetSemiSyncWaitSlaveCount      = "set_semisync_wait_slave_count"
+	queryListReplicasideDisabledEvents  = "list_replicaside_disabled_events"
 	queryListSlavesideDisabledEvents    = "list_slaveside_disabled_events"
 	queryEnableEvent                    = "enable_event"
 	querySetLockTimeout                 = "set_lock_timeout"
@@ -108,7 +109,9 @@ var DefaultQueries = map[string]string{
 	queryListSlavesideDisabledEvents: `SELECT EVENT_SCHEMA, EVENT_NAME, DEFINER
 										FROM information_schema.EVENTS
 										WHERE STATUS = 'SLAVESIDE_DISABLED'`,
-
+	queryListReplicaSideDisabledEvents: `SELECT EVENT_SCHEMA, EVENT_NAME, DEFINER
+										FROM information_schema.EVENTS
+										WHERE STATUS = 'REPLICA_SIDE_DISABLED'`,
 	queryEnableEvent:           `ALTER DEFINER = :user@:host EVENT :schema.:name ENABLE`,
 	querySetLockTimeout:        `SET SESSION lock_wait_timeout = ?`,
 	queryKillQuery:             `KILL :kill_id`,
@@ -116,7 +119,7 @@ var DefaultQueries = map[string]string{
 	queryEnableOfflineMode:     `SET GLOBAL offline_mode = ON`,
 	queryDisableOfflineMode:    `SET GLOBAL offline_mode = OFF`,
 	queryGetOfflineMode:        `SELECT @@GLOBAL.offline_mode AS OfflineMode`,
-	queryHasWaitingSemiSyncAck: `SELECT count(*) <> 0 AS IsWaiting FROM information_schema.PROCESSLIST WHERE state = 'Waiting for semi-sync ACK from slave'`,
+	queryHasWaitingSemiSyncAck: `SELECT count(*) <> 0 AS IsWaiting FROM information_schema.PROCESSLIST WHERE state like 'Waiting for semi-sync ACK from%'`,
 	queryGetLastStartupTime:    `SELECT UNIX_TIMESTAMP(DATE_SUB(now(), INTERVAL variable_value SECOND)) AS LastStartup FROM performance_schema.global_status WHERE variable_name='Uptime'`,
 	queryGetExternalReplicationSettings: `SELECT channel_name AS ChannelName, source_host AS SourceHost, source_user AS SourceUser, source_port AS SourcePort,
 											source_password AS SourcePassword, source_ssl_ca AS SourceSslCa, source_delay AS SourceDelay, replication_status AS ReplicationStatus
