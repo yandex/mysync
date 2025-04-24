@@ -418,7 +418,7 @@ func (v *Version) GetChangeMasterQuery() string {
 
 func (v *Version) GetListSlaveSideDisabledEventsQuery() string {
 	if v.CheckIfVersionReplicaStatus() {
-		return queryListReplicasideDisabledEvents
+		return queryListReplicaSideDisabledEvents
 	} else {
 		return queryListSlavesideDisabledEvents
 	}
