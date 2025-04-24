@@ -415,3 +415,11 @@ func (v *Version) GetChangeMasterQuery() string {
 		return queryChangeMaster
 	}
 }
+
+func (v *Version) GetListSlaveSideDisabledEventsQuery() string {
+	if v.CheckIfVersionReplicaStatus() {
+		return queryListReplicasideDisabledEvents
+	} else {
+		return queryListSlavesideDisabledEvents
+	}
+}
