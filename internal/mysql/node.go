@@ -989,7 +989,8 @@ func (n *Node) ReenableEventsRetry() ([]Event, error) {
 
 func (n *Node) ReenableEvents() ([]Event, error) {
 	var events []Event
-	err := n.queryRows(queryListSlavesideDisabledEvents, nil, func(rows *sqlx.Rows) error {
+	q := n.version.GetListSlaveSideDisabledEventsQuery()
+	err := n.queryRows(q, nil, func(rows *sqlx.Rows) error {
 		var event Event
 		err := rows.StructScan(&event)
 		if err != nil {

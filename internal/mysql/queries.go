@@ -31,7 +31,7 @@ const (
 	querySemiSyncSetSlave               = "semisync_set_slave"
 	querySemiSyncDisable                = "semisync_disable"
 	querySetSemiSyncWaitSlaveCount      = "set_semisync_wait_slave_count"
-	queryListReplicasideDisabledEvents  = "list_replicaside_disabled_events"
+	queryListReplicaSideDisabledEvents  = "list_replicaside_disabled_events"
 	queryListSlavesideDisabledEvents    = "list_slaveside_disabled_events"
 	queryEnableEvent                    = "enable_event"
 	querySetLockTimeout                 = "set_lock_timeout"
