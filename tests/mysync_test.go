@@ -374,7 +374,6 @@ func (tctx *testContext) GetVersion(host string) (mysql_internal.Version, error)
 	MinorVersion := res[0]["MinorVersion"].(int64)
 	PatchVersion := res[0]["PatchVersion"].(int64)
 	return mysql_internal.Version{MajorVersion: int(MajorVersion), MinorVersion: int(MinorVersion), PatchVersion: int(PatchVersion)}, nil
-
 }
 
 func (tctx *testContext) runSlaveStatusQuery(host string) (map[string]string, error) {
@@ -780,14 +779,14 @@ func (tctx *testContext) stepIChangeReplicationSource(host, replicationSource st
 		return err
 	}
 	if v.CheckIfVersionReplicaStatus() {
-		return tctx.stepIChangeReplicationSource_v2(host, replicationSource)
+		return tctx.stepIChangeReplicationSourceV2(host, replicationSource)
 	} else {
-		return tctx.stepIChangeReplicationSource_v1(host, replicationSource)
+		return tctx.stepIChangeReplicationSourceV1(host, replicationSource)
 	}
 }
 
 // Make sure zk node is absent, then stop slave, change master & start slave again
-func (tctx *testContext) stepIChangeReplicationSource_v1(host, replicationSource string) error {
+func (tctx *testContext) stepIChangeReplicationSourceV1(host, replicationSource string) error {
 	if err := tctx.stepIDeleteZookeeperNode(dcs.JoinPath("/test", dcs.PathHANodesPrefix, host)); err != nil {
 		return err
 	}
@@ -833,7 +832,7 @@ func (tctx *testContext) stepIChangeReplicationSource_v1(host, replicationSource
 }
 
 // Make sure zk node is absent, then stop slave, change master & start slave again
-func (tctx *testContext) stepIChangeReplicationSource_v2(host, replicationSource string) error {
+func (tctx *testContext) stepIChangeReplicationSourceV2(host, replicationSource string) error {
 	if err := tctx.stepIDeleteZookeeperNode(dcs.JoinPath("/test", dcs.PathHANodesPrefix, host)); err != nil {
 		return err
 	}
@@ -963,13 +962,13 @@ func (tctx *testContext) stepBreakReplicationOnHost(host string) error {
 		return err
 	}
 	if v.CheckIfVersionReplicaStatus() {
-		return tctx.stepBreakReplicationOnHost_v2(host)
+		return tctx.stepBreakReplicationOnHostV2(host)
 	} else {
-		return tctx.stepBreakReplicationOnHost_v1(host)
+		return tctx.stepBreakReplicationOnHostV1(host)
 	}
 }
 
-func (tctx *testContext) stepBreakReplicationOnHost_v1(host string) error {
+func (tctx *testContext) stepBreakReplicationOnHostV1(host string) error {
 	query := fmt.Sprintf("STOP SLAVE IO_THREAD FOR CHANNEL '%s'", replicationChannel)
 	if _, err := tctx.queryMysql(host, query, nil); err != nil {
 		return err
@@ -989,7 +988,7 @@ func (tctx *testContext) stepBreakReplicationOnHost_v1(host string) error {
 	return nil
 }
 
-func (tctx *testContext) stepBreakReplicationOnHost_v2(host string) error {
+func (tctx *testContext) stepBreakReplicationOnHostV2(host string) error {
 	query := fmt.Sprintf("STOP REPLICA IO_THREAD FOR CHANNEL '%s'", replicationChannel)
 	if _, err := tctx.queryMysql(host, query, nil); err != nil {
 		return err
