@@ -10,6 +10,7 @@ const (
 	queryShowBinaryLogs                 = "binary_logs"
 	queryReplicationLag                 = "replication_lag"
 	querySlaveHosts                     = "slave_hosts"
+	queryReplicas                       = "replicas"
 	queryIsReadOnly                     = "is_readonly"
 	querySetReadonly                    = "set_readonly"
 	querySetReadonlyNoSuper             = "set_readonly_no_super"
@@ -66,6 +67,7 @@ var DefaultQueries = map[string]string{
 	queryGetUUID:               `SELECT @@server_uuid as server_uuid`,
 	queryShowBinaryLogs:        `SHOW BINARY LOGS`,
 	querySlaveHosts:            `SHOW SLAVE HOSTS`,
+	queryReplicas:              `SHOW REPLICAS`,
 	queryReplicationLag:        ``,
 	queryIsReadOnly:            `SELECT @@read_only AS ReadOnly, @@super_read_only AS SuperReadOnly`,
 	querySetReadonly:           `SET GLOBAL super_read_only = 1`, // @@read_only will be set automatically
@@ -108,10 +110,10 @@ var DefaultQueries = map[string]string{
 	querySetSemiSyncWaitSlaveCount: `SET GLOBAL rpl_semi_sync_master_wait_for_slave_count = :wait_slave_count`,
 	queryListSlavesideDisabledEvents: `SELECT EVENT_SCHEMA, EVENT_NAME, DEFINER
 										FROM information_schema.EVENTS
-										WHERE STATUS = 'SLAVESIDE_DISABLED'`,
+										WHERE STATUS = 'SLAVESIDE_DISABLED' OR STATUS = 'REPLICA_SIDE_DISABLED'`,
 	queryListReplicaSideDisabledEvents: `SELECT EVENT_SCHEMA, EVENT_NAME, DEFINER
 										FROM information_schema.EVENTS
-										WHERE STATUS = 'REPLICA_SIDE_DISABLED'`,
+										WHERE STATUS = 'REPLICA_SIDE_DISABLED' OR STATUS = 'SLAVESIDE_DISABLED'`,
 	queryEnableEvent:           `ALTER DEFINER = :user@:host EVENT :schema.:name ENABLE`,
 	querySetLockTimeout:        `SET SESSION lock_wait_timeout = ?`,
 	queryKillQuery:             `KILL :kill_id`,
