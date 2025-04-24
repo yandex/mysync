@@ -301,15 +301,16 @@ type ReplMonTSDelay struct {
 }
 
 const (
-	Version80Major              = 8
+	Version8Major               = 8
 	Version80Minor              = 0
+	Version84Minor              = 4
 	Version80PatchReplicaStatus = 22
 	Version57Major              = 5
 )
 
 func (v *Version) CheckIfVersionReplicaStatus() bool {
 	switch v.MajorVersion {
-	case Version80Major:
+	case Version8Major:
 		if v.MinorVersion > Version80Minor || v.PatchVersion >= Version80PatchReplicaStatus {
 			return true
 		}
@@ -323,7 +324,7 @@ func (v *Version) CheckIfVersionReplicaStatus() bool {
 
 func (v *Version) CheckIfExternalReplicationSupported() bool {
 	switch v.MajorVersion {
-	case Version80Major:
+	case Version8Major:
 		if v.MinorVersion > Version80Minor || v.PatchVersion >= Version80PatchReplicaStatus {
 			return true
 		}
