@@ -773,6 +773,7 @@ func (tctx *testContext) stepIRunCommandOnHostUntilReturnCodeWithTimeout(host st
 	return lastError
 }
 
+// Make sure zk node is absent, then stop slave, change master & start slave again
 func (tctx *testContext) stepIChangeReplicationSource(host, replicationSource string) error {
 	v, err := tctx.GetVersion(host)
 	if err != nil {
