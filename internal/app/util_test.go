@@ -304,23 +304,6 @@ func TestCalcLagBytes(t *testing.T) {
 	require.Equal(t, int(calcLagBytes(binlogs, "bin.0007", 100)), 0)
 }
 
-func TestVersionGetQuery(t *testing.T) {
-	v := mysql.Version{MajorVersion: 8, MinorVersion: 0, PatchVersion: 1}
-	require.Equal(t, v.GetSlaveStatusQuery(), "slave_status")
-	v = mysql.Version{MajorVersion: 8, MinorVersion: 0, PatchVersion: 23}
-	require.Equal(t, v.GetSlaveStatusQuery(), "replica_status")
-	v = mysql.Version{MajorVersion: 8, MinorVersion: 0, PatchVersion: 111}
-	require.Equal(t, v.GetSlaveStatusQuery(), "replica_status")
-	v = mysql.Version{MajorVersion: 8, MinorVersion: 2, PatchVersion: 2}
-	require.Equal(t, v.GetSlaveStatusQuery(), "replica_status")
-	v = mysql.Version{MajorVersion: 8, MinorVersion: 0, PatchVersion: 20}
-	require.Equal(t, v.GetSlaveStatusQuery(), "slave_status")
-	v = mysql.Version{MajorVersion: 5, MinorVersion: 7, PatchVersion: 111}
-	require.Equal(t, v.GetSlaveStatusQuery(), "slave_status")
-	v = mysql.Version{MajorVersion: 5, MinorVersion: 5, PatchVersion: 11}
-	require.Equal(t, v.GetSlaveStatusQuery(), "slave_status")
-}
-
 func getLogger() *log.Logger {
 	l, err := log.Open("/dev/null", "fatal")
 	if err != nil {

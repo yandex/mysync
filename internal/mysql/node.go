@@ -585,7 +585,11 @@ func (n *Node) GetReplicaStatus() (ReplicaStatus, error) {
 }
 
 func (n *Node) ReplicaStatusWithTimeout(timeout time.Duration, channel string) (ReplicaStatus, error) {
-	query, status, err := n.GetVersionSlaveStatusQuery()
+	query, err := n.GetSlaveStatusQuery()
+	if err != nil {
+		return nil, err
+	}
+	status, err := n.GetSlaveOrReplicaStruct()
 	if err != nil {
 		return nil, err
 	}
@@ -596,14 +600,6 @@ func (n *Node) ReplicaStatusWithTimeout(timeout time.Duration, channel string) (
 		return nil, nil
 	}
 	return status, err
-}
-
-func (n *Node) GetVersionSlaveStatusQuery() (string, ReplicaStatus, error) {
-	version, err := n.GetVersion()
-	if err != nil {
-		return "", nil, err
-	}
-	return version.GetSlaveStatusQuery(), version.GetSlaveOrReplicaStruct(), nil
 }
 
 func (n *Node) GetVersion() (*Version, error) {
@@ -785,14 +781,22 @@ func (n *Node) SetWritable() error {
 
 // StopSlave stops replication (both IO and SQL threads)
 func (n *Node) StopSlave() error {
-	return n.execMogrifyWithTimeout(queryStopSlave, map[string]any{
+	q, err := n.GetStopSlaveQuery()
+	if err != nil {
+		return err
+	}
+	return n.execMogrifyWithTimeout(q, map[string]any{
 		"channel": n.config.ReplicationChannel,
 	}, n.config.DBStopSlaveSQLThreadTimeout)
 }
 
 // StartSlave starts replication (both IO and SQL threads)
 func (n *Node) StartSlave() error {
-	return n.execMogrify(queryStartSlave, map[string]any{
+	q, err := n.GetStartSlaveQuery()
+	if err != nil {
+		return err
+	}
+	return n.execMogrify(q, map[string]any{
 		"channel": n.config.ReplicationChannel,
 	})
 }
@@ -808,14 +812,22 @@ func (n *Node) RestartReplica() error {
 
 // StopSlaveIOThread stops IO replication thread
 func (n *Node) StopSlaveIOThread() error {
-	return n.execMogrify(queryStopSlaveIOThread, map[string]any{
+	q, err := n.GetStopSlaveIOThreadQuery()
+	if err != nil {
+		return err
+	}
+	return n.execMogrify(q, map[string]any{
 		"channel": n.config.ReplicationChannel,
 	})
 }
 
 // StartSlaveIOThread starts IO replication thread
 func (n *Node) StartSlaveIOThread() error {
-	return n.execMogrify(queryStartSlaveIOThread, map[string]any{
+	q, err := n.GetStartSlaveIOThreadQuery()
+	if err != nil {
+		return err
+	}
+	return n.execMogrify(q, map[string]any{
 		"channel": n.config.ReplicationChannel,
 	})
 }
@@ -831,21 +843,33 @@ func (n *Node) RestartSlaveIOThread() error {
 
 // StopSlaveSQLThread stops SQL replication thread
 func (n *Node) StopSlaveSQLThread() error {
-	return n.execMogrifyWithTimeout(queryStopSlaveSQLThread, map[string]any{
+	q, err := n.GetStopSlaveSQLThreadQuery()
+	if err != nil {
+		return err
+	}
+	return n.execMogrifyWithTimeout(q, map[string]any{
 		"channel": n.config.ReplicationChannel,
 	}, n.config.DBStopSlaveSQLThreadTimeout)
 }
 
 // StartSlaveSQLThread starts SQL replication thread
 func (n *Node) StartSlaveSQLThread() error {
-	return n.execMogrify(queryStartSlaveSQLThread, map[string]any{
+	q, err := n.GetStartSlaveSQLThreadQuery()
+	if err != nil {
+		return err
+	}
+	return n.execMogrify(q, map[string]any{
 		"channel": n.config.ReplicationChannel,
 	})
 }
 
 // ResetSlaveAll promotes MySQL Node to be master
 func (n *Node) ResetSlaveAll() error {
-	return n.execMogrify(queryResetSlaveAll, map[string]any{
+	q, err := n.GetResetSlaveQuery()
+	if err != nil {
+		return err
+	}
+	return n.execMogrify(q, map[string]any{
 		"channel": n.config.ReplicationChannel,
 	})
 }
@@ -918,7 +942,11 @@ func (n *Node) ChangeMaster(host string) error {
 	if n.config.MySQL.ReplicationSslCA != "" {
 		useSsl = 1
 	}
-	return n.execMogrify(queryChangeMaster, map[string]any{
+	q, err := n.GetChangeMasterQuery()
+	if err != nil {
+		return err
+	}
+	return n.execMogrify(q, map[string]any{
 		"host":            host,
 		"port":            n.config.MySQL.ReplicationPort,
 		"user":            n.config.MySQL.ReplicationUser,
@@ -948,7 +976,11 @@ func (n *Node) ReenableEventsRetry() ([]Event, error) {
 
 func (n *Node) ReenableEvents() ([]Event, error) {
 	var events []Event
-	err := n.queryRows(queryListSlavesideDisabledEvents, nil, func(rows *sqlx.Rows) error {
+	q, err := n.GetListSlaveSideDisabledEventsQuery()
+	if err != nil {
+		return nil, err
+	}
+	err = n.queryRows(q, nil, func(rows *sqlx.Rows) error {
 		var event Event
 		err := rows.StructScan(&event)
 		if err != nil {
@@ -1161,4 +1193,138 @@ func (n *Node) UpdateReplMonTable(replMonSchemeName string, replMonTable string)
 		"replMonSchemeName": schemaname(replMonSchemeName),
 		"replMonTable":      schemaname(replMonTable),
 	})
+}
+
+func (n *Node) GetSlaveStatusQuery() (string, error) {
+	v, err := n.GetVersion()
+	if err != nil {
+		return "", err
+	}
+	if v.CheckIfVersionReplicaStatus() {
+		return queryReplicaStatus, nil
+	} else {
+		return querySlaveStatus, nil
+	}
+}
+
+func (n *Node) GetSlaveOrReplicaStruct() (ReplicaStatus, error) {
+	v, err := n.GetVersion()
+	if err != nil {
+		return nil, err
+	}
+	if v.CheckIfVersionReplicaStatus() {
+		return new(ReplicaStatusStruct), nil
+	} else {
+		return new(SlaveStatusStruct), nil
+	}
+}
+
+func (n *Node) GetStopSlaveQuery() (string, error) {
+	v, err := n.GetVersion()
+	if err != nil {
+		return "", err
+	}
+	if v.CheckIfVersionReplicaStatus() {
+		return queryStopReplica, nil
+	} else {
+		return queryStopSlave, nil
+	}
+}
+
+func (n *Node) GetStartSlaveQuery() (string, error) {
+	v, err := n.GetVersion()
+	if err != nil {
+		return "", err
+	}
+	if v.CheckIfVersionReplicaStatus() {
+		return queryStartReplica, nil
+	} else {
+		return queryStartSlave, nil
+	}
+}
+
+func (n *Node) GetStopSlaveIOThreadQuery() (string, error) {
+	v, err := n.GetVersion()
+	if err != nil {
+		return "", err
+	}
+	if v.CheckIfVersionReplicaStatus() {
+		return queryStopReplicaIOThread, nil
+	} else {
+		return queryStopSlaveIOThread, nil
+	}
+}
+
+func (n *Node) GetStartSlaveIOThreadQuery() (string, error) {
+	v, err := n.GetVersion()
+	if err != nil {
+		return "", err
+	}
+	if v.CheckIfVersionReplicaStatus() {
+		return queryStartReplicaIOThread, nil
+	} else {
+		return queryStartSlaveIOThread, nil
+	}
+}
+
+func (n *Node) GetStopSlaveSQLThreadQuery() (string, error) {
+	v, err := n.GetVersion()
+	if err != nil {
+		return "", err
+	}
+	if v.CheckIfVersionReplicaStatus() {
+		return queryStopReplicaSQLThread, nil
+	} else {
+		return queryStopSlaveSQLThread, nil
+	}
+}
+
+func (n *Node) GetStartSlaveSQLThreadQuery() (string, error) {
+	v, err := n.GetVersion()
+	if err != nil {
+		return "", err
+	}
+	if v.CheckIfVersionReplicaStatus() {
+		return queryStartReplicaSQLThread, nil
+	} else {
+		return queryStartSlaveSQLThread, nil
+	}
+}
+
+func (n *Node) GetResetSlaveQuery() (string, error) {
+	v, err := n.GetVersion()
+	if err != nil {
+		return "", err
+	}
+	if v.CheckIfVersionReplicaStatus() {
+		return queryResetReplicaAll, nil
+	} else {
+		return queryResetSlaveAll, nil
+	}
+}
+
+func (n *Node) GetChangeMasterQuery() (string, error) {
+	v, err := n.GetVersion()
+	if err != nil {
+		return "", err
+	}
+	if v.CheckIfVersionReplicaStatus() {
+		return queryChangeSource, nil
+	} else {
+		return queryChangeMaster, nil
+	}
+}
+
+// This queries were made intentionally identical: in 8.0 status is still SLAVESIDE_DISABLED
+// And even in 8.4 doc it said that "MySQL 8.4 normally displays REPLICA_SIDE_DISABLED rather than SLAVESIDE_DISABLED"
+func (n *Node) GetListSlaveSideDisabledEventsQuery() (string, error) {
+	v, err := n.GetVersion()
+	if err != nil {
+		return "", err
+	}
+	if v.CheckIfVersionReplicaStatus() {
+		return queryListReplicaSideDisabledEvents, nil
+	} else {
+		return queryListSlavesideDisabledEvents, nil
+	}
 }

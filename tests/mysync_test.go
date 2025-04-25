@@ -364,36 +364,55 @@ func (tctx *testContext) doMysqlQuery(db *sqlx.DB, query string, args any, timeo
 	return result, nil
 }
 
-func (tctx *testContext) runSlaveStatusQuery(host string) (map[string]string, error) {
+func (tctx *testContext) GetVersion(host string) (mysql_internal.Version, error) {
 	query := "SELECT sys.version_major() AS MajorVersion, sys.version_minor() AS MinorVersion, sys.version_patch() AS PatchVersion"
 	res, err := tctx.queryMysql(host, query, nil)
 	if err != nil {
-		return nil, err
+		return mysql_internal.Version{}, err
 	}
 	MajorVersion := res[0]["MajorVersion"].(int64)
 	MinorVersion := res[0]["MinorVersion"].(int64)
 	PatchVersion := res[0]["PatchVersion"].(int64)
-	v := mysql_internal.Version{MajorVersion: int(MajorVersion), MinorVersion: int(MinorVersion), PatchVersion: int(PatchVersion)}
-	query = mysql_internal.DefaultQueries[v.GetSlaveStatusQuery()]
-	query = mysql_internal.Mogrify(query, map[string]any{
-		"channel": replicationChannel,
-	})
-	res, err = tctx.queryMysql(host, query, nil)
+	return mysql_internal.Version{MajorVersion: int(MajorVersion), MinorVersion: int(MinorVersion), PatchVersion: int(PatchVersion)}, nil
+}
+
+func (tctx *testContext) runSlaveStatusQuery(host string) (map[string]string, error) {
+	v, err := tctx.GetVersion(host)
+	if err != nil {
+		return nil, err
+	}
+	if v.CheckIfVersionReplicaStatus() {
+		return tctx.runSlaveStatusQueryV2(host)
+	} else {
+		return tctx.runSlaveStatusQueryV1(host)
+	}
+}
+
+func (tctx *testContext) runSlaveStatusQueryV1(host string) (map[string]string, error) {
+	res, err := tctx.queryMysql(host, "SHOW SLAVE STATUS FOR CHANNEL ''", nil)
 	if len(res) == 0 || err != nil {
 		return nil, err
 	}
 	result := make(map[string]string)
 	result["Last_IO_Error"] = res[0]["Last_IO_Error"].(string)
 	result["Last_SQL_Error"] = res[0]["Last_SQL_Error"].(string)
-	if v.CheckIfVersionReplicaStatus() {
-		result["Master_Host"] = res[0]["Source_Host"].(string)
-		result["Slave_IO_Running"] = res[0]["Replica_IO_Running"].(string)
-		result["Slave_SQL_Running"] = res[0]["Replica_SQL_Running"].(string)
-	} else {
-		result["Master_Host"] = res[0]["Master_Host"].(string)
-		result["Slave_IO_Running"] = res[0]["Slave_IO_Running"].(string)
-		result["Slave_SQL_Running"] = res[0]["Slave_SQL_Running"].(string)
+	result["Master_Host"] = res[0]["Master_Host"].(string)
+	result["Slave_IO_Running"] = res[0]["Slave_IO_Running"].(string)
+	result["Slave_SQL_Running"] = res[0]["Slave_SQL_Running"].(string)
+	return result, nil
+}
+
+func (tctx *testContext) runSlaveStatusQueryV2(host string) (map[string]string, error) {
+	res, err := tctx.queryMysql(host, "SHOW REPLICA STATUS FOR CHANNEL ''", nil)
+	if len(res) == 0 || err != nil {
+		return nil, err
 	}
+	result := make(map[string]string)
+	result["Last_IO_Error"] = res[0]["Last_IO_Error"].(string)
+	result["Last_SQL_Error"] = res[0]["Last_SQL_Error"].(string)
+	result["Master_Host"] = res[0]["Source_Host"].(string)
+	result["Slave_IO_Running"] = res[0]["Replica_IO_Running"].(string)
+	result["Slave_SQL_Running"] = res[0]["Replica_SQL_Running"].(string)
 	return result, nil
 }
 
@@ -768,6 +787,19 @@ func (tctx *testContext) stepIRunCommandOnHostUntilReturnCodeWithTimeout(host st
 
 // Make sure zk node is absent, then stop slave, change master & start slave again
 func (tctx *testContext) stepIChangeReplicationSource(host, replicationSource string) error {
+	v, err := tctx.GetVersion(host)
+	if err != nil {
+		return err
+	}
+	if v.CheckIfVersionReplicaStatus() {
+		return tctx.stepIChangeReplicationSourceV2(host, replicationSource)
+	} else {
+		return tctx.stepIChangeReplicationSourceV1(host, replicationSource)
+	}
+}
+
+// Make sure zk node is absent, then stop slave, change master & start slave again
+func (tctx *testContext) stepIChangeReplicationSourceV1(host, replicationSource string) error {
 	if err := tctx.stepIDeleteZookeeperNode(dcs.JoinPath("/test", dcs.PathHANodesPrefix, host)); err != nil {
 		return err
 	}
@@ -808,6 +840,52 @@ func (tctx *testContext) stepIChangeReplicationSource(host, replicationSource st
 		return err
 	}
 	query = fmt.Sprintf("START SLAVE FOR CHANNEL '%s'", replicationChannel)
+	_, err = tctx.queryMysql(host, query, nil)
+	return err
+}
+
+// Make sure zk node is absent, then stop slave, change master & start slave again
+func (tctx *testContext) stepIChangeReplicationSourceV2(host, replicationSource string) error {
+	if err := tctx.stepIDeleteZookeeperNode(dcs.JoinPath("/test", dcs.PathHANodesPrefix, host)); err != nil {
+		return err
+	}
+	query := fmt.Sprintf("STOP REPLICA FOR CHANNEL '%s'", replicationChannel)
+	if _, err := tctx.queryMysql(host, query, nil); err != nil {
+		return err
+	}
+	query = `CHANGE REPLICATION SOURCE TO
+								SOURCE_HOST = :host ,
+								SOURCE_PORT = :port ,
+								SOURCE_USER = :user ,
+								SOURCE_PASSWORD = :password ,
+								SOURCE_SSL = :ssl ,
+								SOURCE_SSL_CA = :sslCa ,
+								SOURCE_SSL_VERIFY_SERVER_CERT = 1,
+								SOURCE_AUTO_POSITION = 1,
+								SOURCE_CONNECT_RETRY = :connectRetry,
+								SOURCE_RETRY_COUNT = :retryCount,
+								SOURCE_HEARTBEAT_PERIOD = :heartbeatPeriod
+			    FOR CHANNEL :channel`
+	dc, err := config.DefaultConfig()
+	if err != nil {
+		return err
+	}
+	query = mysql_internal.Mogrify(query, map[string]any{
+		"host":            replicationSource,
+		"port":            dc.MySQL.Port,
+		"user":            dc.MySQL.ReplicationUser,
+		"password":        dc.MySQL.ReplicationPassword,
+		"ssl":             0,
+		"sslCa":           dc.MySQL.ReplicationSslCA,
+		"retryCount":      dc.MySQL.ReplicationRetryCount,
+		"connectRetry":    dc.MySQL.ReplicationConnectRetry,
+		"heartbeatPeriod": dc.MySQL.ReplicationHeartbeatPeriod,
+		"channel":         replicationChannel,
+	})
+	if _, err := tctx.queryMysql(host, query, nil); err != nil {
+		return err
+	}
+	query = fmt.Sprintf("START REPLICA FOR CHANNEL '%s'", replicationChannel)
 	_, err = tctx.queryMysql(host, query, nil)
 	return err
 }
@@ -892,6 +970,18 @@ func (tctx *testContext) stepThereIsNoSQLErrorWithin(host string, timeout int) e
 }
 
 func (tctx *testContext) stepBreakReplicationOnHost(host string) error {
+	v, err := tctx.GetVersion(host)
+	if err != nil {
+		return err
+	}
+	if v.CheckIfVersionReplicaStatus() {
+		return tctx.stepBreakReplicationOnHostV2(host)
+	} else {
+		return tctx.stepBreakReplicationOnHostV1(host)
+	}
+}
+
+func (tctx *testContext) stepBreakReplicationOnHostV1(host string) error {
 	query := fmt.Sprintf("STOP SLAVE IO_THREAD FOR CHANNEL '%s'", replicationChannel)
 	if _, err := tctx.queryMysql(host, query, nil); err != nil {
 		return err
@@ -905,6 +995,26 @@ func (tctx *testContext) stepBreakReplicationOnHost(host string) error {
 		return err
 	}
 	query = fmt.Sprintf("START SLAVE FOR CHANNEL '%s'", replicationChannel)
+	if _, err := tctx.queryMysql(host, query, nil); err != nil {
+		return err
+	}
+	return nil
+}
+
+func (tctx *testContext) stepBreakReplicationOnHostV2(host string) error {
+	query := fmt.Sprintf("STOP REPLICA IO_THREAD FOR CHANNEL '%s'", replicationChannel)
+	if _, err := tctx.queryMysql(host, query, nil); err != nil {
+		return err
+	}
+	query = fmt.Sprintf("STOP REPLICA FOR CHANNEL '%s'", replicationChannel)
+	if _, err := tctx.queryMysql(host, query, nil); err != nil {
+		return err
+	}
+	query = fmt.Sprintf("CHANGE REPLICATION SOURCE TO SOURCE_PASSWORD = 'incorrect' FOR CHANNEL '%s'", replicationChannel)
+	if _, err := tctx.queryMysql(host, query, nil); err != nil {
+		return err
+	}
+	query = fmt.Sprintf("START REPLICA FOR CHANNEL '%s'", replicationChannel)
 	if _, err := tctx.queryMysql(host, query, nil); err != nil {
 		return err
 	}

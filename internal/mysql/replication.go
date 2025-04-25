@@ -101,14 +101,14 @@ func (er *ExternalReplication) Set(n *Node) error {
 	if err != nil {
 		return err
 	}
-	err = n.execMogrify(queryChangeSource, map[string]any{
+	err = n.execMogrify(queryChangeSourceWithDelay, map[string]any{
 		"host":            replSettings.SourceHost,
 		"port":            replSettings.SourcePort,
 		"user":            replSettings.SourceUser,
 		"password":        replSettings.SourcePassword,
 		"ssl":             useSsl,
 		"sslCa":           sslCa,
-		"sourceDelay":     replSettings.SourceDelay,
+		"delay":           replSettings.SourceDelay,
 		"retryCount":      n.config.MySQL.ReplicationRetryCount,
 		"connectRetry":    n.config.MySQL.ReplicationConnectRetry,
 		"heartbeatPeriod": n.config.MySQL.ReplicationHeartbeatPeriod,

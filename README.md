@@ -2,6 +2,7 @@
 ![Linters-status](https://github.com/yandex/mysync/workflows/Linters/badge.svg)
 ![Docker-tests-57-status](https://github.com/yandex/mysync/workflows/Docker%20tests%20(5.7)/badge.svg)
 ![Docker-tests-80-status](https://github.com/yandex/mysync/workflows/Docker%20tests%20(8.0)/badge.svg)
+![Docker-tests-84-status](https://github.com/yandex/mysync/workflows/Docker%20tests%20(8.4)/badge.svg)
 
 ## MySync
 

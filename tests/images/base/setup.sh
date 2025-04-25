@@ -18,7 +18,14 @@ apt-get install \
 
 apt-key add - </var/lib/dist/base/percona.gpg
 add-apt-repository 'deb http://mirror.yandex.ru/mirrors/percona/percona/apt jammy main'
-add-apt-repository 'deb http://mirror.yandex.ru/mirrors/percona/ps-80/apt jammy main'
+# mysql
+if [[ "$MYSQL_VERSION" == "8.0" ]]; then
+  add-apt-repository 'deb http://mirror.yandex.ru/mirrors/percona/ps-80/apt jammy main'
+elif [[ "$MYSQL_VERSION" == "8.4" ]]; then
+  add-apt-repository 'deb http://mirror.yandex.ru/mirrors/percona/ps-84-lts/apt jammy main'
+  add-apt-repository 'deb http://mirror.yandex.ru/mirrors/percona/pxb-84-lts/apt jammy main'
+  add-apt-repository 'deb http://mirror.yandex.ru/mirrors/percona/psmdb-60/apt jammy main'
+fi
 
 # common
 apt-get update
@@ -57,6 +64,10 @@ if [[ "$MYSQL_VERSION" == "8.0" ]]; then
   apt-get install \
     percona-server-server=8.0.\* \
     percona-xtrabackup-80
+elif [[ "$MYSQL_VERSION" == "8.4" ]]; then
+  apt-get install \
+    percona-server-server=8.4.\* \
+    percona-xtrabackup-84
 else
   apt-get install \
     percona-xtradb-cluster-server-${MYSQL_VERSION} \

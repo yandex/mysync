@@ -14,10 +14,25 @@ rpl_semi_sync_master_wait_for_slave_count = 1
 rpl_semi_sync_master_wait_no_slave = ON
 rpl_semi_sync_master_wait_point = AFTER_SYNC
 EOF
+elif [[ "$VERSION" == "8.4" ]]; then
+  mkdir /etc/mysql/ssl
+  chown mysql:mysql /etc/mysql/ssl
+  cp /var/lib/dist/mysql/my.cnf.8.4 /etc/mysql/my.cnf
+  cp /var/lib/dist/mysql/my.cnf.8.4 /etc/mysql/init.cnf
+cat <<EOF >> /etc/mysql/my.cnf
+rpl_semi_sync_master_timeout = 31536000000
+rpl_semi_sync_master_wait_for_slave_count = 1
+rpl_semi_sync_master_wait_no_slave = ON
+rpl_semi_sync_master_wait_point = AFTER_SYNC
+EOF
 else
   cp /var/lib/dist/mysql/my.cnf /etc/mysql/my.cnf
   cp /var/lib/dist/mysql/my.cnf /etc/mysql/init.cnf
 fi
 
 cp /var/lib/dist/mysql/.my.cnf /root/.my.cnf
-cp /var/lib/dist/mysql/supervisor_mysql.conf /etc/supervisor/conf.d
+if [[ "$VERSION" == "8.4" ]]; then
+  cp /var/lib/dist/mysql/supervisor_mysql.conf.8.4 /etc/supervisor/conf.d/supervisor_mysql.conf
+else
+  cp /var/lib/dist/mysql/supervisor_mysql.conf /etc/supervisor/conf.d/supervisor_mysql.conf
+fi
