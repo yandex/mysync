@@ -381,26 +381,38 @@ func (tctx *testContext) runSlaveStatusQuery(host string) (map[string]string, er
 	if err != nil {
 		return nil, err
 	}
-	query := mysql_internal.DefaultQueries[v.GetSlaveStatusQuery()]
-	query = mysql_internal.Mogrify(query, map[string]any{
-		"channel": replicationChannel,
-	})
-	res, err := tctx.queryMysql(host, query, nil)
+	if v.CheckIfVersionReplicaStatus() {
+		return tctx.runSlaveStatusQueryV2(host)
+	} else {
+		return tctx.runSlaveStatusQueryV1(host)
+	}
+}
+
+func (tctx *testContext) runSlaveStatusQueryV1(host string) (map[string]string, error) {
+	res, err := tctx.queryMysql(host, "SHOW SLAVE STATUS FOR CHANNEL ''", nil)
 	if len(res) == 0 || err != nil {
 		return nil, err
 	}
 	result := make(map[string]string)
 	result["Last_IO_Error"] = res[0]["Last_IO_Error"].(string)
 	result["Last_SQL_Error"] = res[0]["Last_SQL_Error"].(string)
-	if v.CheckIfVersionReplicaStatus() {
-		result["Master_Host"] = res[0]["Source_Host"].(string)
-		result["Slave_IO_Running"] = res[0]["Replica_IO_Running"].(string)
-		result["Slave_SQL_Running"] = res[0]["Replica_SQL_Running"].(string)
-	} else {
-		result["Master_Host"] = res[0]["Master_Host"].(string)
-		result["Slave_IO_Running"] = res[0]["Slave_IO_Running"].(string)
-		result["Slave_SQL_Running"] = res[0]["Slave_SQL_Running"].(string)
+	result["Master_Host"] = res[0]["Master_Host"].(string)
+	result["Slave_IO_Running"] = res[0]["Slave_IO_Running"].(string)
+	result["Slave_SQL_Running"] = res[0]["Slave_SQL_Running"].(string)
+	return result, nil
+}
+
+func (tctx *testContext) runSlaveStatusQueryV2(host string) (map[string]string, error) {
+	res, err := tctx.queryMysql(host, "SHOW REPLICA STATUS FOR CHANNEL ''", nil)
+	if len(res) == 0 || err != nil {
+		return nil, err
 	}
+	result := make(map[string]string)
+	result["Last_IO_Error"] = res[0]["Last_IO_Error"].(string)
+	result["Last_SQL_Error"] = res[0]["Last_SQL_Error"].(string)
+	result["Master_Host"] = res[0]["Source_Host"].(string)
+	result["Slave_IO_Running"] = res[0]["Replica_IO_Running"].(string)
+	result["Slave_SQL_Running"] = res[0]["Replica_SQL_Running"].(string)
 	return result, nil
 }
 
