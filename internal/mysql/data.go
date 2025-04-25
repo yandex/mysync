@@ -303,7 +303,6 @@ type ReplMonTSDelay struct {
 const (
 	Version8Major               = 8
 	Version80Minor              = 0
-	Version84Minor              = 4
 	Version80PatchReplicaStatus = 22
 	Version57Major              = 5
 )
