@@ -264,9 +264,9 @@ Feature: cascade replicas
         # remove intermediate node:
         And I run SQL on mysql host "mysql2"
           """
-          STOP REPLICA FOR CHANNEL '';
-          CHANGE REPLICATION SOURCE TO SOURCE_DELAY = 60;
-          START REPLICA FOR CHANNEL '';
+          STOP SLAVE FOR CHANNEL '';
+          CHANGE MASTER TO MASTER_DELAY = 10 FOR CHANNEL '';
+          START SLAVE FOR CHANNEL '';
           """
         When host "mysql2" is detached from the network
         Then mysql host "mysql3" should become replica of "mysql1" within "45" seconds
