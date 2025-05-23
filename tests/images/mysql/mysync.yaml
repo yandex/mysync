@@ -44,7 +44,7 @@ keep_super_writable_on_critical_disk_usage: ${MYSYNC_KEEP_SUPER_WRITABLE_ON_CRIT
 test_disk_usage_file: /tmp/usedspace
 db_set_ro_force_timeout: 40s
 db_set_ro_timeout: ${MYSYNC_SET_RO_TIMEOUT:-30s}
-offline_mode_enable_lag: 10s
+offline_mode_enable_lag: ${OFFLINE_MODE_ENABLE_LAG:-10s}
 offline_mode_disable_lag: 5s
 priority_choice_max_lag: ${MYSYNC_PRIORITY_CHOICE_LAG:-60s}
 disable_set_readonly_on_lost: false
