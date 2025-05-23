@@ -7,9 +7,9 @@ toolchain go1.24.1
 require (
 	github.com/cenkalti/backoff/v4 v4.3.0
 	github.com/cucumber/godog v0.15.0
-	github.com/docker/docker v28.0.4+incompatible
-	github.com/go-mysql-org/go-mysql v1.11.0
-	github.com/go-sql-driver/mysql v1.9.1
+	github.com/docker/docker v28.1.1+incompatible
+	github.com/go-mysql-org/go-mysql v1.12.0
+	github.com/go-sql-driver/mysql v1.9.2
 	github.com/go-zookeeper/zk v1.0.4
 	github.com/gofrs/flock v0.12.1
 	github.com/gofrs/uuid v4.4.0+incompatible
@@ -47,6 +47,7 @@ require (
 	github.com/inconshreveable/mousetrap v1.1.0 // indirect
 	github.com/lufia/plan9stats v0.0.0-20240819163618-b1d8f4d146e7 // indirect
 	github.com/moby/docker-image-spec v1.3.1 // indirect
+	github.com/moby/sys/atomicwriter v0.1.0 // indirect
 	github.com/moby/term v0.0.0-20220808134915-39b0c02b01ae // indirect
 	github.com/morikuni/aec v1.0.0 // indirect
 	github.com/opencontainers/go-digest v1.0.0 // indirect
@@ -56,7 +57,6 @@ require (
 	github.com/pmezard/go-difflib v1.0.0 // indirect
 	github.com/power-devops/perfstat v0.0.0-20240221224432-82ca36839d55 // indirect
 	github.com/shoenig/go-m1cpu v0.1.6 // indirect
-	github.com/siddontang/go-log v0.0.0-20190221022429-1e957dd83bed // indirect
 	github.com/tklauser/go-sysconf v0.3.14 // indirect
 	github.com/tklauser/numcpus v0.8.0 // indirect
 	github.com/yusufpapurcu/wmi v1.2.4 // indirect
