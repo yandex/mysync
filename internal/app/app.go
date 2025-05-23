@@ -2023,18 +2023,18 @@ func (app *App) repairCascadeNode(node *mysql.Node, clusterState map[string]*Nod
 			}
 		}
 
-		// we have chosen candidate... wait till stream_from will have newer GTID than ours:
+		// we have chosen candidate... wait until stream_from has a newer GTID than ours:
 
-		// There is a race between GTID sets: order in which it was fetched is not defined.
+		// There is a race between GTID sets: order in which they were fetched is not defined.
 		// So, fetch cascade replica's ReplicaStatus here
-		// As a result, we know that myGITIDs fetched AFTER candidate's GTIDs...
-		// We should wait until myGITIDs (fetched later) will be lower or equal to candidateGTIDs (fetched earlier)
+		// As a result, we know that myGTIDs fetched AFTER candidate's GTIDs...
+		// We should wait until myGTIDs (fetched later) are lower or equal to candidateGTIDs (fetched earlier)
 		mySlaveStatus, err := node.GetReplicaStatus() // retrieve fresh GTIDs
 		if err != nil {
 			app.logger.Warnf("repair: cannot obtain own SLAVE/REPLICA STATUS")
 			return
 		}
-		myGITIDs := gtids.ParseGtidSet(mySlaveStatus.GetExecutedGtidSet())
+		myGTIDs := gtids.ParseGtidSet(mySlaveStatus.GetExecutedGtidSet())
 
 		candidateState := clusterState[upstreamCandidate]
 		candidateNode := app.cluster.Get(upstreamCandidate)
@@ -2044,7 +2044,7 @@ func (app *App) repairCascadeNode(node *mysql.Node, clusterState map[string]*Nod
 		} else {
 			candidateGTIDs = gtids.ParseGtidSet(candidateState.SlaveState.ExecutedGtidSet)
 		}
-		app.logger.Debugf("repair: %s GTID set = %v, new stream_from GTID set is %v", host, myGITIDs, candidateGTIDs)
+		app.logger.Debugf("repair: %s GTID set = %v, new stream_from GTID set is %v", host, myGTIDs, candidateGTIDs)
 
 		candidateUUID, err := candidateNode.UUID()
 		if err != nil {
@@ -2052,12 +2052,18 @@ func (app *App) repairCascadeNode(node *mysql.Node, clusterState map[string]*Nod
 			return
 		}
 
-		if gtids.IsSplitBrained(myGITIDs, candidateGTIDs, candidateUUID) {
-			app.logger.Errorf("repair: %s and %s are splitbrained...", host, upstreamCandidate)
-			app.writeEmergeFile(fmt.Sprintf("cascade replica splitbrain detected\nCascade replica gtids:%s\nCandidate gtids:%s\n", myGITIDs, candidateGTIDs))
+		// There might be a case where the original source replica is returned after downtime
+		// In that case, we have to wait for its convergence before starting cascade replica
+		if gtids.IsSlaveAhead(myGTIDs, candidateGTIDs) {
+			app.logger.Infof("repair: %s is awaiting %s convergence", host, upstreamCandidate)
 			return
 		}
-		if gtids.IsSlaveBehindOrEqual(myGITIDs, candidateGTIDs) {
+		if gtids.IsSplitBrained(myGTIDs, candidateGTIDs, candidateUUID) {
+			app.logger.Errorf("repair: %s and %s are splitbrained...", host, upstreamCandidate)
+			app.writeEmergeFile(fmt.Sprintf("cascade replica splitbrain detected\nCascade replica gtids:%s\nCandidate gtids:%s\n", myGTIDs, candidateGTIDs))
+			return
+		}
+		if gtids.IsSlaveBehindOrEqual(myGTIDs, candidateGTIDs) {
 			app.logger.Infof("repair: new stream_from host GTID set is superset of our GTID set. Switching Master_Host, Starting replication")
 			err = app.performChangeMaster(host, upstreamCandidate)
 			if err != nil {

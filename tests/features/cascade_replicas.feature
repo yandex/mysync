@@ -212,3 +212,105 @@ Feature: cascade replicas
         When I wait for "10" seconds
         And mysql replication on host "mysql2" should run fine
         And mysql host "mysql3" should be replica of "mysql2"
+
+     Scenario: Cascade replicas waits for returned original host before starting streaming
+        Given cluster environment is
+        """
+        MYSYNC_FAILOVER_DELAY=10s
+        MYSYNC_STREAM_FROM_REASONABLE_LAG=300s
+        OFFLINE_MODE_ENABLE_LAG=300s
+        """
+        And cluster is up and running
+        Then mysql host "mysql1" should be master
+
+        When I wait for "1" seconds
+        And mysql host "mysql2" should be replica of "mysql1"
+        And mysql replication on host "mysql2" should run fine within "5" seconds
+        And mysql host "mysql3" should be replica of "mysql1"
+        And mysql replication on host "mysql3" should run fine within "5" seconds
+        And zookeeper node "/test/active_nodes" should match json_exactly within "30" seconds
+        """
+           ["mysql1","mysql2","mysql3"]
+        """
+
+        # configure cluster:
+        When I run command on host "mysql3"
+        """
+           mysync host add mysql2 --stream-from mysql1
+        """
+        Then command return code should be "0"
+        When I run command on host "mysql3"
+        """
+           mysync host add mysql3 --stream-from mysql2
+        """
+        Then command return code should be "0"
+        Then zookeeper node "/test/ha_nodes/mysql1" should exist within "5" seconds
+        Then zookeeper node "/test/ha_nodes/mysql2" should not exist within "5" seconds
+        Then zookeeper node "/test/ha_nodes/mysql3" should not exist within "5" seconds
+        Then zookeeper node "/test/cascade_nodes/mysql1" should not exist within "5" seconds
+        Then zookeeper node "/test/cascade_nodes/mysql2" should match json within "5" seconds
+        """
+           { "stream_from": "mysql1" }
+        """
+        Then zookeeper node "/test/cascade_nodes/mysql3" should match json within "5" seconds
+        """
+           { "stream_from": "mysql2" }
+        """
+        And mysql host "mysql2" should become replica of "mysql1" within "30" seconds
+        And mysql host "mysql2" should have variable "rpl_semi_sync_slave_enabled" set to "0" within "10" seconds
+        And mysql host "mysql3" should become replica of "mysql2" within "30" seconds
+        And mysql host "mysql3" should have variable "rpl_semi_sync_slave_enabled" set to "0" within "10" seconds
+
+        # remove intermediate node:
+        And I run SQL on mysql host "mysql2"
+          """
+          STOP SLAVE FOR CHANNEL '';
+          CHANGE MASTER TO MASTER_DELAY = 10 FOR CHANNEL '';
+          START SLAVE FOR CHANNEL '';
+          """
+        When host "mysql2" is detached from the network
+        Then mysql host "mysql3" should become replica of "mysql1" within "45" seconds
+        And mysql host "mysql3" should have variable "rpl_semi_sync_slave_enabled" set to "0" within "10" seconds
+        And mysql replication on host "mysql3" should run fine within "15" seconds
+        And I run SQL on mysql host "mysql1"
+          """
+          CREATE TABLE IF NOT EXISTS mysql.test_table1 (
+              value VARCHAR(30)
+          )
+          """
+        And I run SQL on mysql host "mysql1"
+          """
+          INSERT INTO mysql.test_table1 VALUES ("A"), ("B"), ("C")
+          """
+        And I wait for "5" seconds
+        When I run SQL on mysql host "mysql3"
+          """
+          SELECT GROUP_CONCAT(value) as val from (SELECT value from mysql.test_table1 order by value) as t
+          """
+        Then SQL result should match json
+          """
+          [{"val":"A,B,C"}]
+          """
+
+        # return intermediate node:
+        When host "mysql2" is attached to the network
+        Then mysql host "mysql2" should become replica of "mysql1" within "45" seconds
+        Then mysql host "mysql3" should become replica of "mysql2" within "60" seconds
+        And mysql host "mysql3" should have variable "rpl_semi_sync_slave_enabled" set to "0" within "10" seconds
+        And mysql replication on host "mysql3" should run fine within "15" seconds
+        And mysql host "mysql3" should be replica of "mysql2"
+        When I run command on host "mysql3"
+        """
+            if [ -f /var/run/mysync/mysync.emerge ]; then exit 1; fi;
+        """
+        Then command return code should be "0"
+        When I run command on host "mysql2"
+        """
+            if [ -f /var/run/mysync/mysync.emerge ]; then exit 1; fi;
+        """
+        Then command return code should be "0"
+        When I run command on host "mysql1"
+        """
+            if [ -f /var/run/mysync/mysync.emerge ]; then exit 1; fi;
+        """
+        Then command return code should be "0"
