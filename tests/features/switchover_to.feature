@@ -30,7 +30,8 @@ Feature: manual switchover to new master
       """
       {
         "from": "",
-        "to": "mysql2"
+        "to": "mysql2",
+        "master_transition": "switchover"
       }
       """
     Then zookeeper node "/test/last_switch" should match json within "120" seconds
@@ -38,6 +39,7 @@ Feature: manual switchover to new master
       {
         "from": "",
         "to": "mysql2",
+        "master_transition": "switchover",
         "result": {
           "ok": true
         }
@@ -91,7 +93,8 @@ Feature: manual switchover to new master
       """
       {
         "from": "",
-        "to": "mysql2"
+        "to": "mysql2",
+        "master_transition": "switchover"
       }
       """
     Then zookeeper node "/test/last_switch" should match json within "30" seconds
@@ -99,6 +102,7 @@ Feature: manual switchover to new master
       {
         "from": "",
         "to": "mysql2",
+        "master_transition": "switchover"
         "result": {
           "ok": true
         }
@@ -153,7 +157,8 @@ Feature: manual switchover to new master
       """
       {
         "from": "",
-        "to": "mysql2"
+        "to": "mysql2",
+        "master_transition": "switchover"
       }
       """
     Then zookeeper node "/test/last_switch" should match json within "30" seconds
@@ -161,6 +166,7 @@ Feature: manual switchover to new master
       {
         "from": "",
         "to": "mysql2",
+        "master_transition": "switchover",
         "result": {
           "ok": true
         }
@@ -220,7 +226,8 @@ Feature: manual switchover to new master
       """
       {
         "from": "",
-        "to": "mysql2"
+        "to": "mysql2",
+        "master_transition": "switchover"
       }
       """
     Then zookeeper node "/test/last_switch" should match json within "30" seconds
@@ -228,6 +235,7 @@ Feature: manual switchover to new master
       {
         "from": "",
         "to": "mysql2",
+        "master_transition": "switchover",
         "result": {
           "ok": true
         }

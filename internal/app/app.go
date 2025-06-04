@@ -1342,6 +1342,7 @@ func (app *App) performSwitchover(clusterState map[string]*NodeState, activeNode
 	if dubious := getDubiousHAHosts(clusterState); len(dubious) > 0 {
 		return fmt.Errorf("switchover: failed to ping hosts: %v with dubious errors", dubious)
 	}
+  app.logger.Infof("switchover: %+v", switchover.MasterTransition)
 
 	activeNodesWithOldMaster := activeNodes
 
