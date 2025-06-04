@@ -102,7 +102,7 @@ Feature: manual switchover to new master
       {
         "from": "",
         "to": "mysql2",
-        "master_transition": "switchover"
+        "master_transition": "switchover",
         "result": {
           "ok": true
         }

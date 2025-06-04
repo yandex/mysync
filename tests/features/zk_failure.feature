@@ -65,7 +65,7 @@ Feature: mysync handles zookeeper lost
     And mysql host "mysql3" should be read only
 
 
-  Scenario: failover works when old muster is stuck waiting semisync ack
+  Scenario: failover works when old master hangs waiting semisync ack
     Given cluster environment is
     """
     MYSYNC_FAILOVER=false
@@ -110,12 +110,13 @@ Feature: mysync handles zookeeper lost
     # start manual deterministic switchover - we will use this in last check
     When I run command on host "mysql2"
     """
-        mysync switch --from mysql1 --wait=0s
+        mysync switch --from mysql1 --wait=0s --failover
     """
     Then zookeeper node "/test/last_switch" should match json within "90" seconds
     """
           {
             "from": "mysql1",
+            "master_transition": "switchover",
             "result": {
               "ok": true
             }

@@ -785,13 +785,13 @@ func (app *App) stateManager() appState {
 func (app *App) checkMasterVisible(clusterStateFromDB, clusterStateDcs map[string]*NodeState) (bool, error) {
 	masterHost, err := app.getMasterHost(clusterStateDcs)
 	if err != nil {
-		app.logger.Errorf("checkMasterVisible: can`t get muster host, error: %s", err)
+		app.logger.Errorf("checkMasterVisible: can't get master host, error: %s", err)
 		return false, err
 	}
 	state, ok := clusterStateFromDB[masterHost]
 	app.logger.Debugf("master(%s) state pingOk == %s", masterHost, state)
 	if ok && state.PingOk {
-		app.logger.Debug("Master is visible by manager, than we don`t need manager`s switchover")
+		app.logger.Debug("Master is visible by manager, then we don't need switchover")
 		return true, nil
 	}
 
@@ -1342,7 +1342,7 @@ func (app *App) performSwitchover(clusterState map[string]*NodeState, activeNode
 	if dubious := getDubiousHAHosts(clusterState); len(dubious) > 0 {
 		return fmt.Errorf("switchover: failed to ping hosts: %v with dubious errors", dubious)
 	}
-  app.logger.Infof("switchover: %+v", switchover.MasterTransition)
+	app.logger.Infof("switchover: %+v", switchover.MasterTransition)
 
 	activeNodesWithOldMaster := activeNodes
 
