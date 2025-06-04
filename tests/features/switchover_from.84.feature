@@ -229,7 +229,7 @@ Feature: manual switchover from old master
       """
     When I run command on host "mysql2"
       """
-      mysync switch --from mysql1 --wait=0s
+      mysync switch --from mysql1 --wait=0s --force
       """
     Then command return code should be "0"
     And command output should match regexp
@@ -278,3 +278,48 @@ Feature: manual switchover from old master
     And mysql host "mysql1" should have variable "rpl_semi_sync_master_enabled" set to "0"
     And mysql replication on host "mysql1" should run fine within "10" seconds
     And mysql host "mysql1" should be read only
+
+  Scenario: switchover from does not work with dead master
+    Given cluster is up and running
+    Then zookeeper node "/test/active_nodes" should match json_exactly within "20" seconds
+      """
+      ["mysql1","mysql2","mysql3"]
+      """
+    When host "mysql1" is stopped
+    Then mysql host "mysql1" should become unavailable within "10" seconds
+    And mysql host "mysql2" should be replica of "mysql1"
+    And mysql host "mysql3" should be replica of "mysql1"
+    And I wait for "20" seconds
+    And zookeeper node "/test/active_nodes" should match json_exactly
+      """
+      ["mysql1","mysql2","mysql3"]
+      """
+    When I run command on host "mysql2"
+      """
+      mysync switch --from mysql1 --wait=0s
+      """
+    Then command return code should be "0"
+    And command output should match regexp
+      """
+      switchover scheduled
+      """
+    And zookeeper node "/test/switch" should match json
+      """
+      {
+        "from": "mysql1"
+      }
+      """
+    Then zookeeper node "/test/last_rejected_switch" should match json within "30" seconds
+      """
+      {
+        "from": "mysql1",
+        "result": {
+          "ok": false,
+          "error": "switchover: failed to set old master mysql1 read-only switchover: failed to ping host mysql1"
+        }
+      }
+
+      """
+    When I get zookeeper node "/test/master"
+    And I save zookeeper query result as "new_master"
+    Then mysql host "{{.new_master}}" should become unavailable within "10" seconds

@@ -1390,7 +1390,7 @@ func (app *App) performSwitchover(clusterState map[string]*NodeState, activeNode
 	}, activeNodes)
 
 	// if master was not among activeNodes - there will be no key in errs
-	if err, ok := errs[oldMaster]; ok && err != nil && clusterState[oldMaster].PingOk {
+	if err, ok := errs[oldMaster]; ok && err != nil && switchover.MasterTransition == SwitchoverTransition {
 		err = fmt.Errorf("switchover: failed to set old master %s read-only %s", oldMaster, err)
 		app.logger.Info(err.Error())
 		switchErr := app.FinishSwitchover(switchover, err)
@@ -1428,6 +1428,18 @@ func (app *App) performSwitchover(clusterState map[string]*NodeState, activeNode
 		app.logger.Infof("switchover: host %s replication IO thread stopped", host)
 		return nil
 	}, activeNodes)
+
+	// if master was not among activeNodes - there will be no key in errs
+	if err, ok := errs2[oldMaster]; ok && err != nil && switchover.MasterTransition == SwitchoverTransition {
+		err = fmt.Errorf("switchover: failed to set old master %s read-only %s", oldMaster, err)
+		app.logger.Info(err.Error())
+		switchErr := app.FinishSwitchover(switchover, err)
+		if switchErr != nil {
+			return fmt.Errorf("switchover: failed to reject switchover %s", switchErr)
+		}
+		app.logger.Info("switchover: rejected")
+		return err
+	}
 
 	// count successfully stopped active nodes and check one more time that we have a quorum
 	var frozenActiveNodes []string

@@ -171,6 +171,7 @@ func (app *App) StartSwitchover(switchover *Switchover) error {
 	app.logger.Infof("switchover: %s => %s starting...", switchover.From, switchover.To)
 	switchover.StartedAt = time.Now()
 	switchover.StartedBy = app.config.Hostname
+	switchover.MasterTransition = SwitchoverTransition
 	return app.dcs.Set(pathCurrentSwitch, switchover)
 }
 
@@ -198,6 +199,7 @@ func (app *App) IssueFailover(master string) error {
 	switchover.InitiatedBy = app.config.Hostname
 	switchover.InitiatedAt = time.Now()
 	switchover.Cause = CauseAuto
+	switchover.MasterTransition = FailoverTransition
 	return app.dcs.Create(pathCurrentSwitch, switchover)
 }
 
