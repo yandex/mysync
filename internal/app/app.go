@@ -791,7 +791,7 @@ func (app *App) checkMasterVisible(clusterStateFromDB, clusterStateDcs map[strin
 	state, ok := clusterStateFromDB[masterHost]
 	app.logger.Debugf("master(%s) state pingOk == %s", masterHost, state)
 	if ok && state.PingOk {
-		app.logger.Debug("Master is visible by manager, then we don't need switchover")
+		app.logger.Debug("Master is visible by manager; then, we don't need switchover")
 		return true, nil
 	}
 

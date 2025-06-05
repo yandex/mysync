@@ -20,7 +20,7 @@ Feature: manual switchover from old master
     And zookeeper node "/test/switch" should match json
       """
       {
-        "from": "mysql1"
+        "from": "mysql1",
         "master_transition": "switchover"
       }
       """
