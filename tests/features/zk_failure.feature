@@ -116,7 +116,7 @@ Feature: mysync handles zookeeper lost
     """
           {
             "from": "mysql1",
-            "master_transition": "switchover",
+            "master_transition": "failover",
             "result": {
               "ok": true
             }
