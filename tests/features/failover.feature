@@ -25,6 +25,7 @@ Feature: failover
         {
           "cause": "auto",
           "from": "mysql1",
+          "master_transition": "failover",
           "result": {
             "ok": true
           }
@@ -124,6 +125,7 @@ Feature: failover
         {
             "cause": "auto",
             "from": "mysql1",
+            "master_transition": "failover",
             "result": {
                 "ok": true
             }
@@ -168,6 +170,7 @@ Feature: failover
         {
           "cause": "auto",
           "from": "mysql1",
+          "master_transition": "failover",
           "result": {
             "ok": true
           }
@@ -252,6 +255,7 @@ Feature: failover
         {
           "cause": "auto",
           "from": "mysql1",
+          "master_transition": "failover",
           "result": {
             "ok": true
           }
@@ -310,6 +314,7 @@ Feature: failover
         {
           "cause": "auto",
           "from": "mysql1",
+          "master_transition": "failover",
           "result": {
             "ok": true
           }
@@ -431,6 +436,7 @@ Feature: failover
     {
       "cause": "auto",
       "from": "mysql1",
+      "master_transition": "failover",
       "result": {
         "ok": true
       }
