@@ -314,17 +314,25 @@ const (
 	CauseAuto = "auto"
 )
 
+type MasterTransition string
+
+const (
+	FailoverTransition   MasterTransition = "failover"
+	SwitchoverTransition MasterTransition = "switchover"
+)
+
 // Switchover contains info about currently running or scheduled switchover/failover process
 type Switchover struct {
-	From        string            `json:"from"`
-	To          string            `json:"to"`
-	Cause       string            `json:"cause"`
-	InitiatedBy string            `json:"initiated_by"`
-	InitiatedAt time.Time         `json:"initiated_at"`
-	StartedBy   string            `json:"started_by"`
-	StartedAt   time.Time         `json:"started_at"`
-	Result      *SwitchoverResult `json:"result"`
-	RunCount    int               `json:"run_count,omitempty"`
+	From             string            `json:"from"`
+	To               string            `json:"to"`
+	Cause            string            `json:"cause"`
+	InitiatedBy      string            `json:"initiated_by"`
+	InitiatedAt      time.Time         `json:"initiated_at"`
+	MasterTransition MasterTransition  `json:"master_transition"`
+	StartedBy        string            `json:"started_by"`
+	StartedAt        time.Time         `json:"started_at"`
+	Result           *SwitchoverResult `json:"result"`
+	RunCount         int               `json:"run_count,omitempty"`
 }
 
 func (sw *Switchover) String() string {

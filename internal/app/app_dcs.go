@@ -198,6 +198,7 @@ func (app *App) IssueFailover(master string) error {
 	switchover.InitiatedBy = app.config.Hostname
 	switchover.InitiatedAt = time.Now()
 	switchover.Cause = CauseAuto
+	switchover.MasterTransition = FailoverTransition
 	return app.dcs.Create(pathCurrentSwitch, switchover)
 }
 

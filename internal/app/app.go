@@ -785,13 +785,13 @@ func (app *App) stateManager() appState {
 func (app *App) checkMasterVisible(clusterStateFromDB, clusterStateDcs map[string]*NodeState) (bool, error) {
 	masterHost, err := app.getMasterHost(clusterStateDcs)
 	if err != nil {
-		app.logger.Errorf("checkMasterVisible: can`t get muster host, error: %s", err)
+		app.logger.Errorf("checkMasterVisible: can't get master host, error: %s", err)
 		return false, err
 	}
 	state, ok := clusterStateFromDB[masterHost]
 	app.logger.Debugf("master(%s) state pingOk == %s", masterHost, state)
 	if ok && state.PingOk {
-		app.logger.Debug("Master is visible by manager, than we don`t need manager`s switchover")
+		app.logger.Debug("Master is visible by manager; then, we don't need switchover")
 		return true, nil
 	}
 
@@ -1342,6 +1342,7 @@ func (app *App) performSwitchover(clusterState map[string]*NodeState, activeNode
 	if dubious := getDubiousHAHosts(clusterState); len(dubious) > 0 {
 		return fmt.Errorf("switchover: failed to ping hosts: %v with dubious errors", dubious)
 	}
+	app.logger.Infof("switchover: %+v", switchover.MasterTransition)
 
 	activeNodesWithOldMaster := activeNodes
 
@@ -1390,7 +1391,7 @@ func (app *App) performSwitchover(clusterState map[string]*NodeState, activeNode
 	}, activeNodes)
 
 	// if master was not among activeNodes - there will be no key in errs
-	if err, ok := errs[oldMaster]; ok && err != nil && clusterState[oldMaster].PingOk {
+	if err, ok := errs[oldMaster]; ok && err != nil && switchover.MasterTransition == SwitchoverTransition {
 		err = fmt.Errorf("switchover: failed to set old master %s read-only %s", oldMaster, err)
 		app.logger.Info(err.Error())
 		switchErr := app.FinishSwitchover(switchover, err)
@@ -1427,7 +1428,7 @@ func (app *App) performSwitchover(clusterState map[string]*NodeState, activeNode
 		}
 		app.logger.Infof("switchover: host %s replication IO thread stopped", host)
 		return nil
-	}, activeNodes)
+	}, filterOut(activeNodes, []string{oldMaster}))
 
 	// count successfully stopped active nodes and check one more time that we have a quorum
 	var frozenActiveNodes []string

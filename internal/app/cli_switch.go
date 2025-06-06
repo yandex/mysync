@@ -15,7 +15,7 @@ import (
 
 // CliSwitch performs manual switch-over of the master node
 // nolint: gocyclo, funlen
-func (app *App) CliSwitch(switchFrom, switchTo string, waitTimeout time.Duration) int {
+func (app *App) CliSwitch(switchFrom, switchTo string, waitTimeout time.Duration, failover bool) int {
 	ctx := app.baseContext()
 	if switchFrom == "" && switchTo == "" {
 		app.logger.Errorf("Either --from or --to should be set")
@@ -129,6 +129,11 @@ func (app *App) CliSwitch(switchFrom, switchTo string, waitTimeout time.Duration
 	switchover.InitiatedBy = util.GuessWhoRunning() + "@" + app.config.Hostname
 	switchover.InitiatedAt = time.Now()
 	switchover.Cause = CauseManual
+	if failover {
+		switchover.MasterTransition = FailoverTransition
+	} else {
+		switchover.MasterTransition = SwitchoverTransition
+	}
 
 	err = app.dcs.Create(pathCurrentSwitch, switchover)
 	if err == dcs.ErrExists {
