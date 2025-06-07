@@ -14,6 +14,7 @@ import (
 	"strings"
 	"time"
 
+	cerrdefs "github.com/containerd/errdefs"
 	"github.com/docker/docker/api/types/container"
 	"github.com/docker/docker/client"
 )
@@ -273,7 +274,7 @@ func (dc *DockerComposer) CheckIfFileExist(service, path string) (bool, error) {
 	}
 	_, err := dc.api.ContainerStatPath(context.Background(), cont.ID, path)
 	if err != nil {
-		if client.IsErrNotFound(err) {
+		if cerrdefs.IsNotFound(err) {
 			return false, nil
 		}
 		return false, err
