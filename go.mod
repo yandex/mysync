@@ -6,10 +6,11 @@ toolchain go1.24.1
 
 require (
 	github.com/cenkalti/backoff/v4 v4.3.0
+	github.com/containerd/errdefs v1.0.0
 	github.com/cucumber/godog v0.15.0
-	github.com/docker/docker v28.2.2+incompatible
+	github.com/docker/docker v28.3.0+incompatible
 	github.com/go-mysql-org/go-mysql v1.12.0
-	github.com/go-sql-driver/mysql v1.9.2
+	github.com/go-sql-driver/mysql v1.9.3
 	github.com/go-zookeeper/zk v1.0.4
 	github.com/gofrs/flock v0.12.1
 	github.com/gofrs/uuid v4.4.0+incompatible
@@ -29,7 +30,6 @@ require (
 	github.com/BurntSushi/toml v1.4.0 // indirect
 	github.com/Masterminds/semver v1.5.0 // indirect
 	github.com/Microsoft/go-winio v0.6.2 // indirect
-	github.com/containerd/errdefs v1.0.0 // indirect
 	github.com/containerd/errdefs/pkg v0.3.0 // indirect
 	github.com/containerd/log v0.1.0 // indirect
 	github.com/cucumber/gherkin/go/v26 v26.2.0 // indirect
