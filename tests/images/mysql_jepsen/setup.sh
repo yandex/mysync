@@ -19,7 +19,7 @@ retry_mysql_query() {
     return ${ret}
 }
 
-if ! retry_mysql_query "CREATE TABLE IF NOT EXISTS test1.test_set(value int) ENGINE=INNODB;"
+if ! retry_mysql_query "CREATE TABLE IF NOT EXISTS test1.test_set(value int NOT NULL AUTO_INCREMENT PRIMARY KEY) ENGINE=INNODB;"
 then
     exit 1
 fi
