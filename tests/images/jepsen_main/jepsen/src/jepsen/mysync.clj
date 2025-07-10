@@ -77,7 +77,7 @@
     (reusable? [_ test] true)))
 
 (defn read_portion [c n chunk_size]
-  (def q (str "select value from test1.test_set order by value desc limit " chunk_size " offset " (* n chunk_size)))
+  (def q (str "select value from test1.test_set where value > " (* n chunk_size) " and value <= " (* (+ n 1) chunk_size)))
   (info (str "Query: " q))
   (def result_value (->> (j/query c [q]
                               {:row-fn :value})
@@ -102,13 +102,15 @@
       (try
           (with-conn [c conn]
             (case (:f op)
+              ; read resultset
               :read (timeout 1200000 (assoc op :type :info, :error "read-timeout")
                     (cond (= (count (j/query c ["show slave status for channel ''"])) 0)
                       (do
-                          (def value_cnt (:count (first (j/query c ["select count(*) as count from test1.test_set"]))))
-                          (def chunk_size 5000)
-                          (def portion_cnt (Math/ceil (/ value_cnt chunk_size)))
-                          (info (str "Values count: " value_cnt))
+                          ; Dataset may be huge, we will read chunks and concat them later
+                          (def max_value (:max_value (first (j/query c ["select max(value) as max_value from test1.test_set"]))))
+                          (def chunk_size 10000)
+                          (def portion_cnt (Math/ceil (/ max_value chunk_size)))
+                          (info (str "Max value: " max_value))
                           (info (str "Portions count: " portion_cnt))
                           (def result_set (set '()))
                           (dotimes [n (+ portion_cnt 1)]
@@ -118,6 +120,7 @@
                                     :value result_set))
                         true
                         (assoc op :type :info, :error "read-only")))
+              ; inserts value into table
               :add (timeout 5000 (assoc op :type :info, :error "add-timeout")
                     (do
                       (info (str "Adding: " (get op :value) " to " (get c :subname)))
@@ -278,6 +281,7 @@
                                 #{:kill} (killer)})
    :generator (gen/phases
                 (->> a
+                     ; generate write requests 50 per sec for 3600 seconds
                      (gen/stagger 1/50)
                      (gen/nemesis
                        (fn [] (map gen/once
@@ -286,13 +290,14 @@
                                     {:type :sleep, :value 60}
                                     {:type :info, :f :stop}
                                     {:type :sleep, :value 60}])))
-                     (gen/time-limit 4000))
+                     (gen/time-limit 3600))
                 (->> r
+                     ; try to read test data for 1200 seconds
                      (gen/stagger 1)
                      (gen/nemesis
                        (fn [] (map gen/once
                                    [{:type :info, :f :stop}
-                                    {:type :sleep, :value 1200}])))
+                                    {:type :sleep, :value 200}])))
                      (gen/time-limit 1200)))
    :checker   mysync-set
    :remote    control/ssh})

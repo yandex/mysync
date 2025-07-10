@@ -22,5 +22,5 @@ APT::Install-Suggests "0";' > /etc/apt/apt.conf.d/01buildconfig && \
     apt-get update && \
     apt-get install 
 
-ENV MYSQL_ADMIN_USER admin
-ENV MYSQL_ADMIN_PASSWORD admin_pwd
+ENV MYSQL_ADMIN_USER=admin
+ENV MYSQL_ADMIN_PASSWORD=admin_pwd

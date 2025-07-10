@@ -1,5 +1,5 @@
 FROM mysync-jepsen-test-base:latest
-ENV LEIN_ROOT 1
+ENV LEIN_ROOT=1
 COPY . /var/lib/dist/jepsen_main
 RUN apt-get -qq update && apt-get install libjna-java \
         gnuplot \
