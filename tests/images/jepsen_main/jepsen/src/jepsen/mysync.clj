@@ -100,10 +100,12 @@
 
     (invoke! [this test op]
       (try
-          (with-conn [c conn]
             (case (:f op)
               ; read resultset
-              :read (timeout 1200000 (assoc op :type :info, :error "read-timeout")
+              :read (timeout 120000 (assoc op :type :info, :error "read-timeout")
+                  (do
+                    (close-conn conn)
+                    (with-conn [c conn]
                     (cond (= (count (j/query c ["show slave status for channel ''"])) 0)
                       (do
                           ; Dataset may be huge, we will read chunks and concat them later
@@ -119,9 +121,10 @@
                           (assoc op :type :ok,
                                     :value result_set))
                         true
-                        (assoc op :type :info, :error "read-only")))
+                        (assoc op :type :info, :error "read-only")))))
               ; inserts value into table
               :add (timeout 5000 (assoc op :type :info, :error "add-timeout")
+                  (with-conn [c conn]
                     (do
                       (info (str "Adding: " (get op :value) " to " (get c :subname)))
                       (j/execute! c [(str "insert into test1.test_set values ('" (get op :value) "')")])
@@ -284,6 +287,12 @@
                      ; generate write requests 50 per sec for 3600 seconds
                      (gen/stagger 1/50)
                      (gen/nemesis
+                       ; we cycle through these steps for 1 hour (3600 seconds):
+                       ; * take 2 random nemesis
+                       ; * sleep for 60 seconds
+                       ; * stop nemesis
+                       ; * sleep for 60 seconds
+                       ; repeat
                        (fn [] (map gen/once
                                    [{:type :info, :f (rand-nth nemesis-starts)}
                                     {:type :info, :f (rand-nth nemesis-starts)}
@@ -291,9 +300,10 @@
                                     {:type :info, :f :stop}
                                     {:type :sleep, :value 60}])))
                      (gen/time-limit 3600))
+                (gen/sleep 10) 
                 (->> r
-                     ; try to read test data for 1200 seconds
-                     (gen/stagger 1)
+                     ; try to read test data each 5 seconds for 1200 seconds
+                     (gen/stagger 5)
                      (gen/nemesis
                        (fn [] (map gen/once
                                    [{:type :info, :f :stop}
