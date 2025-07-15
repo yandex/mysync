@@ -32,8 +32,11 @@
 (defn close-conn
   "Given a spec with JDBC connection, closes connection and returns the spec w/o connection."
   [spec]
-  (when-let [c (:connection spec)]
-    (.close c))
+  (do
+    (info (str "close-conn for " (:subname spec)))
+    (when-let [c (:connection spec)]
+      (.close c))
+  )
   {:classname   (:classname spec)
    :subprotocol (:subprotocol spec)
    :subname     (:subname spec)
@@ -102,6 +105,7 @@
       (try
             (case (:f op)
               ; read resultset
+              ; timeout in milliseconds
               :read (timeout 120000 (assoc op :type :info, :error "read-timeout")
                   (do
                     (close-conn conn)
@@ -174,7 +178,6 @@
                       (r/map :value)
                       (into #{}))
             final-read (->> history
-                          (r/filter op/ok?)
                           (r/filter #(= :read (:f %)))
                           (r/map :value)
                           (reduce (fn [_ x] x) nil))]
