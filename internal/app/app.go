@@ -1194,21 +1194,21 @@ func (app *App) updateActiveNodes(clusterState, clusterStateDcs map[string]*Node
 		}
 	}
 
-  // Inactive nodes may be inaccessible
-  inactiveNodesError := []error{}
+	// Inactive nodes may be inaccessible
+	inactiveNodesError := []error{}
 
 	for _, host := range becomeInactive {
 		err = app.disableSemiSyncOnSlave(host, true)
 		if err != nil {
-      inactiveNodesError = append(inactiveNodesError, fmt.Errorf("[%s]: %s", host, err))
+			inactiveNodesError = append(inactiveNodesError, fmt.Errorf("[%s]: %s", host, err))
 			continue
 		}
 	}
 	for _, host := range becomeDataLag {
 		err = app.disableSemiSyncOnSlave(host, false)
 		if err != nil {
-      inactiveNodesError = append(inactiveNodesError, fmt.Errorf("[%s]: %s", host, err))
-      continue
+			inactiveNodesError = append(inactiveNodesError, fmt.Errorf("[%s]: %s", host, err))
+			continue
 		}
 
 		node := app.cluster.Get(host)
@@ -1218,9 +1218,9 @@ func (app *App) updateActiveNodes(clusterState, clusterStateDcs map[string]*Node
 		}
 	}
 
-  if len(inactiveNodesError) > 0 {
-    app.logger.Warnf("cannot disable semisync on inactive hosts: %s", err)
-  }
+	if len(inactiveNodesError) > 0 {
+		app.logger.Warnf("cannot disable semisync on inactive hosts: %s", err)
+	}
 
 	// enlarge HA-group, if needed (and if possible)
 	for _, hostname := range becomeActive {
