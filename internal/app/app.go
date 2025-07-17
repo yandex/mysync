@@ -1193,23 +1193,10 @@ func (app *App) updateActiveNodes(clusterState, clusterStateDcs map[string]*Node
 			return err
 		}
 	}
-	for _, host := range becomeInactive {
-		err = app.disableSemiSyncOnSlave(host, true)
-		if err != nil {
-			return err
-		}
-	}
-	for _, host := range becomeDataLag {
-		err = app.disableSemiSyncOnSlave(host, false)
-		if err != nil {
-			return err
-		}
 
-		node := app.cluster.Get(host)
-		err = node.OptimizeReplication()
-		if err != nil {
-			app.logger.Warnf("failed to enable optimization on slave %s: %v", host, err)
-		}
+	errs := app.disableSemiSyncOnSlaves(becomeInactive, becomeDataLag)
+	if len(errs) > 0 {
+		app.logger.Warnf("cannot disable semisync on inactive hosts: %s", err)
 	}
 
 	// enlarge HA-group, if needed (and if possible)
@@ -1271,6 +1258,35 @@ func (app *App) adjustSemiSyncOnMaster(node *mysql.Node, state *NodeState, waitS
 		}
 	}
 	return nil
+}
+
+func (app *App) disableSemiSyncOnSlaves(becomeInactive, becomeDataLag []string) []error {
+	nodeErrors := make([]error, 0, len(becomeDataLag)+len(becomeInactive))
+
+	for _, host := range becomeInactive {
+		err := app.disableSemiSyncOnSlave(host, true)
+		if err != nil {
+			err = fmt.Errorf("[%s]: %s", host, err)
+			nodeErrors = append(nodeErrors, err)
+		}
+	}
+
+	for _, host := range becomeDataLag {
+		err := app.disableSemiSyncOnSlave(host, false)
+		if err != nil {
+			err = fmt.Errorf("[%s]: %s", host, err)
+			nodeErrors = append(nodeErrors, err)
+			continue
+		}
+
+		node := app.cluster.Get(host)
+		err = node.OptimizeReplication()
+		if err != nil {
+			app.logger.Warnf("failed to enable optimization on slave %s: %v", host, err)
+		}
+	}
+
+	return nodeErrors
 }
 
 func (app *App) enableSemiSyncOnSlave(host string, slaveState, masterState *NodeState) error {
