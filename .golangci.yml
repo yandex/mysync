@@ -52,6 +52,10 @@ linters:
         - name: error-naming
         - name: exported
         - name: var-naming
+          arguments:
+            - []
+            - []
+            - - skip-package-name-checks: true
         - name: var-declaration
         - name: package-comments
         - name: range

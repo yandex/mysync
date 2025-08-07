@@ -2,7 +2,7 @@ module github.com/yandex/mysync
 
 go 1.23.0
 
-toolchain go1.24.1
+toolchain go1.24.6
 
 require (
 	github.com/cenkalti/backoff/v4 v4.3.0
