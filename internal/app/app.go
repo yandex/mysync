@@ -146,6 +146,7 @@ func (app *App) newDBCluster() error {
 }
 
 func (app *App) writeEmergeFile(msg string) {
+	app.logger.Warn("touch emerge file")
 	err := os.WriteFile(app.config.Emergefile, []byte(msg), 0644)
 	if err != nil {
 		app.logger.Errorf("failed to write emerge file: %v", err)
@@ -153,6 +154,7 @@ func (app *App) writeEmergeFile(msg string) {
 }
 
 func (app *App) writeResetupFile(msg string) {
+	app.logger.Warn("touch resetup file")
 	err := os.WriteFile(app.config.Resetupfile, []byte(msg), 0644)
 	if err != nil {
 		app.logger.Errorf("failed to write resetup file: %v", err)
@@ -165,6 +167,7 @@ func (app *App) doesResetupFileExist() bool {
 }
 
 func (app *App) writeMaintenanceFile() {
+	app.logger.Warn("touch maintenance file")
 	err := os.WriteFile(app.config.Maintenancefile, []byte(""), 0644)
 	if err != nil {
 		app.logger.Errorf("failed to write maintenance file: %v", err)
