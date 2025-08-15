@@ -6,7 +6,7 @@ format:
 	goimports -w `find . -name '*.go'`
 
 lint:
-	docker run --rm -v ${CURDIR}:/app -w /app golangci/golangci-lint:v2.3-alpine golangci-lint run -v 
+	docker run --rm -v ${CURDIR}:/app -w /app golangci/golangci-lint:v2.4-alpine golangci-lint run -v 
 
 unittests:
 	go test ./cmd/... ./internal/...
