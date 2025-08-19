@@ -168,19 +168,20 @@
   (reify checker/Checker
     (check [this test history opts]
       (let [attempts (->> history
-                          (r/filter op/invoke?)
-                          (r/filter #(= :add (:f %)))
-                          (r/map :value)
-                          (into #{}))
+                      (r/filter op/invoke?)
+                      (r/filter #(= :add (:f %)))
+                      (r/map :value)
+                      (into #{}))
             adds (->> history
                       (r/filter op/ok?)
                       (r/filter #(= :add (:f %)))
                       (r/map :value)
                       (into #{}))
             final-read (->> history
-                          (r/filter #(= :read (:f %)))
-                          (r/map :value)
-                          (reduce (fn [_ x] x) nil))]
+                      (r/filter op/ok?)
+                      (r/filter #(= :read (:f %)))
+                      (r/map :value)
+                      (reduce (fn [_ x] x) nil))]
         (if-not final-read
           {:valid? false
            :error  "Set was never read"}
