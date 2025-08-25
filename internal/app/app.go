@@ -1410,7 +1410,8 @@ func (app *App) performSwitchover(clusterState map[string]*NodeState, activeNode
 	}, activeNodes)
 
 	// if master was not among activeNodes - there will be no key in errs
-	if err, ok := errs[oldMaster]; ok && err != nil && switchover.MasterTransition == SwitchoverTransition {
+	// MasterTransition may not be set if issued from worker
+	if err, ok := errs[oldMaster]; ok && err != nil && switchover.MasterTransition != FailoverTransition {
 		err = fmt.Errorf("switchover: failed to set old master %s read-only %s", oldMaster, err)
 		app.logger.Info(err.Error())
 		switchErr := app.FinishSwitchover(switchover, err)
