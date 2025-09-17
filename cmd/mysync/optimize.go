@@ -9,6 +9,11 @@ import (
 	"github.com/yandex/mysync/internal/app"
 )
 
+var force bool
+
+// BLUEPRINT: Add there the following options
+// - lock to block optimization process
+// - unlock to unblock optimization process if it `lock` was applied
 var optimizeCmd = &cobra.Command{
 	Use:     "optimize",
 	Aliases: []string{"turbo"},
@@ -27,7 +32,7 @@ var optimizeOnCmd = &cobra.Command{
 			fmt.Println(err)
 			os.Exit(1)
 		}
-		os.Exit(app.CliEnableOptimization())
+		os.Exit(app.CliEnableOptimization(force))
 	},
 }
 
@@ -41,6 +46,19 @@ var optimizeOffCmd = &cobra.Command{
 			os.Exit(1)
 		}
 		os.Exit(app.CliDisableOptimization())
+	},
+}
+
+var optimizeOffAllCmd = &cobra.Command{
+	Use:     "off-all",
+	Aliases: []string{"disable-all"},
+	Run: func(cmd *cobra.Command, args []string) {
+		app, err := app.NewApp(configFile, logLevel, true)
+		if err != nil {
+			fmt.Println(err)
+			os.Exit(1)
+		}
+		os.Exit(app.CliDisableAllOptimization())
 	},
 }
 
@@ -58,7 +76,11 @@ var optimizeGetCmd = &cobra.Command{
 
 func init() {
 	rootCmd.AddCommand(optimizeCmd)
+
 	optimizeCmd.AddCommand(optimizeOnCmd)
+	optimizeOnCmd.PersistentFlags().BoolVarP(&force, "force", "f", false, "force optimization process")
+
 	optimizeCmd.AddCommand(optimizeOffCmd)
 	optimizeCmd.AddCommand(optimizeGetCmd)
+	optimizeCmd.AddCommand(optimizeOffAllCmd)
 }

@@ -101,6 +101,7 @@ services:
       MANAGER_ELECTION_DELAY_AFTER_QUORUM_LOSS:
       MANAGER_LOCK_ACQUIRE_DELAY_AFTER_QUORUM_LOSS:
       OFFLINE_MODE_ENABLE_LAG:
+      OPTIMIZE_REPLICATION_LAG_THRESHOLD:
     healthcheck:
       test: "mysql --user=admin --password=admin_pwd -e 'SELECT 1'"
       start_period: 30s
@@ -151,6 +152,7 @@ services:
       MANAGER_ELECTION_DELAY_AFTER_QUORUM_LOSS:
       MANAGER_LOCK_ACQUIRE_DELAY_AFTER_QUORUM_LOSS:
       OFFLINE_MODE_ENABLE_LAG:
+      OPTIMIZE_REPLICATION_LAG_THRESHOLD:
     depends_on:
       mysql1:
         condition: service_healthy
@@ -195,6 +197,7 @@ services:
       MANAGER_ELECTION_DELAY_AFTER_QUORUM_LOSS:
       MANAGER_LOCK_ACQUIRE_DELAY_AFTER_QUORUM_LOSS:
       OFFLINE_MODE_ENABLE_LAG:
+      OPTIMIZE_REPLICATION_LAG_THRESHOLD:
     depends_on:
       mysql1:
         condition: service_healthy

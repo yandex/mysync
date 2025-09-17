@@ -6,6 +6,7 @@ import (
 	"slices"
 	"time"
 
+	"github.com/yandex/mysync/internal/app/optimization"
 	"github.com/yandex/mysync/internal/log"
 	"github.com/yandex/mysync/internal/mysql"
 	"github.com/yandex/mysync/internal/mysql/gtids"
@@ -193,6 +194,14 @@ func getDubiousHAHosts(clusterState map[string]*NodeState) []string {
 		}
 	}
 	return dubious
+}
+
+func convertNodesToReplicationControllers(nodes []*mysql.Node) []optimization.NodeReplicationController {
+	var ifaceNodes []optimization.NodeReplicationController
+	for _, n := range nodes {
+		ifaceNodes = append(ifaceNodes, n)
+	}
+	return ifaceNodes
 }
 
 func getNodeStatesInParallel(hosts []string, getter func(string) (*NodeState, error), logger *log.Logger) (map[string]*NodeState, error) {

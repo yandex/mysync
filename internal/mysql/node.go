@@ -49,9 +49,10 @@ var (
 )
 
 const (
-	optimalSyncBinlogValue                = 1000
-	optimalInnodbFlushLogAtTrxCommitValue = 2
-	defaultInnodbFlushLogAtTrxCommitValue = 1
+	OptimalSyncBinlogValue                = 1000
+	OptimalInnodbFlushLogAtTrxCommitValue = 2
+	DefaultInnodbFlushLogAtTrxCommitValue = 1
+	DefaultSyncBinlogValue                = 1
 )
 
 // NewNode returns new Node
@@ -1095,11 +1096,11 @@ func SaveCAFile(data string, path string) error {
 // OptimizeReplication sets the optimal settings for replication, which reduces the replication lag.
 // Cannot be used permanently due to the instability of the replica in this state
 func (n *Node) OptimizeReplication() error {
-	err := n.exec(querySetInnodbFlushLogAtTrxCommit, map[string]any{"level": optimalInnodbFlushLogAtTrxCommitValue})
+	err := n.exec(querySetInnodbFlushLogAtTrxCommit, map[string]any{"level": OptimalInnodbFlushLogAtTrxCommitValue})
 	if err != nil {
 		return err
 	}
-	err = n.exec(querySetSyncBinlog, map[string]any{"sync_binlog": optimalSyncBinlogValue})
+	err = n.exec(querySetSyncBinlog, map[string]any{"sync_binlog": OptimalSyncBinlogValue})
 	if err != nil {
 		return err
 	}
@@ -1121,12 +1122,12 @@ func (rs *ReplicationSettings) Equal(anotherRs *ReplicationSettings) bool {
 
 // There may be cases where the user specified master settings that are higher than our "optimal" ones or equal to them.
 func (rs *ReplicationSettings) CanBeOptimized() bool {
-	if rs.SyncBinlog >= optimalSyncBinlogValue {
+	if rs.SyncBinlog >= OptimalSyncBinlogValue {
 		return false
 	}
 
-	if rs.InnodbFlushLogAtTrxCommit != optimalInnodbFlushLogAtTrxCommitValue &&
-		rs.InnodbFlushLogAtTrxCommit != defaultInnodbFlushLogAtTrxCommitValue {
+	if rs.InnodbFlushLogAtTrxCommit != OptimalInnodbFlushLogAtTrxCommitValue &&
+		rs.InnodbFlushLogAtTrxCommit != DefaultInnodbFlushLogAtTrxCommitValue {
 		return false
 	}
 
@@ -1138,6 +1139,26 @@ func (n *Node) GetReplicationSettings() (ReplicationSettings, error) {
 	var rs ReplicationSettings
 	err := n.queryRow(queryGetReplicationSettings, nil, &rs)
 	return rs, err
+}
+
+func (rs *ReplicationSettings) Optimized() bool {
+	if rs.SyncBinlog == OptimalSyncBinlogValue && rs.InnodbFlushLogAtTrxCommit == rs.InnodbFlushLogAtTrxCommit {
+		return true
+	}
+	return false
+}
+
+// SetReplicationSettings sets values for replication for the host
+func (n *Node) SetReplicationSettings(rs ReplicationSettings) error {
+	err := n.exec(querySetInnodbFlushLogAtTrxCommit, map[string]any{"level": rs.InnodbFlushLogAtTrxCommit})
+	if err != nil {
+		return err
+	}
+	err = n.exec(querySetSyncBinlog, map[string]any{"sync_binlog": rs.SyncBinlog})
+	if err != nil {
+		return err
+	}
+	return nil
 }
 
 // SetDefaultReplicationSettings sets default values for replication based on the value on the master
