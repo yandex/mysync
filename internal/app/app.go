@@ -515,7 +515,12 @@ func (app *App) stateFirstRun() appState {
 		return stateFirstRun
 	}
 	app.dcs.Initialize()
-	app.replicationOptimizer.Initialize(app.dcs)
+	err := app.replicationOptimizer.Initialize(app.dcs)
+	if err != nil {
+		app.logger.Errorf("can not initialize ReplicationOpitimizer module: %s", err)
+		return stateFirstRun
+	}
+
 	if app.AcquireLock(pathManagerLock) {
 		return stateManager
 	}
@@ -687,16 +692,6 @@ func (app *App) stateManager() appState {
 		return stateMaintenance
 	}
 
-	err = app.replicationOptimizer.SyncLocalOptimizationSettings(
-		app.cluster.Get(master),
-		app.cluster.Local(),
-		app.dcs,
-	)
-	if err != nil {
-		app.logger.Errorf("failed to sync local optimization settings: %s", err)
-		return stateManager
-	}
-
 	// check if switchover required or in progress
 	switchover := new(Switchover)
 	if err := app.dcs.Get(pathCurrentSwitch, switchover); err == nil {
@@ -798,6 +793,16 @@ func (app *App) stateManager() appState {
 		if err != nil {
 			app.logger.Errorf("failed to update repl_mon timestamp: %v", err)
 		}
+	}
+
+	err = app.replicationOptimizer.SyncLocalOptimizationSettings(
+		app.cluster.Get(master),
+		app.cluster.Local(),
+		app.dcs,
+	)
+	if err != nil {
+		app.logger.Errorf("failed to sync local optimization settings: %s", err)
+		return stateManager
 	}
 
 	return stateManager
@@ -972,14 +977,14 @@ func (app *App) stateCandidate() appState {
 		app.logger.Errorf("candidate: failed to get maintenance from zk %v", err)
 		return stateCandidate
 	}
+	// candidate enters maintenane only after manager, when mysync already paused
+	if maintenance != nil && maintenance.MySyncPaused {
+		return stateMaintenance
+	}
 	err = app.SyncLocalOptimizationSettings()
 	if err != nil {
 		app.logger.Errorf("candidate: failed to sync local optimization settings: %v", err)
 		return stateCandidate
-	}
-	// candidate enters maintenane only after manager, when mysync already paused
-	if maintenance != nil && maintenance.MySyncPaused {
-		return stateMaintenance
 	}
 	if app.AcquireLock(pathManagerLock) {
 		return stateManager

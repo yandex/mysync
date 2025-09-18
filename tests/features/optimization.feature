@@ -166,7 +166,7 @@ Feature: optimization mode works on replicas
       """
     And zookeeper node "/test/optimization_nodes/mysql2" should exist within "30" seconds
     And zookeeper node "/test/optimization_nodes/mysql3" should exist within "30" seconds
-    And I wait for "10" seconds
+    And I wait for "15" seconds
     And I run SQL on mysql host "mysql2"
     """
     SELECT @@GLOBAL.innodb_flush_log_at_trx_commit as InnodbFlushLogAtTrxCommit, @@GLOBAL.sync_binlog as SyncBinlog
@@ -187,7 +187,7 @@ Feature: optimization mode works on replicas
 
     When I delete zookeeper node "/test/optimization_nodes/mysql2"
     Then zookeeper node "/test/optimization_nodes/mysql2" should not exist within "30" seconds
-    And I wait for "10" seconds
+    And I wait for "15" seconds
 
     And I run SQL on mysql host "mysql3"
     """

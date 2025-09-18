@@ -68,6 +68,6 @@ replication_convergence_timeout_switchover: 300s
 manager_election_delay_after_quorum_loss: ${MANAGER_ELECTION_DELAY_AFTER_QUORUM_LOSS:-15s}
 manager_lock_acquire_delay_after_quorum_loss: ${MANAGER_LOCK_ACQUIRE_DELAY_AFTER_QUORUM_LOSS:-30s}
 optimization_config:
-  replication_lag_threshold: ${REPLICATION_LAG_THRESHOLD:-60s} 
+  replication_lag_threshold: ${REPLICATION_LAG_THRESHOLD:-60s}
   file: /tmp/mysync.optimization
-  sync_interval: 15s
+  sync_interval: 3s

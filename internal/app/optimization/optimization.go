@@ -53,12 +53,15 @@ type ReplicationOpitimizer interface {
 	// using the master for context (e.g., resetting replication settings).
 	// Changes take effect immediately, as these options can be dangerous.
 	// Returns an error if disabling fails.
+	// force makes ReplicationOpitimizer ignore all errors and try to disable optimization at least on mysql/DCS
 	DisableNodeOptimization(master, node NodeReplicationController, dcs dcs.DCS, force bool) error
 
 	// DisableAllNodeOptimization deactivates optimization mode for all specified nodes,
 	// using the master for context. This is a bulk operation with immediate effects,
 	// and it carries risks similar to disabling a single node.
 	// Returns an error if disabling any node fails.
+	// force makes ReplicationOpitimizer ignore all errors and try to disable optimization at least on mysql/DCS
+	// on as many hosts as it can
 	DisableAllNodeOptimization(master NodeReplicationController, dcs dcs.DCS, force bool, nodes ...NodeReplicationController) error
 }
 
@@ -107,7 +110,7 @@ func (opt *Optimizer) EnableNodeOptimization(node NodeReplicationController, DCS
 }
 
 func (opt *Optimizer) DisableNodeOptimization(master, node NodeReplicationController, DCS dcs.DCS, force bool) error {
-	masterRS, err := master.GetReplicationSettings()
+	masterRS, err := opt.getMasterReplicationSettings(master, force)
 	if err != nil {
 		return err
 	}
@@ -135,7 +138,7 @@ func (opt *Optimizer) DisableAllNodeOptimization(
 		hostnameToNode[node.Host()] = node
 	}
 
-	rs, err := master.GetReplicationSettings()
+	rs, err := opt.getMasterReplicationSettings(master, force)
 	if err != nil {
 		return err
 	}
@@ -192,9 +195,8 @@ func (opt *Optimizer) SyncLocalOptimizationSettings(
 	}
 	if node.Host() == master.Host() {
 		opt.logger.Debugf("optimization: skipping local sync on master host [%s]", master.Host())
-		return nil
+		return opt.deleteDCSMasterOptimization(node, DCS)
 	}
-
 	opt.lastSync = now
 
 	status := opt.readOptimizationFile()
@@ -402,5 +404,36 @@ func (opt *Optimizer) disableOptimizationOnNodeAndDcs(
 			return err
 		}
 	}
-	return node.SetReplicationSettings(masterSettings)
+
+	err = node.SetReplicationSettings(masterSettings)
+	if err != nil && force {
+		opt.logger.Warnf("optimization: optimization mode on host %s has not been disabled on mysql: %s", node.Host(), err)
+		err = nil
+	}
+	return err
+}
+
+// deleteDCSMasterOptimization deletes rubbish on DCS which appeared
+// because of switchover/failover or manual zk path editions
+func (opt *Optimizer) deleteDCSMasterOptimization(
+	node NodeReplicationController,
+	DCS dcs.DCS,
+) error {
+	err := DCS.Delete(dcs.JoinPath(pathOptimizationNodes, node.Host()))
+	if err != nil && err != dcs.ErrNotFound {
+		return err
+	}
+	if err != dcs.ErrNotFound {
+		opt.logger.Debugf("optimization: master [%s] had optimization mode on dcs; it is deleted", node.Host())
+	}
+	return nil
+}
+
+func (opt *Optimizer) getMasterReplicationSettings(master NodeReplicationController, force bool) (mysql.ReplicationSettings, error) {
+	masterRS, err := master.GetReplicationSettings()
+	if err != nil && force {
+		opt.logger.Warnf("optimization: optimization settings on %s can not be acquired; fall back to default ones", master.Host(), err)
+		err = nil
+	}
+	return masterRS, err
 }
