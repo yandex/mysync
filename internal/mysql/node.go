@@ -1142,7 +1142,7 @@ func (n *Node) GetReplicationSettings() (ReplicationSettings, error) {
 }
 
 func (rs *ReplicationSettings) Optimized() bool {
-	if rs.SyncBinlog == OptimalSyncBinlogValue && rs.InnodbFlushLogAtTrxCommit == rs.InnodbFlushLogAtTrxCommit {
+	if rs.SyncBinlog == OptimalSyncBinlogValue && rs.InnodbFlushLogAtTrxCommit == OptimalInnodbFlushLogAtTrxCommitValue {
 		return true
 	}
 	return false

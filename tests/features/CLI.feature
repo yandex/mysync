@@ -133,7 +133,7 @@ Feature: CLI
   #    Scenario: CLI turbo mode works properly
   #        Given cluster environment is
   #        """
-  #        OPTIMIZE_REPLICATION_LAG_THRESHOLD=5s
+  #        REPLICATION_LAG_THRESHOLD=5s
   #        MYSYNC_SEMISYNC=false
   #        MYSYNC_ASYNC=true
   #        ASYNC_ALLOWED_LAG=6000s
@@ -227,7 +227,7 @@ Feature: CLI
   #    Scenario: CLI turbo mode works properly with non-default replication options
   #        Given cluster environment is
   #        """
-  #        OPTIMIZE_REPLICATION_LAG_THRESHOLD=5s
+  #        REPLICATION_LAG_THRESHOLD=5s
   #        MYSYNC_SEMISYNC=false
   #        MYSYNC_ASYNC=true
   #        ASYNC_ALLOWED_LAG=6000s
@@ -298,7 +298,7 @@ Feature: CLI
   #    Scenario: CLI turbo mode works properly with non-default replication options, which are more than MySync optimal ones
   #        Given cluster environment is
   #        """
-  #        OPTIMIZE_REPLICATION_LAG_THRESHOLD=5s
+  #        REPLICATION_LAG_THRESHOLD=5s
   #        MYSYNC_SEMISYNC=false
   #        MYSYNC_ASYNC=true
   #        ASYNC_ALLOWED_LAG=6000s
@@ -396,7 +396,7 @@ Feature: CLI
     Scenario: CLI disable-all works
         Given cluster environment is
         """
-        OPTIMIZE_REPLICATION_LAG_THRESHOLD=5s
+        REPLICATION_LAG_THRESHOLD=5s
         MYSYNC_SEMISYNC=false
         MYSYNC_ASYNC=true
         ASYNC_ALLOWED_LAG=6000s

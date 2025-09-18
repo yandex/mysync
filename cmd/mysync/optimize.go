@@ -11,9 +11,6 @@ import (
 
 var force bool
 
-// BLUEPRINT: Add there the following options
-// - lock to block optimization process
-// - unlock to unblock optimization process if it `lock` was applied
 var optimizeCmd = &cobra.Command{
 	Use:     "optimize",
 	Aliases: []string{"turbo"},
@@ -45,7 +42,7 @@ var optimizeOffCmd = &cobra.Command{
 			fmt.Println(err)
 			os.Exit(1)
 		}
-		os.Exit(app.CliDisableOptimization())
+		os.Exit(app.CliDisableOptimization(force))
 	},
 }
 
@@ -58,7 +55,7 @@ var optimizeOffAllCmd = &cobra.Command{
 			fmt.Println(err)
 			os.Exit(1)
 		}
-		os.Exit(app.CliDisableAllOptimization())
+		os.Exit(app.CliDisableAllOptimization(force))
 	},
 }
 

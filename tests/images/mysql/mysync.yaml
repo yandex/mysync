@@ -64,9 +64,10 @@ show_only_gtid_diff: false
 repl_mon: ${REPL_MON:-false}
 force_switchover: ${FORCE_SWITCHOVER:-false}
 manager_switchover: ${MANAGER_SWITCHOVER:-true}
+replication_convergence_timeout_switchover: 300s
 manager_election_delay_after_quorum_loss: ${MANAGER_ELECTION_DELAY_AFTER_QUORUM_LOSS:-15s}
 manager_lock_acquire_delay_after_quorum_loss: ${MANAGER_LOCK_ACQUIRE_DELAY_AFTER_QUORUM_LOSS:-30s}
 optimization_config:
-  optimize_replication_lag_threshold: ${OPTIMIZE_REPLICATION_LAG_THRESHOLD:-60s}
-  optimize_replication_convergence_timeout: 300s
-  optimiziationfile: /tmp/mysync.optimization
+  replication_lag_threshold: ${REPLICATION_LAG_THRESHOLD:-60s} 
+  file: /tmp/mysync.optimization
+  sync_interval: 15s

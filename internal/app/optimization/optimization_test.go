@@ -16,7 +16,7 @@ func replicationSettingsAreDefault(rs mysql.ReplicationSettings) bool {
 	return rs.InnodbFlushLogAtTrxCommit == mysql.DefaultInnodbFlushLogAtTrxCommitValue && rs.SyncBinlog == mysql.DefaultSyncBinlogValue
 }
 
-func initDefaultCluster(t *testing.T) (*OptimizationModule, *dcs.MockDCS, map[string]*MockNode) {
+func initDefaultCluster(t *testing.T) (*Optimizer, *dcs.MockDCS, map[string]*MockNode) {
 	logger := log.NewMockLogger()
 
 	f, err := os.CreateTemp(os.TempDir(), "optimization-file")
@@ -24,10 +24,10 @@ func initDefaultCluster(t *testing.T) (*OptimizationModule, *dcs.MockDCS, map[st
 		t.Fatal(err)
 	}
 
-	om := NewOptimizationModule(logger, config.OptimizationConfig{
-		Optimizationfile:                      f.Name(),
-		OptimizeReplicationLagThreshold:       time.Second * 10,
-		OptimizeReplicationConvergenceTimeout: time.Second * 30,
+	om := NewOptimizer(logger, config.OptimizationConfig{
+		File:                    f.Name(),
+		ReplicationLagThreshold: time.Second * 10,
+		SyncInterval:            time.Second * 0,
 	})
 
 	cluster := map[string]*MockNode{
@@ -73,10 +73,7 @@ func initDefaultCluster(t *testing.T) (*OptimizationModule, *dcs.MockDCS, map[st
 
 func assertHostIsOptimized(
 	t *testing.T,
-	om ReplicationOpitimizer,
-	master *MockNode,
 	host *MockNode,
-	mdcs *dcs.MockDCS,
 ) {
 	if rs := host.replicationSettings; replicationSettingsAreDefault(rs) {
 		t.Fatalf("%s is not optimized", host.Host())
@@ -88,10 +85,7 @@ func assertHostIsOptimized(
 
 func assertHostIsNotOptimized(
 	t *testing.T,
-	om ReplicationOpitimizer,
-	master *MockNode,
 	host *MockNode,
-	mdcs *dcs.MockDCS,
 ) {
 	if rs := host.replicationSettings; !replicationSettingsAreDefault(rs) {
 		t.Fatalf("%s is optimized", host.Host())
@@ -133,7 +127,7 @@ func assertDisableOptimization(
 	mdcs *dcs.MockDCS,
 ) {
 	mdcs.HostToLock = host.Host()
-	err := om.DisableNodeOptimization(master, host, mdcs)
+	err := om.DisableNodeOptimization(master, host, mdcs, false)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -152,7 +146,7 @@ func assertDisableAllOptimization(
 		ifaceNodes = append(ifaceNodes, n)
 	}
 
-	err := om.DisableAllNodeOptimization(master, mdcs, ifaceNodes...)
+	err := om.DisableAllNodeOptimization(master, mdcs, false, ifaceNodes...)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -163,7 +157,7 @@ func TestOptimizationEnablingOnReplicaWithLag(t *testing.T) {
 	master := cluster["mysql1"]
 
 	assertSyncOptions(t, om, master, cluster["mysql2"], mdcs)
-	assertHostIsNotOptimized(t, om, master, cluster["mysql2"], mdcs)
+	assertHostIsNotOptimized(t, cluster["mysql2"])
 
 	cluster["mysql2"].replicationStatus = mysql.ReplicaStatusStruct{
 		Lag: sql.NullFloat64{Valid: true, Float64: 20.0},
@@ -171,11 +165,11 @@ func TestOptimizationEnablingOnReplicaWithLag(t *testing.T) {
 
 	assertEnableOptimization(t, om, cluster["mysql2"], mdcs)
 	assertSyncOptions(t, om, master, cluster["mysql2"], mdcs)
-	assertHostIsOptimized(t, om, master, cluster["mysql2"], mdcs)
+	assertHostIsOptimized(t, cluster["mysql2"])
 
 	assertEnableOptimization(t, om, cluster["mysql2"], mdcs)
 	assertSyncOptions(t, om, master, cluster["mysql2"], mdcs)
-	assertHostIsOptimized(t, om, master, cluster["mysql2"], mdcs)
+	assertHostIsOptimized(t, cluster["mysql2"])
 }
 
 func TestOptimizationEnablingOnReplicaWithoutLag(t *testing.T) {
@@ -183,15 +177,15 @@ func TestOptimizationEnablingOnReplicaWithoutLag(t *testing.T) {
 	master := cluster["mysql1"]
 
 	assertSyncOptions(t, om, master, cluster["mysql2"], mdcs)
-	assertHostIsNotOptimized(t, om, master, cluster["mysql2"], mdcs)
+	assertHostIsNotOptimized(t, cluster["mysql2"])
 
 	assertEnableOptimization(t, om, cluster["mysql2"], mdcs)
 	assertSyncOptions(t, om, master, cluster["mysql2"], mdcs)
-	assertHostIsNotOptimized(t, om, master, cluster["mysql2"], mdcs)
+	assertHostIsNotOptimized(t, cluster["mysql2"])
 
 	assertEnableOptimization(t, om, cluster["mysql2"], mdcs)
 	assertSyncOptions(t, om, master, cluster["mysql2"], mdcs)
-	assertHostIsNotOptimized(t, om, master, cluster["mysql2"], mdcs)
+	assertHostIsNotOptimized(t, cluster["mysql2"])
 }
 
 func TestOptimizationEnablingOnMaster(t *testing.T) {
@@ -199,15 +193,15 @@ func TestOptimizationEnablingOnMaster(t *testing.T) {
 	master := cluster["mysql1"]
 
 	assertSyncOptions(t, om, master, cluster["mysql2"], mdcs)
-	assertHostIsNotOptimized(t, om, master, master, mdcs)
+	assertHostIsNotOptimized(t, master)
 
 	assertEnableOptimization(t, om, master, mdcs)
 	assertSyncOptions(t, om, master, master, mdcs)
-	assertHostIsNotOptimized(t, om, master, master, mdcs)
+	assertHostIsNotOptimized(t, master)
 
 	assertEnableOptimization(t, om, master, mdcs)
 	assertSyncOptions(t, om, master, master, mdcs)
-	assertHostIsNotOptimized(t, om, master, master, mdcs)
+	assertHostIsNotOptimized(t, master)
 }
 
 func TestOptimizationDisabledOnReplicaImmediately(t *testing.T) {
@@ -215,7 +209,7 @@ func TestOptimizationDisabledOnReplicaImmediately(t *testing.T) {
 	master := cluster["mysql1"]
 
 	assertSyncOptions(t, om, master, cluster["mysql2"], mdcs)
-	assertHostIsNotOptimized(t, om, master, cluster["mysql2"], mdcs)
+	assertHostIsNotOptimized(t, cluster["mysql2"])
 
 	cluster["mysql2"].replicationStatus = mysql.ReplicaStatusStruct{
 		Lag: sql.NullFloat64{Valid: true, Float64: 20.0},
@@ -223,13 +217,13 @@ func TestOptimizationDisabledOnReplicaImmediately(t *testing.T) {
 
 	assertEnableOptimization(t, om, cluster["mysql2"], mdcs)
 	assertSyncOptions(t, om, master, cluster["mysql2"], mdcs)
-	assertHostIsOptimized(t, om, master, cluster["mysql2"], mdcs)
+	assertHostIsOptimized(t, cluster["mysql2"])
 
 	assertDisableOptimization(t, om, master, cluster["mysql2"], mdcs)
-	assertHostIsNotOptimized(t, om, master, cluster["mysql2"], mdcs)
+	assertHostIsNotOptimized(t, cluster["mysql2"])
 
 	assertSyncOptions(t, om, master, cluster["mysql2"], mdcs)
-	assertHostIsNotOptimized(t, om, master, cluster["mysql2"], mdcs)
+	assertHostIsNotOptimized(t, cluster["mysql2"])
 }
 
 func TestOptimizationCannotBeEnabledOnMoreThanOneHost(t *testing.T) {
@@ -237,7 +231,7 @@ func TestOptimizationCannotBeEnabledOnMoreThanOneHost(t *testing.T) {
 	master := cluster["mysql1"]
 
 	assertSyncOptions(t, om, master, cluster["mysql2"], mdcs)
-	assertHostIsNotOptimized(t, om, master, cluster["mysql2"], mdcs)
+	assertHostIsNotOptimized(t, cluster["mysql2"])
 
 	cluster["mysql2"].replicationStatus = mysql.ReplicaStatusStruct{
 		Lag: sql.NullFloat64{Valid: true, Float64: 20.0},
@@ -252,24 +246,24 @@ func TestOptimizationCannotBeEnabledOnMoreThanOneHost(t *testing.T) {
 	assertSyncOptions(t, om, master, cluster["mysql2"], mdcs)
 	assertSyncOptions(t, om, master, cluster["mysql3"], mdcs)
 
-	assertHostIsOptimized(t, om, master, cluster["mysql2"], mdcs)
-	assertHostIsNotOptimized(t, om, master, cluster["mysql3"], mdcs)
+	assertHostIsOptimized(t, cluster["mysql2"])
+	assertHostIsNotOptimized(t, cluster["mysql3"])
 
 	assertDisableOptimization(t, om, master, cluster["mysql2"], mdcs)
 
 	assertSyncOptions(t, om, master, cluster["mysql2"], mdcs)
 	assertSyncOptions(t, om, master, cluster["mysql3"], mdcs)
 
-	assertHostIsNotOptimized(t, om, master, cluster["mysql2"], mdcs)
-	assertHostIsOptimized(t, om, master, cluster["mysql3"], mdcs)
+	assertHostIsNotOptimized(t, cluster["mysql2"])
+	assertHostIsOptimized(t, cluster["mysql3"])
 
 	assertDisableOptimization(t, om, master, cluster["mysql3"], mdcs)
 
 	assertSyncOptions(t, om, master, cluster["mysql2"], mdcs)
 	assertSyncOptions(t, om, master, cluster["mysql3"], mdcs)
 
-	assertHostIsNotOptimized(t, om, master, cluster["mysql2"], mdcs)
-	assertHostIsNotOptimized(t, om, master, cluster["mysql3"], mdcs)
+	assertHostIsNotOptimized(t, cluster["mysql2"])
+	assertHostIsNotOptimized(t, cluster["mysql3"])
 }
 
 func TestOptimizationDisabledOnAllReplicaImmediately(t *testing.T) {
@@ -277,7 +271,7 @@ func TestOptimizationDisabledOnAllReplicaImmediately(t *testing.T) {
 	master := cluster["mysql1"]
 
 	assertSyncOptions(t, om, master, cluster["mysql2"], mdcs)
-	assertHostIsNotOptimized(t, om, master, cluster["mysql2"], mdcs)
+	assertHostIsNotOptimized(t, cluster["mysql2"])
 
 	cluster["mysql2"].replicationStatus = mysql.ReplicaStatusStruct{
 		Lag: sql.NullFloat64{Valid: true, Float64: 20.0},
@@ -292,18 +286,18 @@ func TestOptimizationDisabledOnAllReplicaImmediately(t *testing.T) {
 	assertSyncOptions(t, om, master, cluster["mysql2"], mdcs)
 	assertSyncOptions(t, om, master, cluster["mysql3"], mdcs)
 
-	assertHostIsOptimized(t, om, master, cluster["mysql2"], mdcs)
-	assertHostIsNotOptimized(t, om, master, cluster["mysql3"], mdcs)
+	assertHostIsOptimized(t, cluster["mysql2"])
+	assertHostIsNotOptimized(t, cluster["mysql3"])
 
 	assertDisableAllOptimization(t, om, master, mdcs, cluster["mysql2"], cluster["mysql3"])
-	assertHostIsNotOptimized(t, om, master, cluster["mysql2"], mdcs)
-	assertHostIsNotOptimized(t, om, master, cluster["mysql3"], mdcs)
+	assertHostIsNotOptimized(t, cluster["mysql2"])
+	assertHostIsNotOptimized(t, cluster["mysql3"])
 
 	assertSyncOptions(t, om, master, cluster["mysql2"], mdcs)
 	assertSyncOptions(t, om, master, cluster["mysql3"], mdcs)
 
-	assertHostIsNotOptimized(t, om, master, cluster["mysql2"], mdcs)
-	assertHostIsNotOptimized(t, om, master, cluster["mysql3"], mdcs)
+	assertHostIsNotOptimized(t, cluster["mysql2"])
+	assertHostIsNotOptimized(t, cluster["mysql3"])
 }
 
 func TestHostMustUseSafeDefaultWhenZKIsUnreachable(t *testing.T) {
@@ -316,16 +310,15 @@ func TestHostMustUseSafeDefaultWhenZKIsUnreachable(t *testing.T) {
 
 	assertEnableOptimization(t, om, cluster["mysql2"], mdcs)
 	assertSyncOptions(t, om, master, cluster["mysql2"], mdcs)
-	assertHostIsOptimized(t, om, master, cluster["mysql2"], mdcs)
+	assertHostIsOptimized(t, cluster["mysql2"])
 
 	mdcs.UnreachableCounter = 0
 	assertSyncOptions(t, om, master, cluster["mysql2"], mdcs)
-	assertHostIsNotOptimized(t, om, master, cluster["mysql2"], mdcs)
+	assertHostIsNotOptimized(t, cluster["mysql2"])
 }
 
 func TestCannotEnableReplicationWhenZKIsUnreachable(t *testing.T) {
 	om, mdcs, cluster := initDefaultCluster(t)
-	master := cluster["mysql1"]
 
 	cluster["mysql2"].replicationStatus = mysql.ReplicaStatusStruct{
 		Lag: sql.NullFloat64{Valid: true, Float64: 20.0},
@@ -336,7 +329,7 @@ func TestCannotEnableReplicationWhenZKIsUnreachable(t *testing.T) {
 	if err == nil {
 		t.Fatal("an error is expected")
 	}
-	assertHostIsNotOptimized(t, om, master, cluster["mysql2"], mdcs)
+	assertHostIsNotOptimized(t, cluster["mysql2"])
 }
 
 func TestCanDisableReplicationWhenZKIsUnreachable(t *testing.T) {
@@ -349,14 +342,20 @@ func TestCanDisableReplicationWhenZKIsUnreachable(t *testing.T) {
 
 	assertEnableOptimization(t, om, cluster["mysql2"], mdcs)
 	assertSyncOptions(t, om, master, cluster["mysql2"], mdcs)
-	assertHostIsOptimized(t, om, master, cluster["mysql2"], mdcs)
+	assertHostIsOptimized(t, cluster["mysql2"])
 
 	mdcs.UnreachableCounter = 0
-	err := om.DisableNodeOptimization(master, cluster["mysql2"], mdcs)
+	err := om.DisableNodeOptimization(master, cluster["mysql2"], mdcs, false)
+	if err == nil {
+		t.Fatal("an error is expected")
+	}
+	assertHostIsOptimized(t, cluster["mysql2"])
+
+	err = om.DisableNodeOptimization(master, cluster["mysql2"], mdcs, true)
 	if err != nil {
 		t.Fatal(err)
 	}
-	assertHostIsNotOptimized(t, om, master, cluster["mysql2"], mdcs)
+	assertHostIsNotOptimized(t, cluster["mysql2"])
 }
 
 func TestCanDisableAllReplicationWhenZKIsUnreachable(t *testing.T) {
@@ -376,15 +375,23 @@ func TestCanDisableAllReplicationWhenZKIsUnreachable(t *testing.T) {
 	assertSyncOptions(t, om, master, cluster["mysql2"], mdcs)
 	assertSyncOptions(t, om, master, cluster["mysql3"], mdcs)
 
-	assertHostIsOptimized(t, om, master, cluster["mysql2"], mdcs)
-	assertHostIsNotOptimized(t, om, master, cluster["mysql3"], mdcs)
+	assertHostIsOptimized(t, cluster["mysql2"])
+	assertHostIsNotOptimized(t, cluster["mysql3"])
 
 	mdcs.UnreachableCounter = 0
-	err := om.DisableAllNodeOptimization(master, mdcs, cluster["mysql2"], cluster["mysql3"])
+	err := om.DisableAllNodeOptimization(master, mdcs, false, cluster["mysql2"], cluster["mysql3"])
+	if err == nil {
+		t.Fatal("an error is expected")
+	}
+
+	assertHostIsOptimized(t, cluster["mysql2"])
+	assertHostIsNotOptimized(t, cluster["mysql3"])
+
+	err = om.DisableAllNodeOptimization(master, mdcs, true, cluster["mysql2"], cluster["mysql3"])
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	assertHostIsNotOptimized(t, om, master, cluster["mysql2"], mdcs)
-	assertHostIsNotOptimized(t, om, master, cluster["mysql3"], mdcs)
+	assertHostIsNotOptimized(t, cluster["mysql2"])
+	assertHostIsNotOptimized(t, cluster["mysql3"])
 }

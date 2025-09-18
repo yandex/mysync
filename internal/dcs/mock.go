@@ -38,7 +38,6 @@ func (mdcs *MockDCS) Initialize() {}
 
 func (mdcs *MockDCS) SetDisconnectCallback(callback func() error) {}
 
-// BLUEPRINT: check ownership in a correct way
 func (mdcs *MockDCS) AcquireLock(path string) bool {
 	if mdcs.isUnreachable() {
 		return false

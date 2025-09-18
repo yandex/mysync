@@ -37,7 +37,7 @@ func (app *App) CliEnableOptimization(force bool) int {
 }
 
 // CliDisableOptimization disables optimization mode
-func (app *App) CliDisableOptimization() int {
+func (app *App) CliDisableOptimization(force bool) int {
 	cancel, err := app.cliInitApp()
 	if err != nil {
 		fmt.Printf("%s\n", err)
@@ -53,7 +53,7 @@ func (app *App) CliDisableOptimization() int {
 
 	node := app.cluster.Local()
 	master := app.cluster.Get(masterHost)
-	err = app.replicationOptimizer.DisableNodeOptimization(master, node, app.dcs)
+	err = app.replicationOptimizer.DisableNodeOptimization(master, node, app.dcs, force)
 	if err != nil {
 		fmt.Printf("%s\n", err)
 		return 1
@@ -62,7 +62,7 @@ func (app *App) CliDisableOptimization() int {
 }
 
 // CliDisableOptimization disables optimization mode on all hosts
-func (app *App) CliDisableAllOptimization() int {
+func (app *App) CliDisableAllOptimization(force bool) int {
 	cancel, err := app.cliInitApp()
 	if err != nil {
 		fmt.Printf("%s\n", err)
@@ -84,7 +84,7 @@ func (app *App) CliDisableAllOptimization() int {
 	}
 
 	controllerNodes := convertNodesToReplicationControllers(nodes)
-	err = app.replicationOptimizer.DisableAllNodeOptimization(master, app.dcs, controllerNodes...)
+	err = app.replicationOptimizer.DisableAllNodeOptimization(master, app.dcs, force, controllerNodes...)
 	if err != nil {
 		fmt.Printf("%s\n", err)
 		return 1

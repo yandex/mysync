@@ -274,14 +274,14 @@ func (app *App) chooseReplicaToOptimize(
 }
 
 func (app *App) getMostDesirableReplicaToOptimize(positions []nodePosition) (string, error) {
-	lagThreshold := app.config.OptimizationConfig.OptimizeReplicationLagThreshold
+	lagThreshold := app.config.OptimizationConfig.ReplicationLagThreshold
 	return getMostDesirableNode(app.logger, positions, lagThreshold)
 }
 
 func (app *App) waitReplicaToConverge(
 	replica *mysql.Node,
 ) error {
-	timer := time.NewTimer(app.config.OptimizationConfig.OptimizeReplicationConvergenceTimeout)
+	timer := time.NewTimer(app.config.ReplicationConvergenceTimeoutSwitchover)
 	defer timer.Stop()
 
 	ticker := time.NewTicker(time.Second)
@@ -313,7 +313,7 @@ func (app *App) isReplicationLagUnderThreshold(
 	}
 
 	lag := status.GetReplicationLag().Float64
-	lagThreshold := app.config.OptimizationConfig.OptimizeReplicationLagThreshold.Seconds()
+	lagThreshold := app.config.OptimizationConfig.ReplicationLagThreshold.Seconds()
 
 	if !app.config.ASync && lag < lagThreshold {
 		return true, nil

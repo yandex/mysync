@@ -84,7 +84,7 @@ func NewApp(configFile, logLevel string, interactive bool) (*App, error) {
 		logger.Errorf("external replication initialization failed: %s", err)
 		return nil, err
 	}
-	replicationOptimizer := optimization.NewOptimizationModule(
+	replicationOptimizer := optimization.NewOptimizer(
 		logger,
 		config.OptimizationConfig,
 	)
@@ -515,6 +515,7 @@ func (app *App) stateFirstRun() appState {
 		return stateFirstRun
 	}
 	app.dcs.Initialize()
+	app.replicationOptimizer.Initialize(app.dcs)
 	if app.AcquireLock(pathManagerLock) {
 		return stateManager
 	}
@@ -1411,15 +1412,17 @@ func (app *App) performSwitchover(clusterState map[string]*NodeState, activeNode
 		activeNodes = filterOut(activeNodes, []string{oldMaster})
 	}
 
-	err := app.stopAllNodeOptimization(
-		oldMaster,
-		clusterState,
-	)
-	if err != nil {
-		return err
+	if switchover.MasterTransition == SwitchoverTransition {
+		err := app.stopAllNodeOptimization(
+			oldMaster,
+			clusterState,
+		)
+		if err != nil {
+			return err
+		}
 	}
 
-	err = app.optimizationPhase(activeNodes, switchover, oldMaster)
+	err := app.optimizationPhase(activeNodes, switchover, oldMaster)
 	if err != nil {
 		return err
 	}
@@ -2508,7 +2511,7 @@ func (app *App) stopAllNodeOptimization(master string, clusterState map[string]*
 	}
 
 	controllerNodes := convertNodesToReplicationControllers(nodes)
-	return app.replicationOptimizer.DisableAllNodeOptimization(masterNode, app.dcs, controllerNodes...)
+	return app.replicationOptimizer.DisableAllNodeOptimization(masterNode, app.dcs, false, controllerNodes...)
 }
 
 // Set master offline and disable semi-sync replication

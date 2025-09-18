@@ -1,7 +1,9 @@
 package optimization
 
 import (
+	"fmt"
 	"os"
+	"time"
 
 	"github.com/yandex/mysync/internal/config"
 	"github.com/yandex/mysync/internal/dcs"
@@ -51,43 +53,44 @@ type ReplicationOpitimizer interface {
 	// using the master for context (e.g., resetting replication settings).
 	// Changes take effect immediately, as these options can be dangerous.
 	// Returns an error if disabling fails.
-	DisableNodeOptimization(master, node NodeReplicationController, dcs dcs.DCS) error
+	DisableNodeOptimization(master, node NodeReplicationController, dcs dcs.DCS, force bool) error
 
 	// DisableAllNodeOptimization deactivates optimization mode for all specified nodes,
 	// using the master for context. This is a bulk operation with immediate effects,
 	// and it carries risks similar to disabling a single node.
 	// Returns an error if disabling any node fails.
-	DisableAllNodeOptimization(master NodeReplicationController, dcs dcs.DCS, nodes ...NodeReplicationController) error
+	DisableAllNodeOptimization(master NodeReplicationController, dcs dcs.DCS, force bool, nodes ...NodeReplicationController) error
 }
 
-func NewOptimizationModule(
+func NewOptimizer(
 	logger log.ILogger,
 	config config.OptimizationConfig,
-) *OptimizationModule {
-	return &OptimizationModule{
+) *Optimizer {
+	return &Optimizer{
 		logger: logger,
 		config: config,
 	}
 }
 
-type OptimizationModule struct {
-	logger log.ILogger
-	config config.OptimizationConfig
+type Optimizer struct {
+	logger   log.ILogger
+	config   config.OptimizationConfig
+	lastSync time.Time
 }
 
-// OptimizationStatus represents the state of an optimization process:
+// Status represents the state of an optimization process:
 // - It starts as Pending (e.g., needs to retry/submit a command).
 // - If the submission succeeds , it becomes Enabled.
 // - If it fails, it becomes Disabled
-type OptimizationStatus string
+type Status string
 
 const (
-	OptimizationStatusPending  OptimizationStatus = "pending"
-	OptimizationStatusEnabled  OptimizationStatus = "enabled"
-	OptimizationStatusDisabled OptimizationStatus = "disabled"
+	StatusPending  Status = "pending"
+	StatusEnabled  Status = "enabled"
+	StatusDisabled Status = "disabled"
 )
 
-func (om *OptimizationModule) Initialize(DCS dcs.DCS) error {
+func (opt *Optimizer) Initialize(DCS dcs.DCS) error {
 	err := DCS.Create(pathOptimizationNodes, struct{}{})
 	if err == dcs.ErrExists {
 		return nil
@@ -95,7 +98,7 @@ func (om *OptimizationModule) Initialize(DCS dcs.DCS) error {
 	return err
 }
 
-func (om *OptimizationModule) EnableNodeOptimization(node NodeReplicationController, DCS dcs.DCS) error {
+func (opt *Optimizer) EnableNodeOptimization(node NodeReplicationController, DCS dcs.DCS) error {
 	err := DCS.Create(dcs.JoinPath(pathOptimizationNodes, node.Host()), struct{}{})
 	if err == dcs.ErrExists {
 		return nil
@@ -103,24 +106,28 @@ func (om *OptimizationModule) EnableNodeOptimization(node NodeReplicationControl
 	return err
 }
 
-func (om *OptimizationModule) DisableNodeOptimization(master, node NodeReplicationController, DCS dcs.DCS) error {
+func (opt *Optimizer) DisableNodeOptimization(master, node NodeReplicationController, DCS dcs.DCS, force bool) error {
 	masterRS, err := master.GetReplicationSettings()
 	if err != nil {
 		return err
 	}
-	return om.disableOptimizationOnNodeAndDcs(node, masterRS, DCS)
+	return opt.disableOptimizationOnNodeAndDcs(node, masterRS, DCS, force)
 }
 
-// BLUEPRINT: return array of errors
-func (om *OptimizationModule) DisableAllNodeOptimization(master NodeReplicationController, DCS dcs.DCS, nodes ...NodeReplicationController) error {
-	om.logger.Debug("optimization: disable all node optimization")
+func (opt *Optimizer) DisableAllNodeOptimization(
+	master NodeReplicationController,
+	DCS dcs.DCS,
+	force bool,
+	nodes ...NodeReplicationController,
+) error {
+	opt.logger.Debug("optimization: disable all node optimization")
 
-	hostnames, err := DCS.GetChildren(pathOptimizationNodes)
+	hostnames, err := opt.getOptimizationNodesHostnamesFromDCS(force, DCS, nodes...)
 	if err != nil {
-		for _, node := range nodes {
-			hostnames = append(hostnames, node.Host())
-		}
-		om.logger.Warnf("optimization: DCS unreachable; optimization on the following hosts are going to be disabled: %v", hostnames)
+		return err
+	}
+	if len(hostnames) == 0 {
+		return nil
 	}
 
 	hostnameToNode := map[string]NodeReplicationController{}
@@ -134,75 +141,102 @@ func (om *OptimizationModule) DisableAllNodeOptimization(master NodeReplicationC
 	}
 	for _, host := range hostnames {
 		node, ok := hostnameToNode[host]
-		if !ok {
-			om.logger.Warnf("optimization: host %s has not been found in the provided node list; it is expected to be disabled eventually", host)
+		if !ok && !force {
+			opt.logger.Warnf("optimization: host %s has not been found in the provided node list; it is expected to be disabled eventually", host)
 			continue
 		}
-		err = om.disableOptimizationOnNodeAndDcs(node, rs, DCS)
+		if !ok && force {
+			return fmt.Errorf("host %s has not been found in the provided node list", host)
+		}
+
+		err := opt.disableOptimizationOnNodeAndDcs(node, rs, DCS, force)
 		if err != nil {
-			om.logger.Warnf("optimization: optimization mode on host %s has not been disabled: %s", host, err)
+			return err
 		}
 	}
 
 	return nil
 }
 
-func (om *OptimizationModule) IsLocalNodeOptimizing() bool {
-	optimizationStatus := om.readOptimizationFile()
-	if optimizationStatus == OptimizationStatusEnabled {
-		return true
+func (opt *Optimizer) getOptimizationNodesHostnamesFromDCS(
+	force bool,
+	DCS dcs.DCS,
+	nodes ...NodeReplicationController,
+) ([]string, error) {
+	hostnames, err := DCS.GetChildren(pathOptimizationNodes)
+	if err != nil && !force {
+		return nil, err
 	}
-	return false
+	if err != nil && force {
+		for _, node := range nodes {
+			hostnames = append(hostnames, node.Host())
+		}
+		opt.logger.Warnf("optimization: DCS unreachable; optimization on the following hosts are going to be disabled: %v", hostnames)
+	}
+	return hostnames, nil
 }
 
-func (om *OptimizationModule) SyncLocalOptimizationSettings(master, node NodeReplicationController, DCS dcs.DCS) error {
+func (opt *Optimizer) IsLocalNodeOptimizing() bool {
+	status := opt.readOptimizationFile()
+	return status == StatusEnabled
+}
+
+func (opt *Optimizer) SyncLocalOptimizationSettings(
+	master,
+	node NodeReplicationController,
+	DCS dcs.DCS,
+) error {
+	now := time.Now()
+	if now.Sub(opt.lastSync) < opt.config.SyncInterval {
+		return nil
+	}
 	if node.Host() == master.Host() {
-		om.logger.Debugf("optimization: skipping local sync on master host [%s]", master.Host())
+		opt.logger.Debugf("optimization: skipping local sync on master host [%s]", master.Host())
 		return nil
 	}
 
-	optimizationStatus := om.readOptimizationFile()
-	isOptimizingDcs, err := om.isHostOptimizingDcs(node.Host(), DCS)
+	opt.lastSync = now
+
+	status := opt.readOptimizationFile()
+	isOptimizingDcs, err := opt.isHostOptimizingDcs(node.Host(), DCS)
 	if err != nil {
 		// DCS may be unreachable for an indefinite period (e.g., due to network issues).
 		// To prioritize safety, default to disabling optimization until stability is restored.
-		om.logger.Warnf("optimization: DCS unreachable for host [%s], defaulting to safe (non-optimizing) state: %v", node.Host(), err)
+		opt.logger.Warnf("optimization: DCS unreachable for host [%s], defaulting to safe (non-optimizing) state: %v", node.Host(), err)
 		isOptimizingDcs = false
 	}
-	om.logger.Debugf(
+	opt.logger.Debugf(
 		"optimization: starting local sync for host [%s] (local status: %s, DCS: %t)",
 		node.Host(),
-		optimizationStatus,
+		status,
 		isOptimizingDcs,
 	)
 
 	switch {
-	case isOptimizingDcs && optimizationStatus == OptimizationStatusEnabled:
-		return om.phaseCheckOptimizationProgress(optimizationStatus, isOptimizingDcs, master, node, DCS)
+	case isOptimizingDcs && status == StatusEnabled:
+		return opt.phaseCheckOptimizationProgress(master, node, DCS)
 
-	case isOptimizingDcs && optimizationStatus != OptimizationStatusEnabled:
-		return om.phaseEnableOptimization(optimizationStatus, isOptimizingDcs, master, node, DCS)
+	case isOptimizingDcs && status != StatusEnabled:
+		return opt.phaseEnableOptimization(node, DCS)
 
-	case !isOptimizingDcs && optimizationStatus != OptimizationStatusDisabled:
-		return om.phaseDisableOptimization(optimizationStatus, isOptimizingDcs, master, node, DCS)
+	case !isOptimizingDcs && status != StatusDisabled:
+		return opt.phaseDisableOptimization(master, node, DCS)
 	}
 
 	return nil
 }
 
-func (om *OptimizationModule) phaseCheckOptimizationProgress(
-	optimizationStatus OptimizationStatus,
-	isOptimizingDcs bool,
+func (opt *Optimizer) phaseCheckOptimizationProgress(
 	master, node NodeReplicationController,
 	DCS dcs.DCS,
 ) error {
-	om.logger.Debugf("optimization: host [%s] is already optimizing", node.Host())
+	opt.logger.Debugf("optimization: host [%s] is already optimizing", node.Host())
 
-	lagUnderThreshold, currentLag, err := om.isNodeReplicationLagUnderThreshold(node)
+	lagUnderThreshold, currentLag, err := opt.isNodeReplicationLagUnderThreshold(node)
 	if err != nil {
 		return err
 	}
-	om.logger.Debugf(
+	opt.logger.Debugf(
 		"optimization: host [%s] status is (lag: %f, isOptimal: %t)",
 		node.Host(), currentLag, lagUnderThreshold,
 	)
@@ -219,29 +253,27 @@ func (om *OptimizationModule) phaseCheckOptimizationProgress(
 		return err
 	}
 
-	err = om.removeDcsOptimizationHost(node.Host(), DCS)
+	err = opt.removeDcsOptimizationHost(node.Host(), DCS)
 	if err != nil {
 		return err
 	}
 
 	DCS.ReleaseLock(pathOptimizationLock)
 
-	return om.removeOptimizationFile()
+	return opt.removeOptimizationFile()
 }
 
-func (om *OptimizationModule) phaseEnableOptimization(
-	optimizationStatus OptimizationStatus,
-	isOptimizingDcs bool,
-	master, node NodeReplicationController,
+func (opt *Optimizer) phaseEnableOptimization(
+	node NodeReplicationController,
 	DCS dcs.DCS,
 ) error {
-	om.logger.Debugf("optimization: host [%s] is going to start optimization", node.Host())
+	opt.logger.Debugf("optimization: host [%s] is going to start optimization", node.Host())
 
-	lagUnderThreshold, currentLag, err := om.isNodeReplicationLagUnderThreshold(node)
+	lagUnderThreshold, currentLag, err := opt.isNodeReplicationLagUnderThreshold(node)
 	if err != nil {
 		return err
 	}
-	om.logger.Debugf(
+	opt.logger.Debugf(
 		"optimization: host [%s] status is (lag: %f, isOptimal: %t)",
 		node.Host(), currentLag, lagUnderThreshold,
 	)
@@ -252,22 +284,22 @@ func (om *OptimizationModule) phaseEnableOptimization(
 	}
 
 	if lagUnderThreshold || !rs.CanBeOptimized() {
-		err = om.removeDcsOptimizationHost(node.Host(), DCS)
+		err = opt.removeDcsOptimizationHost(node.Host(), DCS)
 		if err != nil {
 			return err
 		}
 		DCS.ReleaseLock(pathOptimizationLock)
-		return om.removeOptimizationFile()
+		return opt.removeOptimizationFile()
 	}
 
-	err = om.writeOptimizationFileStatus(OptimizationStatusPending)
+	err = opt.writeOptimizationFileStatus(StatusPending)
 	if err != nil {
 		return err
 	}
 
 	acquired := DCS.AcquireLock(pathOptimizationLock)
 	if !acquired {
-		om.logger.Info("optimization: the node is ready to switch to optimization mode, but lock is already acquired")
+		opt.logger.Info("optimization: the node is ready to switch to optimization mode, but lock is already acquired")
 		return nil
 	}
 
@@ -276,16 +308,14 @@ func (om *OptimizationModule) phaseEnableOptimization(
 		return err
 	}
 
-	return om.writeOptimizationFileStatus(OptimizationStatusEnabled)
+	return opt.writeOptimizationFileStatus(StatusEnabled)
 }
 
-func (om *OptimizationModule) phaseDisableOptimization(
-	optimizationStatus OptimizationStatus,
-	isOptimizingDcs bool,
+func (opt *Optimizer) phaseDisableOptimization(
 	master, node NodeReplicationController,
 	DCS dcs.DCS,
 ) error {
-	om.logger.Debugf("optimization: host [%s] is going to stop optimizing", node.Host())
+	opt.logger.Debugf("optimization: host [%s] is going to stop optimizing", node.Host())
 
 	rs, err := master.GetReplicationSettings()
 	if err != nil {
@@ -299,37 +329,37 @@ func (om *OptimizationModule) phaseDisableOptimization(
 
 	DCS.ReleaseLock(pathOptimizationLock)
 
-	return om.removeOptimizationFile()
+	return opt.removeOptimizationFile()
 }
 
-func (om *OptimizationModule) writeOptimizationFileStatus(status OptimizationStatus) error {
-	return os.WriteFile(om.config.Optimizationfile, []byte(status), 0644)
+func (opt *Optimizer) writeOptimizationFileStatus(status Status) error {
+	return os.WriteFile(opt.config.File, []byte(status), 0644)
 }
 
-func (om *OptimizationModule) removeOptimizationFile() error {
-	err := os.Remove(om.config.Optimizationfile)
+func (opt *Optimizer) removeOptimizationFile() error {
+	err := os.Remove(opt.config.File)
 	if err != nil && !os.IsNotExist(err) {
 		return err
 	}
 	return nil
 }
 
-func (om *OptimizationModule) removeDcsOptimizationHost(host string, DCS dcs.DCS) error {
+func (opt *Optimizer) removeDcsOptimizationHost(host string, DCS dcs.DCS) error {
 	return DCS.Delete(dcs.JoinPath(pathOptimizationNodes, host))
 }
 
-func (om *OptimizationModule) readOptimizationFile() OptimizationStatus {
-	fileContent, err := os.ReadFile(om.config.Optimizationfile)
+func (opt *Optimizer) readOptimizationFile() Status {
+	fileContent, err := os.ReadFile(opt.config.File)
 	if err != nil {
-		return OptimizationStatusDisabled
+		return StatusDisabled
 	}
 	if len(fileContent) == 0 {
-		return OptimizationStatusDisabled
+		return StatusDisabled
 	}
-	return OptimizationStatus(fileContent)
+	return Status(fileContent)
 }
 
-func (om *OptimizationModule) isHostOptimizingDcs(host string, DCS dcs.DCS) (bool, error) {
+func (opt *Optimizer) isHostOptimizingDcs(host string, DCS dcs.DCS) (bool, error) {
 	err := DCS.Get(dcs.JoinPath(pathOptimizationNodes, host), &struct{}{})
 	if err == dcs.ErrNotFound {
 		return false, nil
@@ -343,30 +373,34 @@ func (om *OptimizationModule) isHostOptimizingDcs(host string, DCS dcs.DCS) (boo
 	return true, nil
 }
 
-func (om *OptimizationModule) isNodeReplicationLagUnderThreshold(node NodeReplicationController) (bool, float64, error) {
+func (opt *Optimizer) isNodeReplicationLagUnderThreshold(node NodeReplicationController) (bool, float64, error) {
 	replicationStatus, err := node.GetReplicaStatus()
 	if err != nil {
 		return false, 0.0, err
 	}
 
 	lag := replicationStatus.GetReplicationLag()
-	if lag.Valid && lag.Float64 < om.config.OptimizeReplicationLagThreshold.Seconds() {
+	if lag.Valid && lag.Float64 < opt.config.ReplicationLagThreshold.Seconds() {
 		return true, lag.Float64, nil
 	}
 
 	return false, lag.Float64, nil
 }
 
-// BLUEPRINT: return error on error
-func (om *OptimizationModule) disableOptimizationOnNodeAndDcs(
+func (opt *Optimizer) disableOptimizationOnNodeAndDcs(
 	node NodeReplicationController,
 	masterSettings mysql.ReplicationSettings,
 	DCS dcs.DCS,
+	force bool,
 ) error {
-	om.logger.Debugf("optimization: disable optimization on %s", node.Host())
+	opt.logger.Debugf("optimization: disable optimization on %s", node.Host())
 	err := DCS.Delete(dcs.JoinPath(pathOptimizationNodes, node.Host()))
-	if err != nil {
-		om.logger.Errorf("optimization: cannot delete %s from dcs: %s:", node.Host(), err)
+	if err != nil && err != dcs.ErrNotFound {
+		if force {
+			opt.logger.Warnf("optimization: optimization mode on host %s has not been disabled on DCS: %s", node.Host(), err)
+		} else {
+			return err
+		}
 	}
 	return node.SetReplicationSettings(masterSettings)
 }

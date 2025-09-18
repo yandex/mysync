@@ -42,7 +42,7 @@ Feature: optimization mode works on replicas
   Scenario: replicas automatically detect lag convergence
     Given cluster environment is
     """
-    OPTIMIZE_REPLICATION_LAG_THRESHOLD=5s
+    REPLICATION_LAG_THRESHOLD=5s
     MYSYNC_SEMISYNC=false
     MYSYNC_ASYNC=true
     ASYNC_ALLOWED_LAG=6000s
@@ -112,7 +112,7 @@ Feature: optimization mode works on replicas
   Scenario: there can be only one optimized host
     Given cluster environment is
     """
-    OPTIMIZE_REPLICATION_LAG_THRESHOLD=5s
+    REPLICATION_LAG_THRESHOLD=5s
     MYSYNC_SEMISYNC=false
     MYSYNC_ASYNC=true
     ASYNC_ALLOWED_LAG=6000s
