@@ -321,7 +321,17 @@ func (app *App) isReplicationLagUnderThreshold(
 	return false, nil
 }
 
-func (app *App) optimizationPhase(activeNodes []string, switchover *Switchover, oldMaster string) error {
+func (app *App) optimizationPhase(activeNodes []string, switchover *Switchover, oldMaster string, clusterState map[string]*NodeState) error {
+	forceOptimizationStop := switchover.MasterTransition != SwitchoverTransition
+	err := app.stopAllNodeOptimization(
+		oldMaster,
+		clusterState,
+		forceOptimizationStop,
+	)
+	if err != nil {
+		return err
+	}
+
 	if !app.switchHelper.IsOptimizationPhaseAllowed() {
 		app.logger.Info("switchover: phase 0: turbo mode is skipped")
 		return nil
@@ -336,7 +346,7 @@ func (app *App) optimizationPhase(activeNodes []string, switchover *Switchover, 
 		oldMaster,
 		desirableReplica,
 	)
-	err := app.optimizeReplicaWithSmallestLag(
+	err = app.optimizeReplicaWithSmallestLag(
 		appropriateReplicas,
 		oldMaster,
 		desirableReplica,

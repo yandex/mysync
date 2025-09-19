@@ -43,9 +43,13 @@ type Node struct {
 }
 
 var (
-	queryOnliner    = regexp.MustCompile(`\r?\n\s*`)
-	mogrifyRegex    = regexp.MustCompile(`:\w+`)
-	ErrNotLocalNode = errors.New("this method should be run on local node only")
+	queryOnliner            = regexp.MustCompile(`\r?\n\s*`)
+	mogrifyRegex            = regexp.MustCompile(`:\w+`)
+	ErrNotLocalNode         = errors.New("this method should be run on local node only")
+	SafeReplicationSettings = ReplicationSettings{
+		InnodbFlushLogAtTrxCommit: DefaultInnodbFlushLogAtTrxCommitValue,
+		SyncBinlog:                DefaultSyncBinlogValue,
+	}
 )
 
 const (

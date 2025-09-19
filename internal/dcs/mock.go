@@ -2,7 +2,6 @@ package dcs
 
 import (
 	"errors"
-	"math/rand"
 	"reflect"
 	"strings"
 	"time"
@@ -14,15 +13,15 @@ type MockDCS struct {
 	path                      map[string]any
 	locks                     map[string]string
 	RandomizeUnreachbleStatus bool
-	UnreachableCounter        int
+	Unreachable               bool
 	HostToLock                string
 }
 
 func NewMockDCS() *MockDCS {
 	return &MockDCS{
-		path:               make(map[string]any),
-		locks:              make(map[string]string),
-		UnreachableCounter: 1024 * 1024 * 1024,
+		path:        make(map[string]any),
+		locks:       make(map[string]string),
+		Unreachable: false,
 	}
 }
 
@@ -172,17 +171,7 @@ func (mdcs *MockDCS) GetChildren(path string) ([]string, error) {
 func (mdcs *MockDCS) Close() {}
 
 func (mdcs *MockDCS) isUnreachable() bool {
-	if mdcs.RandomizeUnreachbleStatus {
-		currentValues := mdcs.UnreachableCounter
-		mdcs.UnreachableCounter = rand.Intn(2)
-		return currentValues == 0
-	}
-
-	if mdcs.UnreachableCounter <= 0 {
-		return true
-	}
-	mdcs.UnreachableCounter -= 1
-	return false
+	return mdcs.Unreachable
 }
 
 func parentPath(path string) string {

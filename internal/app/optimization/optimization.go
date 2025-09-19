@@ -1,8 +1,10 @@
 package optimization
 
 import (
+	"errors"
 	"fmt"
 	"os"
+	"reflect"
 	"time"
 
 	"github.com/yandex/mysync/internal/config"
@@ -20,6 +22,8 @@ const (
 	// structure: pathOptimizationLock
 	pathOptimizationLock = "optimization_lock"
 )
+
+var errMasterIsNil = errors.New("master is nil")
 
 // NodeReplicationController is just a contract to have methods to control MySQL replication process.
 type NodeReplicationController interface {
@@ -41,6 +45,7 @@ type ReplicationOpitimizer interface {
 
 	// SyncLocalOptimizationSettings synchronizes local optimization settings,
 	// and applies replication adjustments if needed.
+	// Master can be nil. In that case, node will be returned to the most safest default replication settings.
 	// Returns an error if synchronization fails.
 	SyncLocalOptimizationSettings(master, node NodeReplicationController) error
 
@@ -53,17 +58,19 @@ type ReplicationOpitimizer interface {
 	// DisableNodeOptimization deactivates optimization mode for the specified node,
 	// using the master for context (e.g., resetting replication settings).
 	// Changes take effect immediately, as these options can be dangerous.
+	// Master can be nil. In that case, node will be returned to the most safest default replication settings.
 	// Returns an error if disabling fails.
-	// force makes ReplicationOpitimizer ignore all errors and try to disable optimization at least on mysql/DCS
-	DisableNodeOptimization(master, node NodeReplicationController, force bool) error
+	// ignoreErrors makes ReplicationOpitimizer ignore all errors and try to disable optimization at least on mysql/DCS
+	DisableNodeOptimization(master, node NodeReplicationController, ignoreErrors bool) error
 
 	// DisableAllNodeOptimization deactivates optimization mode for all specified nodes,
 	// using the master for context. This is a bulk operation with immediate effects,
 	// and it carries risks similar to disabling a single node.
+	// Master can be nil. In that case, node will be returned to the most safest default replication settings.
 	// Returns an error if disabling any node fails.
-	// force makes ReplicationOpitimizer ignore all errors and try to disable optimization at least on mysql/DCS
+	// ignoreErrors makes ReplicationOpitimizer ignore all errors and try to disable optimization at least on mysql/DCS
 	// on as many hosts as it can
-	DisableAllNodeOptimization(master NodeReplicationController, force bool, nodes ...NodeReplicationController) error
+	DisableAllNodeOptimization(master NodeReplicationController, ignoreErrors bool, nodes ...NodeReplicationController) error
 }
 
 func NewOptimizer(
@@ -112,22 +119,22 @@ func (opt *Optimizer) EnableNodeOptimization(node NodeReplicationController) err
 	return err
 }
 
-func (opt *Optimizer) DisableNodeOptimization(master, node NodeReplicationController, force bool) error {
-	masterRS, err := opt.getMasterReplicationSettings(master, force)
+func (opt *Optimizer) DisableNodeOptimization(master, node NodeReplicationController, ignoreErrors bool) error {
+	masterRS, err := opt.getMasterReplicationSettings(master, ignoreErrors)
 	if err != nil {
 		return err
 	}
-	return opt.disableOptimizationOnNodeAndDcs(node, masterRS, force)
+	return opt.disableOptimizationOnNodeAndDcs(node, masterRS, ignoreErrors)
 }
 
 func (opt *Optimizer) DisableAllNodeOptimization(
 	master NodeReplicationController,
-	force bool,
+	ignoreErrors bool,
 	nodes ...NodeReplicationController,
 ) error {
 	opt.logger.Debug("optimization: disable all node optimization")
 
-	hostnames, err := opt.getOptimizationNodesHostnamesFromDCS(force, nodes...)
+	hostnames, err := opt.getOptimizationNodesHostnamesFromDCS(ignoreErrors, nodes...)
 	if err != nil {
 		return err
 	}
@@ -140,21 +147,21 @@ func (opt *Optimizer) DisableAllNodeOptimization(
 		hostnameToNode[node.Host()] = node
 	}
 
-	rs, err := opt.getMasterReplicationSettings(master, force)
+	rs, err := opt.getMasterReplicationSettings(master, ignoreErrors)
 	if err != nil {
 		return err
 	}
 	for _, host := range hostnames {
 		node, ok := hostnameToNode[host]
-		if !ok && !force {
+		if !ok && !ignoreErrors {
 			opt.logger.Warnf("optimization: host %s has not been found in the provided node list; it is expected to be disabled eventually", host)
 			continue
 		}
-		if !ok && force {
+		if !ok && ignoreErrors {
 			return fmt.Errorf("host %s has not been found in the provided node list", host)
 		}
 
-		err := opt.disableOptimizationOnNodeAndDcs(node, rs, force)
+		err := opt.disableOptimizationOnNodeAndDcs(node, rs, ignoreErrors)
 		if err != nil {
 			return err
 		}
@@ -164,14 +171,14 @@ func (opt *Optimizer) DisableAllNodeOptimization(
 }
 
 func (opt *Optimizer) getOptimizationNodesHostnamesFromDCS(
-	force bool,
+	ignoreErrors bool,
 	nodes ...NodeReplicationController,
 ) ([]string, error) {
 	hostnames, err := opt.DCS.GetChildren(pathOptimizationNodes)
-	if err != nil && !force {
+	if err != nil && !ignoreErrors {
 		return nil, err
 	}
-	if err != nil && force {
+	if err != nil && ignoreErrors {
 		for _, node := range nodes {
 			hostnames = append(hostnames, node.Host())
 		}
@@ -186,18 +193,27 @@ func (opt *Optimizer) IsLocalNodeOptimizing() bool {
 }
 
 func (opt *Optimizer) SyncLocalOptimizationSettings(
-	master,
-	node NodeReplicationController,
+	master, node NodeReplicationController,
 ) error {
-	now := time.Now()
-	if now.Sub(opt.lastSync) < opt.config.SyncInterval {
+	if !opt.shouldSync() {
 		return nil
 	}
+
+	// Case when master is lost
+	// we should not implicitly change dcs state, as the optimization can continue after recovery
+	if master == nil || reflect.ValueOf(master).IsNil() {
+		err := node.SetReplicationSettings(mysql.SafeReplicationSettings)
+		if err != nil {
+			opt.logger.Warnf("can not set default replication settings on the host %s", node.Host())
+		}
+		return errMasterIsNil
+	}
+
 	if node.Host() == master.Host() {
 		opt.logger.Debugf("optimization: skipping local sync on master host [%s]", master.Host())
+		// Case when optimization is set manually on DCS
 		return opt.deleteDCSMasterOptimization(node)
 	}
-	opt.lastSync = now
 
 	status := opt.readOptimizationFile()
 	isOptimizingDcs, err := opt.isHostOptimizingDcs(node.Host())
@@ -226,6 +242,15 @@ func (opt *Optimizer) SyncLocalOptimizationSettings(
 	}
 
 	return nil
+}
+
+func (opt *Optimizer) shouldSync() bool {
+	now := time.Now()
+	if now.Sub(opt.lastSync) < opt.config.SyncInterval {
+		return false
+	}
+	opt.lastSync = now
+	return true
 }
 
 func (opt *Optimizer) phaseCheckOptimizationProgress(
@@ -389,12 +414,12 @@ func (opt *Optimizer) isNodeReplicationLagUnderThreshold(node NodeReplicationCon
 func (opt *Optimizer) disableOptimizationOnNodeAndDcs(
 	node NodeReplicationController,
 	masterSettings mysql.ReplicationSettings,
-	force bool,
+	ignoreErrors bool,
 ) error {
 	opt.logger.Debugf("optimization: disable optimization on %s", node.Host())
 	err := opt.DCS.Delete(dcs.JoinPath(pathOptimizationNodes, node.Host()))
 	if err != nil && err != dcs.ErrNotFound {
-		if force {
+		if ignoreErrors {
 			opt.logger.Warnf("optimization: optimization mode on host %s has not been disabled on DCS: %s", node.Host(), err)
 		} else {
 			return err
@@ -402,7 +427,7 @@ func (opt *Optimizer) disableOptimizationOnNodeAndDcs(
 	}
 
 	err = node.SetReplicationSettings(masterSettings)
-	if err != nil && force {
+	if err != nil && ignoreErrors {
 		opt.logger.Warnf("optimization: optimization mode on host %s has not been disabled on mysql: %s", node.Host(), err)
 		err = nil
 	}
@@ -424,10 +449,20 @@ func (opt *Optimizer) deleteDCSMasterOptimization(
 	return nil
 }
 
-func (opt *Optimizer) getMasterReplicationSettings(master NodeReplicationController, force bool) (mysql.ReplicationSettings, error) {
+func (opt *Optimizer) getMasterReplicationSettings(master NodeReplicationController, ignoreErrors bool) (mysql.ReplicationSettings, error) {
+	if master == nil || reflect.ValueOf(master).IsNil() {
+		if ignoreErrors {
+			opt.logger.Warnf("optimization: master is nil")
+			return mysql.SafeReplicationSettings, nil
+		} else {
+			return mysql.ReplicationSettings{}, errMasterIsNil
+		}
+	}
+
 	masterRS, err := master.GetReplicationSettings()
-	if err != nil && force {
+	if err != nil && ignoreErrors {
 		opt.logger.Warnf("optimization: optimization settings on %s can not be acquired; fall back to default ones", master.Host(), err)
+		masterRS = mysql.SafeReplicationSettings
 		err = nil
 	}
 	return masterRS, err

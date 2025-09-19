@@ -168,11 +168,25 @@ func assertDisableOptimization(
 	}
 }
 
+func assertDisableOptimizationIgnoreErrors(
+	t *testing.T,
+	om ReplicationOpitimizer,
+	master *MockNode,
+	host *MockNode,
+	mdcs *dcs.MockDCS,
+) {
+	t.Helper()
+	mdcs.HostToLock = host.Host()
+	err := om.DisableNodeOptimization(master, host, true)
+	if err != nil {
+		t.Fatal(err)
+	}
+}
+
 func assertDisableAllOptimization(
 	t *testing.T,
 	om ReplicationOpitimizer,
 	master *MockNode,
-	mdcs *dcs.MockDCS,
 	nodes ...*MockNode,
 ) {
 	t.Helper()
@@ -183,6 +197,25 @@ func assertDisableAllOptimization(
 	}
 
 	err := om.DisableAllNodeOptimization(master, false, ifaceNodes...)
+	if err != nil {
+		t.Fatal(err)
+	}
+}
+
+func assertDisableAllOptimizationIgnoreErrors(
+	t *testing.T,
+	om ReplicationOpitimizer,
+	master *MockNode,
+	nodes ...*MockNode,
+) {
+	t.Helper()
+	// We have to do it explicitly
+	var ifaceNodes []NodeReplicationController
+	for _, n := range nodes {
+		ifaceNodes = append(ifaceNodes, n)
+	}
+
+	err := om.DisableAllNodeOptimization(master, true, ifaceNodes...)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -349,7 +382,7 @@ func TestOptimizationDisabledOnAllReplicaImmediately(t *testing.T) {
 	assertHostIsNotOptimized(t, cluster["mysql3"])
 	assertHostPathExistsInDCS(t, cluster["mysql3"], mdcs)
 
-	assertDisableAllOptimization(t, om, master, mdcs, cluster["mysql2"], cluster["mysql3"])
+	assertDisableAllOptimization(t, om, master, cluster["mysql2"], cluster["mysql3"])
 	assertHostIsNotOptimized(t, cluster["mysql2"])
 	assertHostIsNotOptimized(t, cluster["mysql3"])
 
@@ -374,7 +407,7 @@ func TestHostMustUseSafeDefaultWhenDCSIsUnreachable(t *testing.T) {
 	assertSyncOptions(t, om, master, cluster["mysql2"], mdcs)
 	assertHostIsOptimized(t, cluster["mysql2"])
 
-	mdcs.UnreachableCounter = 0
+	mdcs.Unreachable = true
 	assertSyncOptions(t, om, master, cluster["mysql2"], mdcs)
 	assertHostIsNotOptimized(t, cluster["mysql2"])
 }
@@ -386,7 +419,7 @@ func TestCannotEnableReplicationWhenDCSIsUnreachable(t *testing.T) {
 		Lag: sql.NullFloat64{Valid: true, Float64: 20.0},
 	}
 
-	mdcs.UnreachableCounter = 0
+	mdcs.Unreachable = true
 	err := om.EnableNodeOptimization(cluster["mysql2"])
 	if err == nil {
 		t.Fatal("an error is expected")
@@ -406,7 +439,7 @@ func TestCanDisableReplicationWhenDCSIsUnreachable(t *testing.T) {
 	assertSyncOptions(t, om, master, cluster["mysql2"], mdcs)
 	assertHostIsOptimized(t, cluster["mysql2"])
 
-	mdcs.UnreachableCounter = 0
+	mdcs.Unreachable = true
 	err := om.DisableNodeOptimization(master, cluster["mysql2"], false)
 	if err == nil {
 		t.Fatal("an error is expected")
@@ -440,7 +473,7 @@ func TestCanDisableAllReplicationWhenDCSIsUnreachable(t *testing.T) {
 	assertHostIsOptimized(t, cluster["mysql2"])
 	assertHostIsNotOptimized(t, cluster["mysql3"])
 
-	mdcs.UnreachableCounter = 0
+	mdcs.Unreachable = true
 	err := om.DisableAllNodeOptimization(master, false, cluster["mysql2"], cluster["mysql3"])
 	if err == nil {
 		t.Fatal("an error is expected")
@@ -456,4 +489,92 @@ func TestCanDisableAllReplicationWhenDCSIsUnreachable(t *testing.T) {
 
 	assertHostIsNotOptimized(t, cluster["mysql2"])
 	assertHostIsNotOptimized(t, cluster["mysql3"])
+}
+
+func TestOptimizationAutomaticallyDisabledWhenMasterIsLost(t *testing.T) {
+	om, mdcs, cluster := initDefaultCluster(t)
+	master := cluster["mysql4"]
+
+	cluster["mysql2"].replicationStatus = mysql.ReplicaStatusStruct{
+		Lag: sql.NullFloat64{Valid: true, Float64: 20.0},
+	}
+	cluster["mysql2"].replicationSettings = mysql.ReplicationSettings{
+		InnodbFlushLogAtTrxCommit: 2,
+		SyncBinlog:                1000,
+	}
+	assertEnableOptimization(t, om, cluster["mysql2"], mdcs)
+
+	assertHostIsOptimized(t, cluster["mysql2"])
+	err := om.SyncLocalOptimizationSettings(master, cluster["mysql2"])
+	if err != errMasterIsNil {
+		t.Fatal("master is not nil")
+	}
+	assertHostIsNotOptimized(t, cluster["mysql2"])
+	assertHostPathExistsInDCS(t, cluster["mysql2"], mdcs)
+}
+
+func TestOptimizationWontBeEnabledIfMasterIsLost(t *testing.T) {
+	om, mdcs, cluster := initDefaultCluster(t)
+	master := cluster["mysql4"]
+
+	cluster["mysql2"].replicationStatus = mysql.ReplicaStatusStruct{
+		Lag: sql.NullFloat64{Valid: true, Float64: 20.0},
+	}
+
+	assertEnableOptimization(t, om, cluster["mysql2"], mdcs)
+	err := om.SyncLocalOptimizationSettings(master, cluster["mysql2"])
+	if err != errMasterIsNil {
+		t.Fatal("master is not nil")
+	}
+	assertHostIsNotOptimized(t, cluster["mysql2"])
+	assertHostPathExistsInDCS(t, cluster["mysql2"], mdcs)
+}
+
+func TestOptimizationDisableWorksWhenMasterIsLost(t *testing.T) {
+	om, mdcs, cluster := initDefaultCluster(t)
+	master := cluster["mysql4"]
+
+	cluster["mysql2"].replicationStatus = mysql.ReplicaStatusStruct{
+		Lag: sql.NullFloat64{Valid: true, Float64: 20.0},
+	}
+	cluster["mysql2"].replicationSettings = mysql.ReplicationSettings{
+		InnodbFlushLogAtTrxCommit: 2,
+		SyncBinlog:                1000,
+	}
+	assertEnableOptimization(t, om, cluster["mysql2"], mdcs)
+
+	assertDisableOptimizationIgnoreErrors(t, om, master, cluster["mysql2"], mdcs)
+	assertHostIsNotOptimized(t, cluster["mysql2"])
+	assertHostPathDoesntExistInDCS(t, cluster["mysql2"], mdcs)
+}
+
+func TestOptimizationDisableAllWorksWhenMasterIsLost(t *testing.T) {
+	om, mdcs, cluster := initDefaultCluster(t)
+	master := cluster["mysql4"]
+
+	cluster["mysql2"].replicationStatus = mysql.ReplicaStatusStruct{
+		Lag: sql.NullFloat64{Valid: true, Float64: 20.0},
+	}
+	cluster["mysql2"].replicationSettings = mysql.ReplicationSettings{
+		InnodbFlushLogAtTrxCommit: 2,
+		SyncBinlog:                1000,
+	}
+	assertEnableOptimization(t, om, cluster["mysql2"], mdcs)
+
+	cluster["mysql3"].replicationStatus = mysql.ReplicaStatusStruct{
+		Lag: sql.NullFloat64{Valid: true, Float64: 20.0},
+	}
+	cluster["mysql3"].replicationSettings = mysql.ReplicationSettings{
+		InnodbFlushLogAtTrxCommit: 2,
+		SyncBinlog:                1000,
+	}
+	assertEnableOptimization(t, om, cluster["mysql3"], mdcs)
+
+	assertDisableAllOptimizationIgnoreErrors(t, om, master, cluster["mysql2"], cluster["mysql3"])
+
+	assertHostIsNotOptimized(t, cluster["mysql2"])
+	assertHostIsNotOptimized(t, cluster["mysql3"])
+
+	assertHostPathDoesntExistInDCS(t, cluster["mysql2"], mdcs)
+	assertHostPathDoesntExistInDCS(t, cluster["mysql3"], mdcs)
 }

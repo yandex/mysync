@@ -997,7 +997,7 @@ func (app *App) SyncLocalOptimizationSettings() error {
 		return err
 	}
 
-	localHost := app.cluster.Local()
+	local := app.cluster.Local()
 	master := app.cluster.Get(masterHost)
 	if master == nil {
 		return ErrNoMaster
@@ -1005,7 +1005,7 @@ func (app *App) SyncLocalOptimizationSettings() error {
 
 	return app.replicationOptimizer.SyncLocalOptimizationSettings(
 		master,
-		localHost,
+		local,
 	)
 }
 
@@ -1415,17 +1415,7 @@ func (app *App) performSwitchover(clusterState map[string]*NodeState, activeNode
 		activeNodes = filterOut(activeNodes, []string{oldMaster})
 	}
 
-	if switchover.MasterTransition == SwitchoverTransition {
-		err := app.stopAllNodeOptimization(
-			oldMaster,
-			clusterState,
-		)
-		if err != nil {
-			return err
-		}
-	}
-
-	err := app.optimizationPhase(activeNodes, switchover, oldMaster)
+	err := app.optimizationPhase(activeNodes, switchover, oldMaster, clusterState)
 	if err != nil {
 		return err
 	}
@@ -2505,7 +2495,7 @@ func (app *App) waitForCatchUp(node *mysql.Node, gtidset gtids.GTIDSet, timeout 
 	return false, nil
 }
 
-func (app *App) stopAllNodeOptimization(master string, clusterState map[string]*NodeState) error {
+func (app *App) stopAllNodeOptimization(master string, clusterState map[string]*NodeState, ignoreErrors bool) error {
 	masterNode := app.cluster.Get(master)
 
 	var nodes []*mysql.Node
@@ -2514,7 +2504,7 @@ func (app *App) stopAllNodeOptimization(master string, clusterState map[string]*
 	}
 
 	controllerNodes := convertNodesToReplicationControllers(nodes)
-	return app.replicationOptimizer.DisableAllNodeOptimization(masterNode, false, controllerNodes...)
+	return app.replicationOptimizer.DisableAllNodeOptimization(masterNode, ignoreErrors, controllerNodes...)
 }
 
 // Set master offline and disable semi-sync replication
