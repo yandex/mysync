@@ -236,7 +236,7 @@ func (app *App) optimizeReplicaWithSmallestLag(
 		return nil
 	}
 
-	err = replicaToOptimize.OptimizeReplication()
+	err = app.replicationOptimizer.EnableNodeOptimization(replicaToOptimize)
 	if err != nil {
 		return err
 	}
@@ -274,27 +274,32 @@ func (app *App) chooseReplicaToOptimize(
 }
 
 func (app *App) getMostDesirableReplicaToOptimize(positions []nodePosition) (string, error) {
-	lagThreshold := app.config.OptimizeReplicationLagThreshold
+	lagThreshold := app.config.OptimizationConfig.ReplicationLagThreshold
 	return getMostDesirableNode(app.logger, positions, lagThreshold)
 }
 
 func (app *App) waitReplicaToConverge(
 	replica *mysql.Node,
 ) error {
-	timer := time.NewTimer(app.config.OptimizeReplicationConvergenceTimeout)
+	timer := time.NewTimer(app.config.ReplicationConvergenceTimeoutSwitchover)
+	defer timer.Stop()
+
+	ticker := time.NewTicker(time.Second)
+	defer ticker.Stop()
+
 	for {
 		select {
 		case <-timer.C:
 			return ErrOptimizationPhaseDeadlineExceeded
-		default:
-			lagUnderThreshold, err := app.isReplicationLagUnderThreshold(replica)
+		case <-ticker.C:
+			ok, err := app.isReplicationLagUnderThreshold(replica)
 			if err != nil {
 				app.logger.Infof("can't check replication status: %s", err.Error())
+				continue
 			}
-			if lagUnderThreshold {
+			if ok {
 				return nil
 			}
-			time.Sleep(time.Second)
 		}
 	}
 }
@@ -308,7 +313,7 @@ func (app *App) isReplicationLagUnderThreshold(
 	}
 
 	lag := status.GetReplicationLag().Float64
-	lagThreshold := app.config.OptimizeReplicationLagThreshold.Seconds()
+	lagThreshold := app.config.OptimizationConfig.ReplicationLagThreshold.Seconds()
 
 	if !app.config.ASync && lag < lagThreshold {
 		return true, nil
@@ -316,7 +321,17 @@ func (app *App) isReplicationLagUnderThreshold(
 	return false, nil
 }
 
-func (app *App) optimizationPhase(activeNodes []string, switchover *Switchover, oldMaster string) error {
+func (app *App) optimizationPhase(activeNodes []string, switchover *Switchover, oldMaster string, clusterState map[string]*NodeState) error {
+	forceOptimizationStop := switchover.MasterTransition != SwitchoverTransition
+	err := app.stopAllNodeOptimization(
+		oldMaster,
+		clusterState,
+		forceOptimizationStop,
+	)
+	if err != nil {
+		return err
+	}
+
 	if !app.switchHelper.IsOptimizationPhaseAllowed() {
 		app.logger.Info("switchover: phase 0: turbo mode is skipped")
 		return nil
@@ -331,7 +346,7 @@ func (app *App) optimizationPhase(activeNodes []string, switchover *Switchover, 
 		oldMaster,
 		desirableReplica,
 	)
-	err := app.optimizeReplicaWithSmallestLag(
+	err = app.optimizeReplicaWithSmallestLag(
 		appropriateReplicas,
 		oldMaster,
 		desirableReplica,

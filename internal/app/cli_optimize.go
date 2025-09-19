@@ -23,7 +23,7 @@ func (app *App) CliEnableOptimization() int {
 	}
 
 	if status == Optimizable {
-		err = node.OptimizeReplication()
+		err = app.replicationOptimizer.EnableNodeOptimization(node)
 		if err != nil {
 			fmt.Printf("%s\n", err)
 			return 1
@@ -37,7 +37,7 @@ func (app *App) CliEnableOptimization() int {
 }
 
 // CliDisableOptimization disables optimization mode
-func (app *App) CliDisableOptimization() int {
+func (app *App) CliDisableOptimization(ignoreErrors bool) int {
 	cancel, err := app.cliInitApp()
 	if err != nil {
 		fmt.Printf("%s\n", err)
@@ -45,11 +45,61 @@ func (app *App) CliDisableOptimization() int {
 	}
 	defer cancel()
 
+	masterHost, err := app.GetMasterHostFromDcs()
+	if err != nil {
+		fmt.Printf("%s\n", err)
+
+		if !ignoreErrors {
+			return 1
+		}
+	}
+
 	node := app.cluster.Local()
-	err = app.SetDefaultReplicationSettingsForNode(node)
+	master := app.cluster.Get(masterHost)
+	err = app.replicationOptimizer.DisableNodeOptimization(master, node, ignoreErrors)
+	if err != nil {
+		fmt.Printf("%s\n", err)
+
+		if !ignoreErrors {
+			return 1
+		}
+	}
+	return 0
+}
+
+// CliDisableOptimization disables optimization mode on all hosts
+func (app *App) CliDisableAllOptimization(ignoreErrors bool) int {
+	cancel, err := app.cliInitApp()
 	if err != nil {
 		fmt.Printf("%s\n", err)
 		return 1
+	}
+	defer cancel()
+
+	masterHost, err := app.GetMasterHostFromDcs()
+	if err != nil {
+		fmt.Printf("%s\n", err)
+
+		if !ignoreErrors {
+			return 1
+		}
+	}
+
+	master := app.cluster.Get(masterHost)
+	hosts := app.cluster.AllNodeHosts()
+	var nodes []*mysql.Node
+	for _, host := range hosts {
+		nodes = append(nodes, app.cluster.Get(host))
+	}
+
+	controllerNodes := convertNodesToReplicationControllers(nodes)
+	err = app.replicationOptimizer.DisableAllNodeOptimization(master, ignoreErrors, controllerNodes...)
+	if err != nil {
+		fmt.Printf("%s\n", err)
+
+		if !ignoreErrors {
+			return 1
+		}
 	}
 	return 0
 }
@@ -114,7 +164,7 @@ type HostOptimizationStatus string
 const (
 	OptimizationRunning        HostOptimizationStatus = "optimization is running"
 	Optimizable                HostOptimizationStatus = "can be optimized"
-	UnoptimizableConfiguration HostOptimizationStatus = "configuration of the cluster is already optimized"
+	UnoptimizableConfiguration HostOptimizationStatus = "configuration of the host is already optimized"
 	HostRoleMaster             HostOptimizationStatus = "host is master"
 	Unknown                    HostOptimizationStatus = "unknown"
 )

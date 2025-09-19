@@ -18,6 +18,7 @@ import (
 	mysql_driver "github.com/go-sql-driver/mysql"
 	"github.com/gofrs/flock"
 
+	"github.com/yandex/mysync/internal/app/optimization"
 	"github.com/yandex/mysync/internal/config"
 	"github.com/yandex/mysync/internal/dcs"
 	"github.com/yandex/mysync/internal/log"
@@ -28,22 +29,23 @@ import (
 
 // App is main application structure
 type App struct {
-	state               appState
-	logger              *log.Logger
-	sysLog              *syslog.Writer
-	config              *config.Config
-	dcs                 dcs.DCS
-	cluster             *mysql.Cluster
-	filelock            *flock.Flock
-	nodeFailedAt        map[string]time.Time
-	slaveReadPositions  map[string]string
-	streamFromFailedAt  map[string]time.Time
-	daemonState         *DaemonState
-	daemonMutex         sync.Mutex
-	replRepairState     map[string]*ReplicationRepairState
-	externalReplication mysql.IExternalReplication
-	switchHelper        mysql.ISwitchHelper
-	lostQuorumTime      time.Time
+	state                appState
+	logger               *log.Logger
+	sysLog               *syslog.Writer
+	config               *config.Config
+	dcs                  dcs.DCS
+	cluster              *mysql.Cluster
+	filelock             *flock.Flock
+	nodeFailedAt         map[string]time.Time
+	slaveReadPositions   map[string]string
+	streamFromFailedAt   map[string]time.Time
+	daemonState          *DaemonState
+	daemonMutex          sync.Mutex
+	replRepairState      map[string]*ReplicationRepairState
+	externalReplication  mysql.IExternalReplication
+	switchHelper         mysql.ISwitchHelper
+	lostQuorumTime       time.Time
+	replicationOptimizer optimization.ReplicationOpitimizer
 }
 
 // NewApp returns new App. Suddenly.
@@ -82,18 +84,23 @@ func NewApp(configFile, logLevel string, interactive bool) (*App, error) {
 		logger.Errorf("external replication initialization failed: %s", err)
 		return nil, err
 	}
+	replicationOptimizer := optimization.NewOptimizer(
+		logger,
+		config.OptimizationConfig,
+	)
 	switchHelper := mysql.NewSwitchHelper(config)
 	app := &App{
-		state:               stateFirstRun,
-		config:              config,
-		sysLog:              sysLog,
-		logger:              logger,
-		nodeFailedAt:        make(map[string]time.Time),
-		streamFromFailedAt:  make(map[string]time.Time),
-		replRepairState:     make(map[string]*ReplicationRepairState),
-		slaveReadPositions:  make(map[string]string),
-		externalReplication: externalReplication,
-		switchHelper:        switchHelper,
+		state:                stateFirstRun,
+		config:               config,
+		sysLog:               sysLog,
+		logger:               logger,
+		nodeFailedAt:         make(map[string]time.Time),
+		streamFromFailedAt:   make(map[string]time.Time),
+		replRepairState:      make(map[string]*ReplicationRepairState),
+		slaveReadPositions:   make(map[string]string),
+		externalReplication:  externalReplication,
+		switchHelper:         switchHelper,
+		replicationOptimizer: replicationOptimizer,
 	}
 	logger.Info("app created")
 	return app, nil
@@ -508,6 +515,12 @@ func (app *App) stateFirstRun() appState {
 		return stateFirstRun
 	}
 	app.dcs.Initialize()
+	err := app.replicationOptimizer.Initialize(app.dcs)
+	if err != nil {
+		app.logger.Errorf("can not initialize ReplicationOpitimizer module: %s", err)
+		return stateFirstRun
+	}
+
 	if app.AcquireLock(pathManagerLock) {
 		return stateManager
 	}
@@ -782,6 +795,15 @@ func (app *App) stateManager() appState {
 		}
 	}
 
+	err = app.replicationOptimizer.SyncLocalOptimizationSettings(
+		app.cluster.Get(master),
+		app.cluster.Local(),
+	)
+	if err != nil {
+		app.logger.Errorf("failed to sync local optimization settings: %s", err)
+		return stateManager
+	}
+
 	return stateManager
 }
 
@@ -958,10 +980,33 @@ func (app *App) stateCandidate() appState {
 	if maintenance != nil && maintenance.MySyncPaused {
 		return stateMaintenance
 	}
+	err = app.SyncLocalOptimizationSettings()
+	if err != nil {
+		app.logger.Errorf("candidate: failed to sync local optimization settings: %v", err)
+		return stateCandidate
+	}
 	if app.AcquireLock(pathManagerLock) {
 		return stateManager
 	}
 	return stateCandidate
+}
+
+func (app *App) SyncLocalOptimizationSettings() error {
+	masterHost, err := app.GetMasterHostFromDcs()
+	if err != nil {
+		return err
+	}
+
+	local := app.cluster.Local()
+	master := app.cluster.Get(masterHost)
+	if master == nil {
+		return ErrNoMaster
+	}
+
+	return app.replicationOptimizer.SyncLocalOptimizationSettings(
+		master,
+		local,
+	)
 }
 
 func (app *App) emulateError(pos string) bool {
@@ -1283,7 +1328,7 @@ func (app *App) disableSemiSyncOnSlaves(becomeInactive, becomeDataLag []string) 
 		}
 
 		node := app.cluster.Get(host)
-		err = node.OptimizeReplication()
+		err = app.replicationOptimizer.EnableNodeOptimization(node)
 		if err != nil {
 			app.logger.Warnf("failed to enable optimization on slave %s: %v", host, err)
 		}
@@ -1370,7 +1415,7 @@ func (app *App) performSwitchover(clusterState map[string]*NodeState, activeNode
 		activeNodes = filterOut(activeNodes, []string{oldMaster})
 	}
 
-	err := app.optimizationPhase(activeNodes, switchover, oldMaster)
+	err := app.optimizationPhase(activeNodes, switchover, oldMaster, clusterState)
 	if err != nil {
 		return err
 	}
@@ -1750,7 +1795,7 @@ func (app *App) repairSlaveOfflineMode(host string, node *mysql.Node, state *Nod
 			} else {
 				app.logger.Infof("repair: slave %s set offline, because ReplicationLag (%f s) >= OfflineModeEnableLag (%v)",
 					host, *state.SlaveState.ReplicationLag, app.config.OfflineModeEnableLag)
-				err = node.OptimizeReplication()
+				err = app.replicationOptimizer.EnableNodeOptimization(node)
 				if err != nil {
 					app.logger.Errorf("repair: failed to set optimize replication settings on slave %s: %s", host, err)
 				}
@@ -2288,6 +2333,11 @@ func (app *App) getNodeState(host string) *NodeState {
 		if err != nil {
 			return err
 		}
+		rs, err := node.GetReplicationSettings()
+		if err != nil {
+			return err
+		}
+		nodeState.IsOptimizing = rs.Optimized()
 		if slaveStatus != nil {
 			nodeState.IsMaster = false
 			nodeState.SlaveState = new(SlaveState)
@@ -2443,6 +2493,18 @@ func (app *App) waitForCatchUp(node *mysql.Node, gtidset gtids.GTIDSet, timeout 
 		}
 	}
 	return false, nil
+}
+
+func (app *App) stopAllNodeOptimization(master string, clusterState map[string]*NodeState, ignoreErrors bool) error {
+	masterNode := app.cluster.Get(master)
+
+	var nodes []*mysql.Node
+	for hostname := range clusterState {
+		nodes = append(nodes, app.cluster.Get(hostname))
+	}
+
+	controllerNodes := convertNodesToReplicationControllers(nodes)
+	return app.replicationOptimizer.DisableAllNodeOptimization(masterNode, ignoreErrors, controllerNodes...)
 }
 
 // Set master offline and disable semi-sync replication

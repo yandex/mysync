@@ -98,6 +98,7 @@ type NodeState struct {
 	MasterState          *MasterState   `json:"master_state"`
 	SlaveState           *SlaveState    `json:"slave_state"`
 	SemiSyncState        *SemiSyncState `json:"semi_sync_state"`
+	IsOptimizing         bool           `json:"is_optimizing"`
 
 	ShowOnlyGTIDDiff bool
 }
@@ -238,12 +239,12 @@ func (ns *NodeState) String() string {
 
 	// NodeState of replica doesn't know master gtid and always writes "master state not defined" when we calculate gtid diff
 	if ns.ShowOnlyGTIDDiff && ns.MasterState == nil {
-		return fmt.Sprintf("<ping=%s repl=%s sync=%s ro=%v offline=%v lag=%.02f du=%s cr=%s>",
-			ping, repl, sync, ns.IsReadOnly, ns.IsOffline, lag, du, cr)
+		return fmt.Sprintf("<ping=%s repl=%s sync=%s ro=%v offline=%v lag=%.02f du=%s cr=%s turbo=%t>",
+			ping, repl, sync, ns.IsReadOnly, ns.IsOffline, lag, du, cr, ns.IsOptimizing)
 	}
 
-	return fmt.Sprintf("<ping=%s repl=%s sync=%s ro=%v offline=%v lag=%.02f du=%s cr=%s gtid=%s>",
-		ping, repl, sync, ns.IsReadOnly, ns.IsOffline, lag, du, cr, gtid)
+	return fmt.Sprintf("<ping=%s repl=%s sync=%s ro=%v offline=%v lag=%.02f du=%s cr=%s gtid=%s turbo=%t>",
+		ping, repl, sync, ns.IsReadOnly, ns.IsOffline, lag, du, cr, gtid, ns.IsOptimizing)
 }
 
 // DiskState contains information about disk space on the node

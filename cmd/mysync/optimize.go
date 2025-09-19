@@ -9,6 +9,8 @@ import (
 	"github.com/yandex/mysync/internal/app"
 )
 
+var ignoreErrors bool
+
 var optimizeCmd = &cobra.Command{
 	Use:     "optimize",
 	Aliases: []string{"turbo"},
@@ -40,7 +42,20 @@ var optimizeOffCmd = &cobra.Command{
 			fmt.Println(err)
 			os.Exit(1)
 		}
-		os.Exit(app.CliDisableOptimization())
+		os.Exit(app.CliDisableOptimization(ignoreErrors))
+	},
+}
+
+var optimizeOffAllCmd = &cobra.Command{
+	Use:     "off-all",
+	Aliases: []string{"disable-all"},
+	Run: func(cmd *cobra.Command, args []string) {
+		app, err := app.NewApp(configFile, logLevel, true)
+		if err != nil {
+			fmt.Println(err)
+			os.Exit(1)
+		}
+		os.Exit(app.CliDisableAllOptimization(ignoreErrors))
 	},
 }
 
@@ -58,7 +73,11 @@ var optimizeGetCmd = &cobra.Command{
 
 func init() {
 	rootCmd.AddCommand(optimizeCmd)
+
 	optimizeCmd.AddCommand(optimizeOnCmd)
+	optimizeOnCmd.PersistentFlags().BoolVarP(&ignoreErrors, "ignore", "i", false, "ignores possible errors")
+
 	optimizeCmd.AddCommand(optimizeOffCmd)
 	optimizeCmd.AddCommand(optimizeGetCmd)
+	optimizeCmd.AddCommand(optimizeOffAllCmd)
 }
