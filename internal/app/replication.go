@@ -236,7 +236,7 @@ func (app *App) optimizeReplicaWithSmallestLag(
 		return nil
 	}
 
-	err = app.replicationOptimizer.EnableNodeOptimization(replicaToOptimize, app.dcs)
+	err = app.replicationOptimizer.EnableNodeOptimization(replicaToOptimize)
 	if err != nil {
 		return err
 	}

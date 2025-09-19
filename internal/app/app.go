@@ -798,7 +798,6 @@ func (app *App) stateManager() appState {
 	err = app.replicationOptimizer.SyncLocalOptimizationSettings(
 		app.cluster.Get(master),
 		app.cluster.Local(),
-		app.dcs,
 	)
 	if err != nil {
 		app.logger.Errorf("failed to sync local optimization settings: %s", err)
@@ -1007,7 +1006,6 @@ func (app *App) SyncLocalOptimizationSettings() error {
 	return app.replicationOptimizer.SyncLocalOptimizationSettings(
 		master,
 		localHost,
-		app.dcs,
 	)
 }
 
@@ -1330,7 +1328,7 @@ func (app *App) disableSemiSyncOnSlaves(becomeInactive, becomeDataLag []string) 
 		}
 
 		node := app.cluster.Get(host)
-		err = app.replicationOptimizer.EnableNodeOptimization(node, app.dcs)
+		err = app.replicationOptimizer.EnableNodeOptimization(node)
 		if err != nil {
 			app.logger.Warnf("failed to enable optimization on slave %s: %v", host, err)
 		}
@@ -1807,7 +1805,7 @@ func (app *App) repairSlaveOfflineMode(host string, node *mysql.Node, state *Nod
 			} else {
 				app.logger.Infof("repair: slave %s set offline, because ReplicationLag (%f s) >= OfflineModeEnableLag (%v)",
 					host, *state.SlaveState.ReplicationLag, app.config.OfflineModeEnableLag)
-				err = app.replicationOptimizer.EnableNodeOptimization(node, app.dcs)
+				err = app.replicationOptimizer.EnableNodeOptimization(node)
 				if err != nil {
 					app.logger.Errorf("repair: failed to set optimize replication settings on slave %s: %s", host, err)
 				}
@@ -2516,7 +2514,7 @@ func (app *App) stopAllNodeOptimization(master string, clusterState map[string]*
 	}
 
 	controllerNodes := convertNodesToReplicationControllers(nodes)
-	return app.replicationOptimizer.DisableAllNodeOptimization(masterNode, app.dcs, false, controllerNodes...)
+	return app.replicationOptimizer.DisableAllNodeOptimization(masterNode, false, controllerNodes...)
 }
 
 // Set master offline and disable semi-sync replication

@@ -103,7 +103,7 @@ func assertSyncOptions(
 ) {
 	t.Helper()
 	mdcs.HostToLock = host.Host()
-	err := om.SyncLocalOptimizationSettings(master, host, mdcs)
+	err := om.SyncLocalOptimizationSettings(master, host)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -117,7 +117,7 @@ func assertEnableOptimization(
 ) {
 	t.Helper()
 	mdcs.HostToLock = host.Host()
-	err := om.EnableNodeOptimization(host, mdcs)
+	err := om.EnableNodeOptimization(host)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -162,7 +162,7 @@ func assertDisableOptimization(
 ) {
 	t.Helper()
 	mdcs.HostToLock = host.Host()
-	err := om.DisableNodeOptimization(master, host, mdcs, false)
+	err := om.DisableNodeOptimization(master, host, false)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -182,7 +182,7 @@ func assertDisableAllOptimization(
 		ifaceNodes = append(ifaceNodes, n)
 	}
 
-	err := om.DisableAllNodeOptimization(master, mdcs, false, ifaceNodes...)
+	err := om.DisableAllNodeOptimization(master, false, ifaceNodes...)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -387,7 +387,7 @@ func TestCannotEnableReplicationWhenDCSIsUnreachable(t *testing.T) {
 	}
 
 	mdcs.UnreachableCounter = 0
-	err := om.EnableNodeOptimization(cluster["mysql2"], mdcs)
+	err := om.EnableNodeOptimization(cluster["mysql2"])
 	if err == nil {
 		t.Fatal("an error is expected")
 	}
@@ -407,13 +407,13 @@ func TestCanDisableReplicationWhenDCSIsUnreachable(t *testing.T) {
 	assertHostIsOptimized(t, cluster["mysql2"])
 
 	mdcs.UnreachableCounter = 0
-	err := om.DisableNodeOptimization(master, cluster["mysql2"], mdcs, false)
+	err := om.DisableNodeOptimization(master, cluster["mysql2"], false)
 	if err == nil {
 		t.Fatal("an error is expected")
 	}
 	assertHostIsOptimized(t, cluster["mysql2"])
 
-	err = om.DisableNodeOptimization(master, cluster["mysql2"], mdcs, true)
+	err = om.DisableNodeOptimization(master, cluster["mysql2"], true)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -441,7 +441,7 @@ func TestCanDisableAllReplicationWhenDCSIsUnreachable(t *testing.T) {
 	assertHostIsNotOptimized(t, cluster["mysql3"])
 
 	mdcs.UnreachableCounter = 0
-	err := om.DisableAllNodeOptimization(master, mdcs, false, cluster["mysql2"], cluster["mysql3"])
+	err := om.DisableAllNodeOptimization(master, false, cluster["mysql2"], cluster["mysql3"])
 	if err == nil {
 		t.Fatal("an error is expected")
 	}
@@ -449,7 +449,7 @@ func TestCanDisableAllReplicationWhenDCSIsUnreachable(t *testing.T) {
 	assertHostIsOptimized(t, cluster["mysql2"])
 	assertHostIsNotOptimized(t, cluster["mysql3"])
 
-	err = om.DisableAllNodeOptimization(master, mdcs, true, cluster["mysql2"], cluster["mysql3"])
+	err = om.DisableAllNodeOptimization(master, true, cluster["mysql2"], cluster["mysql3"])
 	if err != nil {
 		t.Fatal(err)
 	}
