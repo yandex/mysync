@@ -211,8 +211,8 @@ func (opt *Optimizer) SyncLocalOptimizationSettings(
 
 	if node.Host() == master.Host() {
 		opt.logger.Debugf("optimization: skipping local sync on master host [%s]", master.Host())
-		// Case when optimization is set manually on DCS
-		return opt.deleteDCSMasterOptimization(node)
+		// Case when optimization is set manually on DCS/was not disabled on failover/switchover
+		return opt.disableMasterOptimizationIfNeeded(master)
 	}
 
 	status := opt.readOptimizationFile()
@@ -434,19 +434,46 @@ func (opt *Optimizer) disableOptimizationOnNodeAndDcs(
 	return err
 }
 
-// deleteDCSMasterOptimization deletes rubbish on DCS which appeared
-// because of switchover/failover or manual zk path editions
-func (opt *Optimizer) deleteDCSMasterOptimization(
-	node NodeReplicationController,
+// disableMasterOptimizationIfNeeded removes stale optimization artifacts from DCS/MySQL
+// that can remain after switchover/failover events or manual DCS path edits.
+func (opt *Optimizer) disableMasterOptimizationIfNeeded(
+	master NodeReplicationController,
 ) error {
-	err := opt.DCS.Delete(dcs.JoinPath(pathOptimizationNodes, node.Host()))
+	err := opt.DCS.Delete(dcs.JoinPath(pathOptimizationNodes, master.Host()))
 	if err != nil && err != dcs.ErrNotFound {
 		return err
 	}
 	if err != dcs.ErrNotFound {
-		opt.logger.Debugf("optimization: master [%s] had optimization mode on dcs; it is deleted", node.Host())
+		opt.logger.Warnf("optimization: master [%s] had optimization mode enabled in DCS; it has been removed", master.Host())
 	}
+
+	if opt.optimizationFileExists() {
+		opt.logger.Warnf("optimization: found an optimization file on master [%s]; this indicates an error."+
+			"The file will be removed and replication settings reset to safe defaults", master.Host())
+
+		err := master.SetReplicationSettings(mysql.SafeReplicationSettings)
+		if err != nil {
+			return err
+		}
+
+		err = opt.removeOptimizationFile()
+		if err != nil {
+			return err
+		}
+	}
+
 	return nil
+}
+
+func (opt *Optimizer) optimizationFileExists() bool {
+	_, err := os.Stat(opt.config.File)
+	if err == nil {
+		return true
+	}
+	if errors.Is(err, os.ErrNotExist) {
+		return false
+	}
+	return false
 }
 
 func (opt *Optimizer) getMasterReplicationSettings(master NodeReplicationController, ignoreErrors bool) (mysql.ReplicationSettings, error) {
