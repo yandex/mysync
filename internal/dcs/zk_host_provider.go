@@ -53,9 +53,7 @@ func (rhp *RandomHostProvider) Init(servers []string) error {
 			continue
 		}
 
-		for _, host := range resolved {
-			allResolvedServers = append(allResolvedServers, host)
-		}
+		allResolvedServers = append(allResolvedServers, resolved...)
 
 		rhp.hosts.Store(host, zkhost{
 			resolved:   resolved,
