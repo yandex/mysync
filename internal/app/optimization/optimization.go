@@ -1,6 +1,7 @@
 package optimization
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"os"
@@ -25,6 +26,8 @@ const (
 
 var errMasterIsNil = errors.New("master is nil")
 
+var errOptimizationWaitingDeadlineExceeded = errors.New("optimization waiting deadline exceeded")
+
 // NodeReplicationController is just a contract to have methods to control MySQL replication process.
 type NodeReplicationController interface {
 	SetReplicationSettings(rs mysql.ReplicationSettings) error
@@ -38,6 +41,9 @@ type NodeReplicationController interface {
 type ReplicationOpitimizer interface {
 	// IsLocalNodeOptimizing shows whether local node is started optimizing or not.
 	IsLocalNodeOptimizing() bool
+
+	// WaitLocalNodeOptimization blocks until the local replication node is optimized
+	WaitLocalNodeOptimization(ctx context.Context, checkInterval time.Duration) error
 
 	// Initialize initializes components
 	// Must be called before any other method
@@ -76,18 +82,21 @@ type ReplicationOpitimizer interface {
 func NewOptimizer(
 	logger log.ILogger,
 	config config.OptimizationConfig,
+	localhostName string,
 ) *Optimizer {
 	return &Optimizer{
-		logger: logger,
-		config: config,
+		logger:        logger,
+		config:        config,
+		localHostname: localhostName,
 	}
 }
 
 type Optimizer struct {
-	logger   log.ILogger
-	config   config.OptimizationConfig
-	DCS      dcs.DCS
-	lastSync time.Time
+	logger        log.ILogger
+	config        config.OptimizationConfig
+	localHostname string
+	DCS           dcs.DCS
+	lastSync      time.Time
 }
 
 // Status represents the state of an optimization process:
@@ -432,6 +441,38 @@ func (opt *Optimizer) disableOptimizationOnNodeAndDcs(
 		err = nil
 	}
 	return err
+}
+
+// WaitLocalNodeOptimization polls until local node optimization is complete or the context is done.
+func (opt *Optimizer) WaitLocalNodeOptimization(ctx context.Context, checkInterval time.Duration) error {
+	ticker := time.NewTicker(checkInterval)
+	defer ticker.Stop()
+
+	for {
+		select {
+		case <-ctx.Done():
+			return errOptimizationWaitingDeadlineExceeded
+
+		case <-ticker.C:
+			status := opt.readOptimizationFile()
+			if status == StatusEnabled {
+				opt.logger.Info("optimization: waiting (enabled on localhost because the file exists)")
+				continue
+			}
+
+			isOptimizingDCS, err := opt.isHostOptimizingDcs(opt.localHostname)
+			if err != nil {
+				return err
+			}
+			if isOptimizingDCS {
+				opt.logger.Info("optimization: waiting (pending because the DCS path exists)")
+				continue
+			}
+
+			opt.logger.Info("optimization: complete (file and DCS path not found)")
+			return nil
+		}
+	}
 }
 
 // disableMasterOptimizationIfNeeded removes stale optimization artifacts from DCS/MySQL

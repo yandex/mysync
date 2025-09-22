@@ -87,6 +87,7 @@ func NewApp(configFile, logLevel string, interactive bool) (*App, error) {
 	replicationOptimizer := optimization.NewOptimizer(
 		logger,
 		config.OptimizationConfig,
+		config.Hostname,
 	)
 	switchHelper := mysql.NewSwitchHelper(config)
 	app := &App{

@@ -1,6 +1,7 @@
 package optimization
 
 import (
+	"context"
 	"database/sql"
 	"os"
 	"testing"
@@ -28,7 +29,7 @@ func initDefaultCluster(t *testing.T) (*Optimizer, *dcs.MockDCS, map[string]*Moc
 		File:                    f.Name(),
 		ReplicationLagThreshold: time.Second * 10,
 		SyncInterval:            time.Second * 0,
-	})
+	}, "localhost")
 
 	cluster := map[string]*MockNode{
 		"mysql1": {
@@ -577,4 +578,35 @@ func TestOptimizationDisableAllWorksWhenMasterIsLost(t *testing.T) {
 
 	assertHostPathDoesntExistInDCS(t, cluster["mysql2"], mdcs)
 	assertHostPathDoesntExistInDCS(t, cluster["mysql3"], mdcs)
+}
+
+func TestWaitingWorksOnOptimizedHost(t *testing.T) {
+	om, _, _ := initDefaultCluster(t)
+	om.localHostname = "mysql2"
+
+	err := om.WaitLocalNodeOptimization(context.Background(), time.Microsecond)
+	if err != nil {
+		t.Fatal(err)
+	}
+}
+
+func TestWaitingDeadOnDeadline(t *testing.T) {
+	om, mdcs, cluster := initDefaultCluster(t)
+	om.localHostname = "mysql2"
+
+	cluster["mysql2"].replicationStatus = mysql.ReplicaStatusStruct{
+		Lag: sql.NullFloat64{Valid: true, Float64: 20.0},
+	}
+	cluster["mysql2"].replicationSettings = mysql.ReplicationSettings{
+		InnodbFlushLogAtTrxCommit: 2,
+		SyncBinlog:                1000,
+	}
+	assertEnableOptimization(t, om, cluster["mysql2"], mdcs)
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Microsecond)
+	defer cancel()
+	err := om.WaitLocalNodeOptimization(ctx, time.Microsecond)
+	if err == nil {
+		t.Fatal("an error is expected")
+	}
 }
