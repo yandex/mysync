@@ -44,7 +44,7 @@ func NewRandomHostProvider(ctx context.Context, config *RandomHostProviderConfig
 }
 
 func (rhp *RandomHostProvider) Init(servers []string) error {
-	numResolved := 0
+	var allResolvedServers []string
 
 	for _, host := range servers {
 		resolved, err := rhp.resolveHost(host)
@@ -52,7 +52,11 @@ func (rhp *RandomHostProvider) Init(servers []string) error {
 			rhp.logger.Errorf("host definition %s is invalid %v", host, err)
 			continue
 		}
-		numResolved += len(resolved)
+
+		for _, host := range resolved {
+			allResolvedServers = append(allResolvedServers, host)
+		}
+
 		rhp.hosts.Store(host, zkhost{
 			resolved:   resolved,
 			lastLookup: time.Now(),
@@ -60,13 +64,35 @@ func (rhp *RandomHostProvider) Init(servers []string) error {
 		rhp.hostsKeys = append(rhp.hostsKeys, host)
 	}
 
-	if numResolved == 0 {
+	if len(allResolvedServers) == 0 {
 		return fmt.Errorf("unable to resolve any host from %v", servers)
+	}
+
+	if err := rhp.checkZKConnectivity(allResolvedServers); err != nil {
+		return err
 	}
 
 	go rhp.resolveHosts()
 
 	return nil
+}
+
+func (rhp *RandomHostProvider) checkZKConnectivity(servers []string) error {
+	if len(servers) == 0 {
+		return fmt.Errorf("no servers available for connectivity check")
+	}
+
+	for _, server := range servers {
+		conn, err := net.DialTimeout("tcp", server, rhp.lookupTimeout)
+		if err == nil {
+			conn.Close()
+			rhp.logger.Infof("zk connectivity check succeeded for %s", server)
+			return nil
+		}
+		rhp.logger.Errorf("connectivity check failed for %s: %s", server, err)
+	}
+
+	return fmt.Errorf("failed to connect to any zk server: all attempts timed out or refused")
 }
 
 func (rhp *RandomHostProvider) resolveHosts() {
