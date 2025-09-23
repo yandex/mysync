@@ -101,9 +101,14 @@ type Config struct {
 	ShowOnlyGTIDDiff                        bool                         `config:"show_only_gtid_diff" yaml:"show_only_gtid_diff"`
 	ManagerSwitchover                       bool                         `config:"manager_switchover" yaml:"manager_switchover"`
 	ForceSwitchover                         bool                         `config:"force_switchover" yaml:"force_switchover"` // TODO: Remove when we will be sure it's right way to do switchover
+	ReplicationConvergenceTimeoutSwitchover time.Duration                `config:"replication_convergence_timeout_switchover" yaml:"replication_convergence_timeout_switchover"`
 	DSNSettings                             string                       `config:"dsn_settings" yaml:"dsn_settings"`
-	OptimizeReplicationLagThreshold         time.Duration                `config:"optimize_replication_lag_threshold" yaml:"optimize_replication_lag_threshold"`
-	OptimizeReplicationConvergenceTimeout   time.Duration                `config:"optimize_replication_convergence_timeout" yaml:"optimize_replication_convergence_timeout"`
+	OptimizationConfig                      OptimizationConfig           `config:"optimization_config" yaml:"optimization_config"`
+}
+
+type OptimizationConfig struct {
+	HighReplicationMark time.Duration `config:"high_replication_mark" yaml:"high_replication_mark"`
+	LowReplicationMark  time.Duration `config:"low_replication_mark" yaml:"low_replication_mark"`
 }
 
 // DefaultConfig returns default configuration for MySync
@@ -193,9 +198,12 @@ func DefaultConfig() (Config, error) {
 		ShowOnlyGTIDDiff:                        false,
 		ManagerSwitchover:                       false,
 		ForceSwitchover:                         false,
+		ReplicationConvergenceTimeoutSwitchover: 300 * time.Second,
 		DSNSettings:                             "?autocommit=1&sql_log_off=1",
-		OptimizeReplicationLagThreshold:         60 * time.Second,
-		OptimizeReplicationConvergenceTimeout:   300 * time.Second,
+		OptimizationConfig: OptimizationConfig{
+			HighReplicationMark: 120 * time.Second,
+			LowReplicationMark:  60 * time.Second,
+		},
 	}
 	return config, nil
 }

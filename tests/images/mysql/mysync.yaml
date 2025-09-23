@@ -64,7 +64,9 @@ show_only_gtid_diff: false
 repl_mon: ${REPL_MON:-false}
 force_switchover: ${FORCE_SWITCHOVER:-false}
 manager_switchover: ${MANAGER_SWITCHOVER:-true}
+replication_convergence_timeout_switchover: 300s
 manager_election_delay_after_quorum_loss: ${MANAGER_ELECTION_DELAY_AFTER_QUORUM_LOSS:-15s}
 manager_lock_acquire_delay_after_quorum_loss: ${MANAGER_LOCK_ACQUIRE_DELAY_AFTER_QUORUM_LOSS:-30s}
-optimize_replication_lag_threshold: 60s
-optimize_replication_convergence_timeout: 300s
+optimization_config:
+  high_replication_mark: ${HIGH_REPLICATION_MARK:-60s}
+  low_replication_mark: ${LOW_REPLICATION_MARK:-60s}

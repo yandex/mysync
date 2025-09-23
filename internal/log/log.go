@@ -11,6 +11,20 @@ import (
 	"time"
 )
 
+type ILogger interface {
+	Debug(msg string)
+	Info(msg string)
+	Warn(msg string)
+	Error(msg string)
+	Fatal(msg string)
+
+	Debugf(msg string, args ...any)
+	Infof(msg string, args ...any)
+	Warnf(msg string, args ...any)
+	Errorf(msg string, args ...any)
+	Fatalf(msg string, args ...any)
+}
+
 type Level int
 
 const (

@@ -18,6 +18,8 @@ import (
 	mysql_driver "github.com/go-sql-driver/mysql"
 	"github.com/gofrs/flock"
 
+	nodestate "github.com/yandex/mysync/internal/app/node_state"
+	"github.com/yandex/mysync/internal/app/optimization"
 	"github.com/yandex/mysync/internal/config"
 	"github.com/yandex/mysync/internal/dcs"
 	"github.com/yandex/mysync/internal/log"
@@ -28,22 +30,23 @@ import (
 
 // App is main application structure
 type App struct {
-	state               appState
-	logger              *log.Logger
-	sysLog              *syslog.Writer
-	config              *config.Config
-	dcs                 dcs.DCS
-	cluster             *mysql.Cluster
-	filelock            *flock.Flock
-	nodeFailedAt        map[string]time.Time
-	slaveReadPositions  map[string]string
-	streamFromFailedAt  map[string]time.Time
-	daemonState         *DaemonState
-	daemonMutex         sync.Mutex
-	replRepairState     map[string]*ReplicationRepairState
-	externalReplication mysql.IExternalReplication
-	switchHelper        mysql.ISwitchHelper
-	lostQuorumTime      time.Time
+	state                appState
+	logger               *log.Logger
+	sysLog               *syslog.Writer
+	config               *config.Config
+	dcs                  dcs.DCS
+	cluster              *mysql.Cluster
+	filelock             *flock.Flock
+	nodeFailedAt         map[string]time.Time
+	slaveReadPositions   map[string]string
+	streamFromFailedAt   map[string]time.Time
+	daemonState          *nodestate.DaemonState
+	daemonMutex          sync.Mutex
+	replRepairState      map[string]*ReplicationRepairState
+	externalReplication  mysql.IExternalReplication
+	switchHelper         mysql.ISwitchHelper
+	lostQuorumTime       time.Time
+	replicationOptimizer optimization.ReplicationOpitimizer
 }
 
 // NewApp returns new App. Suddenly.
@@ -82,18 +85,23 @@ func NewApp(configFile, logLevel string, interactive bool) (*App, error) {
 		logger.Errorf("external replication initialization failed: %s", err)
 		return nil, err
 	}
+	replicationOptimizer := optimization.NewOptimizer(
+		logger,
+		config.OptimizationConfig,
+	)
 	switchHelper := mysql.NewSwitchHelper(config)
 	app := &App{
-		state:               stateFirstRun,
-		config:              config,
-		sysLog:              sysLog,
-		logger:              logger,
-		nodeFailedAt:        make(map[string]time.Time),
-		streamFromFailedAt:  make(map[string]time.Time),
-		replRepairState:     make(map[string]*ReplicationRepairState),
-		slaveReadPositions:  make(map[string]string),
-		externalReplication: externalReplication,
-		switchHelper:        switchHelper,
+		state:                stateFirstRun,
+		config:               config,
+		sysLog:               sysLog,
+		logger:               logger,
+		nodeFailedAt:         make(map[string]time.Time),
+		streamFromFailedAt:   make(map[string]time.Time),
+		replRepairState:      make(map[string]*ReplicationRepairState),
+		slaveReadPositions:   make(map[string]string),
+		externalReplication:  externalReplication,
+		switchHelper:         switchHelper,
+		replicationOptimizer: replicationOptimizer,
 	}
 	logger.Info("app created")
 	return app, nil
@@ -508,6 +516,12 @@ func (app *App) stateFirstRun() appState {
 		return stateFirstRun
 	}
 	app.dcs.Initialize()
+	err := app.replicationOptimizer.Initialize(app.dcs)
+	if err != nil {
+		app.logger.Errorf("can not initialize ReplicationOpitimizer module: %s", err)
+		return stateFirstRun
+	}
+
 	if app.AcquireLock(pathManagerLock) {
 		return stateManager
 	}
@@ -782,10 +796,20 @@ func (app *App) stateManager() appState {
 		}
 	}
 
+	err = app.replicationOptimizer.SyncState(
+		app.cluster.Get(master),
+		clusterStateDcs,
+		convertNodesToReplicationControllers(app.cluster.GetClusterNodes()),
+	)
+	if err != nil {
+		app.logger.Errorf("failed to sync local optimization settings: %s", err)
+		return stateManager
+	}
+
 	return stateManager
 }
 
-func (app *App) checkMasterVisible(clusterStateFromDB, clusterStateDcs map[string]*NodeState) (bool, error) {
+func (app *App) checkMasterVisible(clusterStateFromDB, clusterStateDcs map[string]*nodestate.NodeState) (bool, error) {
 	masterHost, err := app.getMasterHost(clusterStateDcs)
 	if err != nil {
 		app.logger.Errorf("checkMasterVisible: can't get master host, error: %s", err)
@@ -806,7 +830,7 @@ func (app *App) checkMasterVisible(clusterStateFromDB, clusterStateDcs map[strin
 	return retryPingOk, err
 }
 
-func (app *App) checkQuorum(clusterStateFromDB, clusterStateDcs map[string]*NodeState) (appState, bool) {
+func (app *App) checkQuorum(clusterStateFromDB, clusterStateDcs map[string]*nodestate.NodeState) (appState, bool) {
 	// Counting the number of HA hosts visible to the manager.
 	visibleHAHostsCount := 0
 	workingHANodesCount := 0
@@ -894,7 +918,7 @@ func (app *App) AcquireLock(path string) bool {
 	return false
 }
 
-func (app *App) approveFailover(clusterState, clusterStateDcs map[string]*NodeState, activeNodes []string, master string) error {
+func (app *App) approveFailover(clusterState, clusterStateDcs map[string]*nodestate.NodeState, activeNodes []string, master string) error {
 	if !app.config.Failover {
 		return fmt.Errorf("auto_failover is disabled in config")
 	}
@@ -976,7 +1000,7 @@ func (app *App) emulateError(pos string) bool {
 	return false
 }
 
-func (app *App) approveSwitchover(switchover *Switchover, activeNodes []string, clusterState map[string]*NodeState) error {
+func (app *App) approveSwitchover(switchover *Switchover, activeNodes []string, clusterState map[string]*nodestate.NodeState) error {
 	if switchover.RunCount > 0 {
 		return nil
 	}
@@ -988,7 +1012,7 @@ func (app *App) approveSwitchover(switchover *Switchover, activeNodes []string, 
 Returns list of hosts that should be active at the moment
 Typically it's master + list of alive, replicating, not split-brained replicas
 */
-func (app *App) calcActiveNodes(clusterState, clusterStateDcs map[string]*NodeState, oldActiveNodes []string, master string) (activeNodes []string, err error) {
+func (app *App) calcActiveNodes(clusterState, clusterStateDcs map[string]*nodestate.NodeState, oldActiveNodes []string, master string) (activeNodes []string, err error) {
 	masterNode := app.cluster.Get(master)
 	hostsOnRecovery, err := app.GetHostsOnRecovery()
 	if err != nil {
@@ -1060,7 +1084,7 @@ func (app *App) calcActiveNodes(clusterState, clusterStateDcs map[string]*NodeSt
 	return activeNodes, nil
 }
 
-func (app *App) calcActiveNodesChanges(clusterState map[string]*NodeState, activeNodes []string, oldActiveNodes []string, master string) (becomeActive, becomeInactive, becomeDataLag []string, err error) {
+func (app *App) calcActiveNodesChanges(clusterState map[string]*nodestate.NodeState, activeNodes []string, oldActiveNodes []string, master string) (becomeActive, becomeInactive, becomeDataLag []string, err error) {
 	masterNode := app.cluster.Get(master)
 	var syncReplicas []string
 	var deadReplicas []string
@@ -1134,7 +1158,7 @@ If there are alive sync replicas, that are not in active list - mysync will loos
 
 So, it's better to have dead sync replica in active list, than alive sync replica outside of it.
 */
-func (app *App) updateActiveNodes(clusterState, clusterStateDcs map[string]*NodeState, oldActiveNodes []string, master string) error {
+func (app *App) updateActiveNodes(clusterState, clusterStateDcs map[string]*nodestate.NodeState, oldActiveNodes []string, master string) error {
 	masterNode := app.cluster.Get(master)
 	masterState := clusterState[master]
 	activeNodes, err := app.calcActiveNodes(clusterState, clusterStateDcs, oldActiveNodes, master)
@@ -1234,7 +1258,7 @@ func (app *App) updateActiveNodes(clusterState, clusterStateDcs map[string]*Node
 	return nil
 }
 
-func (app *App) adjustSemiSyncOnMaster(node *mysql.Node, state *NodeState, waitSlaveCount int) error {
+func (app *App) adjustSemiSyncOnMaster(node *mysql.Node, state *nodestate.NodeState, waitSlaveCount int) error {
 	if state.SemiSyncState == nil {
 		return fmt.Errorf("semi-sync state is empty for %s", node.Host())
 	}
@@ -1283,7 +1307,7 @@ func (app *App) disableSemiSyncOnSlaves(becomeInactive, becomeDataLag []string) 
 		}
 
 		node := app.cluster.Get(host)
-		err = node.OptimizeReplication()
+		err = app.replicationOptimizer.EnableNodeOptimization(node)
 		if err != nil {
 			app.logger.Warnf("failed to enable optimization on slave %s: %v", host, err)
 		}
@@ -1292,7 +1316,7 @@ func (app *App) disableSemiSyncOnSlaves(becomeInactive, becomeDataLag []string) 
 	return nodeErrors
 }
 
-func (app *App) enableSemiSyncOnSlave(host string, slaveState, masterState *NodeState) error {
+func (app *App) enableSemiSyncOnSlave(host string, slaveState, masterState *nodestate.NodeState) error {
 	node := app.cluster.Get(host)
 	err := node.SemiSyncSetSlave()
 	if err != nil {
@@ -1339,7 +1363,7 @@ func (app *App) disableSemiSyncOnSlave(host string, restartIOThread bool) error 
 	return nil
 }
 
-func (app *App) disableSemiSyncIfNonNeeded(node *mysql.Node, state *NodeState) {
+func (app *App) disableSemiSyncIfNonNeeded(node *mysql.Node, state *nodestate.NodeState) {
 	if state.SemiSyncState != nil && (state.SemiSyncState.MasterEnabled || state.SemiSyncState.SlaveEnabled) {
 		host := node.Host()
 		app.logger.Warnf("update_active_nodes: semi_sync is enabled on host %s, but disabled in mysync config. turning it off..", host)
@@ -1351,7 +1375,7 @@ func (app *App) disableSemiSyncIfNonNeeded(node *mysql.Node, state *NodeState) {
 }
 
 // nolint: gocyclo, funlen
-func (app *App) performSwitchover(clusterState map[string]*NodeState, activeNodes []string, switchover *Switchover, oldMaster string) error {
+func (app *App) performSwitchover(clusterState map[string]*nodestate.NodeState, activeNodes []string, switchover *Switchover, oldMaster string) error {
 	if switchover.To != "" {
 		if !slices.Contains(activeNodes, switchover.To) {
 			return errors.New("switchover: failed: replica is not active, can't switch to it")
@@ -1370,7 +1394,7 @@ func (app *App) performSwitchover(clusterState map[string]*NodeState, activeNode
 		activeNodes = filterOut(activeNodes, []string{oldMaster})
 	}
 
-	err := app.optimizationPhase(activeNodes, switchover, oldMaster)
+	err := app.optimizationPhase(activeNodes, switchover, oldMaster, clusterState)
 	if err != nil {
 		return err
 	}
@@ -1645,7 +1669,7 @@ func (app *App) SetDefaultReplicationSettingsForNode(node *mysql.Node) error {
 	return node.SetDefaultReplicationSettings(master)
 }
 
-func (app *App) getCurrentMaster(clusterState map[string]*NodeState) (string, error) {
+func (app *App) getCurrentMaster(clusterState map[string]*nodestate.NodeState) (string, error) {
 	master, err := app.GetMasterHostFromDcs()
 	if master != "" && err == nil {
 		return master, err
@@ -1653,7 +1677,7 @@ func (app *App) getCurrentMaster(clusterState map[string]*NodeState) (string, er
 	return app.ensureCurrentMaster(clusterState)
 }
 
-func (app *App) ensureCurrentMaster(clusterState map[string]*NodeState) (string, error) {
+func (app *App) ensureCurrentMaster(clusterState map[string]*nodestate.NodeState) (string, error) {
 	master, err := app.getMasterHost(clusterState)
 	if err != nil {
 		return "", err
@@ -1664,7 +1688,7 @@ func (app *App) ensureCurrentMaster(clusterState map[string]*NodeState) (string,
 	return app.SetMasterHost(master)
 }
 
-func (app *App) getMasterHost(clusterState map[string]*NodeState) (string, error) {
+func (app *App) getMasterHost(clusterState map[string]*nodestate.NodeState) (string, error) {
 	masters := make([]string, 0)
 	for host, state := range clusterState {
 		if state.PingOk && state.IsMaster {
@@ -1680,7 +1704,7 @@ func (app *App) getMasterHost(clusterState map[string]*NodeState) (string, error
 	return masters[0], nil
 }
 
-func (app *App) repairOfflineMode(clusterState map[string]*NodeState, master string) {
+func (app *App) repairOfflineMode(clusterState map[string]*nodestate.NodeState, master string) {
 	masterNode := app.cluster.Get(master)
 	for host, state := range clusterState {
 		if !state.PingOk {
@@ -1695,7 +1719,7 @@ func (app *App) repairOfflineMode(clusterState map[string]*NodeState, master str
 	}
 }
 
-func (app *App) repairMasterOfflineMode(host string, node *mysql.Node, state *NodeState) {
+func (app *App) repairMasterOfflineMode(host string, node *mysql.Node, state *nodestate.NodeState) {
 	if state.IsOffline {
 		if app.IsRecoveryNeeded(host) {
 			return
@@ -1709,7 +1733,7 @@ func (app *App) repairMasterOfflineMode(host string, node *mysql.Node, state *No
 	}
 }
 
-func (app *App) repairSlaveOfflineMode(host string, node *mysql.Node, state *NodeState, masterNode *mysql.Node, masterState *NodeState) {
+func (app *App) repairSlaveOfflineMode(host string, node *mysql.Node, state *nodestate.NodeState, masterNode *mysql.Node, masterState *nodestate.NodeState) {
 	if state.SlaveState != nil && state.SlaveState.ReplicationLag != nil {
 		replPermBroken, _ := state.IsReplicationPermanentlyBroken()
 		if state.IsOffline && *state.SlaveState.ReplicationLag <= app.config.OfflineModeDisableLag.Seconds() {
@@ -1750,7 +1774,7 @@ func (app *App) repairSlaveOfflineMode(host string, node *mysql.Node, state *Nod
 			} else {
 				app.logger.Infof("repair: slave %s set offline, because ReplicationLag (%f s) >= OfflineModeEnableLag (%v)",
 					host, *state.SlaveState.ReplicationLag, app.config.OfflineModeEnableLag)
-				err = node.OptimizeReplication()
+				err = app.replicationOptimizer.EnableNodeOptimization(node)
 				if err != nil {
 					app.logger.Errorf("repair: failed to set optimize replication settings on slave %s: %s", host, err)
 				}
@@ -1779,7 +1803,7 @@ func (app *App) repairSlaveOfflineMode(host string, node *mysql.Node, state *Nod
 }
 
 // nolint: gocyclo
-func (app *App) repairReadOnlyOnMaster(masterNode *mysql.Node, masterState *NodeState, clusterStateDcs map[string]*NodeState) {
+func (app *App) repairReadOnlyOnMaster(masterNode *mysql.Node, masterState *nodestate.NodeState, clusterStateDcs map[string]*nodestate.NodeState) {
 	needRo := false
 	// we set as true because we need to wish to master writable during first run,
 	// before other replicas reported their statuses
@@ -1860,7 +1884,7 @@ func (app *App) repairReadOnlyOnMaster(masterNode *mysql.Node, masterState *Node
 	app.logger.Warnf("diskusage: cluster in grey-zone, do not change read_only")
 }
 
-func (app *App) repairCluster(clusterState, clusterStateDcs map[string]*NodeState, master string) {
+func (app *App) repairCluster(clusterState, clusterStateDcs map[string]*nodestate.NodeState, master string) {
 	for host, state := range clusterState {
 		if !state.PingOk {
 			continue
@@ -1874,7 +1898,7 @@ func (app *App) repairCluster(clusterState, clusterStateDcs map[string]*NodeStat
 	}
 }
 
-func (app *App) repairMasterNode(masterNode *mysql.Node, clusterState, clusterStateDcs map[string]*NodeState) {
+func (app *App) repairMasterNode(masterNode *mysql.Node, clusterState, clusterStateDcs map[string]*nodestate.NodeState) {
 	host := masterNode.Host()
 	masterState := clusterState[host]
 
@@ -1892,7 +1916,7 @@ func (app *App) repairMasterNode(masterNode *mysql.Node, clusterState, clusterSt
 	}
 }
 
-func (app *App) repairSlaveNode(node *mysql.Node, clusterState map[string]*NodeState, master string) {
+func (app *App) repairSlaveNode(node *mysql.Node, clusterState map[string]*nodestate.NodeState, master string) {
 	host := node.Host()
 	state := clusterState[host]
 	// node is real slave or stale master here
@@ -1978,7 +2002,7 @@ func (app *App) repairSlaveNode(node *mysql.Node, clusterState map[string]*NodeS
 	}
 }
 
-func (app *App) repairCascadeNode(node *mysql.Node, clusterState map[string]*NodeState, master string, cascadeTopology map[string]mysql.CascadeNodeConfiguration) {
+func (app *App) repairCascadeNode(node *mysql.Node, clusterState map[string]*nodestate.NodeState, master string, cascadeTopology map[string]mysql.CascadeNodeConfiguration) {
 	host := node.Host()
 	state := clusterState[host]
 	upstreamLostAt := app.streamFromFailedAt[host]
@@ -2120,7 +2144,7 @@ func (app *App) repairExternalReplication(masterNode *mysql.Node) {
 	}
 }
 
-func (app *App) findBestStreamFrom(node *mysql.Node, clusterState map[string]*NodeState, master string, cascadeTopology map[string]mysql.CascadeNodeConfiguration) string {
+func (app *App) findBestStreamFrom(node *mysql.Node, clusterState map[string]*nodestate.NodeState, master string, cascadeTopology map[string]mysql.CascadeNodeConfiguration) string {
 	var loopDetector []string
 	loopDetector = append(loopDetector, node.Host())
 
@@ -2255,14 +2279,14 @@ func (app *App) performChangeMaster(host, master string) error {
 	return nil
 }
 
-func (app *App) getNodeState(host string) *NodeState {
+func (app *App) getNodeState(host string) *nodestate.NodeState {
 	var node *mysql.Node
 	if app.cluster.Local().Host() == host {
 		node = app.cluster.Local()
 	} else {
 		node = app.cluster.Get(host)
 	}
-	nodeState := new(NodeState)
+	nodeState := new(nodestate.NodeState)
 	nodeState.ShowOnlyGTIDDiff = app.config.ShowOnlyGTIDDiff
 	err := func() error {
 		nodeState.CheckAt = time.Now()
@@ -2288,9 +2312,14 @@ func (app *App) getNodeState(host string) *NodeState {
 		if err != nil {
 			return err
 		}
+		rs, err := node.GetReplicationSettings()
+		if err != nil {
+			return err
+		}
+		nodeState.ReplicationSettings = &rs
 		if slaveStatus != nil {
 			nodeState.IsMaster = false
-			nodeState.SlaveState = new(SlaveState)
+			nodeState.SlaveState = new(nodestate.SlaveState)
 			nodeState.SlaveState.FromReplicaStatus(slaveStatus)
 			lag, err2 := node.ReplicationLag(slaveStatus)
 			if err2 != nil {
@@ -2299,7 +2328,7 @@ func (app *App) getNodeState(host string) *NodeState {
 			nodeState.SlaveState.ReplicationLag = lag
 		} else {
 			nodeState.IsMaster = true
-			nodeState.MasterState = new(MasterState)
+			nodeState.MasterState = new(nodestate.MasterState)
 			gtidExecuted, err2 := node.GTIDExecuted()
 			if err2 != nil {
 				return err2
@@ -2310,7 +2339,7 @@ func (app *App) getNodeState(host string) *NodeState {
 		if err != nil {
 			return err
 		}
-		nodeState.SemiSyncState = new(SemiSyncState)
+		nodeState.SemiSyncState = new(nodestate.SemiSyncState)
 		nodeState.SemiSyncState.MasterEnabled = semiSyncStatus.MasterEnabled > 0
 		nodeState.SemiSyncState.SlaveEnabled = semiSyncStatus.SlaveEnabled > 0
 		nodeState.SemiSyncState.WaitSlaveCount = semiSyncStatus.WaitSlaveCount
@@ -2334,13 +2363,13 @@ func (app *App) getNodeState(host string) *NodeState {
 	return nodeState
 }
 
-func (app *App) getLocalNodeState() *NodeState {
+func (app *App) getLocalNodeState() *nodestate.NodeState {
 	node := app.cluster.Local()
 	nodeState := app.getNodeState(node.Host())
 
 	diskUsed, diskTotal, err := node.GetDiskUsage()
 	if err == nil {
-		nodeState.DiskState = new(DiskState)
+		nodeState.DiskState = new(nodestate.DiskState)
 		nodeState.DiskState.Total = diskTotal
 		nodeState.DiskState.Used = diskUsed
 	} else {
@@ -2362,7 +2391,7 @@ func (app *App) getLocalNodeState() *NodeState {
 	return nodeState
 }
 
-func (app *App) getLocalDaemonState() (*DaemonState, error) {
+func (app *App) getLocalDaemonState() (*nodestate.DaemonState, error) {
 	app.daemonMutex.Lock()
 	defer app.daemonMutex.Unlock()
 	node := app.cluster.Local()
@@ -2377,7 +2406,7 @@ func (app *App) getLocalDaemonState() (*DaemonState, error) {
 	if err != nil {
 		return nil, err
 	}
-	ds := new(DaemonState)
+	ds := new(nodestate.DaemonState)
 	// startTime is multiple of Second.
 	// In docker test recoveryTime often less than startTime by 200-300ms
 	// So we just round recoveryTime up to second to prevent flaps
@@ -2392,9 +2421,9 @@ func (app *App) getLocalDaemonState() (*DaemonState, error) {
 	return ds, nil
 }
 
-func (app *App) getClusterStateFromDB() map[string]*NodeState {
+func (app *App) getClusterStateFromDB() map[string]*nodestate.NodeState {
 	hosts := app.cluster.AllNodeHosts()
-	getter := func(host string) (*NodeState, error) {
+	getter := func(host string) (*nodestate.NodeState, error) {
 		if host == app.cluster.Local().Host() {
 			return app.getLocalNodeState(), nil
 		}
@@ -2405,10 +2434,10 @@ func (app *App) getClusterStateFromDB() map[string]*NodeState {
 	return clusterState
 }
 
-func (app *App) getClusterStateFromDcs() (map[string]*NodeState, error) {
+func (app *App) getClusterStateFromDcs() (map[string]*nodestate.NodeState, error) {
 	hosts := app.cluster.AllNodeHosts()
-	getter := func(host string) (*NodeState, error) {
-		nodeState := new(NodeState)
+	getter := func(host string) (*nodestate.NodeState, error) {
+		nodeState := new(nodestate.NodeState)
 		err := app.dcs.Get(dcs.JoinPath(pathHealthPrefix, host), nodeState)
 		if err != nil && err != dcs.ErrNotFound {
 			return nil, err
@@ -2443,6 +2472,18 @@ func (app *App) waitForCatchUp(node *mysql.Node, gtidset gtids.GTIDSet, timeout 
 		}
 	}
 	return false, nil
+}
+
+func (app *App) stopAllNodeOptimization(master string, clusterState map[string]*nodestate.NodeState, ignoreErrors bool) error {
+	masterNode := app.cluster.Get(master)
+
+	var nodes []*mysql.Node
+	for hostname := range clusterState {
+		nodes = append(nodes, app.cluster.Get(hostname))
+	}
+
+	controllerNodes := convertNodesToReplicationControllers(nodes)
+	return app.replicationOptimizer.DisableAllNodeOptimization(masterNode, ignoreErrors, controllerNodes...)
 }
 
 // Set master offline and disable semi-sync replication
