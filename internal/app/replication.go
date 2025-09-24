@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"time"
 
-	nodestate "github.com/yandex/mysync/internal/app/node_state"
 	"github.com/yandex/mysync/internal/mysql"
 	"github.com/yandex/mysync/internal/mysql/gtids"
 )
@@ -267,17 +266,7 @@ func (app *App) getMostDesirableReplicaToOptimize(positions []nodePosition) (str
 	return getMostDesirableNode(app.logger, positions, lagThreshold)
 }
 
-func (app *App) optimizationPhase(activeNodes []string, switchover *Switchover, oldMaster string, clusterState map[string]*nodestate.NodeState) error {
-	forceOptimizationStop := switchover.MasterTransition != SwitchoverTransition
-	err := app.stopAllNodeOptimization(
-		oldMaster,
-		clusterState,
-		forceOptimizationStop,
-	)
-	if err != nil {
-		return err
-	}
-
+func (app *App) optimizationPhase(activeNodes []string, switchover *Switchover, oldMaster string) error {
 	if !app.switchHelper.IsOptimizationPhaseAllowed() {
 		app.logger.Info("switchover: phase 0: turbo mode is skipped")
 		return nil
@@ -292,7 +281,7 @@ func (app *App) optimizationPhase(activeNodes []string, switchover *Switchover, 
 		oldMaster,
 		desirableReplica,
 	)
-	err = app.optimizeReplicaWithSmallestLag(
+	err := app.optimizeReplicaWithSmallestLag(
 		appropriateReplicas,
 		desirableReplica,
 	)

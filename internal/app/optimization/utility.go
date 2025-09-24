@@ -1,6 +1,8 @@
 package optimization
 
 import (
+	"errors"
+
 	"github.com/yandex/mysync/internal/dcs"
 	"github.com/yandex/mysync/internal/mysql"
 )
@@ -49,18 +51,19 @@ func isOptimal(
 		return true, lag.Float64, nil
 	}
 
-	return false, lag.Float64, nil
+	return false, lag.Float64, errors.New("replication lag is not valid")
 }
 
 func nodeExist(
 	node NodeReplicationController,
 	DCS dcs.DCS,
 ) (bool, error) {
-	err := DCS.Get(dcs.JoinPath(pathOptimizationNodes, node.Host()), &struct{}{})
-	if err != nil && err != dcs.ErrNotFound {
+	var status string
+	err := DCS.Get(dcs.JoinPath(pathOptimizationNodes, node.Host()), &status)
+	if err != nil && err != dcs.ErrNotFound && err != dcs.ErrMalformed {
 		return false, err
 	}
-	if err != nil && err == dcs.ErrNotFound {
+	if err != nil && (err == dcs.ErrNotFound || err == dcs.ErrMalformed) {
 		return false, nil
 	}
 	return true, nil

@@ -1394,9 +1394,20 @@ func (app *App) performSwitchover(clusterState map[string]*nodestate.NodeState, 
 		activeNodes = filterOut(activeNodes, []string{oldMaster})
 	}
 
-	err := app.optimizationPhase(activeNodes, switchover, oldMaster, clusterState)
+	forceOptimizationStop := switchover.MasterTransition != SwitchoverTransition
+	err := app.stopAllNodeOptimization(
+		oldMaster,
+		clusterState,
+		forceOptimizationStop,
+	)
 	if err != nil {
 		return err
+	}
+	if switchover.MasterTransition == SwitchoverTransition {
+		err = app.optimizationPhase(activeNodes, switchover, oldMaster)
+		if err != nil {
+			return err
+		}
 	}
 
 	// set read only everywhere (all HA-nodes) and stop replication

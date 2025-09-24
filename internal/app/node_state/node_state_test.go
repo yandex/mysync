@@ -10,7 +10,7 @@ import (
 func TestStringerWorksOnNodeState(t *testing.T) {
 	ns := &NodeState{}
 	nsStr := fmt.Sprintf("%v", ns)
-	if nsStr != "<ping=ERR repl=??? sync=??? ro=false offline=false lag=0.00 du=??? cr=??? gtid=??? turbo=false>" {
+	if nsStr != "<ping=ERR repl=??? sync=??? ro=false offline=false lag=0.00 du=??? cr=??? gtid=???>" {
 		t.Errorf("%s", ns)
 	}
 
@@ -24,7 +24,7 @@ func TestStringerWorksOnNodeState(t *testing.T) {
 
 	require.Equal(
 		t,
-		"<ping=ERR repl= sync=??? ro=false offline=false lag=NaN du=??? cr=??? gtid=6DBC0B04-4B09-43DC-86CC-9AF852DED919:1-40 turbo=false>",
+		"<ping=ERR repl= sync=??? ro=false offline=false lag=NaN du=??? cr=??? gtid=6DBC0B04-4B09-43DC-86CC-9AF852DED919:1-40>",
 		nsStr,
 	)
 
@@ -33,7 +33,7 @@ func TestStringerWorksOnNodeState(t *testing.T) {
 
 	require.Equal(
 		t,
-		"<ping=ERR repl= sync=??? ro=false offline=false lag=NaN du=??? cr=??? gtid=source ahead on: 6dbc0b04-4b09-43dc-86cc-9af852ded919:41-101 turbo=false>",
+		"<ping=ERR repl= sync=??? ro=false offline=false lag=NaN du=??? cr=??? gtid=source ahead on: 6dbc0b04-4b09-43dc-86cc-9af852ded919:41-101>",
 		nsStr,
 	)
 }
@@ -48,7 +48,7 @@ func TestStringerWorksOnNodeStateMap(t *testing.T) {
 
 	require.Equal(
 		t,
-		"map[a:<ping=ERR repl=??? sync=??? ro=false offline=false lag=0.00 du=??? cr=??? gtid=??? turbo=false> b:<ping=ERR repl=??? sync=??? ro=false offline=false lag=0.00 du=??? cr=??? gtid=??? turbo=false> c:<ping=ERR repl=??? sync=??? ro=false offline=false lag=0.00 du=??? cr=??? gtid=??? turbo=false>]",
+		"map[a:<ping=ERR repl=??? sync=??? ro=false offline=false lag=0.00 du=??? cr=??? gtid=???> b:<ping=ERR repl=??? sync=??? ro=false offline=false lag=0.00 du=??? cr=??? gtid=???> c:<ping=ERR repl=??? sync=??? ro=false offline=false lag=0.00 du=??? cr=??? gtid=???>]",
 		mStr,
 	)
 }

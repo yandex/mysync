@@ -114,7 +114,7 @@ func (opt *Optimizer) Initialize(DCS dcs.DCS) error {
 	opt.DCS = DCS
 	opt.logger.Info("Optimizer started initialization")
 
-	err := DCS.Create(pathOptimizationNodes, struct{}{})
+	err := DCS.Create(pathOptimizationNodes, "")
 	if err != nil && err != dcs.ErrExists {
 		return err
 	}
@@ -152,6 +152,18 @@ func (opt *Optimizer) WaitOptimization(ctx context.Context, node NodeReplication
 				opt.logger.Infof("optimization: waiting is complete")
 				return nil
 			}
+
+			optimal, lag, err := isOptimal(node, opt.config.LowReplicationMark.Seconds())
+			if err != nil {
+				opt.logger.Errorf("optimization: waiting; cannot acquire replication status: %s", err)
+				continue
+			}
+			if optimal {
+				opt.logger.Errorf("optimization: waiting is complete, as replication lag was converged: %s", err)
+				return opt.DCS.Delete(pathOptimizationNodes)
+			}
+
+			opt.logger.Errorf("optimization: waiting; replication lag is: %f", lag)
 		}
 	}
 }
@@ -217,8 +229,11 @@ func (opt *Optimizer) getStatuses() (map[string]Status, error) {
 
 		var status string
 		err := opt.DCS.Get(path, &status)
-		if err != nil {
+		if err != nil && err != dcs.ErrNotFound && err != dcs.ErrMalformed {
 			return nil, err
+		}
+		if err != nil && (err == dcs.ErrNotFound || err == dcs.ErrMalformed) {
+			status = ""
 		}
 
 		statuses[hostname] = parseStatus(status)
