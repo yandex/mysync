@@ -20,7 +20,8 @@ Feature: maintenance during dead zookeeper
     When host "zoo3" is detached from the network
     And host "zoo2" is detached from the network
     And host "zoo1" is detached from the network
-    When I run command on host "mysql1"
+    # we have to wait until all retries are timed out
+    When I run command on host "mysql1" with timeout "240" seconds
       """
       mysync info
       """
