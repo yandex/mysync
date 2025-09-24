@@ -176,7 +176,7 @@ func (ns *NodeState) String() string {
 		// BLUEPRINT: do something here
 	}
 
-	return fmt.Sprintf("<ping=%s repl=%s sync=%s ro=%v offline=%v lag=%.02f du=%s cr=%s gtid=%s",
+	return fmt.Sprintf("<ping=%s repl=%s sync=%s ro=%v offline=%v lag=%.02f du=%s cr=%s gtid=%s>",
 		ping, repl, sync, ns.IsReadOnly, ns.IsOffline, lag, du, cr, gtid)
 }
 

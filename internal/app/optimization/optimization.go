@@ -134,38 +134,54 @@ func (opt *Optimizer) WaitOptimization(ctx context.Context, node NodeReplication
 	ticker := time.NewTicker(checkInterval)
 	defer ticker.Stop()
 
+	maxConsequentErrors := 3
+	consequentErrors := 0
+
 	for {
 		select {
 		case <-ctx.Done():
 			return errOptimizationWaitingDeadlineExceeded
 
 		case <-ticker.C:
-			exist, err := nodeExist(node, opt.DCS)
+			isOptimal, err := opt.isOptimizedDuringWaiting(node)
 			if err != nil {
 				opt.logger.Errorf("optimization: waiting; err %s", err)
-				continue
+				consequentErrors += 1
 			}
-
-			if exist {
-				opt.logger.Info("optimization: waiting; node exists in DCS")
-			} else {
+			if isOptimal {
 				opt.logger.Infof("optimization: waiting is complete")
 				return nil
 			}
-
-			optimal, lag, err := isOptimal(node, opt.config.LowReplicationMark.Seconds())
-			if err != nil {
-				opt.logger.Errorf("optimization: waiting; cannot acquire replication status: %s", err)
-				continue
+			if consequentErrors > maxConsequentErrors {
+				return err
 			}
-			if optimal {
-				opt.logger.Errorf("optimization: waiting is complete, as replication lag was converged: %s", err)
-				return opt.DCS.Delete(pathOptimizationNodes)
-			}
-
-			opt.logger.Errorf("optimization: waiting; replication lag is: %f", lag)
 		}
 	}
+}
+
+func (opt *Optimizer) isOptimizedDuringWaiting(node NodeReplicationController) (bool, error) {
+	exist, err := nodeExist(node, opt.DCS)
+	if err != nil {
+		return false, err
+	}
+
+	if exist {
+		opt.logger.Info("optimization: waiting; node exists in DCS")
+	} else {
+		return true, nil
+	}
+
+	optimal, lag, err := isOptimal(node, opt.config.LowReplicationMark.Seconds())
+	if err != nil {
+		return false, err
+	}
+	if optimal {
+		opt.logger.Errorf("optimization: waiting is complete, as replication lag was converged: %s", err)
+		return true, opt.DCS.Delete(pathOptimizationNodes)
+	}
+
+	opt.logger.Errorf("optimization: waiting; replication lag is: %f", lag)
+	return false, nil
 }
 
 func (opt *Optimizer) EnableNodeOptimization(node NodeReplicationController) error {

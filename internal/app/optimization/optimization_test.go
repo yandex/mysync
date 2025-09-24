@@ -325,9 +325,9 @@ func TestOptimizationCannotBeEnabledOnMoreThanOneHost(t *testing.T) {
 	}
 
 	assertEnableOptimization(t, om, cluster["mysql2"], mdcs)
-	assertEnableOptimization(t, om, cluster["mysql3"], mdcs)
-
 	assertSyncOptions(t, om, master, cluster["mysql2"], mdcs, cluster)
+
+	assertEnableOptimization(t, om, cluster["mysql3"], mdcs)
 	assertSyncOptions(t, om, master, cluster["mysql3"], mdcs, cluster)
 
 	assertHostIsOptimized(t, cluster["mysql2"])

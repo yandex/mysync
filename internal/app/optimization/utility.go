@@ -50,8 +50,11 @@ func isOptimal(
 	if lag.Valid && lag.Float64 < lagThreshold {
 		return true, lag.Float64, nil
 	}
+	if !lag.Valid {
+		return false, lag.Float64, errors.New("replication lag is not valid")
+	}
 
-	return false, lag.Float64, errors.New("replication lag is not valid")
+	return false, lag.Float64, nil
 }
 
 func nodeExist(
