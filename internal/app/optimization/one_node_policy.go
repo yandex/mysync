@@ -73,7 +73,7 @@ func (onp *OneNodePolicy) Apply(
 	}
 
 	if rs.CanBeOptimized() {
-		onp.logger.Infof("optimization (OneNodePolicy): node [%s] is not optimizing; something went wrong, recovering optimization process...", hostname)
+		onp.logger.Warnf("optimization (OneNodePolicy): node [%s] is not optimizing; something went wrong, recovering optimization process...", hostname)
 		err = node.OptimizeReplication()
 		if err != nil {
 			return err
@@ -102,7 +102,7 @@ func (onp *OneNodePolicy) makeSureAtMostOneNodeIsOptimizing(
 	enabledHosts := filterEnabledStatus(dcsStatuses)
 
 	if len(enabledHosts) == 0 {
-		onp.logger.Infof("optimization (OneNodePolicy): there are no enabled hosts")
+		onp.logger.Info("optimization (OneNodePolicy): there are no enabled hosts")
 		return "", nil
 	}
 

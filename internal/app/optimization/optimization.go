@@ -108,22 +108,20 @@ func parseStatus(status string) Status {
 }
 
 func (opt *Optimizer) Initialize(DCS dcs.DCS) error {
-	opt.DCS = DCS
 	opt.logger.Info("Optimizer started initialization")
+	opt.DCS = DCS
 
 	err := DCS.Create(pathOptimizationNodes, "")
 	if err != nil && err != dcs.ErrExists {
 		return err
 	}
 
-	opt.logger.Info("Optimizer started policy initialization")
 	err = opt.policy.Initialize(DCS)
 	if err != nil {
 		return err
 	}
-	opt.logger.Info("Optimizer policy is initialized")
-	opt.logger.Info("Optimized is initialized")
 
+	opt.logger.Info("Optimized is initialized")
 	return err
 }
 
@@ -146,7 +144,7 @@ func (opt *Optimizer) WaitOptimization(ctx context.Context, node NodeReplication
 				consequentErrors += 1
 			}
 			if isOptimal {
-				opt.logger.Infof("optimization: waiting is complete")
+				opt.logger.Info("optimization: waiting is complete")
 				return nil
 			}
 			if consequentErrors > maxConsequentErrors {
@@ -173,11 +171,11 @@ func (opt *Optimizer) isOptimizedDuringWaiting(node NodeReplicationController) (
 		return false, err
 	}
 	if optimal {
-		opt.logger.Errorf("optimization: waiting is complete, as replication lag was converged: %s", err)
+		opt.logger.Infof("optimization: waiting is complete, as replication lag is converged: %s", lag)
 		return true, opt.DCS.Delete(pathOptimizationNodes)
 	}
 
-	opt.logger.Errorf("optimization: waiting; replication lag is: %f", lag)
+	opt.logger.Infof("optimization: waiting; replication lag is: %f", lag)
 	return false, nil
 }
 
