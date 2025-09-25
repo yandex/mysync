@@ -1394,11 +1394,9 @@ func (app *App) performSwitchover(clusterState map[string]*nodestate.NodeState, 
 		activeNodes = filterOut(activeNodes, []string{oldMaster})
 	}
 
-	forceOptimizationStop := switchover.MasterTransition != SwitchoverTransition
 	err := app.stopAllNodeOptimization(
 		oldMaster,
 		clusterState,
-		forceOptimizationStop,
 	)
 	if err != nil {
 		return err
@@ -2485,7 +2483,7 @@ func (app *App) waitForCatchUp(node *mysql.Node, gtidset gtids.GTIDSet, timeout 
 	return false, nil
 }
 
-func (app *App) stopAllNodeOptimization(master string, clusterState map[string]*nodestate.NodeState, ignoreErrors bool) error {
+func (app *App) stopAllNodeOptimization(master string, clusterState map[string]*nodestate.NodeState) error {
 	masterNode := app.cluster.Get(master)
 
 	var nodes []*mysql.Node
@@ -2494,7 +2492,7 @@ func (app *App) stopAllNodeOptimization(master string, clusterState map[string]*
 	}
 
 	controllerNodes := convertNodesToReplicationControllers(nodes)
-	return app.replicationOptimizer.DisableAllNodeOptimization(masterNode, ignoreErrors, controllerNodes...)
+	return app.replicationOptimizer.DisableAllNodeOptimization(masterNode, controllerNodes...)
 }
 
 // Set master offline and disable semi-sync replication

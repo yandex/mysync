@@ -1145,13 +1145,6 @@ func (n *Node) GetReplicationSettings() (ReplicationSettings, error) {
 	return rs, err
 }
 
-func (rs *ReplicationSettings) Optimized() bool {
-	if rs.SyncBinlog == OptimalSyncBinlogValue && rs.InnodbFlushLogAtTrxCommit == OptimalInnodbFlushLogAtTrxCommitValue {
-		return true
-	}
-	return false
-}
-
 // SetReplicationSettings sets values for replication for the host
 func (n *Node) SetReplicationSettings(rs ReplicationSettings) error {
 	err := n.exec(querySetInnodbFlushLogAtTrxCommit, map[string]any{"level": rs.InnodbFlushLogAtTrxCommit})

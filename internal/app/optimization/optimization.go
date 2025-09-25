@@ -59,17 +59,14 @@ type ReplicationOpitimizer interface {
 	// Changes take effect immediately, as these options can be dangerous.
 	// Master can be nil. In that case, node will be returned to the most safest default replication settings.
 	// Returns an error if disabling fails.
-	// ignoreErrors makes ReplicationOpitimizer ignore all errors and try to disable optimization at least on mysql/DCS
-	DisableNodeOptimization(master, node NodeReplicationController, ignoreErrors bool) error
+	DisableNodeOptimization(master, node NodeReplicationController) error
 
 	// DisableAllNodeOptimization deactivates optimization mode for all specified nodes,
 	// using the master for context. This is a bulk operation with immediate effects,
 	// and it carries risks similar to disabling a single node.
 	// Master can be nil. In that case, node will be returned to the most safest default replication settings.
 	// Returns an error if disabling any node fails.
-	// ignoreErrors makes ReplicationOpitimizer ignore all errors and try to disable optimization at least on mysql/DCS
-	// on as many hosts as it can
-	DisableAllNodeOptimization(master NodeReplicationController, ignoreErrors bool, nodes ...NodeReplicationController) error
+	DisableAllNodeOptimization(master NodeReplicationController, nodes ...NodeReplicationController) error
 }
 
 func NewOptimizer(
@@ -193,7 +190,7 @@ func (opt *Optimizer) EnableNodeOptimization(node NodeReplicationController) err
 	return err
 }
 
-func (opt *Optimizer) DisableNodeOptimization(master, node NodeReplicationController, ignoreErrors bool) error {
+func (opt *Optimizer) DisableNodeOptimization(master, node NodeReplicationController) error {
 	opt.logger.Infof("optimization: disabling node [%s] optimization", node.Host())
 	rs, err := master.GetReplicationSettings()
 	if err != nil {
@@ -205,7 +202,6 @@ func (opt *Optimizer) DisableNodeOptimization(master, node NodeReplicationContro
 
 func (opt *Optimizer) DisableAllNodeOptimization(
 	master NodeReplicationController,
-	ignoreErrors bool,
 	nodes ...NodeReplicationController,
 ) error {
 	opt.logger.Info("optimization: disabling all nodes optimization")

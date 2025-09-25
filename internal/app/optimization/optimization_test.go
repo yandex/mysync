@@ -196,7 +196,7 @@ func assertDisableOptimization(
 ) {
 	t.Helper()
 	mdcs.HostToLock = host.Host()
-	err := om.DisableNodeOptimization(master, host, false)
+	err := om.DisableNodeOptimization(master, host)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -215,7 +215,7 @@ func assertDisableAllOptimization(
 		ifaceNodes = append(ifaceNodes, n)
 	}
 
-	err := om.DisableAllNodeOptimization(master, false, ifaceNodes...)
+	err := om.DisableAllNodeOptimization(master, ifaceNodes...)
 	if err != nil {
 		t.Fatal(err)
 	}

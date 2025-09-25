@@ -43,7 +43,7 @@ func (onp *OneNodePolicy) Apply(
 		return err
 	}
 
-	dcsStatuses, err = onp.disableOptimizedHosts(master, dcsStatuses, nodeStates, nodes, rs)
+	dcsStatuses, err = onp.disableAlreadyOptimizedHosts(master, dcsStatuses, nodeStates, nodes, rs)
 	if err != nil {
 		return err
 	}
@@ -53,11 +53,10 @@ func (onp *OneNodePolicy) Apply(
 		return err
 	}
 	if hostname == "" {
-		return onp.chooseHostToOptimize(dcsStatuses, nodes)
+		return onp.chooseHostAndOptimizeIt(dcsStatuses, nodes)
 	}
 
 	node := nodes[hostname]
-
 	optimal, lag, err := isOptimal(node, onp.config.LowReplicationMark.Seconds())
 	if err != nil {
 		return err
@@ -68,10 +67,23 @@ func (onp *OneNodePolicy) Apply(
 	}
 	onp.logger.Infof("optimization (OneNodePolicy): node [%s] is optimizing and has lag %f", hostname, lag)
 
+	rs, err = node.GetReplicationSettings()
+	if err != nil {
+		return err
+	}
+
+	if rs.CanBeOptimized() {
+		onp.logger.Infof("optimization (OneNodePolicy): node [%s] is not optimizing; something went wrong, recovering optimization process...", hostname)
+		err = node.OptimizeReplication()
+		if err != nil {
+			return err
+		}
+	}
+
 	return nil
 }
 
-func (onp *OneNodePolicy) chooseHostToOptimize(
+func (onp *OneNodePolicy) chooseHostAndOptimizeIt(
 	dcsStatuses map[string]Status,
 	nodes map[string]NodeReplicationController,
 ) error {
@@ -115,7 +127,7 @@ func (onp *OneNodePolicy) makeSureAtMostOneNodeIsOptimizing(
 	return "", nil
 }
 
-func (onp *OneNodePolicy) disableOptimizedHosts(
+func (onp *OneNodePolicy) disableAlreadyOptimizedHosts(
 	master NodeReplicationController,
 	dcsStatuses map[string]Status,
 	nodeStates map[string]*nodestate.NodeState,
