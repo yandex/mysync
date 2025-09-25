@@ -71,9 +71,7 @@ var optimizeGetCmd = &cobra.Command{
 
 func init() {
 	rootCmd.AddCommand(optimizeCmd)
-
 	optimizeCmd.AddCommand(optimizeOnCmd)
-
 	optimizeCmd.AddCommand(optimizeOffCmd)
 	optimizeCmd.AddCommand(optimizeGetCmd)
 	optimizeCmd.AddCommand(optimizeOffAllCmd)

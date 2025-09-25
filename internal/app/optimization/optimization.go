@@ -66,7 +66,7 @@ type ReplicationOpitimizer interface {
 	// and it carries risks similar to disabling a single node.
 	// Master can be nil. In that case, node will be returned to the most safest default replication settings.
 	// Returns an error if disabling any node fails.
-	DisableAllNodeOptimization(master NodeReplicationController, nodes ...NodeReplicationController) error
+	DisableAllNodeOptimization(master NodeReplicationController, nodes []NodeReplicationController) error
 }
 
 func NewOptimizer(
@@ -202,7 +202,7 @@ func (opt *Optimizer) DisableNodeOptimization(master, node NodeReplicationContro
 
 func (opt *Optimizer) DisableAllNodeOptimization(
 	master NodeReplicationController,
-	nodes ...NodeReplicationController,
+	nodes []NodeReplicationController,
 ) error {
 	opt.logger.Info("optimization: disabling all nodes optimization")
 

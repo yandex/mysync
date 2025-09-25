@@ -134,43 +134,24 @@ func (onp *OneNodePolicy) disableAlreadyOptimizedHosts(
 	nodes map[string]NodeReplicationController,
 	rs mysql.ReplicationSettings,
 ) (map[string]Status, error) {
-	for hostname := range dcsStatuses {
-		if hostname == master.Host() {
-			onp.logger.Infof("optimization (OneNodePolicy): zk had master node [%s]; it was deleted", hostname)
+	for hostname, status := range dcsStatuses {
+		isMaster := hostname == master.Host()
+		isSlaveLost := nodeStates[hostname].SlaveState == nil || nodeStates[hostname].SlaveState.ReplicationLag == nil
+		isEnabled := status == StatusEnabled
+		isConverged := !isSlaveLost && *nodeStates[hostname].SlaveState.ReplicationLag < onp.config.LowReplicationMark.Seconds()
+		isCompletelyConverged := !isSlaveLost && *nodeStates[hostname].SlaveState.ReplicationLag < onp.config.LowReplicationMark.Seconds()
 
+		if isMaster || isSlaveLost ||
+			(isConverged && !isEnabled) ||
+			(isCompletelyConverged && isEnabled) {
 			err := disableHostWithDCS(nodes[hostname], rs, onp.DCS)
 			if err != nil {
 				return nil, err
 			}
-
 			delete(dcsStatuses, hostname)
-			continue
-		}
-
-		if nodeStates[hostname].SlaveState == nil || nodeStates[hostname].SlaveState.ReplicationLag == nil {
-			onp.logger.Infof("optimization (OneNodePolicy): zk had node [%s] without slave state; it was deleted", hostname)
-
-			err := disableHostWithDCS(nodes[hostname], rs, onp.DCS)
-			if err != nil {
-				return nil, err
-			}
-
-			delete(dcsStatuses, hostname)
-			continue
-		}
-
-		if *nodeStates[hostname].SlaveState.ReplicationLag < onp.config.HighReplicationMark.Seconds() {
-			onp.logger.Infof("optimization (OneNodePolicy): zk had node [%s] with converged replication lag; it was deleted", hostname)
-
-			err := disableHostWithDCS(nodes[hostname], rs, onp.DCS)
-			if err != nil {
-				return nil, err
-			}
-
-			delete(dcsStatuses, hostname)
-			continue
 		}
 	}
+
 	return dcsStatuses, nil
 }
 

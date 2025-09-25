@@ -215,7 +215,7 @@ func assertDisableAllOptimization(
 		ifaceNodes = append(ifaceNodes, n)
 	}
 
-	err := om.DisableAllNodeOptimization(master, ifaceNodes...)
+	err := om.DisableAllNodeOptimization(master, ifaceNodes)
 	if err != nil {
 		t.Fatal(err)
 	}

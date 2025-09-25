@@ -84,7 +84,7 @@ func (app *App) CliDisableAllOptimization() int {
 	}
 
 	controllerNodes := convertNodesToReplicationControllers(nodes)
-	err = app.replicationOptimizer.DisableAllNodeOptimization(master, controllerNodes...)
+	err = app.replicationOptimizer.DisableAllNodeOptimization(master, controllerNodes)
 	if err != nil {
 		fmt.Printf("%s\n", err)
 		return 1

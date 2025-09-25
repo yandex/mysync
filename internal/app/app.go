@@ -2492,7 +2492,7 @@ func (app *App) stopAllNodeOptimization(master string, clusterState map[string]*
 	}
 
 	controllerNodes := convertNodesToReplicationControllers(nodes)
-	return app.replicationOptimizer.DisableAllNodeOptimization(masterNode, controllerNodes...)
+	return app.replicationOptimizer.DisableAllNodeOptimization(masterNode, controllerNodes)
 }
 
 // Set master offline and disable semi-sync replication
