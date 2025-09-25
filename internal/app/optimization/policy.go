@@ -9,7 +9,7 @@ type Policy interface {
 	Apply(
 		master NodeReplicationController,
 		nodeStates map[string]*nodestate.NodeState,
-		dcsStatuses map[string]Status,
+		dcsStates map[string]State,
 		nodes map[string]NodeReplicationController,
 	) error
 

@@ -40,7 +40,6 @@ type ReplicationOpitimizer interface {
 
 	// SyncState synchronizes optimization settings,
 	// and applies replication adjustments if needed.
-	// Master can be nil. In that case, node will be returned to the most safest default replication settings.
 	// Returns an error if synchronization fails.
 	SyncState(
 		master NodeReplicationController,
@@ -57,14 +56,12 @@ type ReplicationOpitimizer interface {
 	// DisableNodeOptimization deactivates optimization mode for the specified node,
 	// using the master for context (e.g., resetting replication settings).
 	// Changes take effect immediately, as these options can be dangerous.
-	// Master can be nil. In that case, node will be returned to the most safest default replication settings.
 	// Returns an error if disabling fails.
 	DisableNodeOptimization(master, node NodeReplicationController) error
 
 	// DisableAllNodeOptimization deactivates optimization mode for all specified nodes,
 	// using the master for context. This is a bulk operation with immediate effects,
 	// and it carries risks similar to disabling a single node.
-	// Master can be nil. In that case, node will be returned to the most safest default replication settings.
 	// Returns an error if disabling any node fails.
 	DisableAllNodeOptimization(master NodeReplicationController, nodes []NodeReplicationController) error
 }
@@ -87,25 +84,16 @@ type Optimizer struct {
 	policy Policy
 }
 
-// Status represents the state of an optimization process:
-// - It starts as Pending
-// - If the submission succeeds, it becomes Enabled.
-// - If it optimized, it becomes Disabled.
 type Status string
+
+type State struct {
+	Status Status `json:"status"`
+}
 
 const (
 	StatusNew     Status = ""
 	StatusEnabled Status = "enabled"
 )
-
-func parseStatus(status string) Status {
-	switch status {
-	case string(StatusEnabled):
-		return StatusEnabled
-	}
-
-	return StatusNew
-}
 
 func (opt *Optimizer) Initialize(DCS dcs.DCS) error {
 	opt.logger.Info("Optimizer started initialization")
@@ -181,7 +169,7 @@ func (opt *Optimizer) isOptimizedDuringWaiting(node NodeReplicationController) (
 
 func (opt *Optimizer) EnableNodeOptimization(node NodeReplicationController) error {
 	opt.logger.Infof("optimization: enabling node [%s] optimization", node.Host())
-	err := opt.DCS.Create(dcs.JoinPath(pathOptimizationNodes, node.Host()), "")
+	err := opt.DCS.Create(dcs.JoinPath(pathOptimizationNodes, node.Host()), State{})
 	if err == dcs.ErrExists {
 		return nil
 	}
@@ -227,29 +215,26 @@ func (opt *Optimizer) DisableAllNodeOptimization(
 	return nil
 }
 
-func (opt *Optimizer) getStatuses() (map[string]Status, error) {
+func (opt *Optimizer) getStatuses() (map[string]State, error) {
 	hostnames, err := opt.DCS.GetChildren(pathOptimizationNodes)
 	if err != nil {
 		return nil, err
 	}
 
-	statuses := map[string]Status{}
+	states := map[string]State{}
 	for _, hostname := range hostnames {
 		path := dcs.JoinPath(pathOptimizationNodes, hostname)
 
-		var status string
-		err := opt.DCS.Get(path, &status)
+		var state State
+		err := opt.DCS.Get(path, &state)
 		if err != nil && err != dcs.ErrNotFound && err != dcs.ErrMalformed {
 			return nil, err
 		}
-		if err != nil && (err == dcs.ErrNotFound || err == dcs.ErrMalformed) {
-			status = ""
-		}
 
-		statuses[hostname] = parseStatus(status)
+		states[hostname] = state
 	}
 
-	return statuses, nil
+	return states, nil
 }
 
 func (opt *Optimizer) SyncState(
@@ -257,7 +242,7 @@ func (opt *Optimizer) SyncState(
 	nodeStates map[string]*nodestate.NodeState,
 	nodes []NodeReplicationController,
 ) error {
-	statuses, err := opt.getStatuses()
+	dcsStates, err := opt.getStatuses()
 	if err != nil {
 		return err
 	}
@@ -267,7 +252,7 @@ func (opt *Optimizer) SyncState(
 	return opt.policy.Apply(
 		master,
 		nodeStates,
-		statuses,
+		dcsStates,
 		hostToNode,
 	)
 }

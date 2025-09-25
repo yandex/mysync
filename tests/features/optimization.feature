@@ -13,11 +13,11 @@ Feature: optimization mode works on replicas
       """
     And I set zookeeper node "/test/optimization_nodes/mysql2" to
       """
-      "test"
+      {}
       """
     And I set zookeeper node "/test/optimization_nodes/mysql3" to
       """
-      "test"
+      {}
       """
     Then zookeeper node "/test/optimization_nodes/mysql2" should not exist within "30" seconds
     And I run SQL on mysql host "mysql2"
@@ -81,7 +81,7 @@ Feature: optimization mode works on replicas
       """
     And I set zookeeper node "/test/optimization_nodes/mysql2" to
       """
-      "test"
+      {}
       """
     And zookeeper node "/test/optimization_nodes/mysql2" should exist within "30" seconds
     And I wait for "15" seconds
@@ -160,12 +160,12 @@ Feature: optimization mode works on replicas
       """
     And I set zookeeper node "/test/optimization_nodes/mysql2" to
       """
-      "test"
+      {}
       """
     And I wait for "15" seconds
     And I set zookeeper node "/test/optimization_nodes/mysql3" to
       """
-      "test"
+      {}
       """
     And zookeeper node "/test/optimization_nodes/mysql2" should exist within "30" seconds
     And zookeeper node "/test/optimization_nodes/mysql3" should exist within "30" seconds

@@ -35,7 +35,7 @@ func (onp *OneNodePolicy) Initialize(DCS dcs.DCS) error {
 func (onp *OneNodePolicy) Apply(
 	master NodeReplicationController,
 	nodeStates map[string]*nodestate.NodeState,
-	dcsStatuses map[string]Status,
+	dcsStates map[string]State,
 	nodes map[string]NodeReplicationController,
 ) error {
 	rs, err := master.GetReplicationSettings()
@@ -43,17 +43,17 @@ func (onp *OneNodePolicy) Apply(
 		return err
 	}
 
-	dcsStatuses, err = onp.disableAlreadyOptimizedHosts(master, dcsStatuses, nodeStates, nodes, rs)
+	dcsStates, err = onp.disableAlreadyOptimizedHosts(master, dcsStates, nodeStates, nodes, rs)
 	if err != nil {
 		return err
 	}
 
-	hostname, err := onp.makeSureAtMostOneNodeIsOptimizing(dcsStatuses, nodes, rs)
+	hostname, err := onp.makeSureAtMostOneNodeIsOptimizing(dcsStates, nodes, rs)
 	if err != nil {
 		return err
 	}
 	if hostname == "" {
-		return onp.chooseHostAndOptimizeIt(dcsStatuses, nodes)
+		return onp.chooseHostAndOptimizeIt(dcsStates, nodes)
 	}
 
 	node := nodes[hostname]
@@ -84,10 +84,10 @@ func (onp *OneNodePolicy) Apply(
 }
 
 func (onp *OneNodePolicy) chooseHostAndOptimizeIt(
-	dcsStatuses map[string]Status,
+	dcsStates map[string]State,
 	nodes map[string]NodeReplicationController,
 ) error {
-	for hostname := range dcsStatuses {
+	for hostname := range dcsStates {
 		onp.logger.Infof("optimization (OneNodePolicy): host [%s] started optimization", hostname)
 		return enableHost(nodes[hostname], onp.DCS)
 	}
@@ -95,11 +95,11 @@ func (onp *OneNodePolicy) chooseHostAndOptimizeIt(
 }
 
 func (onp *OneNodePolicy) makeSureAtMostOneNodeIsOptimizing(
-	dcsStatuses map[string]Status,
+	dcsStates map[string]State,
 	nodes map[string]NodeReplicationController,
 	rs mysql.ReplicationSettings,
 ) (string, error) {
-	enabledHosts := filterEnabledStatus(dcsStatuses)
+	enabledHosts := filterEnabledStatus(dcsStates)
 
 	if len(enabledHosts) == 0 {
 		onp.logger.Info("optimization (OneNodePolicy): there are no enabled hosts")
@@ -129,15 +129,15 @@ func (onp *OneNodePolicy) makeSureAtMostOneNodeIsOptimizing(
 
 func (onp *OneNodePolicy) disableAlreadyOptimizedHosts(
 	master NodeReplicationController,
-	dcsStatuses map[string]Status,
+	dcsStates map[string]State,
 	nodeStates map[string]*nodestate.NodeState,
 	nodes map[string]NodeReplicationController,
 	rs mysql.ReplicationSettings,
-) (map[string]Status, error) {
-	for hostname, status := range dcsStatuses {
+) (map[string]State, error) {
+	for hostname, state := range dcsStates {
 		isMaster := hostname == master.Host()
 		isSlaveLost := nodeStates[hostname].SlaveState == nil || nodeStates[hostname].SlaveState.ReplicationLag == nil
-		isEnabled := status == StatusEnabled
+		isEnabled := state.Status == StatusEnabled
 		isConverged := !isSlaveLost && *nodeStates[hostname].SlaveState.ReplicationLag < onp.config.LowReplicationMark.Seconds()
 		isCompletelyConverged := !isSlaveLost && *nodeStates[hostname].SlaveState.ReplicationLag < onp.config.LowReplicationMark.Seconds()
 
@@ -148,17 +148,17 @@ func (onp *OneNodePolicy) disableAlreadyOptimizedHosts(
 			if err != nil {
 				return nil, err
 			}
-			delete(dcsStatuses, hostname)
+			delete(dcsStates, hostname)
 		}
 	}
 
-	return dcsStatuses, nil
+	return dcsStates, nil
 }
 
-func filterEnabledStatus(statuses map[string]Status) []string {
+func filterEnabledStatus(statuses map[string]State) []string {
 	var hostnames []string
-	for hostname, dcsStatus := range statuses {
-		if dcsStatus == StatusEnabled {
+	for hostname, state := range statuses {
+		if state.Status == StatusEnabled {
 			hostnames = append(hostnames, hostname)
 		}
 	}

@@ -18,7 +18,7 @@ func enableHost(
 	node NodeReplicationController,
 	DCS dcs.DCS,
 ) error {
-	err := DCS.Set(dcs.JoinPath(pathOptimizationNodes, node.Host()), StatusEnabled)
+	err := DCS.Set(dcs.JoinPath(pathOptimizationNodes, node.Host()), State{Status: StatusEnabled})
 	if err != nil {
 		return err
 	}
@@ -61,8 +61,8 @@ func nodeExist(
 	node NodeReplicationController,
 	DCS dcs.DCS,
 ) (bool, error) {
-	var status string
-	err := DCS.Get(dcs.JoinPath(pathOptimizationNodes, node.Host()), &status)
+	var state State
+	err := DCS.Get(dcs.JoinPath(pathOptimizationNodes, node.Host()), &state)
 	if err != nil && err != dcs.ErrNotFound && err != dcs.ErrMalformed {
 		return false, err
 	}
