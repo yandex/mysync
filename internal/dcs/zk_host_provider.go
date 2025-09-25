@@ -17,29 +17,31 @@ type zkhost struct {
 }
 
 type RandomHostProvider struct {
-	ctx                context.Context
-	hosts              sync.Map
-	useAddrs           bool
-	hostsKeys          []string
-	tried              map[string]struct{}
-	logger             *log.Logger
-	lookupTTL          time.Duration
-	lookupTimeout      time.Duration
-	lookupTickInterval time.Duration
-	resolver           *net.Resolver
+	ctx                      context.Context
+	hosts                    sync.Map
+	useAddrs                 bool
+	hostsKeys                []string
+	tried                    map[string]struct{}
+	logger                   *log.Logger
+	lookupTTL                time.Duration
+	connectivityCheckTimeout time.Duration
+	lookupTimeout            time.Duration
+	lookupTickInterval       time.Duration
+	resolver                 *net.Resolver
 }
 
 func NewRandomHostProvider(ctx context.Context, config *RandomHostProviderConfig, useAddrs bool, logger *log.Logger) *RandomHostProvider {
 	return &RandomHostProvider{
-		ctx:                ctx,
-		lookupTTL:          config.LookupTTL,
-		lookupTimeout:      config.LookupTimeout,
-		lookupTickInterval: config.LookupTickInterval,
-		logger:             logger,
-		tried:              make(map[string]struct{}),
-		hosts:              sync.Map{},
-		resolver:           &net.Resolver{},
-		useAddrs:           useAddrs,
+		ctx:                      ctx,
+		lookupTTL:                config.LookupTTL,
+		connectivityCheckTimeout: config.ConnectivityCheckTimeout,
+		lookupTimeout:            config.LookupTimeout,
+		lookupTickInterval:       config.LookupTickInterval,
+		logger:                   logger,
+		tried:                    make(map[string]struct{}),
+		hosts:                    sync.Map{},
+		resolver:                 &net.Resolver{},
+		useAddrs:                 useAddrs,
 	}
 }
 
@@ -81,7 +83,7 @@ func (rhp *RandomHostProvider) checkZKConnectivity(servers []string) error {
 	}
 
 	for _, server := range servers {
-		conn, err := net.DialTimeout("tcp", server, rhp.lookupTimeout)
+		conn, err := net.DialTimeout("tcp", server, rhp.connectivityCheckTimeout)
 		if err == nil {
 			conn.Close()
 			rhp.logger.Infof("zk connectivity check succeeded for %s", server)
