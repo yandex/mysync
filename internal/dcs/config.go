@@ -31,16 +31,18 @@ type ZookeeperConfig struct {
 }
 
 type RandomHostProviderConfig struct {
-	LookupTimeout      time.Duration `config:"lookup_timeout" yaml:"lookup_timeout"`
-	LookupTTL          time.Duration `config:"lookup_ttl" yaml:"lookup_ttl"`
-	LookupTickInterval time.Duration `config:"lookup_tick_interval" yaml:"lookup_tick_interval"`
+	LookupTimeout            time.Duration `config:"lookup_timeout" yaml:"lookup_timeout"`
+	LookupTTL                time.Duration `config:"lookup_ttl" yaml:"lookup_ttl"`
+	ConnectivityCheckTimeout time.Duration `config:"connectivity_check_timeout" yaml:"connectivity_check_timeout"`
+	LookupTickInterval       time.Duration `config:"lookup_tick_interval" yaml:"lookup_tick_interval"`
 }
 
 func DefaultRandomHostProviderConfig() RandomHostProviderConfig {
 	return RandomHostProviderConfig{
-		LookupTimeout:      3 * time.Second,
-		LookupTTL:          300 * time.Second,
-		LookupTickInterval: 60 * time.Second,
+		LookupTimeout:            3 * time.Second,
+		LookupTTL:                300 * time.Second,
+		ConnectivityCheckTimeout: 3 * time.Second,
+		LookupTickInterval:       60 * time.Second,
 	}
 }
 
