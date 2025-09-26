@@ -1,6 +1,7 @@
 package app
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"time"
@@ -219,36 +220,23 @@ func getRepairAlgorithm(algoType ReplicationRepairAlgorithmType) RepairReplicati
 
 func (app *App) optimizeReplicaWithSmallestLag(
 	replicas []string,
-	masterHost string,
 	optionalDesirableReplica string,
 ) error {
 	hostnameToOptimize, err := app.chooseReplicaToOptimize(optionalDesirableReplica, replicas)
 	if err != nil {
 		return err
 	}
-
 	replicaToOptimize := app.cluster.Get(hostnameToOptimize)
-	isOptimized, err := app.isReplicationLagUnderThreshold(replicaToOptimize)
+
+	err = app.replicationOptimizer.EnableNodeOptimization(replicaToOptimize)
 	if err != nil {
 		return err
 	}
-	if isOptimized {
-		return nil
-	}
 
-	err = replicaToOptimize.OptimizeReplication()
-	if err != nil {
-		return err
-	}
-	defer func() {
-		masterNode := app.cluster.Get(masterHost)
-		err = replicaToOptimize.SetDefaultReplicationSettings(masterNode)
-		if err != nil {
-			app.logger.Error("can't set default replication settings")
-		}
-	}()
+	ctx, cancel := context.WithTimeout(context.Background(), app.config.ReplicationConvergenceTimeoutSwitchover)
+	defer cancel()
 
-	return app.waitReplicaToConverge(replicaToOptimize)
+	return app.replicationOptimizer.WaitOptimization(ctx, replicaToOptimize, 3*time.Second)
 }
 
 func (app *App) chooseReplicaToOptimize(
@@ -274,46 +262,8 @@ func (app *App) chooseReplicaToOptimize(
 }
 
 func (app *App) getMostDesirableReplicaToOptimize(positions []nodePosition) (string, error) {
-	lagThreshold := app.config.OptimizeReplicationLagThreshold
+	lagThreshold := app.config.OptimizationConfig.HighReplicationMark
 	return getMostDesirableNode(app.logger, positions, lagThreshold)
-}
-
-func (app *App) waitReplicaToConverge(
-	replica *mysql.Node,
-) error {
-	timer := time.NewTimer(app.config.OptimizeReplicationConvergenceTimeout)
-	for {
-		select {
-		case <-timer.C:
-			return ErrOptimizationPhaseDeadlineExceeded
-		default:
-			lagUnderThreshold, err := app.isReplicationLagUnderThreshold(replica)
-			if err != nil {
-				app.logger.Infof("can't check replication status: %s", err.Error())
-			}
-			if lagUnderThreshold {
-				return nil
-			}
-			time.Sleep(time.Second)
-		}
-	}
-}
-
-func (app *App) isReplicationLagUnderThreshold(
-	replica *mysql.Node,
-) (bool, error) {
-	status, err := replica.GetReplicaStatus()
-	if err != nil {
-		return false, err
-	}
-
-	lag := status.GetReplicationLag().Float64
-	lagThreshold := app.config.OptimizeReplicationLagThreshold.Seconds()
-
-	if !app.config.ASync && lag < lagThreshold {
-		return true, nil
-	}
-	return false, nil
 }
 
 func (app *App) optimizationPhase(activeNodes []string, switchover *Switchover, oldMaster string) error {
@@ -333,7 +283,6 @@ func (app *App) optimizationPhase(activeNodes []string, switchover *Switchover, 
 	)
 	err := app.optimizeReplicaWithSmallestLag(
 		appropriateReplicas,
-		oldMaster,
 		desirableReplica,
 	)
 	if err != nil && errors.Is(err, ErrOptimizationPhaseDeadlineExceeded) {
