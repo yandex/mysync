@@ -1,5 +1,5 @@
 build:
-	go build -o ./cmd/mysync/mysync ./cmd/mysync/...
+	GOOS=linux GOARCH=amd64 go build -o ./cmd/mysync/mysync ./cmd/mysync/...
 
 format:
 	gofmt -s -w `find . -name '*.go'`

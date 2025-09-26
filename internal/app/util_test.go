@@ -359,4 +359,12 @@ func TestIsSplitBrained(t *testing.T) {
 		"BB6890C8-69F8-4BC4-B3A5-5D3FEA8C28CF:1-100")
 	ok = gtids.IsSplitBrained(slaveGTID, masterGTID, masterUUID)
 	require.True(t, ok)
+
+	// the replica applied a new transaction not from the master
+	masterGTID = mustGTIDSet("04fe771a-9201-11f0-9017-6ca806239eb2:1-18546," +
+		"6dbc0b04-4b09-43dc-86cc-9af852ded919:1-655")
+	slaveGTID = mustGTIDSet("04fe771a-9201-11f0-9017-6ca806239eb2:1-18547," +
+		"6dbc0b04-4b09-43dc-86cc-9af852ded919:1-655")
+	ok = gtids.IsSplitBrained(slaveGTID, masterGTID, masterUUID)
+	require.True(t, ok)
 }
