@@ -93,13 +93,9 @@ func assertSyncOptions(
 	t *testing.T,
 	om ReplicationOpitimizer,
 	master *MockNode,
-	host *MockNode,
-	mdcs *dcs.MockDCS,
 	cluster map[string]*MockNode,
 ) {
 	t.Helper()
-
-	mdcs.HostToLock = host.Host()
 	err := om.SyncState(master, convertClusterToNodeState(cluster), convertNodesToReplicationControllers(getNodes(cluster)))
 	if err != nil {
 		t.Fatal(err)
@@ -146,10 +142,8 @@ func assertEnableOptimization(
 	t *testing.T,
 	om ReplicationOpitimizer,
 	host *MockNode,
-	mdcs *dcs.MockDCS,
 ) {
 	t.Helper()
-	mdcs.HostToLock = host.Host()
 	err := om.EnableNodeOptimization(host)
 	if err != nil {
 		t.Fatal(err)
@@ -162,8 +156,7 @@ func assertHostPathExistsInDCS(
 	mdcs *dcs.MockDCS,
 ) {
 	t.Helper()
-	var a any
-	err := mdcs.Get(dcs.JoinPath(pathOptimizationNodes, host.Host()), &a)
+	err := mdcs.Get(dcs.JoinPath(pathOptimizationNodes, host.Host()), &State{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -175,7 +168,7 @@ func assertHostPathDoesntExistInDCS(
 	mdcs *dcs.MockDCS,
 ) {
 	t.Helper()
-	err := mdcs.Get(dcs.JoinPath(pathOptimizationNodes, host.Host()), &struct{}{})
+	err := mdcs.Get(dcs.JoinPath(pathOptimizationNodes, host.Host()), &State{})
 	if err == dcs.ErrNotFound {
 		return
 	}
@@ -192,10 +185,8 @@ func assertDisableOptimization(
 	om ReplicationOpitimizer,
 	master *MockNode,
 	host *MockNode,
-	mdcs *dcs.MockDCS,
 ) {
 	t.Helper()
-	mdcs.HostToLock = host.Host()
 	err := om.DisableNodeOptimization(master, host)
 	if err != nil {
 		t.Fatal(err)
@@ -225,7 +216,7 @@ func TestOptimizationEnablingOnReplicaWithLag(t *testing.T) {
 	om, mdcs, cluster := initDefaultCluster(t)
 	master := cluster["mysql1"]
 
-	assertSyncOptions(t, om, master, cluster["mysql2"], mdcs, cluster)
+	assertSyncOptions(t, om, master, cluster)
 	assertHostIsNotOptimized(t, cluster["mysql2"])
 	assertHostPathDoesntExistInDCS(t, cluster["mysql2"], mdcs)
 
@@ -233,13 +224,13 @@ func TestOptimizationEnablingOnReplicaWithLag(t *testing.T) {
 		Lag: sql.NullFloat64{Valid: true, Float64: 20.0},
 	}
 
-	assertEnableOptimization(t, om, cluster["mysql2"], mdcs)
-	assertSyncOptions(t, om, master, cluster["mysql2"], mdcs, cluster)
+	assertEnableOptimization(t, om, cluster["mysql2"])
+	assertSyncOptions(t, om, master, cluster)
 	assertHostIsOptimized(t, cluster["mysql2"])
 	assertHostPathExistsInDCS(t, cluster["mysql2"], mdcs)
 
-	assertEnableOptimization(t, om, cluster["mysql2"], mdcs)
-	assertSyncOptions(t, om, master, cluster["mysql2"], mdcs, cluster)
+	assertEnableOptimization(t, om, cluster["mysql2"])
+	assertSyncOptions(t, om, master, cluster)
 	assertHostIsOptimized(t, cluster["mysql2"])
 	assertHostPathExistsInDCS(t, cluster["mysql2"], mdcs)
 }
@@ -248,17 +239,17 @@ func TestOptimizationEnablingOnReplicaWithoutLag(t *testing.T) {
 	om, mdcs, cluster := initDefaultCluster(t)
 	master := cluster["mysql1"]
 
-	assertSyncOptions(t, om, master, cluster["mysql2"], mdcs, cluster)
+	assertSyncOptions(t, om, master, cluster)
 	assertHostIsNotOptimized(t, cluster["mysql2"])
 	assertHostPathDoesntExistInDCS(t, cluster["mysql2"], mdcs)
 
-	assertEnableOptimization(t, om, cluster["mysql2"], mdcs)
-	assertSyncOptions(t, om, master, cluster["mysql2"], mdcs, cluster)
+	assertEnableOptimization(t, om, cluster["mysql2"])
+	assertSyncOptions(t, om, master, cluster)
 	assertHostIsNotOptimized(t, cluster["mysql2"])
 	assertHostPathDoesntExistInDCS(t, cluster["mysql2"], mdcs)
 
-	assertEnableOptimization(t, om, cluster["mysql2"], mdcs)
-	assertSyncOptions(t, om, master, cluster["mysql2"], mdcs, cluster)
+	assertEnableOptimization(t, om, cluster["mysql2"])
+	assertSyncOptions(t, om, master, cluster)
 	assertHostIsNotOptimized(t, cluster["mysql2"])
 	assertHostPathDoesntExistInDCS(t, cluster["mysql2"], mdcs)
 }
@@ -267,18 +258,18 @@ func TestOptimizationEnablingOnMaster(t *testing.T) {
 	om, mdcs, cluster := initDefaultCluster(t)
 	master := cluster["mysql1"]
 
-	assertSyncOptions(t, om, master, master, mdcs, cluster)
+	assertSyncOptions(t, om, master, cluster)
 	assertHostIsNotOptimized(t, master)
 	assertHostPathDoesntExistInDCS(t, master, mdcs)
 
-	assertEnableOptimization(t, om, master, mdcs)
+	assertEnableOptimization(t, om, master)
 	assertHostPathExistsInDCS(t, master, mdcs)
-	assertSyncOptions(t, om, master, master, mdcs, cluster)
+	assertSyncOptions(t, om, master, cluster)
 	assertHostIsNotOptimized(t, master)
 	assertHostPathDoesntExistInDCS(t, master, mdcs)
 
-	assertEnableOptimization(t, om, master, mdcs)
-	assertSyncOptions(t, om, master, master, mdcs, cluster)
+	assertEnableOptimization(t, om, master)
+	assertSyncOptions(t, om, master, cluster)
 	assertHostIsNotOptimized(t, master)
 	assertHostPathDoesntExistInDCS(t, master, mdcs)
 }
@@ -287,7 +278,7 @@ func TestOptimizationDisabledOnReplicaImmediately(t *testing.T) {
 	om, mdcs, cluster := initDefaultCluster(t)
 	master := cluster["mysql1"]
 
-	assertSyncOptions(t, om, master, cluster["mysql2"], mdcs, cluster)
+	assertSyncOptions(t, om, master, cluster)
 	assertHostIsNotOptimized(t, cluster["mysql2"])
 	assertHostPathDoesntExistInDCS(t, cluster["mysql2"], mdcs)
 
@@ -295,16 +286,16 @@ func TestOptimizationDisabledOnReplicaImmediately(t *testing.T) {
 		Lag: sql.NullFloat64{Valid: true, Float64: 20.0},
 	}
 
-	assertEnableOptimization(t, om, cluster["mysql2"], mdcs)
-	assertSyncOptions(t, om, master, cluster["mysql2"], mdcs, cluster)
+	assertEnableOptimization(t, om, cluster["mysql2"])
+	assertSyncOptions(t, om, master, cluster)
 	assertHostIsOptimized(t, cluster["mysql2"])
 	assertHostPathExistsInDCS(t, cluster["mysql2"], mdcs)
 
-	assertDisableOptimization(t, om, master, cluster["mysql2"], mdcs)
+	assertDisableOptimization(t, om, master, cluster["mysql2"])
 	assertHostIsNotOptimized(t, cluster["mysql2"])
 	assertHostPathDoesntExistInDCS(t, cluster["mysql2"], mdcs)
 
-	assertSyncOptions(t, om, master, cluster["mysql2"], mdcs, cluster)
+	assertSyncOptions(t, om, master, cluster)
 	assertHostIsNotOptimized(t, cluster["mysql2"])
 	assertHostPathDoesntExistInDCS(t, cluster["mysql2"], mdcs)
 }
@@ -313,7 +304,7 @@ func TestOptimizationCannotBeEnabledOnMoreThanOneHost(t *testing.T) {
 	om, mdcs, cluster := initDefaultCluster(t)
 	master := cluster["mysql1"]
 
-	assertSyncOptions(t, om, master, cluster["mysql2"], mdcs, cluster)
+	assertSyncOptions(t, om, master, cluster)
 	assertHostIsNotOptimized(t, cluster["mysql2"])
 	assertHostPathDoesntExistInDCS(t, cluster["mysql2"], mdcs)
 
@@ -324,31 +315,31 @@ func TestOptimizationCannotBeEnabledOnMoreThanOneHost(t *testing.T) {
 		Lag: sql.NullFloat64{Valid: true, Float64: 20.0},
 	}
 
-	assertEnableOptimization(t, om, cluster["mysql2"], mdcs)
-	assertSyncOptions(t, om, master, cluster["mysql2"], mdcs, cluster)
+	assertEnableOptimization(t, om, cluster["mysql2"])
+	assertSyncOptions(t, om, master, cluster)
 
-	assertEnableOptimization(t, om, cluster["mysql3"], mdcs)
-	assertSyncOptions(t, om, master, cluster["mysql3"], mdcs, cluster)
+	assertEnableOptimization(t, om, cluster["mysql3"])
+	assertSyncOptions(t, om, master, cluster)
 
 	assertHostIsOptimized(t, cluster["mysql2"])
 	assertHostPathExistsInDCS(t, cluster["mysql2"], mdcs)
 	assertHostIsNotOptimized(t, cluster["mysql3"])
 	assertHostPathExistsInDCS(t, cluster["mysql3"], mdcs)
 
-	assertDisableOptimization(t, om, master, cluster["mysql2"], mdcs)
+	assertDisableOptimization(t, om, master, cluster["mysql2"])
 
-	assertSyncOptions(t, om, master, cluster["mysql2"], mdcs, cluster)
-	assertSyncOptions(t, om, master, cluster["mysql3"], mdcs, cluster)
+	assertSyncOptions(t, om, master, cluster)
+	assertSyncOptions(t, om, master, cluster)
 
 	assertHostIsNotOptimized(t, cluster["mysql2"])
 	assertHostPathDoesntExistInDCS(t, cluster["mysql2"], mdcs)
 	assertHostIsOptimized(t, cluster["mysql3"])
 	assertHostPathExistsInDCS(t, cluster["mysql3"], mdcs)
 
-	assertDisableOptimization(t, om, master, cluster["mysql3"], mdcs)
+	assertDisableOptimization(t, om, master, cluster["mysql3"])
 
-	assertSyncOptions(t, om, master, cluster["mysql2"], mdcs, cluster)
-	assertSyncOptions(t, om, master, cluster["mysql3"], mdcs, cluster)
+	assertSyncOptions(t, om, master, cluster)
+	assertSyncOptions(t, om, master, cluster)
 
 	assertHostIsNotOptimized(t, cluster["mysql2"])
 	assertHostPathDoesntExistInDCS(t, cluster["mysql2"], mdcs)
@@ -360,7 +351,7 @@ func TestOptimizationDisabledOnAllReplicaImmediately(t *testing.T) {
 	om, mdcs, cluster := initDefaultCluster(t)
 	master := cluster["mysql1"]
 
-	assertSyncOptions(t, om, master, cluster["mysql2"], mdcs, cluster)
+	assertSyncOptions(t, om, master, cluster)
 	assertHostIsNotOptimized(t, cluster["mysql2"])
 	assertHostPathDoesntExistInDCS(t, cluster["mysql2"], mdcs)
 
@@ -371,11 +362,11 @@ func TestOptimizationDisabledOnAllReplicaImmediately(t *testing.T) {
 		Lag: sql.NullFloat64{Valid: true, Float64: 20.0},
 	}
 
-	assertEnableOptimization(t, om, cluster["mysql2"], mdcs)
-	assertSyncOptions(t, om, master, cluster["mysql2"], mdcs, cluster)
+	assertEnableOptimization(t, om, cluster["mysql2"])
+	assertSyncOptions(t, om, master, cluster)
 
-	assertEnableOptimization(t, om, cluster["mysql3"], mdcs)
-	assertSyncOptions(t, om, master, cluster["mysql3"], mdcs, cluster)
+	assertEnableOptimization(t, om, cluster["mysql3"])
+	assertSyncOptions(t, om, master, cluster)
 
 	assertHostIsOptimized(t, cluster["mysql2"])
 	assertHostIsNotOptimized(t, cluster["mysql3"])
@@ -388,8 +379,8 @@ func TestOptimizationDisabledOnAllReplicaImmediately(t *testing.T) {
 	assertHostIsNotOptimized(t, cluster["mysql2"])
 	assertHostIsNotOptimized(t, cluster["mysql3"])
 
-	assertSyncOptions(t, om, master, cluster["mysql2"], mdcs, cluster)
-	assertSyncOptions(t, om, master, cluster["mysql3"], mdcs, cluster)
+	assertSyncOptions(t, om, master, cluster)
+	assertSyncOptions(t, om, master, cluster)
 
 	assertHostIsNotOptimized(t, cluster["mysql2"])
 	assertHostIsNotOptimized(t, cluster["mysql3"])
@@ -408,7 +399,7 @@ func TestWaitingWorksOnOptimizedHost(t *testing.T) {
 }
 
 func TestWaitingDeadOnDeadline(t *testing.T) {
-	om, mdcs, cluster := initDefaultCluster(t)
+	om, _, cluster := initDefaultCluster(t)
 
 	cluster["mysql2"].replicationStatus = mysql.ReplicaStatusStruct{
 		Lag: sql.NullFloat64{Valid: true, Float64: 20.0},
@@ -417,7 +408,7 @@ func TestWaitingDeadOnDeadline(t *testing.T) {
 		InnodbFlushLogAtTrxCommit: 2,
 		SyncBinlog:                1000,
 	}
-	assertEnableOptimization(t, om, cluster["mysql2"], mdcs)
+	assertEnableOptimization(t, om, cluster["mysql2"])
 
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Microsecond)
 	defer cancel()

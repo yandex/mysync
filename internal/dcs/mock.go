@@ -11,16 +11,16 @@ import (
 var ErrUnreachable = errors.New("DCS is unreachable")
 
 type MockDCS struct {
-	path        map[string]string
-	locks       map[string]string
+	path        map[string]any
+	locks       map[string]any
 	Unreachable bool
 	HostToLock  string
 }
 
 func NewMockDCS() *MockDCS {
 	return &MockDCS{
-		path:        make(map[string]string),
-		locks:       make(map[string]string),
+		path:        make(map[string]any),
+		locks:       make(map[string]any),
 		Unreachable: false,
 	}
 }
@@ -74,7 +74,7 @@ func (mdcs *MockDCS) Create(path string, value any) error {
 			return ErrNotFound
 		}
 	}
-	mdcs.path[path] = fmt.Sprintf("%v", value)
+	mdcs.path[path] = value
 	return nil
 }
 
@@ -89,7 +89,7 @@ func (mdcs *MockDCS) Set(path string, value any) error {
 	if _, ok := mdcs.path[path]; !ok {
 		return ErrNotFound
 	}
-	mdcs.path[path] = fmt.Sprintf("%v", value)
+	mdcs.path[path] = value
 	return nil
 }
 
@@ -106,15 +106,23 @@ func (mdcs *MockDCS) Get(path string, dest any) error {
 	if !ok {
 		return ErrNotFound
 	}
+
 	destVal := reflect.ValueOf(dest)
 	if destVal.Kind() != reflect.Ptr || destVal.IsNil() {
 		return errors.New("dest must be a non-nil pointer")
 	}
+
 	destElem := destVal.Elem()
-	if !reflect.ValueOf(v).Type().AssignableTo(destElem.Type()) {
-		return errors.New("type mismatch")
+	srcVal := reflect.ValueOf(v)
+	srcType := srcVal.Type()
+	destType := destElem.Type()
+
+	if !srcType.AssignableTo(destType) {
+		return fmt.Errorf("type mismatch: cannot assign %s (value type) to %s (destination type)",
+			srcType.String(), destType.String())
 	}
-	destElem.Set(reflect.ValueOf(v))
+
+	destElem.Set(srcVal)
 	return nil
 }
 
