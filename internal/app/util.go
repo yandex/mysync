@@ -6,6 +6,8 @@ import (
 	"slices"
 	"time"
 
+	nodestate "github.com/yandex/mysync/internal/app/node_state"
+	"github.com/yandex/mysync/internal/app/optimization"
 	"github.com/yandex/mysync/internal/log"
 	"github.com/yandex/mysync/internal/mysql"
 	"github.com/yandex/mysync/internal/mysql/gtids"
@@ -139,7 +141,7 @@ func filterOutNodeFromPositions(positions []nodePosition, hostToFilterOut string
 	return res
 }
 
-func countAliveHASlavesWithinNodes(nodes []string, clusterState map[string]*NodeState) int {
+func countAliveHASlavesWithinNodes(nodes []string, clusterState map[string]*nodestate.NodeState) int {
 	cnt := 0
 	for _, hostname := range nodes {
 		state, ok := clusterState[hostname]
@@ -150,7 +152,7 @@ func countAliveHASlavesWithinNodes(nodes []string, clusterState map[string]*Node
 	return cnt
 }
 
-func countRunningHASlaves(clusterState map[string]*NodeState) int {
+func countRunningHASlaves(clusterState map[string]*nodestate.NodeState) int {
 	cnt := 0
 	for _, state := range clusterState {
 		if state.PingOk && state.SlaveState != nil && !state.IsCascade &&
@@ -161,7 +163,7 @@ func countRunningHASlaves(clusterState map[string]*NodeState) int {
 	return cnt
 }
 
-func countHANodes(clusterState map[string]*NodeState) int {
+func countHANodes(clusterState map[string]*nodestate.NodeState) int {
 	cnt := 0
 	for _, state := range clusterState {
 		if !state.IsCascade {
@@ -185,7 +187,7 @@ func calcLagBytes(binlogs []mysql.Binlog, masterFile string, masterPos int64) in
 	return lag
 }
 
-func getDubiousHAHosts(clusterState map[string]*NodeState) []string {
+func getDubiousHAHosts(clusterState map[string]*nodestate.NodeState) []string {
 	var dubious []string
 	for host, state := range clusterState {
 		if !state.PingOk && state.PingDubious && !state.IsCascade {
@@ -195,10 +197,18 @@ func getDubiousHAHosts(clusterState map[string]*NodeState) []string {
 	return dubious
 }
 
-func getNodeStatesInParallel(hosts []string, getter func(string) (*NodeState, error), logger *log.Logger) (map[string]*NodeState, error) {
+func convertNodesToReplicationControllers(nodes []*mysql.Node) []optimization.NodeReplicationController {
+	var ifaceNodes []optimization.NodeReplicationController
+	for _, n := range nodes {
+		ifaceNodes = append(ifaceNodes, n)
+	}
+	return ifaceNodes
+}
+
+func getNodeStatesInParallel(hosts []string, getter func(string) (*nodestate.NodeState, error), logger *log.Logger) (map[string]*nodestate.NodeState, error) {
 	type result struct {
 		name  string
-		state *NodeState
+		state *nodestate.NodeState
 		err   error
 	}
 	results := make(chan result, len(hosts))
@@ -208,7 +218,7 @@ func getNodeStatesInParallel(hosts []string, getter func(string) (*NodeState, er
 			results <- result{host, state, err}
 		}(host)
 	}
-	clusterState := make(map[string]*NodeState)
+	clusterState := make(map[string]*nodestate.NodeState)
 	var err error
 	for range hosts {
 		result := <-results

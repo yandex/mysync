@@ -255,7 +255,7 @@ func (tctx *testContext) connectMysqlWithCredentials(username string, password s
 	}
 	// sql is lazy in go, so we need ping db
 	testutil.Retry(func() bool {
-		//var rows *sql.Rows
+		// var rows *sql.Rows
 		ctx, cancel := context.WithTimeout(context.Background(), 4*time.Second)
 		defer cancel()
 		err = db.PingContext(ctx)
@@ -1107,6 +1107,7 @@ func (tctx *testContext) stepZookeeperNodeShouldNotMatch(node, matcher string, b
 	}
 	return nil
 }
+
 func (tctx *testContext) stepZookeeperNodeShouldMatchWithin(node, matcher string, timeout int, body *godog.DocString) error {
 	var err error
 	testutil.Retry(func() bool {

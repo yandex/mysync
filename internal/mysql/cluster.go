@@ -96,6 +96,14 @@ func (c *Cluster) GetClusterCascadeHostsFromDcs() (map[string]string, error) {
 	return result, nil
 }
 
+func (c *Cluster) GetClusterNodes() []*Node {
+	result := []*Node{}
+	for _, host := range c.AllNodeHosts() {
+		result = append(result, c.Get(host))
+	}
+	return result
+}
+
 func (c *Cluster) registerLocalNode() error {
 	if c.local == nil {
 		node, err := NewNode(c.config, c.logger, c.config.Hostname)

@@ -99,7 +99,6 @@ func NewZookeeper(ctx context.Context, config *ZookeeperConfig, logger *log.Logg
 	}
 
 	err = retry(config, operation)
-
 	if err != nil {
 		return nil, err
 	}
@@ -287,7 +286,6 @@ func (z *zkDCS) retryRequest(code func() error) {
 	}
 
 	err := retry(z.config, operation)
-
 	if err != nil {
 		z.logger.Errorf("retryRequest failed: %v", err)
 	}
