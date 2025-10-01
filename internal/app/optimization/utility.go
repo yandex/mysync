@@ -30,11 +30,11 @@ func disableHostWithDCS(
 	rs mysql.ReplicationSettings,
 	DCS dcs.DCS,
 ) error {
-	err := DCS.Delete(dcs.JoinPath(pathOptimizationNodes, node.Host()))
+	err := node.SetReplicationSettings(rs)
 	if err != nil {
 		return err
 	}
-	return node.SetReplicationSettings(rs)
+	return DCS.Delete(dcs.JoinPath(pathOptimizationNodes, node.Host()))
 }
 
 func isOptimal(
