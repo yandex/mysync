@@ -58,6 +58,7 @@ type replicationSettings struct {
 	SourceSslCa       string         `db:"SourceSslCa"`
 	SourceDelay       int            `db:"SourceDelay"`
 	ReplicationStatus sql.NullString `db:"ReplicationStatus"`
+	ReplicationFilter sql.NullString `db:"ReplicationFilter"`
 }
 
 // SlaveStatusStruct contains SHOW SLAVE STATUS response

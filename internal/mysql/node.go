@@ -351,6 +351,8 @@ func (n *Node) getRunningQueryIDs(excludeUsers []string, timeout time.Duration) 
 
 type schemaname string
 
+type inlinestr string
+
 func escape(s string) string {
 	s = strings.ReplaceAll(s, `\`, `\\`)
 	s = strings.ReplaceAll(s, `'`, `\'`)
@@ -366,6 +368,8 @@ func Mogrify(query string, arg map[string]any) string {
 			switch vt := v.(type) {
 			case schemaname:
 				return "`" + string(vt) + "`"
+			case inlinestr:
+				return string(vt)
 			case string:
 				return "'" + escape(vt) + "'"
 			case int:
