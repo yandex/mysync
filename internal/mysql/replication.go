@@ -124,6 +124,16 @@ func (er *ExternalReplication) Set(n *Node) error {
 	if err != nil {
 		return err
 	}
+	filter := replSettings.ReplicationFilter
+	if filter.Valid && filter.String != "" {
+		err = n.execMogrify(querySetReplFilter, map[string]any{
+			"filter":  inlinestr(filter.String),
+			"channel": "external",
+		})
+		if err != nil {
+			return err
+		}
+	}
 	if replSettings.ShouldBeRunning() {
 		return er.Start(n)
 	}

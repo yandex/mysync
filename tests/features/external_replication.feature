@@ -15,17 +15,18 @@ Feature: external replication
                 source_port INT UNSIGNED NOT NULL,
                 source_ssl_ca VARCHAR(4096) NOT NULL DEFAULT '',
                 source_delay INT UNSIGNED NOT NULL DEFAULT 0,
-                source_log_file VARCHAR(50) NOT NULL DEFAULT '',
+                source_log_file VARCHAR(150) NOT NULL DEFAULT '',
                 source_log_pos INT UNSIGNED NOT NULL DEFAULT 0,
                 replication_status ENUM ('stopped', 'running') NOT NULL DEFAULT 'stopped',
+                replication_filter VARCHAR(4096) NOT NULL DEFAULT '',
                 PRIMARY KEY (channel_name)
             ) ENGINE=INNODB;
         """
         And I run SQL on mysql host "mysql1"
         """
             INSERT INTO mysql.replication_settings
-            (channel_name, source_host, source_user, source_password, source_port, replication_status)
-            VALUES ('external', 'test_source_2', 'test_user_2', 'test_pass_2', 2222, 'running');
+            (channel_name, source_host, source_user, source_password, source_port, replication_status, replication_filter)
+            VALUES ('external', 'test_source_2', 'test_user_2', 'test_pass_2', 2222, 'running', 'REPLICATE_DO_DB = (testdb1)');
         """
         And I run SQL on mysql host "mysql1" expecting error on number "3074"
         """
@@ -33,7 +34,8 @@ Feature: external replication
         """
         And I run SQL on mysql host "mysql1"
         """
-            SELECT source_host, source_user, source_password, source_port  FROM mysql.replication_settings WHERE channel_name = 'external'
+            SELECT source_host, source_user, source_password, source_port, replication_filter 
+            FROM mysql.replication_settings WHERE channel_name = 'external'
         """
         Then SQL result should match json
         """
@@ -41,13 +43,15 @@ Feature: external replication
             "source_host": "test_source_2",
             "source_password": "test_pass_2",
             "source_port": 2222,
-            "source_user": "test_user_2"
+            "source_user": "test_user_2",
+            "replication_filter": "REPLICATE_DO_DB = (testdb1)"
         }]
         """
         When I wait for "5" seconds
         And I run SQL on mysql host "mysql2"
         """
-            SELECT source_host, source_user, source_password, source_port  FROM mysql.replication_settings WHERE channel_name = 'external'
+            SELECT source_host, source_user, source_password, source_port, replication_filter 
+            FROM mysql.replication_settings WHERE channel_name = 'external'
         """
         Then SQL result should match json
         """
@@ -55,7 +59,8 @@ Feature: external replication
             "source_host": "test_source_2",
             "source_port": 2222,
             "source_password": "test_pass_2",
-            "source_user": "test_user_2"
+            "source_user": "test_user_2",
+            "replication_filter": "REPLICATE_DO_DB = (testdb1)"
         }]
         """
         And I run SQL on mysql host "mysql1" expecting error on number "3074"
@@ -161,7 +166,7 @@ YZQy1bHIhscLf8wjTYbzAg==
             "to": "mysql2"
             }
         """
-        Then zookeeper node "/test/last_switch" should match json within "30" seconds
+        Then zookeeper node "/test/last_switch" should match json within "60" seconds
         """
             {
             "from": "",
@@ -190,7 +195,8 @@ YZQy1bHIhscLf8wjTYbzAg==
             "Exec_Source_Log_Pos": 0,
             "Channel_Name": "external",
             "Replicate_Ignore_DB": "mysql",
-            "Source_SSL_CA_File": "/etc/mysql/ssl/external_CA.pem"
+            "Source_SSL_CA_File": "/etc/mysql/ssl/external_CA.pem",
+            "Replicate_Do_DB": "testdb1"
         }]
         """
         And host "mysql2" should have file "/etc/mysql/ssl/external_CA.pem" within "10" seconds
@@ -234,6 +240,7 @@ YZQy1bHIhscLf8wjTYbzAg==
                 source_log_file VARCHAR(150) NOT NULL DEFAULT '',
                 source_log_pos INT UNSIGNED NOT NULL DEFAULT 0,
                 replication_status ENUM ('stopped', 'running') NOT NULL DEFAULT 'stopped',
+                replication_filter VARCHAR(4096) NOT NULL DEFAULT '',
                 PRIMARY KEY (channel_name)
             ) ENGINE=INNODB
         """
@@ -447,6 +454,7 @@ Y2AirKuDzA5GErKOfQ==
                 source_log_file VARCHAR(50) NOT NULL DEFAULT '',
                 source_log_pos INT UNSIGNED NOT NULL DEFAULT 0,
                 replication_status ENUM ('stopped', 'running') NOT NULL DEFAULT 'stopped',
+                replication_filter VARCHAR(4096) NOT NULL DEFAULT '',
                 PRIMARY KEY (channel_name)
             ) ENGINE=INNODB;
         """

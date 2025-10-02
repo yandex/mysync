@@ -50,6 +50,7 @@ const (
 	queryStopReplica                    = "stop_replica"
 	queryStartReplica                   = "start_replica"
 	queryIgnoreDB                       = "ignore_db"
+	querySetReplFilter                  = "set_repl_filter"
 	querySetInnodbFlushLogAtTrxCommit   = "set_innodb_flush_log_at_trx_commit"
 	querySetSyncBinlog                  = "set_sync_binlog"
 	queryGetReplicationSettings         = "get_replication_settings"
@@ -123,9 +124,18 @@ var DefaultQueries = map[string]string{
 	queryGetOfflineMode:        `SELECT @@GLOBAL.offline_mode AS OfflineMode`,
 	queryHasWaitingSemiSyncAck: `SELECT count(*) <> 0 AS IsWaiting FROM information_schema.PROCESSLIST WHERE state like 'Waiting for semi-sync ACK from%'`,
 	queryGetLastStartupTime:    `SELECT UNIX_TIMESTAMP(DATE_SUB(now(), INTERVAL variable_value SECOND)) AS LastStartup FROM performance_schema.global_status WHERE variable_name='Uptime'`,
-	queryGetExternalReplicationSettings: `SELECT channel_name AS ChannelName, source_host AS SourceHost, source_user AS SourceUser, source_port AS SourcePort,
-											source_password AS SourcePassword, source_ssl_ca AS SourceSslCa, source_delay AS SourceDelay, replication_status AS ReplicationStatus
-											FROM mysql.replication_settings WHERE channel_name = 'external'`,
+	queryGetExternalReplicationSettings: `SELECT 
+								channel_name AS ChannelName,
+								source_host AS SourceHost,
+								source_user AS SourceUser,
+								source_port AS SourcePort,
+								source_password AS SourcePassword,
+								source_ssl_ca AS SourceSslCa,
+								source_delay AS SourceDelay,
+								replication_status AS ReplicationStatus,
+								replication_filter AS ReplicationFilter
+							FROM mysql.replication_settings
+							WHERE channel_name = 'external'`,
 	queryChangeSource: `CHANGE REPLICATION SOURCE TO
 								SOURCE_HOST = :host,
 								SOURCE_PORT = :port,
@@ -154,6 +164,7 @@ var DefaultQueries = map[string]string{
 						SOURCE_DELAY = :delay
 				FOR CHANNEL :channel`,
 	queryIgnoreDB:                     `CHANGE REPLICATION FILTER REPLICATE_IGNORE_DB = (:ignoreList) FOR CHANNEl :channel`,
+	querySetReplFilter:                `CHANGE REPLICATION FILTER :filter FOR CHANNEl :channel`,
 	querySetInnodbFlushLogAtTrxCommit: `SET GLOBAL innodb_flush_log_at_trx_commit = :level`,
 	queryGetReplicationSettings:       `SELECT @@GLOBAL.innodb_flush_log_at_trx_commit as InnodbFlushLogAtTrxCommit, @@GLOBAL.sync_binlog as SyncBinlog`,
 	querySetSyncBinlog:                `SET GLOBAL sync_binlog = :sync_binlog`,
