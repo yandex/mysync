@@ -5,6 +5,8 @@ import (
 	"time"
 )
 
+const StuckWaitTime = time.Minute
+
 // separated gorutine for resetuping local mysql
 func (app *App) recoveryChecker(ctx context.Context) {
 	ticker := time.NewTicker(app.config.RecoveryCheckInterval)
@@ -50,6 +52,9 @@ func (app *App) checkRecovery() {
 	}
 	if oldMasterStuck {
 		app.logger.Errorf("recovery: old master %s has stuck processes", localNode.Host())
+		app.t.SetIfZero(MasterStuckAt, localNode.Host(), time.Now())
+	} else {
+		app.t.Clean(MasterStuckAt, localNode.Host())
 	}
 
 	if sstatus == nil && !oldMasterStuck {
@@ -76,18 +81,16 @@ func (app *App) checkRecovery() {
 	}
 
 	if oldMasterStuck && master != localNode.Host() {
-		// double-check master is stuck
-		oldMasterStuck, err := localNode.IsWaitingSemiSyncAck()
-		if err != nil {
-			app.logger.Errorf("recovery: host %s failed to double-check stuck processes %v", localNode.Host(), err)
-			return
-		}
-		if !oldMasterStuck {
+		// Wait STUCK_WAIT_TIME before write resetup file
+		stuckTime := time.Since(app.t.Get(MasterStuckAt, localNode.Host()))
+		if stuckTime < StuckWaitTime {
+			app.logger.Infof("recovery: current node is stuck for %v, waiting...", stuckTime)
 			return
 		}
 
-		app.logger.Infof("recovery: new master is found %s, and current node is stuck. Writing resetup file", master)
+		app.logger.Infof("recovery: new master is found %s, and current node is stuck for more than %v. Writing resetup file", master, StuckWaitTime)
 		app.writeResetupFile("")
+		app.t.Clean(MasterStuckAt, localNode.Host())
 		return
 	}
 

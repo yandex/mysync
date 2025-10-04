@@ -37,9 +37,8 @@ type App struct {
 	dcs                  dcs.DCS
 	cluster              *mysql.Cluster
 	filelock             *flock.Flock
-	nodeFailedAt         map[string]time.Time
+	t                    *Timings
 	slaveReadPositions   map[string]string
-	streamFromFailedAt   map[string]time.Time
 	daemonState          *nodestate.DaemonState
 	daemonMutex          sync.Mutex
 	replRepairState      map[string]*ReplicationRepairState
@@ -95,8 +94,7 @@ func NewApp(configFile, logLevel string, interactive bool) (*App, error) {
 		config:               config,
 		sysLog:               sysLog,
 		logger:               logger,
-		nodeFailedAt:         make(map[string]time.Time),
-		streamFromFailedAt:   make(map[string]time.Time),
+		t:                    NewTimings(),
 		replRepairState:      make(map[string]*ReplicationRepairState),
 		slaveReadPositions:   make(map[string]string),
 		externalReplication:  externalReplication,
@@ -607,9 +605,7 @@ func (app *App) stateManager() appState {
 	// perform failover if needed
 	if !clusterStateDcs[master].PingOk || clusterStateDcs[master].IsFileSystemReadonly {
 		app.logger.Errorf("MASTER FAILURE")
-		if app.nodeFailedAt[master].IsZero() {
-			app.nodeFailedAt[master] = time.Now()
-		}
+		app.t.SetIfZero(NodeFailedAt, master, time.Now())
 		err = app.approveFailover(clusterState, clusterStateDcs, activeNodes, master)
 		if err == nil {
 			app.logger.Infof("failover approved")
@@ -622,7 +618,7 @@ func (app *App) stateManager() appState {
 		}
 		return stateManager
 	} else {
-		delete(app.nodeFailedAt, master)
+		app.t.Clean(NodeFailedAt, master)
 	}
 	if !clusterState[master].PingOk {
 		app.logger.Errorf("MASTER SUSPICIOUS, do not perform any kind of repair")
@@ -800,7 +796,7 @@ func (app *App) approveFailover(clusterState, clusterStateDcs map[string]*nodest
 			return fmt.Errorf("all replicas are alive and running replication, seems zk problems")
 		}
 		if app.config.FailoverDelay > 0 {
-			failingTime := time.Since(app.nodeFailedAt[master])
+			failingTime := time.Since(app.t.Get(NodeFailedAt, master))
 			if failingTime < app.config.FailoverDelay {
 				return fmt.Errorf("failover delay is not yet elapsed: remaining %v", app.config.FailoverDelay-failingTime)
 			}
@@ -918,10 +914,8 @@ func (app *App) calcActiveNodes(clusterState, clusterStateDcs map[string]*nodest
 				}
 				continue
 			}
-			if app.nodeFailedAt[host].IsZero() {
-				app.nodeFailedAt[host] = time.Now()
-			}
-			failingTime := time.Since(app.nodeFailedAt[host])
+			app.t.SetIfZero(NodeFailedAt, host, time.Now())
+			failingTime := time.Since(app.t.Get(NodeFailedAt, host))
 			if failingTime < app.config.InactivationDelay {
 				if slices.Contains(oldActiveNodes, host) {
 					app.logger.Warnf("calc active nodes: %s is failing: remaining %v", host, app.config.InactivationDelay-failingTime)
@@ -933,7 +927,7 @@ func (app *App) calcActiveNodes(clusterState, clusterStateDcs map[string]*nodest
 			}
 			continue
 		} else {
-			delete(app.nodeFailedAt, host)
+			app.t.Clean(NodeFailedAt, host)
 		}
 		sstatus := node.SlaveState
 		if sstatus == nil {
@@ -1845,7 +1839,7 @@ func (app *App) repairSlaveNode(node *mysql.Node, clusterState map[string]*nodes
 		app.logger.Infof("cascadeTopology=%v", cascadeTopology)
 		app.repairCascadeNode(node, clusterState, master, cascadeTopology)
 	} else {
-		delete(app.streamFromFailedAt, host)
+		app.t.Clean(StreamFromFailedAt, host)
 	}
 
 	if !state.IsCascade {
@@ -1882,7 +1876,7 @@ func (app *App) repairSlaveNode(node *mysql.Node, clusterState map[string]*nodes
 func (app *App) repairCascadeNode(node *mysql.Node, clusterState map[string]*nodestate.NodeState, master string, cascadeTopology map[string]mysql.CascadeNodeConfiguration) {
 	host := node.Host()
 	state := clusterState[host]
-	upstreamLostAt := app.streamFromFailedAt[host]
+	upstreamLostAt := app.t.Get(StreamFromFailedAt, host)
 	cnc := cascadeTopology[host]
 
 	if state.SlaveState == nil {
@@ -1910,7 +1904,7 @@ func (app *App) repairCascadeNode(node *mysql.Node, clusterState map[string]*nod
 	// scenario - all ok
 	if isReplicationRunning && upstreamCandidate == upstreamMaster {
 		app.logger.Infof("repair: replication from desired stream_from is running. Do nothing.")
-		delete(app.streamFromFailedAt, host)
+		app.t.Clean(StreamFromFailedAt, host)
 		return
 	}
 
@@ -1931,7 +1925,7 @@ func (app *App) repairCascadeNode(node *mysql.Node, clusterState map[string]*nod
 	if !isReplicationRunning && upstreamLostAt.IsZero() {
 		app.logger.Warnf("repair: replication from stream_from host `%s` stopped. Schedule switch to new stream_from", upstreamMaster)
 		upstreamLostAt = time.Now()
-		app.streamFromFailedAt[host] = upstreamLostAt
+		app.t.Set(StreamFromFailedAt, host, upstreamLostAt)
 	}
 
 	if upstreamCandidate != upstreamMaster {
