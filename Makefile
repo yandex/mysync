@@ -60,3 +60,5 @@ clean:
 	docker image ls | grep mysync | awk '{print $$3}' | xargs docker image rm --force || true
 	rm -rf ./tests/logs
 
+local_clean:
+	go clean -cache -modcache -i -r -x
