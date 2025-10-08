@@ -45,23 +45,6 @@ func (app *App) checkRecovery() {
 		return
 	}
 
-	// Old master may be stuck on 'Waiting for semi-sync'
-	oldMasterStuck, err := localNode.IsWaitingSemiSyncAck()
-	if err != nil {
-		app.logger.Errorf("recovery: host %s failed to get stuck processes %v", localNode.Host(), err)
-	}
-	if oldMasterStuck {
-		app.logger.Errorf("recovery: old master %s has stuck processes", localNode.Host())
-		app.t.SetIfZero(MasterStuckAt, localNode.Host(), time.Now())
-	} else {
-		app.t.Clean(MasterStuckAt, localNode.Host())
-	}
-
-	if sstatus == nil && !oldMasterStuck {
-		app.logger.Info("recovery: waiting for manager to turn us to a new master")
-		return
-	}
-
 	var master string
 	err = app.dcs.Get(pathMasterNode, &master)
 	if err != nil {
@@ -77,6 +60,23 @@ func (app *App) checkRecovery() {
 	mgtids, err := masterNode.GTIDExecutedParsed()
 	if err != nil {
 		app.logger.Errorf("recovery: host %s failed to get master status %v", masterNode, err)
+		return
+	}
+
+	// Old master may be stuck on 'Waiting for semi-sync'
+	oldMasterStuck, err := localNode.IsWaitingSemiSyncAck()
+	if err != nil {
+		app.logger.Errorf("recovery: host %s failed to get stuck processes %v", localNode.Host(), err)
+	}
+	if oldMasterStuck {
+		app.logger.Errorf("recovery: old master %s has stuck processes", localNode.Host())
+		app.t.SetIfZero(MasterStuckAt, localNode.Host(), time.Now())
+	} else {
+		app.t.Clean(MasterStuckAt, localNode.Host())
+	}
+
+	if sstatus == nil && !oldMasterStuck {
+		app.logger.Info("recovery: waiting for manager to turn us to a new master")
 		return
 	}
 
@@ -107,8 +107,9 @@ func (app *App) checkRecovery() {
 				app.logger.Errorf("recovery: local node %s has IO error: %s", localNode.Host(), rp.GetLastIOError())
 			}
 		} else {
-			app.logger.Errorf("recovery: local node %s is NOT behind the master %s, need RESETUP", localNode.Host(), masterNode)
+			app.logger.Errorf("recovery: error getting replica status: %v", err)
 		}
+		app.logger.Errorf("recovery: local node %s is NOT behind the master %s, need RESETUP", localNode.Host(), masterNode)
 		app.writeResetupFile("")
 	} else {
 		readOnly, _, err := localNode.IsReadOnly()
