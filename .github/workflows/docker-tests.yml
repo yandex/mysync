@@ -12,10 +12,10 @@ env:
 
 jobs:
   lint:
-    uses: .github/workflows/golangci-lint.yml
+    uses: ./.github/workflows/golangci-lint.yml
 
   all_unittests:
-    uses: .github/workflows/unit-tests.yml
+    uses: ./.github/workflows/unit-tests.yml
 
   buildimages:
     name: Build images
