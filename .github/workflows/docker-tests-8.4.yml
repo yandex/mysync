@@ -20,7 +20,7 @@ jobs:
   buildimages:
     name: Build images
     runs-on: ubuntu-22.04
-    needs: [ lint all_unittests ]
+    needs: [ lint, all_unittests ]
     steps:
       - name: Check out code into the Go module directory
         uses: actions/checkout@v5
