@@ -89,7 +89,7 @@ func (app *App) checkRecovery() {
 		}
 
 		app.logger.Infof("recovery: new master is found %s, and current node is stuck for more than %v. Writing resetup file", master, StuckWaitTime)
-		app.writeResetupFile("")
+		app.writeResetupFile()
 		app.t.Clean(MasterStuckAt, localNode.Host())
 		return
 	}
@@ -110,7 +110,7 @@ func (app *App) checkRecovery() {
 			app.logger.Errorf("recovery: error getting replica status: %v", err)
 		}
 		app.logger.Errorf("recovery: local node %s is NOT behind the master %s, need RESETUP", localNode.Host(), masterNode)
-		app.writeResetupFile("")
+		app.writeResetupFile()
 	} else {
 		readOnly, _, err := localNode.IsReadOnly()
 		if err != nil {
@@ -164,5 +164,5 @@ func (app *App) checkCrashRecovery() {
 		return
 	}
 	app.logger.Errorf("recovery: local node %s is running after crash recovery %v, need RESETUP", localNode.Host(), ds.RecoveryTime)
-	app.writeResetupFile("")
+	app.writeResetupFile()
 }

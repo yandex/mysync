@@ -76,6 +76,7 @@ type Config struct {
 	OfflineModeEnableInterval               time.Duration                `config:"offline_mode_enable_interval" yaml:"offline_mode_enable_interval"`
 	OfflineModeEnableLag                    time.Duration                `config:"offline_mode_enable_lag" yaml:"offline_mode_enable_lag"`
 	OfflineModeDisableLag                   time.Duration                `config:"offline_mode_disable_lag" yaml:"offline_mode_disable_lag"`
+	ResetupHostLag                          time.Duration                `config:"resetup_host_lag" yaml:"resetup_host_lag"`
 	DisableSetReadonlyOnLost                bool                         `config:"disable_set_readonly_on_lost" yaml:"disable_set_readonly_on_lost"`
 	ResetupCrashedHosts                     bool                         `config:"resetup_crashed_hosts" yaml:"resetup_crashed_hosts"`
 	StreamFromReasonableLag                 time.Duration                `config:"stream_from_reasonable_lag" yaml:"stream_from_reasonable_lag"`
@@ -175,6 +176,7 @@ func DefaultConfig() (Config, error) {
 		OfflineModeEnableInterval:               15 * time.Minute,
 		OfflineModeEnableLag:                    24 * time.Hour,
 		OfflineModeDisableLag:                   30 * time.Second,
+		ResetupHostLag:                          25 * time.Hour,
 		StreamFromReasonableLag:                 5 * time.Minute,
 		PriorityChoiceMaxLag:                    60 * time.Second,
 		TestDiskUsageFile:                       "", // fake disk usage, only for docker tests

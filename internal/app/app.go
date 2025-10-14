@@ -159,9 +159,9 @@ func (app *App) writeEmergeFile(msg string) {
 	}
 }
 
-func (app *App) writeResetupFile(msg string) {
+func (app *App) writeResetupFile() {
 	app.logger.Warn("touch resetup file")
-	err := os.WriteFile(app.config.Resetupfile, []byte(msg), 0644)
+	err := os.WriteFile(app.config.Resetupfile, []byte{}, 0644)
 	if err != nil {
 		app.logger.Errorf("failed to write resetup file: %v", err)
 	}
@@ -1581,20 +1581,20 @@ func (app *App) repairOfflineMode(clusterState map[string]*nodestate.NodeState, 
 		if !state.PingOk {
 			continue
 		}
-		node := app.cluster.Get(host)
 		if host == master {
-			app.repairMasterOfflineMode(host, node, state)
+			app.repairMasterOfflineMode(host, state)
 		} else {
-			app.repairSlaveOfflineMode(host, node, state, masterNode, clusterState[master])
+			app.repairSlaveOfflineMode(host, state, masterNode, clusterState[master])
 		}
 	}
 }
 
-func (app *App) repairMasterOfflineMode(host string, node *mysql.Node, state *nodestate.NodeState) {
+func (app *App) repairMasterOfflineMode(host string, state *nodestate.NodeState) {
 	if state.IsOffline {
 		if app.IsRecoveryNeeded(host) {
 			return
 		}
+		node := app.cluster.Get(host)
 		err := node.SetOnline()
 		if err != nil {
 			app.logger.Errorf("repair: failed to set master %s online: %s", host, err)
@@ -1604,71 +1604,84 @@ func (app *App) repairMasterOfflineMode(host string, node *mysql.Node, state *no
 	}
 }
 
-func (app *App) repairSlaveOfflineMode(host string, node *mysql.Node, state *nodestate.NodeState, masterNode *mysql.Node, masterState *nodestate.NodeState) {
-	if state.SlaveState != nil && state.SlaveState.ReplicationLag != nil {
-		replPermBroken, _ := state.IsReplicationPermanentlyBroken()
-		if state.IsOffline && *state.SlaveState.ReplicationLag <= app.config.OfflineModeDisableLag.Seconds() {
-			if replPermBroken {
-				app.logger.Infof("repair: replica %s is permanently broken, won't set online", host)
-				return
-			}
-			resetupStatus, err := app.GetResetupStatus(host)
-			if err != nil {
-				app.logger.Errorf("repair: failed to get resetup status from host %s: %v", host, err)
-				return
-			}
-			startupTime, err := node.GetStartupTime()
-			if err != nil {
-				app.logger.Errorf("repair: failed to get mysql startup time from host %s: %v", host, err)
-				return
-			}
-			if resetupStatus.Status || resetupStatus.UpdateTime.Before(startupTime) {
-				app.logger.Errorf("repair: should not turn slave to online until get actual resetup status")
-				return
-			}
-			err = node.SetDefaultReplicationSettings(masterNode)
-			if err != nil {
-				app.logger.Errorf("repair: failed to set default replication settings on slave %s: %s", host, err)
-			}
-			err = node.SetOnline()
-			if err != nil {
-				app.logger.Errorf("repair: failed to set slave %s online: %s", host, err)
-			} else {
-				app.logger.Infof("repair: slave %s set online, because ReplicationLag (%f s) <= OfflineModeDisableLag (%v)",
-					host, *state.SlaveState.ReplicationLag, app.config.OfflineModeDisableLag)
-			}
-		}
-		if !state.IsOffline && !masterState.IsReadOnly && *state.SlaveState.ReplicationLag > app.config.OfflineModeEnableLag.Seconds() {
-			err := node.SetOffline()
-			if err != nil {
-				app.logger.Errorf("repair: failed to set slave %s offline: %s", host, err)
-			} else {
-				app.logger.Infof("repair: slave %s set offline, because ReplicationLag (%f s) >= OfflineModeEnableLag (%v)",
-					host, *state.SlaveState.ReplicationLag, app.config.OfflineModeEnableLag)
-				err = app.replicationOptimizer.EnableNodeOptimization(node)
-				if err != nil {
-					app.logger.Errorf("repair: failed to set optimize replication settings on slave %s: %s", host, err)
-				}
-			}
-		}
-		// gradual transfer of permanently broken nodes to offline
-		lastShutdownNodeTime, err := app.GetLastShutdownNodeTime()
-		if err != nil {
-			app.logger.Errorf("repair: failed to get last shutdown node time: %s", err)
+// nolint: gocyclo
+func (app *App) repairSlaveOfflineMode(host string, state *nodestate.NodeState, masterNode *mysql.Node, masterState *nodestate.NodeState) {
+	if state.SlaveState == nil || state.SlaveState.ReplicationLag == nil {
+		return
+	}
+
+	replPermBroken, _ := state.IsReplicationPermanentlyBroken()
+	node := app.cluster.Get(host)
+	// offline => online, if lag has decreased
+	if state.IsOffline && *state.SlaveState.ReplicationLag <= app.config.OfflineModeDisableLag.Seconds() {
+		if replPermBroken {
+			app.logger.Infof("repair: replica %s is permanently broken, won't set online", host)
 			return
 		}
-		setOfflineIsPossible := time.Since(lastShutdownNodeTime) > app.config.OfflineModeEnableInterval
-		if !state.IsOffline && replPermBroken && setOfflineIsPossible {
-			err = app.UpdateLastShutdownNodeTime()
+		resetupStatus, err := app.GetResetupStatus(host)
+		if err != nil {
+			app.logger.Errorf("repair: failed to get resetup status from host %s: %v", host, err)
+			return
+		}
+		startupTime, err := node.GetStartupTime()
+		if err != nil {
+			app.logger.Errorf("repair: failed to get mysql startup time from host %s: %v", host, err)
+			return
+		}
+		if resetupStatus.Status || resetupStatus.UpdateTime.Before(startupTime) {
+			app.logger.Errorf("repair: should not turn slave to online until get actual resetup status")
+			return
+		}
+		err = node.SetDefaultReplicationSettings(masterNode)
+		if err != nil {
+			app.logger.Errorf("repair: failed to set default replication settings on slave %s: %s", host, err)
+		}
+		err = node.SetOnline()
+		if err != nil {
+			app.logger.Errorf("repair: failed to set slave %s online: %s", host, err)
+		} else {
+			app.logger.Infof("repair: slave %s set online, because ReplicationLag (%f s) <= OfflineModeDisableLag (%v)",
+				host, *state.SlaveState.ReplicationLag, app.config.OfflineModeDisableLag)
+		}
+		return
+	}
+	// online => offline, if lag has increased
+	if !state.IsOffline && !masterState.IsReadOnly && *state.SlaveState.ReplicationLag > app.config.OfflineModeEnableLag.Seconds() {
+		err := node.SetOffline()
+		if err != nil {
+			app.logger.Errorf("repair: failed to set slave %s offline: %s", host, err)
+		} else {
+			app.logger.Infof("repair: slave %s set offline, because ReplicationLag (%f s) >= OfflineModeEnableLag (%v)",
+				host, *state.SlaveState.ReplicationLag, app.config.OfflineModeEnableLag)
+			err = app.replicationOptimizer.EnableNodeOptimization(node)
 			if err != nil {
-				app.logger.Errorf("repair: failed to update last shutdown node time: %s", err)
+				app.logger.Errorf("repair: failed to set optimize replication settings on slave %s: %s", host, err)
 			}
-			err = node.SetOffline()
-			if err != nil {
-				app.logger.Errorf("repair: failed to set slave %s offline: %s", host, err)
-			} else {
-				app.logger.Infof("repair: slave %s set offline, because replication permanently broken", host)
-			}
+		}
+	}
+
+	// nothing to do here
+	if !replPermBroken {
+		return
+	}
+
+	// gradual transfer of permanently broken nodes to offline
+	lastShutdownNodeTime, err := app.GetLastShutdownNodeTime()
+	if err != nil {
+		app.logger.Errorf("repair: failed to get last shutdown node time: %s", err)
+		return
+	}
+	setOfflineIsPossible := time.Since(lastShutdownNodeTime) > app.config.OfflineModeEnableInterval
+	if !state.IsOffline && replPermBroken && setOfflineIsPossible {
+		err = app.UpdateLastShutdownNodeTime()
+		if err != nil {
+			app.logger.Errorf("repair: failed to update last shutdown node time: %s", err)
+		}
+		err = node.SetOffline()
+		if err != nil {
+			app.logger.Errorf("repair: failed to set slave %s offline: %s", host, err)
+		} else {
+			app.logger.Infof("repair: slave %s set offline, because replication permanently broken", host)
 		}
 	}
 }
@@ -2483,8 +2496,10 @@ func (app *App) Run() int {
 	}
 	defer app.cluster.Close()
 
+	// Launch goroutines
 	go app.healthChecker(ctx)
 	go app.recoveryChecker(ctx)
+	go app.replicationLagChecker(ctx)
 	go app.stateFileHandler(ctx)
 	if app.config.ExternalReplicationType != util.Disabled {
 		go app.externalCAFileChecker(ctx)
