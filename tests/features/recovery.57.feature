@@ -84,7 +84,7 @@ Feature: hosts recovery
     And I wait for "30" seconds
     When I run SQL on mysql host "mysql2"
     """
-    STOP REPLICA FOR CHANNEL ''; CHANGE REPLICATION SOURCE TO SOURCE_DELAY = 6000; START REPLICA FOR CHANNEL '';
+    STOP SLAVE FOR CHANNEL ''; CHANGE MASTER TO MASTER_DELAY = 6000 FOR CHANNEL ''; START SLAVE FOR CHANNEL '';
     """
     And I wait for "30" seconds
     And host "mysql2" should have file "/tmp/mysync.resetup" within "20" seconds

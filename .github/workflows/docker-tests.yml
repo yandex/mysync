@@ -61,7 +61,7 @@ jobs:
           - 'GODOG_FEATURE=offline_mode.feature make test'
           - 'GODOG_FEATURE=priority.feature make test'
           - 'GODOG_FEATURE=readonly_filesystem.feature make test'
-          - 'GODOG_FEATURE=recovery.feature make test'
+          - 'GODOG_FEATURE=recovery.57.feature make test'
           - 'GODOG_FEATURE=repair.feature make test'
           - 'GODOG_FEATURE=repl_mon.feature make test'
           - 'GODOG_FEATURE=statefile.feature make test'
