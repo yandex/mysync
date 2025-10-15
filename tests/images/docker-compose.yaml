@@ -103,6 +103,7 @@ services:
       OFFLINE_MODE_ENABLE_LAG:
       HIGH_REPLICATION_MARK:
       LOW_REPLICATION_MARK:
+      RESETUP_HOST_LAG:
     healthcheck:
       test: "mysql --user=admin --password=admin_pwd -e 'SELECT 1'"
       start_period: 30s
@@ -155,6 +156,7 @@ services:
       OFFLINE_MODE_ENABLE_LAG:
       HIGH_REPLICATION_MARK:
       LOW_REPLICATION_MARK:
+      RESETUP_HOST_LAG:
     depends_on:
       mysql1:
         condition: service_healthy
@@ -201,6 +203,7 @@ services:
       OFFLINE_MODE_ENABLE_LAG:
       HIGH_REPLICATION_MARK:
       LOW_REPLICATION_MARK:
+      RESETUP_HOST_LAG:
     depends_on:
       mysql1:
         condition: service_healthy
