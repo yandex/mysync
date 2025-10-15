@@ -20,6 +20,7 @@ import (
 
 	nodestate "github.com/yandex/mysync/internal/app/node_state"
 	"github.com/yandex/mysync/internal/app/optimization"
+	"github.com/yandex/mysync/internal/app/resetup"
 	"github.com/yandex/mysync/internal/config"
 	"github.com/yandex/mysync/internal/dcs"
 	"github.com/yandex/mysync/internal/log"
@@ -46,6 +47,7 @@ type App struct {
 	switchHelper         mysql.ISwitchHelper
 	lostQuorumTime       time.Time
 	replicationOptimizer optimization.ReplicationOpitimizer
+	lagResetupper        *resetup.LagResetupper
 }
 
 // NewApp returns new App. Suddenly.
@@ -88,6 +90,7 @@ func NewApp(configFile, logLevel string, interactive bool) (*App, error) {
 		logger,
 		config.OptimizationConfig,
 	)
+
 	switchHelper := mysql.NewSwitchHelper(config)
 	app := &App{
 		state:                stateFirstRun,
@@ -101,6 +104,10 @@ func NewApp(configFile, logLevel string, interactive bool) (*App, error) {
 		switchHelper:         switchHelper,
 		replicationOptimizer: replicationOptimizer,
 	}
+
+	// TODO: appDcs should be separate entity
+	app.lagResetupper = resetup.NewLagResetupper(logger, app, config.ResetupHostLag.Seconds())
+
 	logger.Info("app created")
 	return app, nil
 }
@@ -2496,7 +2503,6 @@ func (app *App) Run() int {
 	}
 	defer app.cluster.Close()
 
-	// Launch goroutines
 	go app.healthChecker(ctx)
 	go app.recoveryChecker(ctx)
 	go app.replicationLagChecker(ctx)

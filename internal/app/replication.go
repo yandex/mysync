@@ -25,6 +25,28 @@ type ReplicationRepairState struct {
 	LastGTIDExecuted string
 }
 
+// separated gorutine for checking local mysql lag
+func (app *App) replicationLagChecker(ctx context.Context) {
+	// 30s
+	// TODO: we should use 2 tikers - fast (recovery, ticker, etc) and slow - lag check
+	ticker := time.NewTicker(6 * app.config.RecoveryCheckInterval)
+	for {
+		select {
+		case <-ticker.C:
+			if app.doesResetupFileExist() {
+				app.logger.Infof("lag check: resetup file exists, waiting for resetup to complete")
+				return
+			}
+
+			if app.lagResetupper.CheckNeedResetup(app.cluster) {
+				app.writeResetupFile()
+			}
+		case <-ctx.Done():
+			return
+		}
+	}
+}
+
 func (app *App) MarkReplicationRunning(node *mysql.Node, channel string) {
 	var replState *ReplicationRepairState
 	key := app.makeReplStateKey(node, channel)
