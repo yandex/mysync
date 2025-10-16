@@ -2,10 +2,6 @@ name: Linters
 
 on:
   workflow_call:
-  push:
-    branches: [ master ]
-  pull_request:
-    branches: [ master ]
 
 permissions:
   contents: read
