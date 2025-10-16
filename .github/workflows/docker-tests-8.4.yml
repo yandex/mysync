@@ -21,6 +21,9 @@ jobs:
   all_unittests:
     uses: ./.github/workflows/unit-tests.yml
 
+  codeql:
+    uses: ./.github/workflows/codeql.yml
+
   buildimages:
     name: Build images
     runs-on: ubuntu-22.04
