@@ -1,7 +1,7 @@
 FROM ubuntu:jammy
 ENV container=docker
 ENV DEBIAN_FRONTEND=noninteractive
-ENV ZK_VERSION=3.7.1
+ENV ZK_VERSION=3.9.4
 ARG MYSQL_VERSION=""
 ENV MYSQL_VERSION="${MYSQL_VERSION}"
 COPY . /var/lib/dist/base
