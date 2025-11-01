@@ -28,7 +28,7 @@ jobs:
       - name: Test
         run: make base_img jepsen_base_img jepsen_test
 
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v5
         if: failure()
         with:
           name: logs
