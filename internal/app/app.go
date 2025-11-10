@@ -670,6 +670,7 @@ func (app *App) stateManager() appState {
 	clusterAdapter := NewOptimizationClusterAdapter(
 		app.cluster,
 		clusterStateDcs,
+		master,
 	)
 	err = app.replicationOptimizer.SyncState(clusterAdapter)
 	if err != nil {

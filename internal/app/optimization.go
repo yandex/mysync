@@ -9,16 +9,19 @@ import (
 func NewOptimizationClusterAdapter(
 	cluster *mysql.Cluster,
 	clusterState map[string]*nodestate.NodeState,
+	master string,
 ) optimization.Cluster {
 	return &OptimizationClusterAdapter{
 		cluster:      cluster,
 		clusterState: clusterState,
+		master:       master,
 	}
 }
 
 type OptimizationClusterAdapter struct {
 	clusterState map[string]*nodestate.NodeState
 	cluster      *mysql.Cluster
+	master       string
 }
 
 func (ocs *OptimizationClusterAdapter) GetNode(hostname string) optimization.NodeReplicationController {
@@ -34,5 +37,5 @@ func (ocs *OptimizationClusterAdapter) GetState(hostname string) nodestate.NodeS
 }
 
 func (ocs *OptimizationClusterAdapter) GetMaster() string {
-	return ocs.GetMaster()
+	return ocs.master
 }

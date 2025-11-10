@@ -60,13 +60,13 @@ func (opt *Optimizer) Initialize(DCS DCS) error {
 	return err
 }
 
-func (opt *Optimizer) getOptimizationState(c Cluster) (*OptimizationState, error) {
+func (opt *Optimizer) getOptimizationState(c Cluster) (*HostsState, error) {
 	hostnames, err := opt.dcs.GetChildren(pathOptimizationNodes)
 	if err != nil {
 		return nil, err
 	}
 
-	optState := new(OptimizationState)
+	optState := new(HostsState)
 	stopReplLowMark := opt.config.LowReplicationMark.Seconds()
 	stopReplHighMark := opt.config.HighReplicationMark.Seconds()
 	masterRs := c.GetState(c.GetMaster()).ReplicationSettings
@@ -115,7 +115,7 @@ func (opt *Optimizer) getDCSState(hostname string) (*DCSState, error) {
 	return state, nil
 }
 
-type OptimizationState struct {
+type HostsState struct {
 	// DisabledHosts are hosts planned for optimization
 	DisabledHosts []string
 	// OptimizingHosts are optimizing hosts
@@ -149,7 +149,7 @@ func (opt *Optimizer) SyncState(c Cluster) error {
 	if err != nil {
 		return err
 	}
-	err = opt.deleteNodes(c, nodesToDisable)
+	err = opt.deleteNodes(nodesToDisable)
 	if err != nil {
 		return err
 	}
@@ -190,7 +190,7 @@ func (opt *Optimizer) SyncState(c Cluster) error {
 	return nil
 }
 
-func (onp *Optimizer) startNodes(
+func (opt *Optimizer) startNodes(
 	c Cluster,
 	hosts []string,
 ) error {
@@ -203,7 +203,7 @@ func (onp *Optimizer) startNodes(
 	return nil
 }
 
-func (onp *Optimizer) stopNodes(
+func (opt *Optimizer) stopNodes(
 	c Cluster,
 	hosts []string,
 	rs mysql.ReplicationSettings,
@@ -217,12 +217,11 @@ func (onp *Optimizer) stopNodes(
 	return nil
 }
 
-func (onp *Optimizer) deleteNodes(
-	c Cluster,
+func (opt *Optimizer) deleteNodes(
 	hosts []string,
 ) error {
 	for _, host := range hosts {
-		err := onp.dcs.Delete(dcs.JoinPath(pathOptimizationNodes, host))
+		err := opt.dcs.Delete(dcs.JoinPath(pathOptimizationNodes, host))
 		if err != nil && err != dcs.ErrNotFound {
 			return err
 		}
@@ -230,13 +229,13 @@ func (onp *Optimizer) deleteNodes(
 	return nil
 }
 
-func (onp *Optimizer) shuffle(hosts []string) {
+func (opt *Optimizer) shuffle(hosts []string) {
 	rand.Shuffle(len(hosts), func(i, j int) {
 		hosts[i], hosts[j] = hosts[j], hosts[i]
 	})
 }
 
-func (onp *Optimizer) syncNodeOptions(
+func (opt *Optimizer) syncNodeOptions(
 	host string,
 	node NodeReplicationController,
 ) error {
@@ -245,7 +244,7 @@ func (onp *Optimizer) syncNodeOptions(
 		return err
 	}
 	if settings.CanBeOptimized() {
-		onp.logger.Warnf("Node %s should be optimizing but isn't - restarting optimization", host)
+		opt.logger.Warnf("Node %s should be optimizing but isn't - restarting optimization", host)
 		return node.OptimizeReplication()
 	}
 	return nil

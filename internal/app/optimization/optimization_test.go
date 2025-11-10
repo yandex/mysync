@@ -77,7 +77,9 @@ func TestWaitOptimization(t *testing.T) {
 	})
 
 	t.Run("Timeout exceeded", func(t *testing.T) {
-		ctx, _ := context.WithTimeout(context.Background(), 0)
+		ctx, cancel := context.WithTimeout(context.Background(), 0)
+		defer cancel()
+
 		config := config.OptimizationConfig{
 			LowReplicationMark:  5 * time.Second,
 			HighReplicationMark: 120 * time.Second,

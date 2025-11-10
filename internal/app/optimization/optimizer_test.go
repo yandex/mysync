@@ -139,6 +139,7 @@ func TestBasicOptimization(t *testing.T) {
 	})
 }
 
+//nolint:funlen
 func TestHAClusterOptimization(t *testing.T) {
 	t.Run("Sync works on hosts without optimization", func(t *testing.T) {
 		ctrl := gomock.NewController(t)
@@ -322,7 +323,9 @@ func TestHAClusterOptimization(t *testing.T) {
 		err = opt.SyncState(cluster)
 		require.NoError(t, err)
 	})
+}
 
+func TestOneHostOptimizationPolicy(t *testing.T) {
 	t.Run("Optimization can be enabled on just one host", func(t *testing.T) {
 		ctrl := gomock.NewController(t)
 		logger := NewMockLogger(ctrl)
@@ -417,7 +420,9 @@ func TestHAClusterOptimization(t *testing.T) {
 		err = opt.SyncState(cluster)
 		require.NoError(t, err)
 	})
+}
 
+func TestNetworkErrors(t *testing.T) {
 	t.Run("Sync network error on the DCS side keeps cluster unchanged", func(t *testing.T) {
 		ctrl := gomock.NewController(t)
 		logger := NewMockLogger(ctrl)
