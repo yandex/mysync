@@ -1093,7 +1093,7 @@ func SaveCAFile(data string, path string) error {
 	if ok := rootCertPool.AppendCertsFromPEM(byteData); !ok {
 		return fmt.Errorf("got error validating PEM certificate")
 	}
-	err := os.WriteFile(path, byteData, 0644)
+	err := os.WriteFile(path, byteData, 0o644)
 	if err != nil {
 		err2 := fmt.Errorf("got error while writing CA file: %s", err)
 		return err2

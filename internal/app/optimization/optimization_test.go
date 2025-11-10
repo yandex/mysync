@@ -3,418 +3,337 @@ package optimization
 import (
 	"context"
 	"database/sql"
+	"fmt"
 	"testing"
 	"time"
 
-	nodestate "github.com/yandex/mysync/internal/app/node_state"
+	"github.com/go-zookeeper/zk"
+	gomock "github.com/golang/mock/gomock"
+	"github.com/stretchr/testify/require"
 	"github.com/yandex/mysync/internal/config"
-	"github.com/yandex/mysync/internal/dcs"
-	"github.com/yandex/mysync/internal/log"
 	"github.com/yandex/mysync/internal/mysql"
 )
 
-func replicationSettingsAreDefault(rs mysql.ReplicationSettings) bool {
-	return rs.InnodbFlushLogAtTrxCommit == mysql.DefaultInnodbFlushLogAtTrxCommitValue && rs.SyncBinlog == mysql.DefaultSyncBinlogValue
-}
+func TestWaitOptimization(t *testing.T) {
+	t.Run("Waiting for an optimized replica", func(t *testing.T) {
+		ctx := context.Background()
+		config := config.OptimizationConfig{
+			LowReplicationMark:  5 * time.Second,
+			HighReplicationMark: 120 * time.Second,
+		}
+		checkInterval := time.Millisecond
 
-func initDefaultCluster(t *testing.T) (*Optimizer, *dcs.MockDCS, map[string]*MockNode) {
-	logger := log.NewMockLogger()
+		ctrl := gomock.NewController(t)
 
-	om := NewOptimizer(logger, config.OptimizationConfig{
-		HighReplicationMark: time.Second * 10,
-		LowReplicationMark:  time.Second * 5,
+		logger := NewMockLogger(ctrl)
+		logger.EXPECT().Infof("optimization: waiting; node is optimizing")
+		logger.EXPECT().Infof("optimization: waiting is complete, as replication lag is converged: %s", 1.0)
+		logger.EXPECT().Infof("optimization: waiting is complete")
+
+		node := NewMockNodeReplicationController(ctrl)
+		node.EXPECT().Host().Return("replica1").AnyTimes()
+		node.EXPECT().GetReplicaStatus().
+			Return(&mysql.ReplicaStatusStruct{
+				Lag: sql.NullFloat64{Valid: true, Float64: 1.0},
+			}, nil)
+
+		Dcs := NewMockDCS(ctrl)
+		Dcs.EXPECT().Get("optimization_nodes/replica1", gomock.Any()).
+			DoAndReturn(func(path string, dest any) error {
+				ptr, _ := dest.(*DCSState)
+				ptr.Status = "enabled"
+				return nil
+			})
+		Dcs.EXPECT().Delete("optimization_nodes/replica1")
+
+		err := WaitOptimization(ctx, config, logger, node, checkInterval, Dcs)
+		require.NoError(t, err)
 	})
 
-	cluster := map[string]*MockNode{
-		"mysql1": {
-			hostname: "mysql1",
-			replicationSettings: mysql.ReplicationSettings{
-				SyncBinlog:                mysql.DefaultSyncBinlogValue,
-				InnodbFlushLogAtTrxCommit: mysql.DefaultInnodbFlushLogAtTrxCommitValue,
-			},
-			replicationStatus: mysql.ReplicaStatusStruct{
-				Lag: sql.NullFloat64{Valid: true, Float64: 0.0},
-			},
-		},
-		"mysql2": {
-			hostname: "mysql2",
-			replicationSettings: mysql.ReplicationSettings{
-				SyncBinlog:                mysql.DefaultSyncBinlogValue,
-				InnodbFlushLogAtTrxCommit: mysql.DefaultInnodbFlushLogAtTrxCommitValue,
-			},
-			replicationStatus: mysql.ReplicaStatusStruct{
-				Lag: sql.NullFloat64{Valid: true, Float64: 0.0},
-			},
-		},
-		"mysql3": {
-			hostname: "mysql3",
-			replicationSettings: mysql.ReplicationSettings{
-				SyncBinlog:                mysql.DefaultSyncBinlogValue,
-				InnodbFlushLogAtTrxCommit: mysql.DefaultInnodbFlushLogAtTrxCommitValue,
-			},
-			replicationStatus: mysql.ReplicaStatusStruct{
-				Lag: sql.NullFloat64{Valid: true, Float64: 0.0},
-			},
-		},
-	}
-	mdcs := dcs.NewMockDCS()
-	err := om.Initialize(mdcs)
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	return om, mdcs, cluster
-}
-
-func assertHostIsOptimized(
-	t *testing.T,
-	host *MockNode,
-) {
-	t.Helper()
-	if rs := host.replicationSettings; replicationSettingsAreDefault(rs) {
-		t.Fatalf("%s is not optimized", host.Host())
-	}
-	if rs := host.replicationSettings; replicationSettingsAreDefault(rs) {
-		t.Fatalf("%s is not optimized", host.Host())
-	}
-}
-
-func assertHostIsNotOptimized(
-	t *testing.T,
-	host *MockNode,
-) {
-	t.Helper()
-	if rs := host.replicationSettings; !replicationSettingsAreDefault(rs) {
-		t.Fatalf("%s is optimized", host.Host())
-	}
-}
-
-func assertSyncOptions(
-	t *testing.T,
-	om ReplicationOpitimizer,
-	master *MockNode,
-	cluster map[string]*MockNode,
-) {
-	t.Helper()
-	err := om.SyncState(master, convertClusterToNodeState(cluster), convertNodesToReplicationControllers(getNodes(cluster)))
-	if err != nil {
-		t.Fatal(err)
-	}
-}
-
-func getNodes(cluster map[string]*MockNode) []*MockNode {
-	var nodes []*MockNode
-	for _, node := range cluster {
-		nodes = append(nodes, node)
-	}
-	return nodes
-}
-
-func convertNodesToReplicationControllers(nodes []*MockNode) []NodeReplicationController {
-	var ifaceNodes []NodeReplicationController
-	for _, n := range nodes {
-		ifaceNodes = append(ifaceNodes, n)
-	}
-	return ifaceNodes
-}
-
-func convertClusterToNodeState(nodes map[string]*MockNode) map[string]*nodestate.NodeState {
-	states := map[string]*nodestate.NodeState{}
-	for hostname, node := range nodes {
-		n := states[hostname]
-
-		if n == nil {
-			n = new(nodestate.NodeState)
-			n.ReplicationSettings = new(mysql.ReplicationSettings)
-			n.SlaveState = new(nodestate.SlaveState)
+	t.Run("Waiting for a replica absent in DCS", func(t *testing.T) {
+		ctx := context.Background()
+		config := config.OptimizationConfig{
+			LowReplicationMark:  5 * time.Second,
+			HighReplicationMark: 120 * time.Second,
 		}
+		checkInterval := time.Millisecond
 
-		if node != nil {
-			n.SlaveState.ReplicationLag = &node.replicationStatus.Lag.Float64
-			n.ReplicationSettings = &node.replicationSettings
+		ctrl := gomock.NewController(t)
+
+		logger := NewMockLogger(ctrl)
+		logger.EXPECT().Infof("optimization: waiting is complete")
+
+		node := NewMockNodeReplicationController(ctrl)
+		node.EXPECT().Host().Return("replica1").AnyTimes()
+
+		Dcs := NewMockDCS(ctrl)
+		Dcs.EXPECT().Get("optimization_nodes/replica1", gomock.Any()).
+			DoAndReturn(func(path string, dest any) error {
+				return zk.ErrNoNode
+			})
+
+		err := WaitOptimization(ctx, config, logger, node, checkInterval, Dcs)
+		require.NoError(t, err)
+	})
+
+	t.Run("Timeout exceeded", func(t *testing.T) {
+		ctx, _ := context.WithTimeout(context.Background(), 0)
+		config := config.OptimizationConfig{
+			LowReplicationMark:  5 * time.Second,
+			HighReplicationMark: 120 * time.Second,
 		}
-		states[hostname] = n
-	}
-	return states
+		checkInterval := time.Millisecond
+
+		ctrl := gomock.NewController(t)
+
+		logger := NewMockLogger(ctrl)
+		logger.EXPECT().Infof("optimization: waiting; node is optimizing").AnyTimes()
+		logger.EXPECT().Infof("optimization: waiting; replication lag is %f", 1.0).AnyTimes()
+
+		node := NewMockNodeReplicationController(ctrl)
+		node.EXPECT().Host().Return("replica1").AnyTimes()
+		node.EXPECT().GetReplicaStatus().
+			Return(&mysql.ReplicaStatusStruct{
+				Lag: sql.NullFloat64{Valid: true, Float64: 1.0},
+			}, nil).AnyTimes()
+
+		Dcs := NewMockDCS(ctrl)
+		Dcs.EXPECT().Get("optimization_nodes/replica1", gomock.Any()).
+			DoAndReturn(func(path string, dest any) error {
+				ptr, _ := dest.(*DCSState)
+				ptr.Status = ""
+				return nil
+			}).AnyTimes()
+
+		err := WaitOptimization(ctx, config, logger, node, checkInterval, Dcs)
+		require.EqualError(t, err, "optimization waiting deadline exceeded")
+	})
+
+	t.Run("Waiting works", func(t *testing.T) {
+		ctx := context.Background()
+		config := config.OptimizationConfig{
+			LowReplicationMark:  5 * time.Second,
+			HighReplicationMark: 120 * time.Second,
+		}
+		checkInterval := time.Millisecond
+
+		ctrl := gomock.NewController(t)
+
+		logger := NewMockLogger(ctrl)
+		logger.EXPECT().Infof("optimization: waiting; node is optimizing")
+		logger.EXPECT().Infof("optimization: waiting; replication lag is %f", 800.0)
+		logger.EXPECT().Infof("optimization: waiting; node is optimizing")
+		logger.EXPECT().Infof("optimization: waiting; replication lag is %f", 200.0)
+		logger.EXPECT().Infof("optimization: waiting; node is optimizing")
+		logger.EXPECT().Infof("optimization: waiting is complete, as replication lag is converged: %s", 4.0)
+		logger.EXPECT().Infof("optimization: waiting is complete")
+
+		node := NewMockNodeReplicationController(ctrl)
+		node.EXPECT().Host().Return("replica1").AnyTimes()
+		node.EXPECT().GetReplicaStatus().
+			Return(&mysql.ReplicaStatusStruct{
+				Lag: sql.NullFloat64{Valid: true, Float64: 800.0},
+			}, nil)
+		node.EXPECT().GetReplicaStatus().
+			Return(&mysql.ReplicaStatusStruct{
+				Lag: sql.NullFloat64{Valid: true, Float64: 200.0},
+			}, nil)
+		node.EXPECT().GetReplicaStatus().
+			Return(&mysql.ReplicaStatusStruct{
+				Lag: sql.NullFloat64{Valid: true, Float64: 4.0},
+			}, nil)
+
+		Dcs := NewMockDCS(ctrl)
+		Dcs.EXPECT().Get("optimization_nodes/replica1", gomock.Any()).
+			DoAndReturn(func(path string, dest any) error {
+				ptr, _ := dest.(*DCSState)
+				ptr.Status = "enabled"
+				return nil
+			}).AnyTimes()
+		Dcs.EXPECT().Delete("optimization_nodes/replica1")
+
+		err := WaitOptimization(ctx, config, logger, node, checkInterval, Dcs)
+		require.NoError(t, err)
+	})
 }
 
-func assertEnableOptimization(
-	t *testing.T,
-	om ReplicationOpitimizer,
-	host *MockNode,
-) {
-	t.Helper()
-	err := om.EnableNodeOptimization(host)
-	if err != nil {
-		t.Fatal(err)
-	}
+func TestEnableNodeOptimization(t *testing.T) {
+	t.Run("Enable on a replica", func(t *testing.T) {
+		ctrl := gomock.NewController(t)
+
+		node := NewMockNodeReplicationController(ctrl)
+		node.EXPECT().Host().Return("replica1").AnyTimes()
+
+		Dcs := NewMockDCS(ctrl)
+		Dcs.EXPECT().Create("optimization_nodes/replica1", gomock.Any())
+
+		err := EnableNodeOptimization(node, Dcs)
+		require.NoError(t, err)
+	})
+
+	t.Run("Network error", func(t *testing.T) {
+		ctrl := gomock.NewController(t)
+
+		node := NewMockNodeReplicationController(ctrl)
+		node.EXPECT().Host().Return("replica1").AnyTimes()
+
+		Dcs := NewMockDCS(ctrl)
+		Dcs.EXPECT().Create("optimization_nodes/replica1", gomock.Any()).
+			Return(fmt.Errorf("network-error"))
+
+		err := EnableNodeOptimization(node, Dcs)
+		require.EqualError(t, err, "network-error")
+	})
 }
 
-func assertHostPathExistsInDCS(
-	t *testing.T,
-	host *MockNode,
-	mdcs *dcs.MockDCS,
-) {
-	t.Helper()
-	err := mdcs.Get(dcs.JoinPath(pathOptimizationNodes, host.Host()), &State{})
-	if err != nil {
-		t.Fatal(err)
-	}
+func TestDisableNodeOptimization(t *testing.T) {
+	t.Run("Disable a replica", func(t *testing.T) {
+		ctrl := gomock.NewController(t)
+
+		node := NewMockNodeReplicationController(ctrl)
+		node.EXPECT().Host().Return("replica1").AnyTimes()
+		node.EXPECT().SetReplicationSettings(mysql.ReplicationSettings{
+			InnodbFlushLogAtTrxCommit: 1,
+			SyncBinlog:                1,
+		})
+
+		master := NewMockNodeReplicationController(ctrl)
+		master.EXPECT().GetReplicationSettings().
+			Return(mysql.ReplicationSettings{
+				InnodbFlushLogAtTrxCommit: 1,
+				SyncBinlog:                1,
+			}, nil)
+
+		Dcs := NewMockDCS(ctrl)
+		Dcs.EXPECT().Delete("optimization_nodes/replica1")
+
+		err := DisableNodeOptimization(master, node, Dcs)
+		require.NoError(t, err)
+	})
+
+	t.Run("Network error on the side of DCS", func(t *testing.T) {
+		ctrl := gomock.NewController(t)
+
+		node := NewMockNodeReplicationController(ctrl)
+		node.EXPECT().Host().Return("replica1").AnyTimes()
+		node.EXPECT().SetReplicationSettings(mysql.ReplicationSettings{
+			InnodbFlushLogAtTrxCommit: 1,
+			SyncBinlog:                1,
+		})
+
+		master := NewMockNodeReplicationController(ctrl)
+		master.EXPECT().GetReplicationSettings().
+			Return(mysql.ReplicationSettings{
+				InnodbFlushLogAtTrxCommit: 1,
+				SyncBinlog:                1,
+			}, nil)
+
+		Dcs := NewMockDCS(ctrl)
+		Dcs.EXPECT().Delete("optimization_nodes/replica1").
+			Return(fmt.Errorf("network-error"))
+
+		err := DisableNodeOptimization(master, node, Dcs)
+		require.EqualError(t, err, "network-error")
+	})
+
+	t.Run("Network error on the side of MySQL master", func(t *testing.T) {
+		ctrl := gomock.NewController(t)
+
+		node := NewMockNodeReplicationController(ctrl)
+		node.EXPECT().Host().Return("replica1").AnyTimes()
+		node.EXPECT().SetReplicationSettings(mysql.ReplicationSettings{
+			InnodbFlushLogAtTrxCommit: 1,
+			SyncBinlog:                1,
+		})
+
+		master := NewMockNodeReplicationController(ctrl)
+		master.EXPECT().GetReplicationSettings().
+			Return(mysql.ReplicationSettings{}, fmt.Errorf("network-error"))
+
+		Dcs := NewMockDCS(ctrl)
+		Dcs.EXPECT().Delete("optimization_nodes/replica1")
+
+		err := DisableNodeOptimization(master, node, Dcs)
+		require.NoError(t, err)
+	})
 }
 
-func assertHostPathDoesntExistInDCS(
-	t *testing.T,
-	host *MockNode,
-	mdcs *dcs.MockDCS,
-) {
-	t.Helper()
-	err := mdcs.Get(dcs.JoinPath(pathOptimizationNodes, host.Host()), &State{})
-	if err == dcs.ErrNotFound {
-		return
-	}
-	if err != nil {
-		t.Fatal(err)
-	}
-	if err == nil {
-		t.Fatal("an error is expected")
-	}
-}
+func TestDisableAllNodeOptimization(t *testing.T) {
+	t.Run("Disable all replicas", func(t *testing.T) {
+		ctrl := gomock.NewController(t)
 
-func assertDisableOptimization(
-	t *testing.T,
-	om ReplicationOpitimizer,
-	master *MockNode,
-	host *MockNode,
-) {
-	t.Helper()
-	err := om.DisableNodeOptimization(master, host)
-	if err != nil {
-		t.Fatal(err)
-	}
-}
+		replica1 := NewMockNodeReplicationController(ctrl)
+		replica1.EXPECT().Host().Return("replica1").AnyTimes()
+		replica1.EXPECT().SetReplicationSettings(mysql.ReplicationSettings{
+			InnodbFlushLogAtTrxCommit: 1,
+			SyncBinlog:                1,
+		})
 
-func assertDisableAllOptimization(
-	t *testing.T,
-	om ReplicationOpitimizer,
-	master *MockNode,
-	nodes ...*MockNode,
-) {
-	t.Helper()
-	// We have to do it explicitly
-	var ifaceNodes []NodeReplicationController
-	for _, n := range nodes {
-		ifaceNodes = append(ifaceNodes, n)
-	}
+		replica2 := NewMockNodeReplicationController(ctrl)
+		replica2.EXPECT().Host().Return("replica2").AnyTimes()
+		replica2.EXPECT().SetReplicationSettings(mysql.ReplicationSettings{
+			InnodbFlushLogAtTrxCommit: 1,
+			SyncBinlog:                1,
+		})
 
-	err := om.DisableAllNodeOptimization(master, ifaceNodes)
-	if err != nil {
-		t.Fatal(err)
-	}
-}
+		master := NewMockNodeReplicationController(ctrl)
+		master.EXPECT().GetReplicationSettings().
+			Return(mysql.ReplicationSettings{
+				InnodbFlushLogAtTrxCommit: 1,
+				SyncBinlog:                1,
+			}, nil)
 
-func TestOptimizationEnablingOnReplicaWithLag(t *testing.T) {
-	om, mdcs, cluster := initDefaultCluster(t)
-	master := cluster["mysql1"]
+		Dcs := NewMockDCS(ctrl)
+		Dcs.EXPECT().GetChildren("optimization_nodes").
+			Return([]string{"replica1", "replica2"}, nil)
+		Dcs.EXPECT().Delete("optimization_nodes/replica1")
+		Dcs.EXPECT().Delete("optimization_nodes/replica2")
 
-	assertSyncOptions(t, om, master, cluster)
-	assertHostIsNotOptimized(t, cluster["mysql2"])
-	assertHostPathDoesntExistInDCS(t, cluster["mysql2"], mdcs)
+		err := DisableAllNodeOptimization(
+			master,
+			[]NodeReplicationController{replica1, replica2},
+			Dcs,
+		)
+		require.NoError(t, err)
+	})
 
-	cluster["mysql2"].replicationStatus = mysql.ReplicaStatusStruct{
-		Lag: sql.NullFloat64{Valid: true, Float64: 20.0},
-	}
+	t.Run("Dcs network-errors", func(t *testing.T) {
+		ctrl := gomock.NewController(t)
 
-	assertEnableOptimization(t, om, cluster["mysql2"])
-	assertSyncOptions(t, om, master, cluster)
-	assertHostIsOptimized(t, cluster["mysql2"])
-	assertHostPathExistsInDCS(t, cluster["mysql2"], mdcs)
+		replica1 := NewMockNodeReplicationController(ctrl)
+		replica1.EXPECT().Host().Return("replica1").AnyTimes()
+		replica1.EXPECT().SetReplicationSettings(mysql.ReplicationSettings{
+			InnodbFlushLogAtTrxCommit: 1,
+			SyncBinlog:                1,
+		})
 
-	assertEnableOptimization(t, om, cluster["mysql2"])
-	assertSyncOptions(t, om, master, cluster)
-	assertHostIsOptimized(t, cluster["mysql2"])
-	assertHostPathExistsInDCS(t, cluster["mysql2"], mdcs)
-}
+		replica2 := NewMockNodeReplicationController(ctrl)
+		replica2.EXPECT().Host().Return("replica2").AnyTimes()
+		replica2.EXPECT().SetReplicationSettings(mysql.ReplicationSettings{
+			InnodbFlushLogAtTrxCommit: 1,
+			SyncBinlog:                1,
+		})
 
-func TestOptimizationEnablingOnReplicaWithoutLag(t *testing.T) {
-	om, mdcs, cluster := initDefaultCluster(t)
-	master := cluster["mysql1"]
+		master := NewMockNodeReplicationController(ctrl)
+		master.EXPECT().GetReplicationSettings().
+			Return(mysql.ReplicationSettings{
+				InnodbFlushLogAtTrxCommit: 1,
+				SyncBinlog:                1,
+			}, nil)
 
-	assertSyncOptions(t, om, master, cluster)
-	assertHostIsNotOptimized(t, cluster["mysql2"])
-	assertHostPathDoesntExistInDCS(t, cluster["mysql2"], mdcs)
+		Dcs := NewMockDCS(ctrl)
+		Dcs.EXPECT().GetChildren("optimization_nodes").
+			Return([]string{}, fmt.Errorf("network-error"))
+		Dcs.EXPECT().Delete("optimization_nodes/replica1").
+			Return(fmt.Errorf("network-error"))
+		Dcs.EXPECT().Delete("optimization_nodes/replica2").
+			Return(fmt.Errorf("network-error"))
 
-	assertEnableOptimization(t, om, cluster["mysql2"])
-	assertSyncOptions(t, om, master, cluster)
-	assertHostIsNotOptimized(t, cluster["mysql2"])
-	assertHostPathDoesntExistInDCS(t, cluster["mysql2"], mdcs)
-
-	assertEnableOptimization(t, om, cluster["mysql2"])
-	assertSyncOptions(t, om, master, cluster)
-	assertHostIsNotOptimized(t, cluster["mysql2"])
-	assertHostPathDoesntExistInDCS(t, cluster["mysql2"], mdcs)
-}
-
-func TestOptimizationEnablingOnMaster(t *testing.T) {
-	om, mdcs, cluster := initDefaultCluster(t)
-	master := cluster["mysql1"]
-
-	assertSyncOptions(t, om, master, cluster)
-	assertHostIsNotOptimized(t, master)
-	assertHostPathDoesntExistInDCS(t, master, mdcs)
-
-	assertEnableOptimization(t, om, master)
-	assertHostPathExistsInDCS(t, master, mdcs)
-	assertSyncOptions(t, om, master, cluster)
-	assertHostIsNotOptimized(t, master)
-	assertHostPathDoesntExistInDCS(t, master, mdcs)
-
-	assertEnableOptimization(t, om, master)
-	assertSyncOptions(t, om, master, cluster)
-	assertHostIsNotOptimized(t, master)
-	assertHostPathDoesntExistInDCS(t, master, mdcs)
-}
-
-func TestOptimizationDisabledOnReplicaImmediately(t *testing.T) {
-	om, mdcs, cluster := initDefaultCluster(t)
-	master := cluster["mysql1"]
-
-	assertSyncOptions(t, om, master, cluster)
-	assertHostIsNotOptimized(t, cluster["mysql2"])
-	assertHostPathDoesntExistInDCS(t, cluster["mysql2"], mdcs)
-
-	cluster["mysql2"].replicationStatus = mysql.ReplicaStatusStruct{
-		Lag: sql.NullFloat64{Valid: true, Float64: 20.0},
-	}
-
-	assertEnableOptimization(t, om, cluster["mysql2"])
-	assertSyncOptions(t, om, master, cluster)
-	assertHostIsOptimized(t, cluster["mysql2"])
-	assertHostPathExistsInDCS(t, cluster["mysql2"], mdcs)
-
-	assertDisableOptimization(t, om, master, cluster["mysql2"])
-	assertHostIsNotOptimized(t, cluster["mysql2"])
-	assertHostPathDoesntExistInDCS(t, cluster["mysql2"], mdcs)
-
-	assertSyncOptions(t, om, master, cluster)
-	assertHostIsNotOptimized(t, cluster["mysql2"])
-	assertHostPathDoesntExistInDCS(t, cluster["mysql2"], mdcs)
-}
-
-func TestOptimizationCannotBeEnabledOnMoreThanOneHost(t *testing.T) {
-	om, mdcs, cluster := initDefaultCluster(t)
-	master := cluster["mysql1"]
-
-	assertSyncOptions(t, om, master, cluster)
-	assertHostIsNotOptimized(t, cluster["mysql2"])
-	assertHostPathDoesntExistInDCS(t, cluster["mysql2"], mdcs)
-
-	cluster["mysql2"].replicationStatus = mysql.ReplicaStatusStruct{
-		Lag: sql.NullFloat64{Valid: true, Float64: 20.0},
-	}
-	cluster["mysql3"].replicationStatus = mysql.ReplicaStatusStruct{
-		Lag: sql.NullFloat64{Valid: true, Float64: 20.0},
-	}
-
-	assertEnableOptimization(t, om, cluster["mysql2"])
-	assertSyncOptions(t, om, master, cluster)
-
-	assertEnableOptimization(t, om, cluster["mysql3"])
-	assertSyncOptions(t, om, master, cluster)
-
-	assertHostIsOptimized(t, cluster["mysql2"])
-	assertHostPathExistsInDCS(t, cluster["mysql2"], mdcs)
-	assertHostIsNotOptimized(t, cluster["mysql3"])
-	assertHostPathExistsInDCS(t, cluster["mysql3"], mdcs)
-
-	assertDisableOptimization(t, om, master, cluster["mysql2"])
-
-	assertSyncOptions(t, om, master, cluster)
-	assertSyncOptions(t, om, master, cluster)
-
-	assertHostIsNotOptimized(t, cluster["mysql2"])
-	assertHostPathDoesntExistInDCS(t, cluster["mysql2"], mdcs)
-	assertHostIsOptimized(t, cluster["mysql3"])
-	assertHostPathExistsInDCS(t, cluster["mysql3"], mdcs)
-
-	assertDisableOptimization(t, om, master, cluster["mysql3"])
-
-	assertSyncOptions(t, om, master, cluster)
-	assertSyncOptions(t, om, master, cluster)
-
-	assertHostIsNotOptimized(t, cluster["mysql2"])
-	assertHostPathDoesntExistInDCS(t, cluster["mysql2"], mdcs)
-	assertHostIsNotOptimized(t, cluster["mysql3"])
-	assertHostPathDoesntExistInDCS(t, cluster["mysql3"], mdcs)
-}
-
-func TestOptimizationDisabledOnAllReplicaImmediately(t *testing.T) {
-	om, mdcs, cluster := initDefaultCluster(t)
-	master := cluster["mysql1"]
-
-	assertSyncOptions(t, om, master, cluster)
-	assertHostIsNotOptimized(t, cluster["mysql2"])
-	assertHostPathDoesntExistInDCS(t, cluster["mysql2"], mdcs)
-
-	cluster["mysql2"].replicationStatus = mysql.ReplicaStatusStruct{
-		Lag: sql.NullFloat64{Valid: true, Float64: 20.0},
-	}
-	cluster["mysql3"].replicationStatus = mysql.ReplicaStatusStruct{
-		Lag: sql.NullFloat64{Valid: true, Float64: 20.0},
-	}
-
-	assertEnableOptimization(t, om, cluster["mysql2"])
-	assertSyncOptions(t, om, master, cluster)
-
-	assertEnableOptimization(t, om, cluster["mysql3"])
-	assertSyncOptions(t, om, master, cluster)
-
-	assertHostIsOptimized(t, cluster["mysql2"])
-	assertHostIsNotOptimized(t, cluster["mysql3"])
-
-	assertHostPathExistsInDCS(t, cluster["mysql2"], mdcs)
-	assertHostPathExistsInDCS(t, cluster["mysql3"], mdcs)
-
-	assertDisableAllOptimization(t, om, master, master, master, cluster["mysql2"], cluster["mysql3"])
-
-	assertHostIsNotOptimized(t, cluster["mysql2"])
-	assertHostIsNotOptimized(t, cluster["mysql3"])
-
-	assertSyncOptions(t, om, master, cluster)
-	assertSyncOptions(t, om, master, cluster)
-
-	assertHostIsNotOptimized(t, cluster["mysql2"])
-	assertHostIsNotOptimized(t, cluster["mysql3"])
-
-	assertHostPathDoesntExistInDCS(t, cluster["mysql2"], mdcs)
-	assertHostPathDoesntExistInDCS(t, cluster["mysql3"], mdcs)
-}
-
-func TestWaitingWorksOnOptimizedHost(t *testing.T) {
-	om, _, cluster := initDefaultCluster(t)
-
-	err := om.WaitOptimization(context.Background(), cluster["mysql2"], time.Microsecond)
-	if err != nil {
-		t.Fatal(err)
-	}
-}
-
-func TestWaitingDeadOnDeadline(t *testing.T) {
-	om, _, cluster := initDefaultCluster(t)
-
-	cluster["mysql2"].replicationStatus = mysql.ReplicaStatusStruct{
-		Lag: sql.NullFloat64{Valid: true, Float64: 20.0},
-	}
-	cluster["mysql2"].replicationSettings = mysql.ReplicationSettings{
-		InnodbFlushLogAtTrxCommit: 2,
-		SyncBinlog:                1000,
-	}
-	assertEnableOptimization(t, om, cluster["mysql2"])
-
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Microsecond)
-	defer cancel()
-
-	err := om.WaitOptimization(ctx, cluster["mysql2"], time.Microsecond)
-	if err == nil {
-		t.Fatal("an error is expected")
-	}
+		err := DisableAllNodeOptimization(
+			master,
+			[]NodeReplicationController{replica1, replica2},
+			Dcs,
+		)
+		require.EqualError(t, err, "got the following errors: network-error,replica1:network-error,replica2:network-error")
+	})
 }

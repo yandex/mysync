@@ -160,7 +160,7 @@ func (app *App) newDBCluster() error {
 
 func (app *App) writeEmergeFile(msg string) {
 	app.logger.Warn("touch emerge file")
-	err := os.WriteFile(app.config.Emergefile, []byte(msg), 0644)
+	err := os.WriteFile(app.config.Emergefile, []byte(msg), 0o644)
 	if err != nil {
 		app.logger.Errorf("failed to write emerge file: %v", err)
 	}
@@ -168,7 +168,7 @@ func (app *App) writeEmergeFile(msg string) {
 
 func (app *App) writeResetupFile() {
 	app.logger.Warn("touch resetup file")
-	err := os.WriteFile(app.config.Resetupfile, []byte{}, 0644)
+	err := os.WriteFile(app.config.Resetupfile, []byte{}, 0o644)
 	if err != nil {
 		app.logger.Errorf("failed to write resetup file: %v", err)
 	}
@@ -181,7 +181,7 @@ func (app *App) doesResetupFileExist() bool {
 
 func (app *App) writeMaintenanceFile() {
 	app.logger.Warn("touch maintenance file")
-	err := os.WriteFile(app.config.Maintenancefile, []byte(""), 0644)
+	err := os.WriteFile(app.config.Maintenancefile, []byte(""), 0o644)
 	if err != nil {
 		app.logger.Errorf("failed to write maintenance file: %v", err)
 	}
@@ -239,7 +239,7 @@ func (app *App) stateFileHandler(ctx context.Context) {
 				_ = os.Remove(app.config.InfoFile)
 				continue
 			}
-			err = os.WriteFile(app.config.InfoFile, data, 0666)
+			err = os.WriteFile(app.config.InfoFile, data, 0o666)
 			if err != nil {
 				app.logger.Errorf("stateFileHandler: failed to write info file %v", err)
 				_ = os.Remove(app.config.InfoFile)
@@ -667,11 +667,11 @@ func (app *App) stateManager() appState {
 		}
 	}
 
-	err = app.replicationOptimizer.SyncState(
-		app.cluster.Get(master),
+	clusterAdapter := NewOptimizationClusterAdapter(
+		app.cluster,
 		clusterStateDcs,
-		convertNodesToReplicationControllers(app.cluster.GetClusterNodes()),
 	)
+	err = app.replicationOptimizer.SyncState(clusterAdapter)
 	if err != nil {
 		app.logger.Errorf("failed to sync local optimization settings: %s", err)
 		return stateManager
@@ -1176,7 +1176,7 @@ func (app *App) disableSemiSyncOnSlaves(becomeInactive, becomeDataLag []string) 
 		}
 
 		node := app.cluster.Get(host)
-		err = app.replicationOptimizer.EnableNodeOptimization(node)
+		err = optimization.EnableNodeOptimization(node, app.dcs)
 		if err != nil {
 			app.logger.Warnf("failed to enable optimization on slave %s: %v", host, err)
 		}
@@ -1660,7 +1660,7 @@ func (app *App) repairSlaveOfflineMode(host string, state *nodestate.NodeState, 
 		} else {
 			app.logger.Infof("repair: slave %s set offline, because ReplicationLag (%f s) >= OfflineModeEnableLag (%v)",
 				host, *state.SlaveState.ReplicationLag, app.config.OfflineModeEnableLag)
-			err = app.replicationOptimizer.EnableNodeOptimization(node)
+			err = optimization.EnableNodeOptimization(node, app.dcs)
 			if err != nil {
 				app.logger.Errorf("repair: failed to set optimize replication settings on slave %s: %s", host, err)
 			}
@@ -2374,7 +2374,7 @@ func (app *App) stopAllNodeOptimization(master string, clusterState map[string]*
 	}
 
 	controllerNodes := convertNodesToReplicationControllers(nodes)
-	return app.replicationOptimizer.DisableAllNodeOptimization(masterNode, controllerNodes)
+	return optimization.DisableAllNodeOptimization(masterNode, controllerNodes, app.dcs)
 }
 
 // Set master offline and disable semi-sync replication

@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/yandex/mysync/internal/app/optimization"
 	"github.com/yandex/mysync/internal/mysql"
 	"github.com/yandex/mysync/internal/mysql/gtids"
 )
@@ -250,7 +251,7 @@ func (app *App) optimizeReplicaWithSmallestLag(
 	}
 	replicaToOptimize := app.cluster.Get(hostnameToOptimize)
 
-	err = app.replicationOptimizer.EnableNodeOptimization(replicaToOptimize)
+	err = optimization.EnableNodeOptimization(replicaToOptimize, app.dcs)
 	if err != nil {
 		return err
 	}
@@ -258,7 +259,14 @@ func (app *App) optimizeReplicaWithSmallestLag(
 	ctx, cancel := context.WithTimeout(context.Background(), app.config.ReplicationConvergenceTimeoutSwitchover)
 	defer cancel()
 
-	return app.replicationOptimizer.WaitOptimization(ctx, replicaToOptimize, 3*time.Second)
+	return optimization.WaitOptimization(
+		ctx,
+		app.config.OptimizationConfig,
+		app.logger,
+		replicaToOptimize,
+		3*time.Second,
+		app.dcs,
+	)
 }
 
 func (app *App) chooseReplicaToOptimize(

@@ -3,6 +3,7 @@ package app
 import (
 	"fmt"
 
+	"github.com/yandex/mysync/internal/app/optimization"
 	"github.com/yandex/mysync/internal/mysql"
 )
 
@@ -23,7 +24,7 @@ func (app *App) CliEnableOptimization() int {
 	}
 
 	if status == Optimizable {
-		err = app.replicationOptimizer.EnableNodeOptimization(node)
+		err = optimization.EnableNodeOptimization(node, app.dcs)
 		if err != nil {
 			fmt.Printf("%s\n", err)
 			return 1
@@ -53,7 +54,7 @@ func (app *App) CliDisableOptimization() int {
 
 	node := app.cluster.Local()
 	master := app.cluster.Get(masterHost)
-	err = app.replicationOptimizer.DisableNodeOptimization(master, node)
+	err = optimization.DisableNodeOptimization(master, node, app.dcs)
 	if err != nil {
 		fmt.Printf("%s\n", err)
 		return 1
@@ -84,7 +85,7 @@ func (app *App) CliDisableAllOptimization() int {
 	}
 
 	controllerNodes := convertNodesToReplicationControllers(nodes)
-	err = app.replicationOptimizer.DisableAllNodeOptimization(master, controllerNodes)
+	err = optimization.DisableAllNodeOptimization(master, controllerNodes, app.dcs)
 	if err != nil {
 		fmt.Printf("%s\n", err)
 		return 1

@@ -2,33 +2,17 @@ package optimization
 
 import (
 	"errors"
+	"strings"
 
+	"github.com/go-zookeeper/zk"
 	"github.com/yandex/mysync/internal/dcs"
 	"github.com/yandex/mysync/internal/mysql"
 )
 
-func disableHost(
-	node NodeReplicationController,
-	rs mysql.ReplicationSettings,
-) error {
-	return node.SetReplicationSettings(rs)
-}
-
-func enableHost(
-	node NodeReplicationController,
-	DCS dcs.DCS,
-) error {
-	err := DCS.Set(dcs.JoinPath(pathOptimizationNodes, node.Host()), State{Status: StatusEnabled})
-	if err != nil {
-		return err
-	}
-	return node.OptimizeReplication()
-}
-
 func disableHostWithDCS(
 	node NodeReplicationController,
 	rs mysql.ReplicationSettings,
-	DCS dcs.DCS,
+	DCS DCS,
 ) error {
 	err := node.SetReplicationSettings(rs)
 	if err != nil {
@@ -37,7 +21,7 @@ func disableHostWithDCS(
 	return DCS.Delete(dcs.JoinPath(pathOptimizationNodes, node.Host()))
 }
 
-func isOptimal(
+func isOptimized(
 	node NodeReplicationController,
 	lagThreshold float64,
 ) (bool, float64, error) {
@@ -57,17 +41,37 @@ func isOptimal(
 	return false, lag.Float64, nil
 }
 
-func nodeExist(
+func isNodeOptimizing(
 	node NodeReplicationController,
-	DCS dcs.DCS,
+	DCS DCS,
 ) (bool, error) {
-	var state State
+	var state DCSState
 	err := DCS.Get(dcs.JoinPath(pathOptimizationNodes, node.Host()), &state)
-	if err != nil && err != dcs.ErrNotFound && err != dcs.ErrMalformed {
+	if err != nil && err != zk.ErrNoNode && err != dcs.ErrMalformed {
 		return false, err
 	}
-	if err != nil && (err == dcs.ErrNotFound || err == dcs.ErrMalformed) {
+	if err != nil && (err == zk.ErrNoNode || err == dcs.ErrMalformed) {
 		return false, nil
 	}
 	return true, nil
+}
+
+func Union[T any](slices ...[]T) []T {
+	res := make([]T, 0)
+	for _, s := range slices {
+		res = append(res, s...)
+	}
+	return res
+}
+
+func Ptr[T any](v T) *T {
+	return &v
+}
+
+func JoinErrors(errors []error, sep string) string {
+	strs := make([]string, 0, len(errors))
+	for _, err := range errors {
+		strs = append(strs, err.Error())
+	}
+	return strings.Join(strs, sep)
 }
