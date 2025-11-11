@@ -1272,7 +1272,7 @@ func (app *App) performSwitchover(clusterState map[string]*nodestate.NodeState, 
 		return err
 	}
 	if switchover.MasterTransition == SwitchoverTransition {
-		err = app.optimizationPhase(activeNodes, switchover, oldMaster)
+		err = app.optimizationPhase(activeNodes, switchover, oldMaster, clusterState)
 		if err != nil {
 			return err
 		}
