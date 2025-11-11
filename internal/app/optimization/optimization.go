@@ -16,7 +16,7 @@ func WaitOptimization(
 	ctx context.Context,
 	config config.OptimizationConfig,
 	logger Logger,
-	node NodeReplicationController,
+	node Node,
 	checkInterval time.Duration,
 	dcs DCS,
 ) error {
@@ -51,7 +51,7 @@ func WaitOptimization(
 func isOptimizedDuringWaiting(
 	config config.OptimizationConfig,
 	logger Logger,
-	node NodeReplicationController,
+	node Node,
 	Dcs DCS,
 ) (bool, error) {
 	dcsState, err := getHostDCSState(Dcs, node.Host())
@@ -84,7 +84,7 @@ func isOptimizedDuringWaiting(
 // By default, only one optimized replica is allowed per setup to avoid data loss.
 // Returns an error if enabling fails (e.g., due to existing optimizations or channel closures).
 func EnableNodeOptimization(
-	node NodeReplicationController,
+	node Node,
 	Dcs DCS,
 ) error {
 	err := Dcs.Create(dcs.JoinPath(pathOptimizationNodes, node.Host()), DCSState{})
@@ -99,7 +99,7 @@ func EnableNodeOptimization(
 // Changes take effect immediately, as these options can be dangerous.
 // Returns an error if disabling fails.
 func DisableNodeOptimization(
-	master, node NodeReplicationController,
+	master, node Node,
 	Dcs DCS,
 ) error {
 	rs, err := master.GetReplicationSettings()
@@ -120,8 +120,8 @@ func DisableNodeOptimization(
 // and it carries risks similar to disabling a single node.
 // Returns an error if disabling any node fails.
 func DisableAllNodeOptimization(
-	master NodeReplicationController,
-	nodes []NodeReplicationController,
+	master Node,
+	nodes []Node,
 	Dcs DCS,
 ) error {
 	rs, err := master.GetReplicationSettings()
@@ -141,7 +141,7 @@ func DisableAllNodeOptimization(
 	return err
 }
 
-func getDCSOptimizingHostnames(Dcs DCS, fallbackNodes []NodeReplicationController) []string {
+func getDCSOptimizingHostnames(Dcs DCS, fallbackNodes []Node) []string {
 	hostnames, err := Dcs.GetChildren(pathOptimizationNodes)
 	if err != nil {
 		for _, node := range fallbackNodes {
@@ -155,7 +155,7 @@ func disableParticularNodes(
 	hostnames []string,
 	masterRs mysql.ReplicationSettings,
 	Dcs DCS,
-	nodes []NodeReplicationController,
+	nodes []Node,
 ) error {
 	errorArray := make([]error, 0, len(nodes))
 
@@ -187,8 +187,8 @@ func disableParticularNodes(
 	return nil
 }
 
-func makeHostToNodeMap(nodes ...NodeReplicationController) map[string]NodeReplicationController {
-	m := map[string]NodeReplicationController{}
+func makeHostToNodeMap(nodes ...Node) map[string]Node {
+	m := map[string]Node{}
 	for _, node := range nodes {
 		m[node.Host()] = node
 	}

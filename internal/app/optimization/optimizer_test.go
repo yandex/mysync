@@ -36,7 +36,7 @@ func TestBasicOptimization(t *testing.T) {
 
 		opt = NewOptimizer(logger, config)
 		err = opt.Initialize(Dcs)
-		require.EqualError(t, err, dcs.ErrExists.Error())
+		require.NoError(t, err)
 
 		opt = NewOptimizer(logger, config)
 		err = opt.Initialize(Dcs)
@@ -51,7 +51,7 @@ func TestBasicOptimization(t *testing.T) {
 			HighReplicationMark: 120 * time.Second,
 		}
 
-		master := NewMockNodeReplicationController(ctrl)
+		master := NewMockNode(ctrl)
 		master.EXPECT().GetReplicationSettings().
 			Return(mysql.ReplicationSettings{InnodbFlushLogAtTrxCommit: 1, SyncBinlog: 1}, nil).AnyTimes()
 
@@ -93,7 +93,7 @@ func TestBasicOptimization(t *testing.T) {
 			HighReplicationMark: 120 * time.Second,
 		}
 
-		master := NewMockNodeReplicationController(ctrl)
+		master := NewMockNode(ctrl)
 		master.EXPECT().GetReplicationSettings().
 			Return(mysql.ReplicationSettings{InnodbFlushLogAtTrxCommit: 1, SyncBinlog: 1}, nil).AnyTimes()
 		master.EXPECT().
@@ -150,11 +150,11 @@ func TestHAClusterOptimization(t *testing.T) {
 			HighReplicationMark: 120 * time.Second,
 		}
 
-		master := NewMockNodeReplicationController(ctrl)
+		master := NewMockNode(ctrl)
 		master.EXPECT().GetReplicationSettings().
 			Return(mysql.ReplicationSettings{InnodbFlushLogAtTrxCommit: 1, SyncBinlog: 1}, nil).AnyTimes()
 
-		replica1 := NewMockNodeReplicationController(ctrl)
+		replica1 := NewMockNode(ctrl)
 		replica1.EXPECT().GetReplicationSettings().
 			Return(mysql.ReplicationSettings{InnodbFlushLogAtTrxCommit: 1, SyncBinlog: 1}, nil).AnyTimes()
 
@@ -196,11 +196,11 @@ func TestHAClusterOptimization(t *testing.T) {
 			HighReplicationMark: 120 * time.Second,
 		}
 
-		master := NewMockNodeReplicationController(ctrl)
+		master := NewMockNode(ctrl)
 		master.EXPECT().GetReplicationSettings().
 			Return(mysql.ReplicationSettings{InnodbFlushLogAtTrxCommit: 1, SyncBinlog: 1}, nil).AnyTimes()
 
-		replica1 := NewMockNodeReplicationController(ctrl)
+		replica1 := NewMockNode(ctrl)
 		replica1.EXPECT().GetReplicationSettings().
 			Return(mysql.ReplicationSettings{InnodbFlushLogAtTrxCommit: 2, SyncBinlog: 1000}, nil).AnyTimes()
 		replica1.EXPECT().
@@ -268,11 +268,11 @@ func TestHAClusterOptimization(t *testing.T) {
 			HighReplicationMark: 120 * time.Second,
 		}
 
-		master := NewMockNodeReplicationController(ctrl)
+		master := NewMockNode(ctrl)
 		master.EXPECT().GetReplicationSettings().
 			Return(mysql.ReplicationSettings{InnodbFlushLogAtTrxCommit: 1, SyncBinlog: 1}, nil).AnyTimes()
 
-		replica1 := NewMockNodeReplicationController(ctrl)
+		replica1 := NewMockNode(ctrl)
 		replica1.EXPECT().GetReplicationSettings().
 			Return(mysql.ReplicationSettings{InnodbFlushLogAtTrxCommit: 1000, SyncBinlog: 2}, nil).AnyTimes()
 
@@ -335,11 +335,11 @@ func TestOneHostOptimizationPolicy(t *testing.T) {
 			HighReplicationMark: 120 * time.Second,
 		}
 
-		master := NewMockNodeReplicationController(ctrl)
+		master := NewMockNode(ctrl)
 		master.EXPECT().GetReplicationSettings().
 			Return(mysql.ReplicationSettings{InnodbFlushLogAtTrxCommit: 1, SyncBinlog: 1}, nil).AnyTimes()
 
-		replica1 := NewMockNodeReplicationController(ctrl)
+		replica1 := NewMockNode(ctrl)
 		replica1.EXPECT().GetReplicationSettings().
 			Return(mysql.ReplicationSettings{InnodbFlushLogAtTrxCommit: 1000, SyncBinlog: 2}, nil).AnyTimes()
 		replica1.EXPECT().
@@ -348,7 +348,7 @@ func TestOneHostOptimizationPolicy(t *testing.T) {
 				SyncBinlog:                1,
 			})
 
-		replica2 := NewMockNodeReplicationController(ctrl)
+		replica2 := NewMockNode(ctrl)
 		replica2.EXPECT().GetReplicationSettings().
 			Return(mysql.ReplicationSettings{InnodbFlushLogAtTrxCommit: 1000, SyncBinlog: 2}, nil).AnyTimes()
 
@@ -432,11 +432,11 @@ func TestNetworkErrors(t *testing.T) {
 			HighReplicationMark: 120 * time.Second,
 		}
 
-		master := NewMockNodeReplicationController(ctrl)
+		master := NewMockNode(ctrl)
 		master.EXPECT().GetReplicationSettings().
 			Return(mysql.ReplicationSettings{InnodbFlushLogAtTrxCommit: 1, SyncBinlog: 1}, nil).AnyTimes()
 
-		replica1 := NewMockNodeReplicationController(ctrl)
+		replica1 := NewMockNode(ctrl)
 		replica1.EXPECT().GetReplicationSettings().
 			Return(mysql.ReplicationSettings{InnodbFlushLogAtTrxCommit: 2, SyncBinlog: 1000}, nil).AnyTimes()
 
@@ -492,9 +492,9 @@ func TestNetworkErrors(t *testing.T) {
 			HighReplicationMark: 120 * time.Second,
 		}
 
-		master := NewMockNodeReplicationController(ctrl)
+		master := NewMockNode(ctrl)
 
-		replica1 := NewMockNodeReplicationController(ctrl)
+		replica1 := NewMockNode(ctrl)
 		replica1.EXPECT().
 			SetReplicationSettings(mysql.ReplicationSettings{
 				InnodbFlushLogAtTrxCommit: 1,
@@ -549,5 +549,73 @@ func TestNetworkErrors(t *testing.T) {
 
 		err = opt.SyncState(cluster)
 		require.EqualError(t, err, "network-error")
+	})
+}
+
+func TestDeadReplica(t *testing.T) {
+	t.Run("Sync an optimizing dead replica", func(t *testing.T) {
+		ctrl := gomock.NewController(t)
+		logger := NewMockLogger(ctrl)
+		config := config.OptimizationConfig{
+			LowReplicationMark:  5 * time.Second,
+			HighReplicationMark: 120 * time.Second,
+		}
+
+		master := NewMockNode(ctrl)
+
+		replica1 := NewMockNode(ctrl)
+		replica1.EXPECT().
+			SetReplicationSettings(mysql.ReplicationSettings{
+				InnodbFlushLogAtTrxCommit: 1,
+				SyncBinlog:                1,
+			})
+
+		cluster := NewMockCluster(ctrl)
+		cluster.EXPECT().GetMaster().
+			Return("master").AnyTimes()
+		cluster.EXPECT().GetNode("master").
+			Return(master).AnyTimes()
+		cluster.EXPECT().GetState("master").
+			Return(
+				nodestate.NodeState{
+					ReplicationSettings: &mysql.ReplicationSettings{
+						InnodbFlushLogAtTrxCommit: 1,
+						SyncBinlog:                1,
+					},
+				}).AnyTimes()
+
+		cluster.EXPECT().GetNode("replica1").
+			Return(replica1).AnyTimes()
+		cluster.EXPECT().GetState("replica1").
+			Return(
+				nodestate.NodeState{
+					ReplicationSettings: &mysql.ReplicationSettings{
+						InnodbFlushLogAtTrxCommit: 2,
+						SyncBinlog:                1000,
+					},
+					SlaveState: nil,
+				}).AnyTimes()
+
+		Dcs := NewMockDCS(ctrl)
+		Dcs.EXPECT().Create("optimization_nodes", gomock.Any())
+		Dcs.EXPECT().GetChildren("optimization_nodes").
+			Return([]string{"replica1"}, nil)
+		Dcs.EXPECT().Get("optimization_nodes/replica1", gomock.Any()).
+			DoAndReturn(func(path string, dest any) error {
+				ptr, _ := dest.(*DCSState)
+				ptr.Status = "enabled"
+				return nil
+			})
+		Dcs.EXPECT().Delete("optimization_nodes/replica1")
+
+		opt := NewOptimizer(logger, config)
+
+		logger.EXPECT().Infof("Optimizer is initialized")
+
+		err := opt.Initialize(Dcs)
+		require.NoError(t, err)
+
+		err = opt.SyncState(cluster)
+		require.NoError(t, err)
 	})
 }

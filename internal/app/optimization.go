@@ -24,7 +24,7 @@ type OptimizationClusterAdapter struct {
 	master       string
 }
 
-func (ocs *OptimizationClusterAdapter) GetNode(hostname string) optimization.NodeReplicationController {
+func (ocs *OptimizationClusterAdapter) GetNode(hostname string) optimization.Node {
 	return ocs.cluster.Get(hostname)
 }
 

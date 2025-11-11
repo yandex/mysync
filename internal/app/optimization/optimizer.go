@@ -53,7 +53,7 @@ func (opt *Optimizer) Initialize(DCS DCS) error {
 	}
 
 	opt.logger.Infof("Optimizer is initialized")
-	return err
+	return nil
 }
 
 func (opt *Optimizer) getClusterHostsState(c Cluster) (*HostsState, error) {
@@ -62,10 +62,11 @@ func (opt *Optimizer) getClusterHostsState(c Cluster) (*HostsState, error) {
 		return nil, err
 	}
 
-	optState := new(HostsState)
-	stopReplLowMark := opt.config.LowReplicationMark.Seconds()
-	stopReplHighMark := opt.config.HighReplicationMark.Seconds()
+	hostsState := new(HostsState)
 	masterRs := c.GetState(c.GetMaster()).ReplicationSettings
+
+	lowReplMark := opt.config.LowReplicationMark.Seconds()
+	highReplMark := opt.config.HighReplicationMark.Seconds()
 
 	for _, hostname := range hostnames {
 		dcsState, err := getHostDCSState(opt.dcs, hostname)
@@ -77,26 +78,26 @@ func (opt *Optimizer) getClusterHostsState(c Cluster) (*HostsState, error) {
 		isEnabled := dcsState.Status == StatusEnabled
 		isMaster := nodeState.IsMaster
 		isSlaveLost := nodeState.SlaveState == nil || nodeState.SlaveState.ReplicationLag == nil
-		isConverged := !isSlaveLost && *nodeState.SlaveState.ReplicationLag < stopReplHighMark
-		isCompletelyConverged := !isSlaveLost && *nodeState.SlaveState.ReplicationLag < stopReplLowMark
+		isNearConverged := !isSlaveLost && *nodeState.SlaveState.ReplicationLag < highReplMark
+		isCompletelyConverged := !isSlaveLost && *nodeState.SlaveState.ReplicationLag < lowReplMark
 
 		switch {
 		case isMaster || isSlaveLost:
-			optState.MalfunctioningHosts = append(optState.MalfunctioningHosts, hostname)
+			hostsState.MalfunctioningHosts = append(hostsState.MalfunctioningHosts, hostname)
 
-		case isConverged && !isEnabled ||
+		case isNearConverged && !isEnabled ||
 			isCompletelyConverged && isEnabled:
-			optState.OptimizedHosts = append(optState.OptimizedHosts, hostname)
+			hostsState.OptimizedHosts = append(hostsState.OptimizedHosts, hostname)
 
 		case isEnabled || !nodeState.ReplicationSettings.Equal(masterRs):
-			optState.OptimizingHosts = append(optState.OptimizingHosts, hostname)
+			hostsState.OptimizingHosts = append(hostsState.OptimizingHosts, hostname)
 
 		default:
-			optState.DisabledHosts = append(optState.DisabledHosts, hostname)
+			hostsState.DisabledHosts = append(hostsState.DisabledHosts, hostname)
 		}
 	}
 
-	return optState, nil
+	return hostsState, nil
 }
 
 func getHostDCSState(Dcs DCS, hostname string) (*DCSState, error) {
@@ -227,7 +228,7 @@ func (opt *Optimizer) deleteNodes(
 
 func (opt *Optimizer) syncNodeOptions(
 	host string,
-	node NodeReplicationController,
+	node Node,
 ) error {
 	settings, err := node.GetReplicationSettings()
 	if err != nil {

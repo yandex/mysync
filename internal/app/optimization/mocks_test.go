@@ -213,31 +213,31 @@ func (mr *MockDCSMockRecorder) GetChildren(path interface{}) *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetChildren", reflect.TypeOf((*MockDCS)(nil).GetChildren), path)
 }
 
-// MockNodeReplicationController is a mock of NodeReplicationController interface
-type MockNodeReplicationController struct {
+// MockNode is a mock of Node interface
+type MockNode struct {
 	ctrl     *gomock.Controller
-	recorder *MockNodeReplicationControllerMockRecorder
+	recorder *MockNodeMockRecorder
 }
 
-// MockNodeReplicationControllerMockRecorder is the mock recorder for MockNodeReplicationController
-type MockNodeReplicationControllerMockRecorder struct {
-	mock *MockNodeReplicationController
+// MockNodeMockRecorder is the mock recorder for MockNode
+type MockNodeMockRecorder struct {
+	mock *MockNode
 }
 
-// NewMockNodeReplicationController creates a new mock instance
-func NewMockNodeReplicationController(ctrl *gomock.Controller) *MockNodeReplicationController {
-	mock := &MockNodeReplicationController{ctrl: ctrl}
-	mock.recorder = &MockNodeReplicationControllerMockRecorder{mock}
+// NewMockNode creates a new mock instance
+func NewMockNode(ctrl *gomock.Controller) *MockNode {
+	mock := &MockNode{ctrl: ctrl}
+	mock.recorder = &MockNodeMockRecorder{mock}
 	return mock
 }
 
 // EXPECT returns an object that allows the caller to indicate expected use
-func (m *MockNodeReplicationController) EXPECT() *MockNodeReplicationControllerMockRecorder {
+func (m *MockNode) EXPECT() *MockNodeMockRecorder {
 	return m.recorder
 }
 
 // SetReplicationSettings mocks base method
-func (m *MockNodeReplicationController) SetReplicationSettings(rs mysql.ReplicationSettings) error {
+func (m *MockNode) SetReplicationSettings(rs mysql.ReplicationSettings) error {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "SetReplicationSettings", rs)
 	ret0, _ := ret[0].(error)
@@ -245,13 +245,13 @@ func (m *MockNodeReplicationController) SetReplicationSettings(rs mysql.Replicat
 }
 
 // SetReplicationSettings indicates an expected call of SetReplicationSettings
-func (mr *MockNodeReplicationControllerMockRecorder) SetReplicationSettings(rs interface{}) *gomock.Call {
+func (mr *MockNodeMockRecorder) SetReplicationSettings(rs interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetReplicationSettings", reflect.TypeOf((*MockNodeReplicationController)(nil).SetReplicationSettings), rs)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetReplicationSettings", reflect.TypeOf((*MockNode)(nil).SetReplicationSettings), rs)
 }
 
 // GetReplicationSettings mocks base method
-func (m *MockNodeReplicationController) GetReplicationSettings() (mysql.ReplicationSettings, error) {
+func (m *MockNode) GetReplicationSettings() (mysql.ReplicationSettings, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "GetReplicationSettings")
 	ret0, _ := ret[0].(mysql.ReplicationSettings)
@@ -260,13 +260,13 @@ func (m *MockNodeReplicationController) GetReplicationSettings() (mysql.Replicat
 }
 
 // GetReplicationSettings indicates an expected call of GetReplicationSettings
-func (mr *MockNodeReplicationControllerMockRecorder) GetReplicationSettings() *gomock.Call {
+func (mr *MockNodeMockRecorder) GetReplicationSettings() *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetReplicationSettings", reflect.TypeOf((*MockNodeReplicationController)(nil).GetReplicationSettings))
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetReplicationSettings", reflect.TypeOf((*MockNode)(nil).GetReplicationSettings))
 }
 
 // OptimizeReplication mocks base method
-func (m *MockNodeReplicationController) OptimizeReplication() error {
+func (m *MockNode) OptimizeReplication() error {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "OptimizeReplication")
 	ret0, _ := ret[0].(error)
@@ -274,13 +274,13 @@ func (m *MockNodeReplicationController) OptimizeReplication() error {
 }
 
 // OptimizeReplication indicates an expected call of OptimizeReplication
-func (mr *MockNodeReplicationControllerMockRecorder) OptimizeReplication() *gomock.Call {
+func (mr *MockNodeMockRecorder) OptimizeReplication() *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "OptimizeReplication", reflect.TypeOf((*MockNodeReplicationController)(nil).OptimizeReplication))
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "OptimizeReplication", reflect.TypeOf((*MockNode)(nil).OptimizeReplication))
 }
 
 // GetReplicaStatus mocks base method
-func (m *MockNodeReplicationController) GetReplicaStatus() (mysql.ReplicaStatus, error) {
+func (m *MockNode) GetReplicaStatus() (mysql.ReplicaStatus, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "GetReplicaStatus")
 	ret0, _ := ret[0].(mysql.ReplicaStatus)
@@ -289,13 +289,13 @@ func (m *MockNodeReplicationController) GetReplicaStatus() (mysql.ReplicaStatus,
 }
 
 // GetReplicaStatus indicates an expected call of GetReplicaStatus
-func (mr *MockNodeReplicationControllerMockRecorder) GetReplicaStatus() *gomock.Call {
+func (mr *MockNodeMockRecorder) GetReplicaStatus() *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetReplicaStatus", reflect.TypeOf((*MockNodeReplicationController)(nil).GetReplicaStatus))
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetReplicaStatus", reflect.TypeOf((*MockNode)(nil).GetReplicaStatus))
 }
 
 // Host mocks base method
-func (m *MockNodeReplicationController) Host() string {
+func (m *MockNode) Host() string {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Host")
 	ret0, _ := ret[0].(string)
@@ -303,9 +303,9 @@ func (m *MockNodeReplicationController) Host() string {
 }
 
 // Host indicates an expected call of Host
-func (mr *MockNodeReplicationControllerMockRecorder) Host() *gomock.Call {
+func (mr *MockNodeMockRecorder) Host() *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Host", reflect.TypeOf((*MockNodeReplicationController)(nil).Host))
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Host", reflect.TypeOf((*MockNode)(nil).Host))
 }
 
 // MockCluster is a mock of Cluster interface
@@ -332,10 +332,10 @@ func (m *MockCluster) EXPECT() *MockClusterMockRecorder {
 }
 
 // GetNode mocks base method
-func (m *MockCluster) GetNode(hostname string) NodeReplicationController {
+func (m *MockCluster) GetNode(hostname string) Node {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "GetNode", hostname)
-	ret0, _ := ret[0].(NodeReplicationController)
+	ret0, _ := ret[0].(Node)
 	return ret0
 }
 

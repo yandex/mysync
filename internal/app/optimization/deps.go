@@ -1,4 +1,4 @@
-//go:generate mockgen -source=deps.go -destination=mocks_test.go -package=optimization . DCS,NodeReplicationController,Logger,Cluster
+//go:generate mockgen -source=deps.go -destination=mocks_test.go -package=optimization . DCS,Node,Logger,Cluster
 package optimization
 
 import (
@@ -22,7 +22,7 @@ type DCS interface {
 	GetChildren(path string) ([]string, error)
 }
 
-type NodeReplicationController interface {
+type Node interface {
 	SetReplicationSettings(rs mysql.ReplicationSettings) error
 	GetReplicationSettings() (mysql.ReplicationSettings, error)
 
@@ -34,7 +34,7 @@ type NodeReplicationController interface {
 }
 
 type Cluster interface {
-	GetNode(hostname string) NodeReplicationController
+	GetNode(hostname string) Node
 	GetState(hostname string) nodestate.NodeState
 	GetMaster() string
 }
