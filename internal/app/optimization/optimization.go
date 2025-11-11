@@ -8,6 +8,7 @@ import (
 	"github.com/yandex/mysync/internal/config"
 	"github.com/yandex/mysync/internal/dcs"
 	"github.com/yandex/mysync/internal/mysql"
+	"github.com/yandex/mysync/internal/util"
 )
 
 // WaitOptimization blocks until node is optimized
@@ -53,30 +54,28 @@ func isOptimizedDuringWaiting(
 	node NodeReplicationController,
 	Dcs DCS,
 ) (bool, error) {
-	optimizing, err := isNodeOptimizing(node, Dcs)
+	dcsState, err := getHostDCSState(Dcs, node.Host())
 	if err != nil {
 		return false, err
 	}
-
-	if optimizing {
+	if dcsState.Status == StatusEnabled {
 		logger.Infof("optimization: waiting; node is optimizing")
 	} else {
 		return true, nil
 	}
 
-	optimized, lag, err := isOptimized(
-		node,
-		config.LowReplicationMark.Seconds(),
-	)
+	replicationStatus, err := node.GetReplicaStatus()
 	if err != nil {
 		return false, err
 	}
-	if optimized {
-		logger.Infof("optimization: waiting is complete, as replication lag is converged: %s", lag)
+
+	lag := replicationStatus.GetReplicationLag()
+	if lag.Valid && lag.Float64 < float64(config.LowReplicationMark) {
+		logger.Infof("optimization: waiting is complete, as replication lag is converged: %s", lag.Float64)
 		return true, Dcs.Delete(dcs.JoinPath(pathOptimizationNodes, node.Host()))
 	}
 
-	logger.Infof("optimization: waiting; replication lag is %f", lag)
+	logger.Infof("optimization: waiting; replication lag is %f", lag.Float64)
 	return false, nil
 }
 
@@ -107,7 +106,13 @@ func DisableNodeOptimization(
 	if err != nil {
 		rs = mysql.SafeReplicationSettings
 	}
-	return disableHostWithDCS(node, rs, Dcs)
+
+	err = node.SetReplicationSettings(rs)
+	if err != nil {
+		return err
+	}
+
+	return Dcs.Delete(dcs.JoinPath(pathOptimizationNodes, node.Host()))
 }
 
 // DisableAllNodeOptimization deactivates optimization mode for all specified nodes,
@@ -124,19 +129,49 @@ func DisableAllNodeOptimization(
 		rs = mysql.SafeReplicationSettings
 	}
 
-	errorArray := make([]error, 0, len(nodes)+1)
+	hostnames := getDCSOptimizingHostnames(Dcs, nodes)
 
+	err = disableParticularNodes(
+		hostnames,
+		rs,
+		Dcs,
+		nodes,
+	)
+
+	return err
+}
+
+func getDCSOptimizingHostnames(Dcs DCS, fallbackNodes []NodeReplicationController) []string {
 	hostnames, err := Dcs.GetChildren(pathOptimizationNodes)
 	if err != nil {
-		errorArray = append(errorArray, err)
-		for _, node := range nodes {
+		for _, node := range fallbackNodes {
 			hostnames = append(hostnames, node.Host())
 		}
 	}
+	return hostnames
+}
+
+func disableParticularNodes(
+	hostnames []string,
+	masterRs mysql.ReplicationSettings,
+	Dcs DCS,
+	nodes []NodeReplicationController,
+) error {
+	errorArray := make([]error, 0, len(nodes))
 
 	m := makeHostToNodeMap(nodes...)
 	for _, hostname := range hostnames {
-		err := disableHostWithDCS(m[hostname], rs, Dcs)
+		node, ok := m[hostname]
+		if !ok {
+			continue
+		}
+
+		err := node.SetReplicationSettings(masterRs)
+		if err != nil {
+			return err
+		}
+
+		err = Dcs.Delete(dcs.JoinPath(pathOptimizationNodes, node.Host()))
 		if err != nil {
 			errorArray = append(errorArray, fmt.Errorf("%s:%w", hostname, err))
 		}
@@ -145,9 +180,10 @@ func DisableAllNodeOptimization(
 	if len(errorArray) > 0 {
 		return fmt.Errorf(
 			"got the following errors: %s",
-			JoinErrors(errorArray, ","),
+			util.JoinErrors(errorArray, ","),
 		)
 	}
+
 	return nil
 }
 

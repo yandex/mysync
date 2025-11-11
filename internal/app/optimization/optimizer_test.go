@@ -5,12 +5,13 @@ import (
 	"testing"
 	"time"
 
-	"github.com/go-zookeeper/zk"
 	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/require"
 	nodestate "github.com/yandex/mysync/internal/app/node_state"
 	"github.com/yandex/mysync/internal/config"
+	"github.com/yandex/mysync/internal/dcs"
 	"github.com/yandex/mysync/internal/mysql"
+	"github.com/yandex/mysync/internal/util"
 )
 
 func TestBasicOptimization(t *testing.T) {
@@ -22,7 +23,7 @@ func TestBasicOptimization(t *testing.T) {
 
 		Dcs.EXPECT().Create("optimization_nodes", gomock.Any())
 		Dcs.EXPECT().Create("optimization_nodes", gomock.Any()).
-			Return(zk.ErrNodeExists)
+			Return(dcs.ErrExists)
 		Dcs.EXPECT().Create("optimization_nodes", gomock.Any()).
 			Return(fmt.Errorf("network-error"))
 
@@ -35,7 +36,7 @@ func TestBasicOptimization(t *testing.T) {
 
 		opt = NewOptimizer(logger, config)
 		err = opt.Initialize(Dcs)
-		require.EqualError(t, err, zk.ErrNodeExists.Error())
+		require.EqualError(t, err, dcs.ErrExists.Error())
 
 		opt = NewOptimizer(logger, config)
 		err = opt.Initialize(Dcs)
@@ -232,7 +233,7 @@ func TestHAClusterOptimization(t *testing.T) {
 						SyncBinlog:                1000,
 					},
 					SlaveState: &nodestate.SlaveState{
-						ReplicationLag: Ptr(0.0),
+						ReplicationLag: util.Ptr(0.0),
 					},
 				}).AnyTimes()
 
@@ -298,7 +299,7 @@ func TestHAClusterOptimization(t *testing.T) {
 						SyncBinlog:                1000,
 					},
 					SlaveState: &nodestate.SlaveState{
-						ReplicationLag: Ptr(1024.0),
+						ReplicationLag: util.Ptr(1024.0),
 					},
 				}).AnyTimes()
 
@@ -375,7 +376,7 @@ func TestOneHostOptimizationPolicy(t *testing.T) {
 						SyncBinlog:                1000,
 					},
 					SlaveState: &nodestate.SlaveState{
-						ReplicationLag: Ptr(1024.0),
+						ReplicationLag: util.Ptr(1024.0),
 					},
 				}).AnyTimes()
 
@@ -389,7 +390,7 @@ func TestOneHostOptimizationPolicy(t *testing.T) {
 						SyncBinlog:                1000,
 					},
 					SlaveState: &nodestate.SlaveState{
-						ReplicationLag: Ptr(1024.0),
+						ReplicationLag: util.Ptr(1024.0),
 					},
 				}).AnyTimes()
 
@@ -463,7 +464,7 @@ func TestNetworkErrors(t *testing.T) {
 						SyncBinlog:                1000,
 					},
 					SlaveState: &nodestate.SlaveState{
-						ReplicationLag: Ptr(0.0),
+						ReplicationLag: util.Ptr(0.0),
 					},
 				}).AnyTimes()
 
@@ -524,7 +525,7 @@ func TestNetworkErrors(t *testing.T) {
 						SyncBinlog:                1000,
 					},
 					SlaveState: &nodestate.SlaveState{
-						ReplicationLag: Ptr(0.0),
+						ReplicationLag: util.Ptr(0.0),
 					},
 				}).AnyTimes()
 

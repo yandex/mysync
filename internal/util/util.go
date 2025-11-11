@@ -2,6 +2,7 @@ package util
 
 import (
 	"errors"
+	"math/rand/v2"
 	"net"
 	"os"
 	"strconv"
@@ -36,7 +37,7 @@ func SelectNodes(hosts []string, match string) []string {
 func TouchFile(fname string) error {
 	_, err := os.Stat(fname)
 	if os.IsNotExist(err) {
-		err := os.WriteFile(fname, []byte(""), 0644)
+		err := os.WriteFile(fname, []byte(""), 0o644)
 		if err != nil {
 			return err
 		}
@@ -84,4 +85,30 @@ func FilterStrings(heap []string, cond func(s string) bool) []string {
 		}
 	}
 	return ret
+}
+
+func Union[T any](slices ...[]T) []T {
+	res := make([]T, 0)
+	for _, s := range slices {
+		res = append(res, s...)
+	}
+	return res
+}
+
+func Ptr[T any](v T) *T {
+	return &v
+}
+
+func JoinErrors(errors []error, sep string) string {
+	strs := make([]string, 0, len(errors))
+	for _, err := range errors {
+		strs = append(strs, err.Error())
+	}
+	return strings.Join(strs, sep)
+}
+
+func Shuffle(hosts []string) {
+	rand.Shuffle(len(hosts), func(i, j int) {
+		hosts[i], hosts[j] = hosts[j], hosts[i]
+	})
 }

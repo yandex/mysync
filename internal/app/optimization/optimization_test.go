@@ -7,10 +7,10 @@ import (
 	"testing"
 	"time"
 
-	"github.com/go-zookeeper/zk"
 	gomock "github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/require"
 	"github.com/yandex/mysync/internal/config"
+	"github.com/yandex/mysync/internal/dcs"
 	"github.com/yandex/mysync/internal/mysql"
 )
 
@@ -69,7 +69,7 @@ func TestWaitOptimization(t *testing.T) {
 		Dcs := NewMockDCS(ctrl)
 		Dcs.EXPECT().Get("optimization_nodes/replica1", gomock.Any()).
 			DoAndReturn(func(path string, dest any) error {
-				return zk.ErrNoNode
+				return dcs.ErrNotFound
 			})
 
 		err := WaitOptimization(ctx, config, logger, node, checkInterval, Dcs)
@@ -114,8 +114,8 @@ func TestWaitOptimization(t *testing.T) {
 	t.Run("Waiting works", func(t *testing.T) {
 		ctx := context.Background()
 		config := config.OptimizationConfig{
-			LowReplicationMark:  5 * time.Second,
-			HighReplicationMark: 120 * time.Second,
+			LowReplicationMark:  5,
+			HighReplicationMark: 120,
 		}
 		checkInterval := time.Millisecond
 
@@ -299,6 +299,39 @@ func TestDisableAllNodeOptimization(t *testing.T) {
 		require.NoError(t, err)
 	})
 
+	t.Run("Disable only one replica", func(t *testing.T) {
+		ctrl := gomock.NewController(t)
+
+		replica1 := NewMockNodeReplicationController(ctrl)
+		replica1.EXPECT().Host().Return("replica1").AnyTimes()
+		replica1.EXPECT().SetReplicationSettings(mysql.ReplicationSettings{
+			InnodbFlushLogAtTrxCommit: 1,
+			SyncBinlog:                1,
+		})
+
+		replica2 := NewMockNodeReplicationController(ctrl)
+		replica2.EXPECT().Host().Return("replica2").AnyTimes()
+
+		master := NewMockNodeReplicationController(ctrl)
+		master.EXPECT().GetReplicationSettings().
+			Return(mysql.ReplicationSettings{
+				InnodbFlushLogAtTrxCommit: 1,
+				SyncBinlog:                1,
+			}, nil)
+
+		Dcs := NewMockDCS(ctrl)
+		Dcs.EXPECT().GetChildren("optimization_nodes").
+			Return([]string{"replica1", "replica2"}, nil)
+		Dcs.EXPECT().Delete("optimization_nodes/replica1")
+
+		err := DisableAllNodeOptimization(
+			master,
+			[]NodeReplicationController{replica1},
+			Dcs,
+		)
+		require.NoError(t, err)
+	})
+
 	t.Run("Dcs network-errors", func(t *testing.T) {
 		ctrl := gomock.NewController(t)
 
@@ -336,6 +369,6 @@ func TestDisableAllNodeOptimization(t *testing.T) {
 			[]NodeReplicationController{replica1, replica2},
 			Dcs,
 		)
-		require.EqualError(t, err, "got the following errors: network-error,replica1:network-error,replica2:network-error")
+		require.EqualError(t, err, "got the following errors: replica1:network-error,replica2:network-error")
 	})
 }

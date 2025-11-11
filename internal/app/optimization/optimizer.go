@@ -1,13 +1,10 @@
 package optimization
 
 import (
-	"fmt"
-	"math/rand/v2"
-
-	"github.com/go-zookeeper/zk"
 	"github.com/yandex/mysync/internal/config"
 	"github.com/yandex/mysync/internal/dcs"
 	"github.com/yandex/mysync/internal/mysql"
+	"github.com/yandex/mysync/internal/util"
 )
 
 type ReplicationOpitimizer interface {
@@ -37,11 +34,10 @@ type Optimizer struct {
 	dcs    DCS
 }
 
-type Status string
-
 type DCSState struct {
 	Status Status `json:"status"`
 }
+type Status string
 
 const (
 	StatusNew     Status = ""
@@ -52,7 +48,7 @@ func (opt *Optimizer) Initialize(DCS DCS) error {
 	opt.dcs = DCS
 
 	err := DCS.Create(pathOptimizationNodes, "")
-	if err != nil && err != zk.ErrNodeExists {
+	if err != nil && err != dcs.ErrExists {
 		return err
 	}
 
@@ -60,7 +56,7 @@ func (opt *Optimizer) Initialize(DCS DCS) error {
 	return err
 }
 
-func (opt *Optimizer) getOptimizationState(c Cluster) (*HostsState, error) {
+func (opt *Optimizer) getClusterHostsState(c Cluster) (*HostsState, error) {
 	hostnames, err := opt.dcs.GetChildren(pathOptimizationNodes)
 	if err != nil {
 		return nil, err
@@ -72,7 +68,7 @@ func (opt *Optimizer) getOptimizationState(c Cluster) (*HostsState, error) {
 	masterRs := c.GetState(c.GetMaster()).ReplicationSettings
 
 	for _, hostname := range hostnames {
-		dcsState, err := opt.getDCSState(hostname)
+		dcsState, err := getHostDCSState(opt.dcs, hostname)
 		if err != nil {
 			return nil, err
 		}
@@ -103,11 +99,11 @@ func (opt *Optimizer) getOptimizationState(c Cluster) (*HostsState, error) {
 	return optState, nil
 }
 
-func (opt *Optimizer) getDCSState(hostname string) (*DCSState, error) {
+func getHostDCSState(Dcs DCS, hostname string) (*DCSState, error) {
 	path := dcs.JoinPath(pathOptimizationNodes, hostname)
 
 	state := new(DCSState)
-	err := opt.dcs.Get(path, state)
+	err := Dcs.Get(path, state)
 	if err != nil && err != dcs.ErrNotFound && err != dcs.ErrMalformed {
 		return nil, err
 	}
@@ -127,24 +123,24 @@ type HostsState struct {
 }
 
 func (opt *Optimizer) SyncState(c Cluster) error {
-	master := c.GetState(c.GetMaster())
-	if master.ReplicationSettings == nil {
-		return fmt.Errorf("master replication settings are nil")
-	}
-
-	optState, err := opt.getOptimizationState(c)
+	masterRs, err := opt.getMasterReplSettings(c)
 	if err != nil {
 		return err
 	}
 
-	nodesToDisable := Union(
+	optState, err := opt.getClusterHostsState(c)
+	if err != nil {
+		return err
+	}
+
+	nodesToDisable := util.Union(
 		optState.OptimizedHosts,
 		optState.MalfunctioningHosts,
 	)
 	err = opt.stopNodes(
 		c,
 		nodesToDisable,
-		*master.ReplicationSettings,
+		masterRs,
 	)
 	if err != nil {
 		return err
@@ -156,11 +152,11 @@ func (opt *Optimizer) SyncState(c Cluster) error {
 
 	switch {
 	case len(optState.OptimizingHosts) > 1:
-		opt.shuffle(optState.OptimizingHosts)
+		util.Shuffle(optState.OptimizingHosts)
 		err = opt.stopNodes(
 			c,
 			optState.OptimizingHosts[1:],
-			*master.ReplicationSettings,
+			masterRs,
 		)
 		if err != nil {
 			return err
@@ -173,7 +169,7 @@ func (opt *Optimizer) SyncState(c Cluster) error {
 		}
 
 	case len(optState.OptimizingHosts) == 0 && len(optState.DisabledHosts) > 0:
-		opt.shuffle(optState.DisabledHosts)
+		util.Shuffle(optState.DisabledHosts)
 		err = opt.startNodes(c, optState.DisabledHosts[:1])
 		if err != nil {
 			return err
@@ -229,12 +225,6 @@ func (opt *Optimizer) deleteNodes(
 	return nil
 }
 
-func (opt *Optimizer) shuffle(hosts []string) {
-	rand.Shuffle(len(hosts), func(i, j int) {
-		hosts[i], hosts[j] = hosts[j], hosts[i]
-	})
-}
-
 func (opt *Optimizer) syncNodeOptions(
 	host string,
 	node NodeReplicationController,
@@ -248,4 +238,18 @@ func (opt *Optimizer) syncNodeOptions(
 		return node.OptimizeReplication()
 	}
 	return nil
+}
+
+func (opt *Optimizer) getMasterReplSettings(c Cluster) (mysql.ReplicationSettings, error) {
+	master := c.GetState(c.GetMaster())
+	if master.ReplicationSettings != nil {
+		return *master.ReplicationSettings, nil
+	}
+
+	rs, err := c.GetNode(c.GetMaster()).GetReplicationSettings()
+	if err != nil {
+		return mysql.ReplicationSettings{}, err
+	}
+
+	return rs, nil
 }
