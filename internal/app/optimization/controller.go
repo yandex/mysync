@@ -111,15 +111,10 @@ func (m *controller) Enable(node Node) error {
 func (m *controller) Disable(master, node Node) error {
 	rs, err := master.GetReplicationSettings()
 	if err != nil {
-		m.logger.Warnf("cannot get replication setting from the master: %s", err)
+		m.logger.Warnf("cannot get replication setting from the master: %s", err.Error())
 		rs = mysql.SafeReplicationSettings
 	}
-
-	err = node.SetReplicationSettings(rs)
-	if err != nil {
-		return err
-	}
-	return m.dcs.DeleteHosts(node.Host())
+	return m.disable(rs, node)
 }
 
 // DisableAll deactivates optimization mode for all specified nodes.
@@ -130,6 +125,11 @@ func (m *controller) DisableAll(master Node, nodes []Node) error {
 	hostnames := m.dcsHostnames(m.dcs, nodes)
 	hostnameToNode := makeHostToNodeMap(nodes...)
 	errors := make([]error, 0, len(nodes))
+	rs, err := master.GetReplicationSettings()
+	if err != nil {
+		m.logger.Warnf("cannot get replication setting from the master: %s", err.Error())
+		rs = mysql.SafeReplicationSettings
+	}
 
 	for _, hostname := range hostnames {
 		node, ok := hostnameToNode[hostname]
@@ -138,7 +138,7 @@ func (m *controller) DisableAll(master Node, nodes []Node) error {
 			continue
 		}
 
-		err := m.Disable(master, node)
+		err := m.disable(rs, node)
 		if err != nil {
 			errors = append(errors, fmt.Errorf("%s:%s", hostname, err))
 		}
@@ -148,6 +148,14 @@ func (m *controller) DisableAll(master Node, nodes []Node) error {
 		return nil
 	}
 	return fmt.Errorf("got the following errors: %s", util.JoinErrors(errors, ","))
+}
+
+func (m *controller) disable(rs mysql.ReplicationSettings, node Node) error {
+	err := node.SetReplicationSettings(rs)
+	if err != nil {
+		return err
+	}
+	return m.dcs.DeleteHosts(node.Host())
 }
 
 func (m *controller) dcsHostnames(Dcs DCS, fallbackNodes []Node) []string {
