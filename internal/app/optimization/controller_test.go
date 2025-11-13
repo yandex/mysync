@@ -13,6 +13,7 @@ import (
 	"github.com/yandex/mysync/internal/mysql"
 )
 
+//nolint:funlen
 func TestWaitOptimization(t *testing.T) {
 	t.Run("Waiting for an optimized replica", func(t *testing.T) {
 		ctx := context.Background()

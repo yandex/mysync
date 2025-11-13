@@ -1296,10 +1296,7 @@ func (app *App) performSwitchover(clusterState map[string]*nodestate.NodeState, 
 		activeNodes = filterOut(activeNodes, []string{oldMaster})
 	}
 
-	err := app.stopActiveNodeOptimization(
-		oldMaster,
-		activeNodes,
-	)
+	err := app.stopActiveNodeOptimization(activeNodes)
 	if err != nil {
 		return err
 	}
@@ -2398,7 +2395,7 @@ func (app *App) waitForCatchUp(node *mysql.Node, gtidset gtids.GTIDSet, timeout 
 	return false, nil
 }
 
-func (app *App) stopActiveNodeOptimization(master string, activeNodes []string) error {
+func (app *App) stopActiveNodeOptimization(activeNodes []string) error {
 	var nodes []*mysql.Node
 	for _, hostname := range activeNodes {
 		nodes = append(nodes, app.cluster.Get(hostname))

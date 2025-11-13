@@ -17,7 +17,7 @@ func NewSyncer(
 	logger Logger,
 	config config.OptimizationConfig,
 	Dcs DCS,
-) (*syncer, error) {
+) (Syncer, error) {
 	return &syncer{
 		logger: logger,
 		config: config,
@@ -90,13 +90,13 @@ type hostsState struct {
 	MalfunctioningHosts []string
 }
 
-func (opt *syncer) Sync(c Cluster) error {
-	masterRs, err := opt.getMasterReplSettings(c)
+func (s *syncer) Sync(c Cluster) error {
+	masterRs, err := s.getMasterReplSettings(c)
 	if err != nil {
 		return err
 	}
 
-	hostsState, err := opt.getClusterHostsState(c)
+	hostsState, err := s.getClusterHostsState(c)
 	if err != nil {
 		return err
 	}
@@ -105,27 +105,27 @@ func (opt *syncer) Sync(c Cluster) error {
 		hostsState.OptimizedHosts,
 		hostsState.MalfunctioningHosts,
 	)
-	err = opt.disableNodes(c, hostsToDisable, masterRs)
+	err = s.disableNodes(c, hostsToDisable, masterRs)
 	if err != nil {
 		return err
 	}
 
-	return opt.balanceToSingleNode(c, masterRs, hostsState)
+	return s.balanceToSingleNode(c, masterRs, hostsState)
 }
 
-func (opt *syncer) balanceToSingleNode(
+func (s *syncer) balanceToSingleNode(
 	c Cluster,
 	masterRs mysql.ReplicationSettings,
 	hostsState *hostsState,
 ) error {
 	switch {
 	case len(hostsState.OptimizingHosts) > 1:
-		opt.logger.Infof(
+		s.logger.Infof(
 			"optimization: there are too many nodes: %d. Turn %d off",
 			len(hostsState.OptimizingHosts),
 			len(hostsState.OptimizingHosts)-1,
 		)
-		err := opt.stopNodes(
+		err := s.stopNodes(
 			c,
 			hostsState.OptimizingHosts[1:],
 			masterRs,
@@ -134,23 +134,23 @@ func (opt *syncer) balanceToSingleNode(
 			return err
 		}
 		host := hostsState.OptimizingHosts[0]
-		return opt.syncNodeOptions(host, c.GetNode(host))
+		return s.syncNodeOptions(host, c.GetNode(host))
 
 	case len(hostsState.OptimizingHosts) == 0 && len(hostsState.DisabledHosts) > 0:
-		opt.logger.Infof(
+		s.logger.Infof(
 			"optimization: start optimizing new node %s",
 			hostsState.DisabledHosts[0],
 		)
-		return opt.startNodes(c, hostsState.DisabledHosts[:1])
+		return s.startNodes(c, hostsState.DisabledHosts[:1])
 
 	case len(hostsState.OptimizingHosts) == 1:
 		host := hostsState.OptimizingHosts[0]
-		return opt.syncNodeOptions(host, c.GetNode(host))
+		return s.syncNodeOptions(host, c.GetNode(host))
 	}
 	return nil
 }
 
-func (opt *syncer) startNodes(
+func (s *syncer) startNodes(
 	c Cluster,
 	hosts []string,
 ) error {
@@ -163,7 +163,7 @@ func (opt *syncer) startNodes(
 	return nil
 }
 
-func (opt *syncer) stopNodes(
+func (s *syncer) stopNodes(
 	c Cluster,
 	hosts []string,
 	rs mysql.ReplicationSettings,
@@ -177,7 +177,7 @@ func (opt *syncer) stopNodes(
 	return nil
 }
 
-func (opt *syncer) disableNodes(
+func (s *syncer) disableNodes(
 	c Cluster,
 	hosts []string,
 	rs mysql.ReplicationSettings,
@@ -186,14 +186,14 @@ func (opt *syncer) disableNodes(
 		return nil
 	}
 
-	err := opt.stopNodes(c, hosts, rs)
+	err := s.stopNodes(c, hosts, rs)
 	if err != nil {
 		return err
 	}
-	return opt.dcs.DeleteHosts(hosts...)
+	return s.dcs.DeleteHosts(hosts...)
 }
 
-func (opt *syncer) syncNodeOptions(
+func (s *syncer) syncNodeOptions(
 	host string,
 	node Node,
 ) error {
@@ -202,13 +202,13 @@ func (opt *syncer) syncNodeOptions(
 		return err
 	}
 	if settings.CanBeOptimized() {
-		opt.logger.Warnf("Node %s should be optimizing but is not - restarting optimization", host)
+		s.logger.Warnf("Node %s should be optimizing but is not - restarting optimization", host)
 		return node.OptimizeReplication()
 	}
 	return nil
 }
 
-func (opt *syncer) getMasterReplSettings(c Cluster) (mysql.ReplicationSettings, error) {
+func (s *syncer) getMasterReplSettings(c Cluster) (mysql.ReplicationSettings, error) {
 	master := c.GetState(c.GetMaster())
 	if master.ReplicationSettings != nil {
 		return *master.ReplicationSettings, nil
