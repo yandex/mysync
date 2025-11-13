@@ -253,12 +253,7 @@ func (app *App) optimizeReplicaWithSmallestLag(
 	}
 	replicaToOptimize := app.cluster.Get(hostnameToOptimize)
 
-	err = optimization.EnableNodeOptimization(replicaToOptimize, app.dcs)
-	if err != nil {
-		return err
-	}
-
-	err = app.replicationOptimizer.SyncState(clusterAdapter)
+	err = app.optimizationManager.Enable(replicaToOptimize)
 	if err != nil {
 		return err
 	}
@@ -266,14 +261,39 @@ func (app *App) optimizeReplicaWithSmallestLag(
 	ctx, cancel := context.WithTimeout(context.Background(), app.config.ReplicationConvergenceTimeoutSwitchover)
 	defer cancel()
 
-	return optimization.WaitOptimization(
+	ticker := time.NewTicker(3 * time.Second)
+	defer ticker.Stop()
+
+	app.startSyncerGoroutine(
 		ctx,
-		app.config.OptimizationConfig,
-		app.logger,
-		replicaToOptimize,
-		3*time.Second,
-		app.dcs,
+		ticker,
+		clusterAdapter,
 	)
+
+	return app.optimizationManager.Wait(
+		ctx,
+		replicaToOptimize,
+	)
+}
+
+func (app *App) startSyncerGoroutine(
+	ctx context.Context,
+	ticker *time.Ticker,
+	cluster optimization.Cluster,
+) {
+	go func() {
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			case <-ticker.C:
+				err := app.optimizationSyncer.Sync(cluster)
+				if err != nil {
+					app.logger.Errorf("sync error: %s", err)
+				}
+			}
+		}
+	}()
 }
 
 func (app *App) chooseReplicaToOptimize(

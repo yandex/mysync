@@ -15,12 +15,25 @@ type Logger interface {
 }
 
 type DCS interface {
-	Create(path string, value any) error
-	Set(path string, value any) error
-	Get(path string, dest any) error
-	Delete(path string) error
-	GetChildren(path string) ([]string, error)
+	GetHosts() ([]string, error)
+
+	SetState(hostname string, value *DCSState) error
+	GetState(hostname string) (*DCSState, error)
+
+	DeleteHosts(hostname ...string) error
+	CreateHosts(hostname ...string) error
 }
+
+type DCSState struct {
+	Status Status `json:"status"`
+}
+
+type Status string
+
+const (
+	StatusNew     Status = ""
+	StatusEnabled Status = "enabled"
+)
 
 type Node interface {
 	SetReplicationSettings(rs mysql.ReplicationSettings) error

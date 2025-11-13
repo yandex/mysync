@@ -31,23 +31,26 @@ import (
 
 // App is main application structure
 type App struct {
-	state                appState
-	logger               *log.Logger
-	sysLog               *syslog.Writer
-	config               *config.Config
-	dcs                  dcs.DCS
-	cluster              *mysql.Cluster
-	filelock             *flock.Flock
-	t                    *Timings
-	slaveReadPositions   map[string]string
-	daemonState          *nodestate.DaemonState
-	daemonMutex          sync.Mutex
-	replRepairState      map[string]*ReplicationRepairState
-	externalReplication  mysql.IExternalReplication
-	switchHelper         mysql.ISwitchHelper
-	lostQuorumTime       time.Time
-	replicationOptimizer optimization.ReplicationOpitimizer
-	lagResetupper        *resetup.LagResetupper
+	state               appState
+	logger              *log.Logger
+	sysLog              *syslog.Writer
+	config              *config.Config
+	dcs                 dcs.DCS
+	cluster             *mysql.Cluster
+	filelock            *flock.Flock
+	t                   *Timings
+	slaveReadPositions  map[string]string
+	daemonState         *nodestate.DaemonState
+	daemonMutex         sync.Mutex
+	replRepairState     map[string]*ReplicationRepairState
+	externalReplication mysql.IExternalReplication
+	switchHelper        mysql.ISwitchHelper
+	lostQuorumTime      time.Time
+
+	optimizationSyncer  optimization.Syncer
+	optimizationManager optimization.Controller
+
+	lagResetupper *resetup.LagResetupper
 }
 
 // NewApp returns new App. Suddenly.
@@ -86,23 +89,18 @@ func NewApp(configFile, logLevel string, interactive bool) (*App, error) {
 		logger.Errorf("external replication initialization failed: %s", err)
 		return nil, err
 	}
-	replicationOptimizer := optimization.NewOptimizer(
-		logger,
-		config.OptimizationConfig,
-	)
 
 	switchHelper := mysql.NewSwitchHelper(config)
 	app := &App{
-		state:                stateFirstRun,
-		config:               config,
-		sysLog:               sysLog,
-		logger:               logger,
-		t:                    NewTimings(),
-		replRepairState:      make(map[string]*ReplicationRepairState),
-		slaveReadPositions:   make(map[string]string),
-		externalReplication:  externalReplication,
-		switchHelper:         switchHelper,
-		replicationOptimizer: replicationOptimizer,
+		state:               stateFirstRun,
+		config:              config,
+		sysLog:              sysLog,
+		logger:              logger,
+		t:                   NewTimings(),
+		replRepairState:     make(map[string]*ReplicationRepairState),
+		slaveReadPositions:  make(map[string]string),
+		externalReplication: externalReplication,
+		switchHelper:        switchHelper,
 	}
 
 	// TODO: appDcs should be separate entity
@@ -389,9 +387,10 @@ func (app *App) stateFirstRun() appState {
 		return stateFirstRun
 	}
 	app.dcs.Initialize()
-	err := app.replicationOptimizer.Initialize(app.dcs)
+
+	err := app.initializeOptimizationModule()
 	if err != nil {
-		app.logger.Errorf("can not initialize ReplicationOpitimizer module: %s", err)
+		app.logger.Errorf("%s", err)
 		return stateFirstRun
 	}
 
@@ -399,6 +398,38 @@ func (app *App) stateFirstRun() appState {
 		return stateManager
 	}
 	return stateCandidate
+}
+
+func (app *App) initializeOptimizationModule() error {
+	DCSAdapter, err := NewOptimizationDCSAdapter(app.dcs)
+	if err != nil {
+		return err
+	}
+	master, err := app.GetMasterHostFromDcs()
+	if err != nil {
+		return err
+	}
+	rs, err := app.cluster.Get(master).GetReplicationSettings()
+	if err != nil {
+		return err
+	}
+
+	app.optimizationSyncer, err = optimization.NewSyncer(
+		app.logger,
+		app.config.OptimizationConfig,
+		DCSAdapter,
+	)
+	if err != nil {
+		return err
+	}
+	app.optimizationManager = optimization.NewController(
+		app.config.OptimizationConfig,
+		app.logger,
+		DCSAdapter,
+		3*time.Second,
+		rs,
+	)
+	return nil
 }
 
 func (app *App) stateLost() appState {
@@ -672,7 +703,7 @@ func (app *App) stateManager() appState {
 		clusterStateDcs,
 		master,
 	)
-	err = app.replicationOptimizer.SyncState(clusterAdapter)
+	err = app.optimizationSyncer.Sync(clusterAdapter)
 	if err != nil {
 		app.logger.Errorf("failed to sync local optimization settings: %s", err)
 		return stateManager
@@ -1177,7 +1208,8 @@ func (app *App) disableSemiSyncOnSlaves(becomeInactive, becomeDataLag []string) 
 		}
 
 		node := app.cluster.Get(host)
-		err = optimization.EnableNodeOptimization(node, app.dcs)
+
+		err = app.optimizationManager.Enable(node)
 		if err != nil {
 			app.logger.Warnf("failed to enable optimization on slave %s: %v", host, err)
 		}
@@ -1661,7 +1693,7 @@ func (app *App) repairSlaveOfflineMode(host string, state *nodestate.NodeState, 
 		} else {
 			app.logger.Infof("repair: slave %s set offline, because ReplicationLag (%f s) >= OfflineModeEnableLag (%v)",
 				host, *state.SlaveState.ReplicationLag, app.config.OfflineModeEnableLag)
-			err = optimization.EnableNodeOptimization(node, app.dcs)
+			err = app.optimizationManager.Enable(node)
 			if err != nil {
 				app.logger.Errorf("repair: failed to set optimize replication settings on slave %s: %s", host, err)
 			}
@@ -2367,15 +2399,14 @@ func (app *App) waitForCatchUp(node *mysql.Node, gtidset gtids.GTIDSet, timeout 
 }
 
 func (app *App) stopActiveNodeOptimization(master string, activeNodes []string) error {
-	masterNode := app.cluster.Get(master)
-
 	var nodes []*mysql.Node
 	for _, hostname := range activeNodes {
 		nodes = append(nodes, app.cluster.Get(hostname))
 	}
 
-	controllerNodes := convertNodesToReplicationControllers(nodes)
-	return optimization.DisableAllNodeOptimization(masterNode, controllerNodes, app.dcs)
+	return app.optimizationManager.DisableAll(
+		convertNodesToReplicationControllers(nodes),
+	)
 }
 
 // Set master offline and disable semi-sync replication

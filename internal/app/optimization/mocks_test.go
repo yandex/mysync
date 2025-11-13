@@ -142,75 +142,84 @@ func (m *MockDCS) EXPECT() *MockDCSMockRecorder {
 	return m.recorder
 }
 
-// Create mocks base method
-func (m *MockDCS) Create(path string, value any) error {
+// GetHosts mocks base method
+func (m *MockDCS) GetHosts() ([]string, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "Create", path, value)
-	ret0, _ := ret[0].(error)
-	return ret0
-}
-
-// Create indicates an expected call of Create
-func (mr *MockDCSMockRecorder) Create(path, value interface{}) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Create", reflect.TypeOf((*MockDCS)(nil).Create), path, value)
-}
-
-// Set mocks base method
-func (m *MockDCS) Set(path string, value any) error {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "Set", path, value)
-	ret0, _ := ret[0].(error)
-	return ret0
-}
-
-// Set indicates an expected call of Set
-func (mr *MockDCSMockRecorder) Set(path, value interface{}) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Set", reflect.TypeOf((*MockDCS)(nil).Set), path, value)
-}
-
-// Get mocks base method
-func (m *MockDCS) Get(path string, dest any) error {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "Get", path, dest)
-	ret0, _ := ret[0].(error)
-	return ret0
-}
-
-// Get indicates an expected call of Get
-func (mr *MockDCSMockRecorder) Get(path, dest interface{}) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Get", reflect.TypeOf((*MockDCS)(nil).Get), path, dest)
-}
-
-// Delete mocks base method
-func (m *MockDCS) Delete(path string) error {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "Delete", path)
-	ret0, _ := ret[0].(error)
-	return ret0
-}
-
-// Delete indicates an expected call of Delete
-func (mr *MockDCSMockRecorder) Delete(path interface{}) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Delete", reflect.TypeOf((*MockDCS)(nil).Delete), path)
-}
-
-// GetChildren mocks base method
-func (m *MockDCS) GetChildren(path string) ([]string, error) {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "GetChildren", path)
+	ret := m.ctrl.Call(m, "GetHosts")
 	ret0, _ := ret[0].([]string)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
-// GetChildren indicates an expected call of GetChildren
-func (mr *MockDCSMockRecorder) GetChildren(path interface{}) *gomock.Call {
+// GetHosts indicates an expected call of GetHosts
+func (mr *MockDCSMockRecorder) GetHosts() *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetChildren", reflect.TypeOf((*MockDCS)(nil).GetChildren), path)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetHosts", reflect.TypeOf((*MockDCS)(nil).GetHosts))
+}
+
+// SetState mocks base method
+func (m *MockDCS) SetState(hostname string, value *DCSState) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "SetState", hostname, value)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// SetState indicates an expected call of SetState
+func (mr *MockDCSMockRecorder) SetState(hostname, value interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetState", reflect.TypeOf((*MockDCS)(nil).SetState), hostname, value)
+}
+
+// GetState mocks base method
+func (m *MockDCS) GetState(hostname string) (*DCSState, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetState", hostname)
+	ret0, _ := ret[0].(*DCSState)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetState indicates an expected call of GetState
+func (mr *MockDCSMockRecorder) GetState(hostname interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetState", reflect.TypeOf((*MockDCS)(nil).GetState), hostname)
+}
+
+// DeleteHosts mocks base method
+func (m *MockDCS) DeleteHosts(hostname ...string) error {
+	m.ctrl.T.Helper()
+	varargs := []interface{}{}
+	for _, a := range hostname {
+		varargs = append(varargs, a)
+	}
+	ret := m.ctrl.Call(m, "DeleteHosts", varargs...)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// DeleteHosts indicates an expected call of DeleteHosts
+func (mr *MockDCSMockRecorder) DeleteHosts(hostname ...interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteHosts", reflect.TypeOf((*MockDCS)(nil).DeleteHosts), hostname...)
+}
+
+// CreateHosts mocks base method
+func (m *MockDCS) CreateHosts(hostname ...string) error {
+	m.ctrl.T.Helper()
+	varargs := []interface{}{}
+	for _, a := range hostname {
+		varargs = append(varargs, a)
+	}
+	ret := m.ctrl.Call(m, "CreateHosts", varargs...)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// CreateHosts indicates an expected call of CreateHosts
+func (mr *MockDCSMockRecorder) CreateHosts(hostname ...interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CreateHosts", reflect.TypeOf((*MockDCS)(nil).CreateHosts), hostname...)
 }
 
 // MockNode is a mock of Node interface

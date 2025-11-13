@@ -2,74 +2,53 @@ package optimization
 
 import (
 	"github.com/yandex/mysync/internal/config"
-	"github.com/yandex/mysync/internal/dcs"
 	"github.com/yandex/mysync/internal/mysql"
 	"github.com/yandex/mysync/internal/util"
 )
 
-type ReplicationOpitimizer interface {
-	// Initialize initializes components
-	// Must be called before any other method
-	Initialize(dcs DCS) error
-
+type Syncer interface {
 	// SyncState synchronizes optimization settings,
 	// and applies replication adjustments if needed.
 	// Returns an error if synchronization fails.
-	SyncState(c Cluster) error
+	Sync(c Cluster) error
 }
 
-func NewOptimizer(
+func NewSyncer(
 	logger Logger,
 	config config.OptimizationConfig,
-) *Optimizer {
-	return &Optimizer{
+	Dcs DCS,
+) (*syncer, error) {
+	return &syncer{
 		logger: logger,
 		config: config,
-	}
+		dcs:    Dcs,
+	}, nil
 }
 
-type Optimizer struct {
+type syncer struct {
 	logger Logger
 	config config.OptimizationConfig
 	dcs    DCS
 }
 
-type DCSState struct {
-	Status Status `json:"status"`
-}
-type Status string
-
-const (
-	StatusNew     Status = ""
-	StatusEnabled Status = "enabled"
-)
-
-func (opt *Optimizer) Initialize(DCS DCS) error {
-	opt.dcs = DCS
-
-	err := DCS.Create(pathOptimizationNodes, "")
-	if err != nil && err != dcs.ErrExists {
-		return err
-	}
-
-	opt.logger.Infof("Optimizer is initialized")
-	return nil
-}
-
-func (opt *Optimizer) getClusterHostsState(c Cluster) (*HostsState, error) {
-	hostnames, err := opt.dcs.GetChildren(pathOptimizationNodes)
+func (s *syncer) getClusterHostsState(c Cluster) (*hostsState, error) {
+	hostnames, err := s.dcs.GetHosts()
 	if err != nil {
 		return nil, err
 	}
 
-	hostsState := new(HostsState)
+	hostsState := new(hostsState)
 	masterRs := c.GetState(c.GetMaster()).ReplicationSettings
 
-	lowReplMark := opt.config.LowReplicationMark.Seconds()
-	highReplMark := opt.config.HighReplicationMark.Seconds()
+	lowReplMark := s.config.LowReplicationMark.Seconds()
+	highReplMark := s.config.HighReplicationMark.Seconds()
 
 	for _, hostname := range hostnames {
-		dcsState, err := getHostDCSState(opt.dcs, hostname)
+		dcsState, err := s.dcs.GetState(hostname)
+		if err != nil {
+			return nil, err
+		}
+
 		if err != nil {
 			return nil, err
 		}
@@ -100,19 +79,7 @@ func (opt *Optimizer) getClusterHostsState(c Cluster) (*HostsState, error) {
 	return hostsState, nil
 }
 
-func getHostDCSState(Dcs DCS, hostname string) (*DCSState, error) {
-	path := dcs.JoinPath(pathOptimizationNodes, hostname)
-
-	state := new(DCSState)
-	err := Dcs.Get(path, state)
-	if err != nil && err != dcs.ErrNotFound && err != dcs.ErrMalformed {
-		return nil, err
-	}
-
-	return state, nil
-}
-
-type HostsState struct {
+type hostsState struct {
 	// DisabledHosts are hosts planned for optimization
 	DisabledHosts []string
 	// OptimizingHosts are optimizing hosts
@@ -123,7 +90,7 @@ type HostsState struct {
 	MalfunctioningHosts []string
 }
 
-func (opt *Optimizer) SyncState(c Cluster) error {
+func (opt *syncer) Sync(c Cluster) error {
 	masterRs, err := opt.getMasterReplSettings(c)
 	if err != nil {
 		return err
@@ -146,14 +113,18 @@ func (opt *Optimizer) SyncState(c Cluster) error {
 	return opt.balanceToSingleNode(c, masterRs, hostsState)
 }
 
-func (opt *Optimizer) balanceToSingleNode(
+func (opt *syncer) balanceToSingleNode(
 	c Cluster,
 	masterRs mysql.ReplicationSettings,
-	hostsState *HostsState,
+	hostsState *hostsState,
 ) error {
 	switch {
 	case len(hostsState.OptimizingHosts) > 1:
-		util.Shuffle(hostsState.OptimizingHosts)
+		opt.logger.Infof(
+			"optimization: there are too many nodes: %d. Turn %d off",
+			len(hostsState.OptimizingHosts),
+			len(hostsState.OptimizingHosts)-1,
+		)
 		err := opt.stopNodes(
 			c,
 			hostsState.OptimizingHosts[1:],
@@ -166,7 +137,10 @@ func (opt *Optimizer) balanceToSingleNode(
 		return opt.syncNodeOptions(host, c.GetNode(host))
 
 	case len(hostsState.OptimizingHosts) == 0 && len(hostsState.DisabledHosts) > 0:
-		util.Shuffle(hostsState.DisabledHosts)
+		opt.logger.Infof(
+			"optimization: start optimizing new node %s",
+			hostsState.DisabledHosts[0],
+		)
 		return opt.startNodes(c, hostsState.DisabledHosts[:1])
 
 	case len(hostsState.OptimizingHosts) == 1:
@@ -176,7 +150,7 @@ func (opt *Optimizer) balanceToSingleNode(
 	return nil
 }
 
-func (opt *Optimizer) startNodes(
+func (opt *syncer) startNodes(
 	c Cluster,
 	hosts []string,
 ) error {
@@ -189,7 +163,7 @@ func (opt *Optimizer) startNodes(
 	return nil
 }
 
-func (opt *Optimizer) stopNodes(
+func (opt *syncer) stopNodes(
 	c Cluster,
 	hosts []string,
 	rs mysql.ReplicationSettings,
@@ -203,31 +177,23 @@ func (opt *Optimizer) stopNodes(
 	return nil
 }
 
-func (opt *Optimizer) deleteNodes(
-	hosts []string,
-) error {
-	for _, host := range hosts {
-		err := opt.dcs.Delete(dcs.JoinPath(pathOptimizationNodes, host))
-		if err != nil && err != dcs.ErrNotFound {
-			return err
-		}
-	}
-	return nil
-}
-
-func (opt *Optimizer) disableNodes(
+func (opt *syncer) disableNodes(
 	c Cluster,
 	hosts []string,
 	rs mysql.ReplicationSettings,
 ) error {
+	if len(hosts) == 0 {
+		return nil
+	}
+
 	err := opt.stopNodes(c, hosts, rs)
 	if err != nil {
 		return err
 	}
-	return opt.deleteNodes(hosts)
+	return opt.dcs.DeleteHosts(hosts...)
 }
 
-func (opt *Optimizer) syncNodeOptions(
+func (opt *syncer) syncNodeOptions(
 	host string,
 	node Node,
 ) error {
@@ -242,7 +208,7 @@ func (opt *Optimizer) syncNodeOptions(
 	return nil
 }
 
-func (opt *Optimizer) getMasterReplSettings(c Cluster) (mysql.ReplicationSettings, error) {
+func (opt *syncer) getMasterReplSettings(c Cluster) (mysql.ReplicationSettings, error) {
 	master := c.GetState(c.GetMaster())
 	if master.ReplicationSettings != nil {
 		return *master.ReplicationSettings, nil

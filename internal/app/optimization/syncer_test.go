@@ -9,40 +9,11 @@ import (
 	"github.com/stretchr/testify/require"
 	nodestate "github.com/yandex/mysync/internal/app/node_state"
 	"github.com/yandex/mysync/internal/config"
-	"github.com/yandex/mysync/internal/dcs"
 	"github.com/yandex/mysync/internal/mysql"
 	"github.com/yandex/mysync/internal/util"
 )
 
 func TestBasicOptimization(t *testing.T) {
-	t.Run("Initialization works", func(t *testing.T) {
-		ctrl := gomock.NewController(t)
-		logger := NewMockLogger(ctrl)
-		config := config.OptimizationConfig{}
-		Dcs := NewMockDCS(ctrl)
-
-		Dcs.EXPECT().Create("optimization_nodes", gomock.Any())
-		Dcs.EXPECT().Create("optimization_nodes", gomock.Any()).
-			Return(dcs.ErrExists)
-		Dcs.EXPECT().Create("optimization_nodes", gomock.Any()).
-			Return(fmt.Errorf("network-error"))
-
-		logger.EXPECT().Infof("Optimizer is initialized")
-		logger.EXPECT().Infof("Optimizer is initialized")
-
-		opt := NewOptimizer(logger, config)
-		err := opt.Initialize(Dcs)
-		require.NoError(t, err)
-
-		opt = NewOptimizer(logger, config)
-		err = opt.Initialize(Dcs)
-		require.NoError(t, err)
-
-		opt = NewOptimizer(logger, config)
-		err = opt.Initialize(Dcs)
-		require.EqualError(t, err, "network-error")
-	})
-
 	t.Run("Sync on master does nothing", func(t *testing.T) {
 		ctrl := gomock.NewController(t)
 		logger := NewMockLogger(ctrl)
@@ -70,18 +41,13 @@ func TestBasicOptimization(t *testing.T) {
 				}).AnyTimes()
 
 		Dcs := NewMockDCS(ctrl)
-		Dcs.EXPECT().Create("optimization_nodes", gomock.Any())
-		Dcs.EXPECT().GetChildren("optimization_nodes").
+		Dcs.EXPECT().GetHosts().
 			Return([]string{}, nil)
 
-		opt := NewOptimizer(logger, config)
-
-		logger.EXPECT().Infof("Optimizer is initialized")
-
-		err := opt.Initialize(Dcs)
+		opt, err := NewSyncer(logger, config, Dcs)
 		require.NoError(t, err)
 
-		err = opt.SyncState(cluster)
+		err = opt.Sync(cluster)
 		require.NoError(t, err)
 	})
 
@@ -117,25 +83,16 @@ func TestBasicOptimization(t *testing.T) {
 				}).AnyTimes()
 
 		Dcs := NewMockDCS(ctrl)
-		Dcs.EXPECT().Create("optimization_nodes", gomock.Any())
-		Dcs.EXPECT().GetChildren("optimization_nodes").
+		Dcs.EXPECT().GetHosts().
 			Return([]string{"master"}, nil)
-		Dcs.EXPECT().Get("optimization_nodes/master", gomock.Any()).
-			DoAndReturn(func(path string, dest any) error {
-				ptr, _ := dest.(*DCSState)
-				ptr.Status = "enabled"
-				return nil
-			})
-		Dcs.EXPECT().Delete("optimization_nodes/master")
+		Dcs.EXPECT().GetState("master").
+			Return(&DCSState{Status: "enabled"}, nil)
+		Dcs.EXPECT().DeleteHosts("master")
 
-		opt := NewOptimizer(logger, config)
-
-		logger.EXPECT().Infof("Optimizer is initialized")
-
-		err := opt.Initialize(Dcs)
+		opt, err := NewSyncer(logger, config, Dcs)
 		require.NoError(t, err)
 
-		err = opt.SyncState(cluster)
+		err = opt.Sync(cluster)
 		require.NoError(t, err)
 	})
 }
@@ -144,7 +101,9 @@ func TestBasicOptimization(t *testing.T) {
 func TestHAClusterOptimization(t *testing.T) {
 	t.Run("Sync works on hosts without optimization", func(t *testing.T) {
 		ctrl := gomock.NewController(t)
+
 		logger := NewMockLogger(ctrl)
+
 		config := config.OptimizationConfig{
 			LowReplicationMark:  5 * time.Second,
 			HighReplicationMark: 120 * time.Second,
@@ -173,18 +132,13 @@ func TestHAClusterOptimization(t *testing.T) {
 				}).AnyTimes()
 
 		Dcs := NewMockDCS(ctrl)
-		Dcs.EXPECT().Create("optimization_nodes", gomock.Any())
-		Dcs.EXPECT().GetChildren("optimization_nodes").
+		Dcs.EXPECT().GetHosts().
 			Return([]string{}, nil)
 
-		opt := NewOptimizer(logger, config)
-
-		logger.EXPECT().Infof("Optimizer is initialized")
-
-		err := opt.Initialize(Dcs)
+		opt, err := NewSyncer(logger, config, Dcs)
 		require.NoError(t, err)
 
-		err = opt.SyncState(cluster)
+		err = opt.Sync(cluster)
 		require.NoError(t, err)
 	})
 
@@ -238,25 +192,16 @@ func TestHAClusterOptimization(t *testing.T) {
 				}).AnyTimes()
 
 		Dcs := NewMockDCS(ctrl)
-		Dcs.EXPECT().Create("optimization_nodes", gomock.Any())
-		Dcs.EXPECT().GetChildren("optimization_nodes").
+		Dcs.EXPECT().GetHosts().
 			Return([]string{"replica1"}, nil)
-		Dcs.EXPECT().Get("optimization_nodes/replica1", gomock.Any()).
-			DoAndReturn(func(path string, dest any) error {
-				ptr, _ := dest.(*DCSState)
-				ptr.Status = "enabled"
-				return nil
-			})
-		Dcs.EXPECT().Delete("optimization_nodes/replica1")
+		Dcs.EXPECT().GetState("replica1").
+			Return(&DCSState{Status: "enabled"}, nil)
+		Dcs.EXPECT().DeleteHosts("replica1")
 
-		opt := NewOptimizer(logger, config)
-
-		logger.EXPECT().Infof("Optimizer is initialized")
-
-		err := opt.Initialize(Dcs)
+		opt, err := NewSyncer(logger, config, Dcs)
 		require.NoError(t, err)
 
-		err = opt.SyncState(cluster)
+		err = opt.Sync(cluster)
 		require.NoError(t, err)
 	})
 
@@ -304,24 +249,15 @@ func TestHAClusterOptimization(t *testing.T) {
 				}).AnyTimes()
 
 		Dcs := NewMockDCS(ctrl)
-		Dcs.EXPECT().Create("optimization_nodes", gomock.Any())
-		Dcs.EXPECT().GetChildren("optimization_nodes").
+		Dcs.EXPECT().GetHosts().
 			Return([]string{"replica1"}, nil)
-		Dcs.EXPECT().Get("optimization_nodes/replica1", gomock.Any()).
-			DoAndReturn(func(path string, dest any) error {
-				ptr, _ := dest.(*DCSState)
-				ptr.Status = "enabled"
-				return nil
-			})
+		Dcs.EXPECT().GetState("replica1").
+			Return(&DCSState{Status: "enabled"}, nil)
 
-		opt := NewOptimizer(logger, config)
-
-		logger.EXPECT().Infof("Optimizer is initialized")
-
-		err := opt.Initialize(Dcs)
+		opt, err := NewSyncer(logger, config, Dcs)
 		require.NoError(t, err)
 
-		err = opt.SyncState(cluster)
+		err = opt.Sync(cluster)
 		require.NoError(t, err)
 	})
 }
@@ -329,7 +265,10 @@ func TestHAClusterOptimization(t *testing.T) {
 func TestOneHostOptimizationPolicy(t *testing.T) {
 	t.Run("Optimization can be enabled on just one host", func(t *testing.T) {
 		ctrl := gomock.NewController(t)
+
 		logger := NewMockLogger(ctrl)
+		logger.EXPECT().Infof("optimization: there are too many nodes: %d. Turn %d off", 2, 1)
+
 		config := config.OptimizationConfig{
 			LowReplicationMark:  5 * time.Second,
 			HighReplicationMark: 120 * time.Second,
@@ -395,30 +334,81 @@ func TestOneHostOptimizationPolicy(t *testing.T) {
 				}).AnyTimes()
 
 		Dcs := NewMockDCS(ctrl)
-		Dcs.EXPECT().Create("optimization_nodes", gomock.Any())
-		Dcs.EXPECT().GetChildren("optimization_nodes").
+		Dcs.EXPECT().GetHosts().
 			Return([]string{"replica1", "replica2"}, nil)
-		Dcs.EXPECT().Get("optimization_nodes/replica1", gomock.Any()).
-			DoAndReturn(func(path string, dest any) error {
-				ptr, _ := dest.(*DCSState)
-				ptr.Status = "enabled"
-				return nil
-			})
-		Dcs.EXPECT().Get("optimization_nodes/replica2", gomock.Any()).
-			DoAndReturn(func(path string, dest any) error {
-				ptr, _ := dest.(*DCSState)
-				ptr.Status = "enabled"
-				return nil
-			})
+		Dcs.EXPECT().GetState("replica1").
+			Return(&DCSState{Status: "enabled"}, nil)
+		Dcs.EXPECT().GetState("replica2").
+			Return(&DCSState{Status: "enabled"}, nil)
 
-		opt := NewOptimizer(logger, config)
-
-		logger.EXPECT().Infof("Optimizer is initialized")
-
-		err := opt.Initialize(Dcs)
+		opt, err := NewSyncer(logger, config, Dcs)
 		require.NoError(t, err)
 
-		err = opt.SyncState(cluster)
+		err = opt.Sync(cluster)
+		require.NoError(t, err)
+	})
+}
+
+func TestTurnBackOnOptimization(t *testing.T) {
+	t.Run("Optimization will be enabled if the host was changed manually", func(t *testing.T) {
+		ctrl := gomock.NewController(t)
+
+		logger := NewMockLogger(ctrl)
+		logger.EXPECT().Warnf("Node %s should be optimizing but is not - restarting optimization", "replica1")
+
+		config := config.OptimizationConfig{
+			LowReplicationMark:  5 * time.Second,
+			HighReplicationMark: 120 * time.Second,
+		}
+
+		master := NewMockNode(ctrl)
+		master.EXPECT().GetReplicationSettings().
+			Return(mysql.ReplicationSettings{InnodbFlushLogAtTrxCommit: 1, SyncBinlog: 1}, nil).AnyTimes()
+
+		replica1 := NewMockNode(ctrl)
+		replica1.EXPECT().GetReplicationSettings().
+			Return(mysql.ReplicationSettings{InnodbFlushLogAtTrxCommit: 1, SyncBinlog: 1}, nil).AnyTimes()
+		replica1.EXPECT().
+			OptimizeReplication()
+
+		cluster := NewMockCluster(ctrl)
+		cluster.EXPECT().GetMaster().
+			Return("master").AnyTimes()
+		cluster.EXPECT().GetNode("master").
+			Return(master).AnyTimes()
+		cluster.EXPECT().GetState("master").
+			Return(
+				nodestate.NodeState{
+					ReplicationSettings: &mysql.ReplicationSettings{
+						InnodbFlushLogAtTrxCommit: 1,
+						SyncBinlog:                1,
+					},
+				}).AnyTimes()
+
+		cluster.EXPECT().GetNode("replica1").
+			Return(replica1).AnyTimes()
+		cluster.EXPECT().GetState("replica1").
+			Return(
+				nodestate.NodeState{
+					ReplicationSettings: &mysql.ReplicationSettings{
+						InnodbFlushLogAtTrxCommit: 1,
+						SyncBinlog:                1,
+					},
+					SlaveState: &nodestate.SlaveState{
+						ReplicationLag: util.Ptr(1024.0),
+					},
+				}).AnyTimes()
+
+		Dcs := NewMockDCS(ctrl)
+		Dcs.EXPECT().GetHosts().
+			Return([]string{"replica1"}, nil)
+		Dcs.EXPECT().GetState("replica1").
+			Return(&DCSState{Status: "enabled"}, nil)
+
+		opt, err := NewSyncer(logger, config, Dcs)
+		require.NoError(t, err)
+
+		err = opt.Sync(cluster)
 		require.NoError(t, err)
 	})
 }
@@ -469,18 +459,13 @@ func TestNetworkErrors(t *testing.T) {
 				}).AnyTimes()
 
 		Dcs := NewMockDCS(ctrl)
-		Dcs.EXPECT().Create("optimization_nodes", gomock.Any())
-		Dcs.EXPECT().GetChildren("optimization_nodes").
+		Dcs.EXPECT().GetHosts().
 			Return([]string{}, fmt.Errorf("network-error"))
 
-		opt := NewOptimizer(logger, config)
-
-		logger.EXPECT().Infof("Optimizer is initialized")
-
-		err := opt.Initialize(Dcs)
+		opt, err := NewSyncer(logger, config, Dcs)
 		require.NoError(t, err)
 
-		err = opt.SyncState(cluster)
+		err = opt.Sync(cluster)
 		require.EqualError(t, err, "network-error")
 	})
 
@@ -530,24 +515,15 @@ func TestNetworkErrors(t *testing.T) {
 				}).AnyTimes()
 
 		Dcs := NewMockDCS(ctrl)
-		Dcs.EXPECT().Create("optimization_nodes", gomock.Any())
-		Dcs.EXPECT().GetChildren("optimization_nodes").
+		Dcs.EXPECT().GetHosts().
 			Return([]string{"replica1"}, nil)
-		Dcs.EXPECT().Get("optimization_nodes/replica1", gomock.Any()).
-			DoAndReturn(func(path string, dest any) error {
-				ptr, _ := dest.(*DCSState)
-				ptr.Status = "enabled"
-				return nil
-			})
+		Dcs.EXPECT().GetState("replica1").
+			Return(&DCSState{Status: "enabled"}, nil)
 
-		opt := NewOptimizer(logger, config)
-
-		logger.EXPECT().Infof("Optimizer is initialized")
-
-		err := opt.Initialize(Dcs)
+		opt, err := NewSyncer(logger, config, Dcs)
 		require.NoError(t, err)
 
-		err = opt.SyncState(cluster)
+		err = opt.Sync(cluster)
 		require.EqualError(t, err, "network-error")
 	})
 }
@@ -597,25 +573,16 @@ func TestDeadReplica(t *testing.T) {
 				}).AnyTimes()
 
 		Dcs := NewMockDCS(ctrl)
-		Dcs.EXPECT().Create("optimization_nodes", gomock.Any())
-		Dcs.EXPECT().GetChildren("optimization_nodes").
+		Dcs.EXPECT().GetHosts().
 			Return([]string{"replica1"}, nil)
-		Dcs.EXPECT().Get("optimization_nodes/replica1", gomock.Any()).
-			DoAndReturn(func(path string, dest any) error {
-				ptr, _ := dest.(*DCSState)
-				ptr.Status = "enabled"
-				return nil
-			})
-		Dcs.EXPECT().Delete("optimization_nodes/replica1")
+		Dcs.EXPECT().GetState("replica1").
+			Return(&DCSState{Status: "enabled"}, nil)
+		Dcs.EXPECT().DeleteHosts("replica1")
 
-		opt := NewOptimizer(logger, config)
-
-		logger.EXPECT().Infof("Optimizer is initialized")
-
-		err := opt.Initialize(Dcs)
+		opt, err := NewSyncer(logger, config, Dcs)
 		require.NoError(t, err)
 
-		err = opt.SyncState(cluster)
+		err = opt.Sync(cluster)
 		require.NoError(t, err)
 	})
 }

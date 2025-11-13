@@ -2,7 +2,6 @@ package util
 
 import (
 	"errors"
-	"math/rand/v2"
 	"net"
 	"os"
 	"strconv"
@@ -105,10 +104,4 @@ func JoinErrors(errors []error, sep string) string {
 		strs = append(strs, err.Error())
 	}
 	return strings.Join(strs, sep)
-}
-
-func Shuffle(hosts []string) {
-	rand.Shuffle(len(hosts), func(i, j int) {
-		hosts[i], hosts[j] = hosts[j], hosts[i]
-	})
 }

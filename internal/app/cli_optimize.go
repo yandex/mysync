@@ -3,7 +3,6 @@ package app
 import (
 	"fmt"
 
-	"github.com/yandex/mysync/internal/app/optimization"
 	"github.com/yandex/mysync/internal/mysql"
 )
 
@@ -24,7 +23,7 @@ func (app *App) CliEnableOptimization() int {
 	}
 
 	if status == Optimizable {
-		err = optimization.EnableNodeOptimization(node, app.dcs)
+		err = app.optimizationManager.Enable(node)
 		if err != nil {
 			fmt.Printf("%s\n", err)
 			return 1
@@ -46,15 +45,8 @@ func (app *App) CliDisableOptimization() int {
 	}
 	defer cancel()
 
-	masterHost, err := app.GetMasterHostFromDcs()
-	if err != nil {
-		fmt.Printf("%s\n", err)
-		return 1
-	}
-
 	node := app.cluster.Local()
-	master := app.cluster.Get(masterHost)
-	err = optimization.DisableNodeOptimization(master, node, app.dcs)
+	err = app.optimizationManager.Disable(node)
 	if err != nil {
 		fmt.Printf("%s\n", err)
 		return 1
@@ -71,21 +63,15 @@ func (app *App) CliDisableAllOptimization() int {
 	}
 	defer cancel()
 
-	masterHost, err := app.GetMasterHostFromDcs()
-	if err != nil {
-		fmt.Printf("%s\n", err)
-		return 1
-	}
-
-	master := app.cluster.Get(masterHost)
 	hosts := app.cluster.AllNodeHosts()
 	var nodes []*mysql.Node
 	for _, host := range hosts {
 		nodes = append(nodes, app.cluster.Get(host))
 	}
 
-	controllerNodes := convertNodesToReplicationControllers(nodes)
-	err = optimization.DisableAllNodeOptimization(master, controllerNodes, app.dcs)
+	err = app.optimizationManager.DisableAll(
+		convertNodesToReplicationControllers(nodes),
+	)
 	if err != nil {
 		fmt.Printf("%s\n", err)
 		return 1

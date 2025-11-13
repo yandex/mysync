@@ -15,7 +15,7 @@ func (app *App) cliInitApp() (func(), error) {
 		return nil, err
 	}
 
-	err = app.replicationOptimizer.Initialize(app.dcs)
+	err = app.initializeOptimizationModule()
 	if err != nil {
 		app.dcs.Close()
 		return nil, err
