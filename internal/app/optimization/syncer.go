@@ -31,15 +31,16 @@ type syncer struct {
 	dcs    DCS
 }
 
-func (s *syncer) getClusterHostsState(c Cluster) (*hostsState, error) {
+func (s *syncer) getClusterHostsState(
+	c Cluster,
+	masterRs mysql.ReplicationSettings,
+) (*hostsState, error) {
 	hostnames, err := s.dcs.GetHosts()
 	if err != nil {
 		return nil, err
 	}
 
 	hostsState := new(hostsState)
-	masterRs := c.GetState(c.GetMaster()).ReplicationSettings
-
 	lowReplMark := s.config.LowReplicationMark.Seconds()
 	highReplMark := s.config.HighReplicationMark.Seconds()
 
@@ -48,9 +49,8 @@ func (s *syncer) getClusterHostsState(c Cluster) (*hostsState, error) {
 		if err != nil {
 			return nil, err
 		}
-
-		if err != nil {
-			return nil, err
+		if dcsState == nil {
+			continue
 		}
 		nodeState := c.GetState(hostname)
 
@@ -68,7 +68,7 @@ func (s *syncer) getClusterHostsState(c Cluster) (*hostsState, error) {
 			isCompletelyConverged && isEnabled:
 			hostsState.OptimizedHosts = append(hostsState.OptimizedHosts, hostname)
 
-		case isEnabled || !nodeState.ReplicationSettings.Equal(masterRs):
+		case isEnabled || !nodeState.ReplicationSettings.Equal(&masterRs):
 			hostsState.OptimizingHosts = append(hostsState.OptimizingHosts, hostname)
 
 		default:
@@ -96,7 +96,7 @@ func (s *syncer) Sync(c Cluster) error {
 		return err
 	}
 
-	hostsState, err := s.getClusterHostsState(c)
+	hostsState, err := s.getClusterHostsState(c, masterRs)
 	if err != nil {
 		return err
 	}

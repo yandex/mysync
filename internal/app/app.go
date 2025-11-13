@@ -390,7 +390,7 @@ func (app *App) stateFirstRun() appState {
 
 	err := app.initializeOptimizationModule()
 	if err != nil {
-		app.logger.Errorf("%s", err)
+		app.logger.Errorf("optimization module initialization failed: %s", err)
 		return stateFirstRun
 	}
 
