@@ -47,7 +47,6 @@ func TestWaitOptimization(t *testing.T) {
 			logger,
 			Dcs,
 			checkInterval,
-			mysql.ReplicationSettings{InnodbFlushLogAtTrxCommit: 1, SyncBinlog: 1},
 		)
 
 		err := manager.Wait(ctx, node)
@@ -79,7 +78,6 @@ func TestWaitOptimization(t *testing.T) {
 			logger,
 			Dcs,
 			checkInterval,
-			mysql.ReplicationSettings{InnodbFlushLogAtTrxCommit: 1, SyncBinlog: 1},
 		)
 
 		err := manager.Wait(ctx, node)
@@ -118,7 +116,6 @@ func TestWaitOptimization(t *testing.T) {
 			logger,
 			Dcs,
 			checkInterval,
-			mysql.ReplicationSettings{InnodbFlushLogAtTrxCommit: 1, SyncBinlog: 1},
 		)
 
 		err := manager.Wait(ctx, node)
@@ -169,7 +166,6 @@ func TestWaitOptimization(t *testing.T) {
 			logger,
 			Dcs,
 			checkInterval,
-			mysql.ReplicationSettings{InnodbFlushLogAtTrxCommit: 1, SyncBinlog: 1},
 		)
 
 		err := manager.Wait(ctx, node)
@@ -194,7 +190,6 @@ func TestEnableNodeOptimization(t *testing.T) {
 			logger,
 			Dcs,
 			time.Second,
-			mysql.ReplicationSettings{InnodbFlushLogAtTrxCommit: 1, SyncBinlog: 1},
 		)
 
 		err := manager.Enable(node)
@@ -218,7 +213,6 @@ func TestEnableNodeOptimization(t *testing.T) {
 			logger,
 			Dcs,
 			time.Second,
-			mysql.ReplicationSettings{InnodbFlushLogAtTrxCommit: 1, SyncBinlog: 1},
 		)
 
 		err := manager.Enable(node)
@@ -239,6 +233,13 @@ func TestDisableNodeOptimization(t *testing.T) {
 			SyncBinlog:                1,
 		})
 
+		master := NewMockNode(ctrl)
+		master.EXPECT().Host().Return("master").AnyTimes()
+		master.EXPECT().GetReplicationSettings().Return(mysql.ReplicationSettings{
+			InnodbFlushLogAtTrxCommit: 1,
+			SyncBinlog:                1,
+		})
+
 		Dcs := NewMockDCS(ctrl)
 		Dcs.EXPECT().DeleteHosts("replica1")
 
@@ -247,10 +248,9 @@ func TestDisableNodeOptimization(t *testing.T) {
 			logger,
 			Dcs,
 			time.Second,
-			mysql.ReplicationSettings{InnodbFlushLogAtTrxCommit: 1, SyncBinlog: 1},
 		)
 
-		err := manager.Disable(node)
+		err := manager.Disable(master, node)
 		require.NoError(t, err)
 	})
 
@@ -266,6 +266,13 @@ func TestDisableNodeOptimization(t *testing.T) {
 			SyncBinlog:                1,
 		})
 
+		master := NewMockNode(ctrl)
+		master.EXPECT().Host().Return("master").AnyTimes()
+		master.EXPECT().GetReplicationSettings().Return(mysql.ReplicationSettings{
+			InnodbFlushLogAtTrxCommit: 1,
+			SyncBinlog:                1,
+		})
+
 		Dcs := NewMockDCS(ctrl)
 		Dcs.EXPECT().DeleteHosts("replica1").
 			Return(fmt.Errorf("network-error"))
@@ -275,10 +282,9 @@ func TestDisableNodeOptimization(t *testing.T) {
 			logger,
 			Dcs,
 			time.Second,
-			mysql.ReplicationSettings{InnodbFlushLogAtTrxCommit: 1, SyncBinlog: 1},
 		)
 
-		err := manager.Disable(node)
+		err := manager.Disable(master, node)
 		require.EqualError(t, err, "network-error")
 	})
 }
@@ -288,6 +294,13 @@ func TestDisableAllNodeOptimization(t *testing.T) {
 		ctrl := gomock.NewController(t)
 
 		logger := NewMockLogger(ctrl)
+
+		master := NewMockNode(ctrl)
+		master.EXPECT().Host().Return("master").AnyTimes()
+		master.EXPECT().GetReplicationSettings().Return(mysql.ReplicationSettings{
+			InnodbFlushLogAtTrxCommit: 1,
+			SyncBinlog:                1,
+		})
 
 		replica1 := NewMockNode(ctrl)
 		replica1.EXPECT().Host().Return("replica1").AnyTimes()
@@ -314,12 +327,9 @@ func TestDisableAllNodeOptimization(t *testing.T) {
 			logger,
 			Dcs,
 			time.Second,
-			mysql.ReplicationSettings{InnodbFlushLogAtTrxCommit: 1, SyncBinlog: 1},
 		)
 
-		err := manager.DisableAll(
-			[]Node{replica1, replica2},
-		)
+		err := manager.DisableAll(master, []Node{replica1, replica2})
 		require.NoError(t, err)
 	})
 
@@ -328,6 +338,13 @@ func TestDisableAllNodeOptimization(t *testing.T) {
 
 		logger := NewMockLogger(ctrl)
 		logger.EXPECT().Warnf("host %s was not found", "replica2")
+
+		master := NewMockNode(ctrl)
+		master.EXPECT().Host().Return("master").AnyTimes()
+		master.EXPECT().GetReplicationSettings().Return(mysql.ReplicationSettings{
+			InnodbFlushLogAtTrxCommit: 1,
+			SyncBinlog:                1,
+		})
 
 		replica1 := NewMockNode(ctrl)
 		replica1.EXPECT().Host().Return("replica1").AnyTimes()
@@ -349,12 +366,9 @@ func TestDisableAllNodeOptimization(t *testing.T) {
 			logger,
 			Dcs,
 			time.Second,
-			mysql.ReplicationSettings{InnodbFlushLogAtTrxCommit: 1, SyncBinlog: 1},
 		)
 
-		err := manager.DisableAll(
-			[]Node{replica1},
-		)
+		err := manager.DisableAll(master, []Node{replica1})
 		require.NoError(t, err)
 	})
 
@@ -362,6 +376,13 @@ func TestDisableAllNodeOptimization(t *testing.T) {
 		ctrl := gomock.NewController(t)
 
 		logger := NewMockLogger(ctrl)
+
+		master := NewMockNode(ctrl)
+		master.EXPECT().Host().Return("master").AnyTimes()
+		master.EXPECT().GetReplicationSettings().Return(mysql.ReplicationSettings{
+			InnodbFlushLogAtTrxCommit: 1,
+			SyncBinlog:                1,
+		})
 
 		replica1 := NewMockNode(ctrl)
 		replica1.EXPECT().Host().Return("replica1").AnyTimes()
@@ -390,12 +411,9 @@ func TestDisableAllNodeOptimization(t *testing.T) {
 			logger,
 			Dcs,
 			time.Second,
-			mysql.ReplicationSettings{InnodbFlushLogAtTrxCommit: 1, SyncBinlog: 1},
 		)
 
-		err := manager.DisableAll(
-			[]Node{replica1, replica2},
-		)
+		err := manager.DisableAll(master, []Node{replica1, replica2})
 		require.EqualError(t, err, "got the following errors: replica1:network-error,replica2:network-error")
 	})
 }

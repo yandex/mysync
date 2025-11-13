@@ -23,7 +23,7 @@ func (app *App) CliEnableOptimization() int {
 	}
 
 	if status == Optimizable {
-		err = app.optimizationManager.Enable(node)
+		err = app.optimizationController.Enable(node)
 		if err != nil {
 			fmt.Printf("%s\n", err)
 			return 1
@@ -45,8 +45,15 @@ func (app *App) CliDisableOptimization() int {
 	}
 	defer cancel()
 
+	master, err := app.GetMasterHostFromDcs()
+	if err != nil {
+		fmt.Printf("%s\n", err)
+		return 1
+	}
+	masterNode := app.cluster.Get(master)
+
 	node := app.cluster.Local()
-	err = app.optimizationManager.Disable(node)
+	err = app.optimizationController.Disable(masterNode, node)
 	if err != nil {
 		fmt.Printf("%s\n", err)
 		return 1
@@ -63,13 +70,20 @@ func (app *App) CliDisableAllOptimization() int {
 	}
 	defer cancel()
 
+	master, err := app.GetMasterHostFromDcs()
+	if err != nil {
+		fmt.Printf("%s\n", err)
+		return 1
+	}
+
 	hosts := app.cluster.AllNodeHosts()
 	var nodes []*mysql.Node
 	for _, host := range hosts {
 		nodes = append(nodes, app.cluster.Get(host))
 	}
 
-	err = app.optimizationManager.DisableAll(
+	err = app.optimizationController.DisableAll(
+		app.cluster.Get(master),
 		convertNodesToReplicationControllers(nodes),
 	)
 	if err != nil {

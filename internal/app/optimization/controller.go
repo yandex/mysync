@@ -13,8 +13,8 @@ import (
 type Controller interface {
 	Wait(ctx context.Context, node Node) error
 	Enable(node Node) error
-	Disable(node Node) error
-	DisableAll(nodes []Node) error
+	Disable(master, node Node) error
+	DisableAll(master Node, nodes []Node) error
 }
 
 func NewController(
@@ -22,23 +22,20 @@ func NewController(
 	logger Logger,
 	dcs DCS,
 	waitingCheckInterval time.Duration,
-	defaultReplicationSettings mysql.ReplicationSettings,
 ) Controller {
 	return &controller{
-		config:                     config,
-		logger:                     logger,
-		dcs:                        dcs,
-		waitingCheckInterval:       waitingCheckInterval,
-		defaultReplicationSettings: defaultReplicationSettings,
+		config:               config,
+		logger:               logger,
+		dcs:                  dcs,
+		waitingCheckInterval: waitingCheckInterval,
 	}
 }
 
 type controller struct {
-	config                     config.OptimizationConfig
-	logger                     Logger
-	dcs                        DCS
-	waitingCheckInterval       time.Duration
-	defaultReplicationSettings mysql.ReplicationSettings
+	config               config.OptimizationConfig
+	logger               Logger
+	dcs                  DCS
+	waitingCheckInterval time.Duration
 }
 
 // Wait blocks until node is optimized
@@ -111,8 +108,14 @@ func (m *controller) Enable(node Node) error {
 // Disable deactivates optimization mode for the specified node,
 // Changes take effect immediately, as these options can be dangerous.
 // Returns an error if disabling fails.
-func (m *controller) Disable(node Node) error {
-	err := node.SetReplicationSettings(m.defaultReplicationSettings)
+func (m *controller) Disable(master, node Node) error {
+	rs, err := master.GetReplicationSettings()
+	if err != nil {
+		m.logger.Warnf("cannot get replication setting from the master: %s", err)
+		rs = mysql.SafeReplicationSettings
+	}
+
+	err = node.SetReplicationSettings(rs)
 	if err != nil {
 		return err
 	}
@@ -123,7 +126,7 @@ func (m *controller) Disable(node Node) error {
 // This is a bulk operation with immediate effects,
 // and it carries risks similar to disabling a single node.
 // Returns an error if disabling any node fails.
-func (m *controller) DisableAll(nodes []Node) error {
+func (m *controller) DisableAll(master Node, nodes []Node) error {
 	hostnames := m.dcsHostnames(m.dcs, nodes)
 	hostnameToNode := makeHostToNodeMap(nodes...)
 	errors := make([]error, 0, len(nodes))
@@ -135,7 +138,7 @@ func (m *controller) DisableAll(nodes []Node) error {
 			continue
 		}
 
-		err := m.Disable(node)
+		err := m.Disable(master, node)
 		if err != nil {
 			errors = append(errors, fmt.Errorf("%s:%s", hostname, err))
 		}

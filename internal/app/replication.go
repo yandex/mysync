@@ -253,7 +253,7 @@ func (app *App) optimizeReplicaWithSmallestLag(
 	}
 	replicaToOptimize := app.cluster.Get(hostnameToOptimize)
 
-	err = app.optimizationManager.Enable(replicaToOptimize)
+	err = app.optimizationController.Enable(replicaToOptimize)
 	if err != nil {
 		return err
 	}
@@ -270,7 +270,7 @@ func (app *App) optimizeReplicaWithSmallestLag(
 		clusterAdapter,
 	)
 
-	return app.optimizationManager.Wait(
+	return app.optimizationController.Wait(
 		ctx,
 		replicaToOptimize,
 	)

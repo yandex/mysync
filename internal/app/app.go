@@ -47,8 +47,8 @@ type App struct {
 	switchHelper        mysql.ISwitchHelper
 	lostQuorumTime      time.Time
 
-	optimizationSyncer  optimization.Syncer
-	optimizationManager optimization.Controller
+	optimizationSyncer     optimization.Syncer
+	optimizationController optimization.Controller
 
 	lagResetupper *resetup.LagResetupper
 }
@@ -405,15 +405,6 @@ func (app *App) initializeOptimizationModule() error {
 	if err != nil {
 		return err
 	}
-	master, err := app.GetMasterHostFromDcs()
-	if err != nil {
-		return err
-	}
-	rs, err := app.cluster.Get(master).GetReplicationSettings()
-	if err != nil {
-		return err
-	}
-
 	app.optimizationSyncer, err = optimization.NewSyncer(
 		app.logger,
 		app.config.OptimizationConfig,
@@ -422,12 +413,11 @@ func (app *App) initializeOptimizationModule() error {
 	if err != nil {
 		return err
 	}
-	app.optimizationManager = optimization.NewController(
+	app.optimizationController = optimization.NewController(
 		app.config.OptimizationConfig,
 		app.logger,
 		DCSAdapter,
 		3*time.Second,
-		rs,
 	)
 	return nil
 }
@@ -1209,7 +1199,7 @@ func (app *App) disableSemiSyncOnSlaves(becomeInactive, becomeDataLag []string) 
 
 		node := app.cluster.Get(host)
 
-		err = app.optimizationManager.Enable(node)
+		err = app.optimizationController.Enable(node)
 		if err != nil {
 			app.logger.Warnf("failed to enable optimization on slave %s: %v", host, err)
 		}
@@ -1296,7 +1286,7 @@ func (app *App) performSwitchover(clusterState map[string]*nodestate.NodeState, 
 		activeNodes = filterOut(activeNodes, []string{oldMaster})
 	}
 
-	err := app.stopActiveNodeOptimization(activeNodes)
+	err := app.stopActiveNodeOptimization(oldMaster, activeNodes)
 	if err != nil {
 		return err
 	}
@@ -1690,7 +1680,7 @@ func (app *App) repairSlaveOfflineMode(host string, state *nodestate.NodeState, 
 		} else {
 			app.logger.Infof("repair: slave %s set offline, because ReplicationLag (%f s) >= OfflineModeEnableLag (%v)",
 				host, *state.SlaveState.ReplicationLag, app.config.OfflineModeEnableLag)
-			err = app.optimizationManager.Enable(node)
+			err = app.optimizationController.Enable(node)
 			if err != nil {
 				app.logger.Errorf("repair: failed to set optimize replication settings on slave %s: %s", host, err)
 			}
@@ -2395,13 +2385,16 @@ func (app *App) waitForCatchUp(node *mysql.Node, gtidset gtids.GTIDSet, timeout 
 	return false, nil
 }
 
-func (app *App) stopActiveNodeOptimization(activeNodes []string) error {
+func (app *App) stopActiveNodeOptimization(oldMaster string, activeNodes []string) error {
+	masterNode := app.cluster.Get(oldMaster)
+
 	var nodes []*mysql.Node
 	for _, hostname := range activeNodes {
 		nodes = append(nodes, app.cluster.Get(hostname))
 	}
 
-	return app.optimizationManager.DisableAll(
+	return app.optimizationController.DisableAll(
+		masterNode,
 		convertNodesToReplicationControllers(nodes),
 	)
 }
