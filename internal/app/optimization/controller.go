@@ -15,8 +15,8 @@ func NewController(
 	logger Logger,
 	dcs DCS,
 	waitingCheckInterval time.Duration,
-) *controller {
-	return &controller{
+) *Controller {
+	return &Controller{
 		config:               config,
 		logger:               logger,
 		dcs:                  dcs,
@@ -24,7 +24,7 @@ func NewController(
 	}
 }
 
-type controller struct {
+type Controller struct {
 	config               config.OptimizationConfig
 	logger               Logger
 	dcs                  DCS
@@ -32,7 +32,7 @@ type controller struct {
 }
 
 // Wait blocks until node is optimized
-func (m *controller) Wait(ctx context.Context, node Node) error {
+func (m *Controller) Wait(ctx context.Context, node Node) error {
 	ticker := time.NewTicker(m.waitingCheckInterval)
 	defer ticker.Stop()
 
@@ -61,7 +61,7 @@ func (m *controller) Wait(ctx context.Context, node Node) error {
 	}
 }
 
-func (m *controller) isOptimizedDuringWaiting(node Node) (bool, error) {
+func (m *Controller) isOptimizedDuringWaiting(node Node) (bool, error) {
 	dcsState, err := m.dcs.GetState(node.Host())
 	if err != nil {
 		return false, err
@@ -94,14 +94,14 @@ func (m *controller) isOptimizedDuringWaiting(node Node) (bool, error) {
 // The change may not take effect immediately (e.g., pending retries or submissions).
 // By default, only one optimized replica is allowed per setup to avoid data loss.
 // Returns an error if enabling fails (e.g., due to existing optimizations or channel closures).
-func (m *controller) Enable(node Node) error {
+func (m *Controller) Enable(node Node) error {
 	return m.dcs.CreateHosts(node.Host())
 }
 
 // Disable deactivates optimization mode for the specified node,
 // Changes take effect immediately, as these options can be dangerous.
 // Returns an error if disabling fails.
-func (m *controller) Disable(master, node Node) error {
+func (m *Controller) Disable(master, node Node) error {
 	rs, err := master.GetReplicationSettings()
 	if err != nil {
 		m.logger.Warnf("cannot get replication setting from the master: %s", err.Error())
@@ -114,7 +114,7 @@ func (m *controller) Disable(master, node Node) error {
 // This is a bulk operation with immediate effects,
 // and it carries risks similar to disabling a single node.
 // Returns an error if disabling any node fails.
-func (m *controller) DisableAll(master Node, nodes []Node) error {
+func (m *Controller) DisableAll(master Node, nodes []Node) error {
 	hostnames := m.dcsHostnames(m.dcs, nodes)
 	hostnameToNode := makeHostToNodeMap(nodes...)
 	errors := make([]error, 0, len(nodes))
@@ -143,7 +143,7 @@ func (m *controller) DisableAll(master Node, nodes []Node) error {
 	return fmt.Errorf("got the following errors: %s", util.JoinErrors(errors, ","))
 }
 
-func (m *controller) disable(rs mysql.ReplicationSettings, node Node) error {
+func (m *Controller) disable(rs mysql.ReplicationSettings, node Node) error {
 	err := node.SetReplicationSettings(rs)
 	if err != nil {
 		return err
@@ -151,7 +151,7 @@ func (m *controller) disable(rs mysql.ReplicationSettings, node Node) error {
 	return m.dcs.DeleteHosts(node.Host())
 }
 
-func (m *controller) dcsHostnames(Dcs DCS, fallbackNodes []Node) []string {
+func (m *Controller) dcsHostnames(Dcs DCS, fallbackNodes []Node) []string {
 	hostnames, err := Dcs.GetHosts()
 	if err != nil {
 		for _, node := range fallbackNodes {

@@ -12,21 +12,21 @@ func NewSyncer(
 	logger Logger,
 	config config.OptimizationConfig,
 	Dcs DCS,
-) (*syncer, error) {
-	return &syncer{
+) (*Syncer, error) {
+	return &Syncer{
 		logger: logger,
 		config: config,
 		dcs:    Dcs,
 	}, nil
 }
 
-type syncer struct {
+type Syncer struct {
 	logger Logger
 	config config.OptimizationConfig
 	dcs    DCS
 }
 
-func (s *syncer) getClusterHostsState(
+func (s *Syncer) getClusterHostsState(
 	c Cluster,
 	masterRs mysql.ReplicationSettings,
 ) (*hostsState, error) {
@@ -92,7 +92,7 @@ func (hs *hostsState) String() string {
 	)
 }
 
-func (s *syncer) Sync(c Cluster) error {
+func (s *Syncer) Sync(c Cluster) error {
 	masterRs, err := s.getMasterReplSettings(c)
 	if err != nil {
 		return err
@@ -119,7 +119,7 @@ func (s *syncer) Sync(c Cluster) error {
 	return s.balanceToSingleNode(c, masterRs, hostsState)
 }
 
-func (s *syncer) balanceToSingleNode(
+func (s *Syncer) balanceToSingleNode(
 	c Cluster,
 	masterRs mysql.ReplicationSettings,
 	hostsState *hostsState,
@@ -156,7 +156,7 @@ func (s *syncer) balanceToSingleNode(
 	return nil
 }
 
-func (s *syncer) startNodes(
+func (s *Syncer) startNodes(
 	c Cluster,
 	hosts []string,
 ) error {
@@ -169,7 +169,7 @@ func (s *syncer) startNodes(
 	return nil
 }
 
-func (s *syncer) stopNodes(
+func (s *Syncer) stopNodes(
 	c Cluster,
 	hosts []string,
 	rs mysql.ReplicationSettings,
@@ -183,7 +183,7 @@ func (s *syncer) stopNodes(
 	return nil
 }
 
-func (s *syncer) disableNodes(
+func (s *Syncer) disableNodes(
 	c Cluster,
 	hosts []string,
 	rs mysql.ReplicationSettings,
@@ -199,7 +199,7 @@ func (s *syncer) disableNodes(
 	return s.dcs.DeleteHosts(hosts...)
 }
 
-func (s *syncer) syncNodeOptions(
+func (s *Syncer) syncNodeOptions(
 	host string,
 	node Node,
 ) error {
@@ -214,7 +214,7 @@ func (s *syncer) syncNodeOptions(
 	return nil
 }
 
-func (s *syncer) getMasterReplSettings(c Cluster) (mysql.ReplicationSettings, error) {
+func (s *Syncer) getMasterReplSettings(c Cluster) (mysql.ReplicationSettings, error) {
 	master := c.GetState(c.GetMaster())
 	if master.ReplicationSettings != nil {
 		return *master.ReplicationSettings, nil
