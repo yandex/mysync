@@ -8,18 +8,11 @@ import (
 	"github.com/yandex/mysync/internal/util"
 )
 
-type Syncer interface {
-	// SyncState synchronizes optimization settings,
-	// and applies replication adjustments if needed.
-	// Returns an error if synchronization fails.
-	Sync(c Cluster) error
-}
-
 func NewSyncer(
 	logger Logger,
 	config config.OptimizationConfig,
 	Dcs DCS,
-) (Syncer, error) {
+) (*syncer, error) {
 	return &syncer{
 		logger: logger,
 		config: config,

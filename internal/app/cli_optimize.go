@@ -23,7 +23,7 @@ func (app *App) CliEnableOptimization() int {
 	}
 
 	if status == Optimizable {
-		err = app.optimizationController.Enable(node)
+		err = app.controller.Enable(node)
 		if err != nil {
 			fmt.Printf("%s\n", err)
 			return 1
@@ -53,7 +53,7 @@ func (app *App) CliDisableOptimization() int {
 	masterNode := app.cluster.Get(master)
 
 	node := app.cluster.Local()
-	err = app.optimizationController.Disable(masterNode, node)
+	err = app.controller.Disable(masterNode, node)
 	if err != nil {
 		fmt.Printf("%s\n", err)
 		return 1
@@ -82,7 +82,7 @@ func (app *App) CliDisableAllOptimization() int {
 		nodes = append(nodes, app.cluster.Get(host))
 	}
 
-	err = app.optimizationController.DisableAll(
+	err = app.controller.DisableAll(
 		app.cluster.Get(master),
 		convertNodesToReplicationControllers(nodes),
 	)

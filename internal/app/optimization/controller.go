@@ -10,19 +10,12 @@ import (
 	"github.com/yandex/mysync/internal/util"
 )
 
-type Controller interface {
-	Wait(ctx context.Context, node Node) error
-	Enable(node Node) error
-	Disable(master, node Node) error
-	DisableAll(master Node, nodes []Node) error
-}
-
 func NewController(
 	config config.OptimizationConfig,
 	logger Logger,
 	dcs DCS,
 	waitingCheckInterval time.Duration,
-) Controller {
+) *controller {
 	return &controller{
 		config:               config,
 		logger:               logger,

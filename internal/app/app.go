@@ -47,8 +47,8 @@ type App struct {
 	switchHelper        mysql.ISwitchHelper
 	lostQuorumTime      time.Time
 
-	optimizationSyncer     optimization.Syncer
-	optimizationController optimization.Controller
+	syncer     OptimizationSyncer
+	controller OptimizationController
 
 	lagResetupper *resetup.LagResetupper
 }
@@ -405,7 +405,7 @@ func (app *App) initializeOptimizationModule() error {
 	if err != nil {
 		return err
 	}
-	app.optimizationSyncer, err = optimization.NewSyncer(
+	app.syncer, err = optimization.NewSyncer(
 		app.logger,
 		app.config.OptimizationConfig,
 		DCSAdapter,
@@ -413,7 +413,7 @@ func (app *App) initializeOptimizationModule() error {
 	if err != nil {
 		return err
 	}
-	app.optimizationController = optimization.NewController(
+	app.controller = optimization.NewController(
 		app.config.OptimizationConfig,
 		app.logger,
 		DCSAdapter,
@@ -693,7 +693,7 @@ func (app *App) stateManager() appState {
 		clusterStateDcs,
 		master,
 	)
-	err = app.optimizationSyncer.Sync(clusterAdapter)
+	err = app.syncer.Sync(clusterAdapter)
 	if err != nil {
 		app.logger.Errorf("failed to sync local optimization settings: %s", err)
 		return stateManager
@@ -1199,7 +1199,7 @@ func (app *App) disableSemiSyncOnSlaves(becomeInactive, becomeDataLag []string) 
 
 		node := app.cluster.Get(host)
 
-		err = app.optimizationController.Enable(node)
+		err = app.controller.Enable(node)
 		if err != nil {
 			app.logger.Warnf("failed to enable optimization on slave %s: %v", host, err)
 		}
@@ -1680,7 +1680,7 @@ func (app *App) repairSlaveOfflineMode(host string, state *nodestate.NodeState, 
 		} else {
 			app.logger.Infof("repair: slave %s set offline, because ReplicationLag (%f s) >= OfflineModeEnableLag (%v)",
 				host, *state.SlaveState.ReplicationLag, app.config.OfflineModeEnableLag)
-			err = app.optimizationController.Enable(node)
+			err = app.controller.Enable(node)
 			if err != nil {
 				app.logger.Errorf("repair: failed to set optimize replication settings on slave %s: %s", host, err)
 			}
@@ -2393,7 +2393,7 @@ func (app *App) stopActiveNodeOptimization(oldMaster string, activeNodes []strin
 		nodes = append(nodes, app.cluster.Get(hostname))
 	}
 
-	return app.optimizationController.DisableAll(
+	return app.controller.DisableAll(
 		masterNode,
 		convertNodesToReplicationControllers(nodes),
 	)
