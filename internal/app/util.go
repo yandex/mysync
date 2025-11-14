@@ -197,8 +197,8 @@ func getDubiousHAHosts(clusterState map[string]*nodestate.NodeState) []string {
 	return dubious
 }
 
-func convertNodesToReplicationControllers(nodes []*mysql.Node) []optimization.NodeReplicationController {
-	var ifaceNodes []optimization.NodeReplicationController
+func convertNodesToReplicationControllers(nodes []*mysql.Node) []optimization.Node {
+	var ifaceNodes []optimization.Node
 	for _, n := range nodes {
 		ifaceNodes = append(ifaceNodes, n)
 	}

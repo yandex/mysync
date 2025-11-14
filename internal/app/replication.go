@@ -6,6 +6,8 @@ import (
 	"fmt"
 	"time"
 
+	nodestate "github.com/yandex/mysync/internal/app/node_state"
+	"github.com/yandex/mysync/internal/app/optimization"
 	"github.com/yandex/mysync/internal/mysql"
 	"github.com/yandex/mysync/internal/mysql/gtids"
 )
@@ -243,6 +245,7 @@ func getRepairAlgorithm(algoType ReplicationRepairAlgorithmType) RepairReplicati
 func (app *App) optimizeReplicaWithSmallestLag(
 	replicas []string,
 	optionalDesirableReplica string,
+	clusterAdapter optimization.Cluster,
 ) error {
 	hostnameToOptimize, err := app.chooseReplicaToOptimize(optionalDesirableReplica, replicas)
 	if err != nil {
@@ -250,7 +253,7 @@ func (app *App) optimizeReplicaWithSmallestLag(
 	}
 	replicaToOptimize := app.cluster.Get(hostnameToOptimize)
 
-	err = app.replicationOptimizer.EnableNodeOptimization(replicaToOptimize)
+	err = app.controller.Enable(replicaToOptimize)
 	if err != nil {
 		return err
 	}
@@ -258,7 +261,39 @@ func (app *App) optimizeReplicaWithSmallestLag(
 	ctx, cancel := context.WithTimeout(context.Background(), app.config.ReplicationConvergenceTimeoutSwitchover)
 	defer cancel()
 
-	return app.replicationOptimizer.WaitOptimization(ctx, replicaToOptimize, 3*time.Second)
+	ticker := time.NewTicker(3 * time.Second)
+	defer ticker.Stop()
+
+	app.startSyncerGoroutine(
+		ctx,
+		ticker,
+		clusterAdapter,
+	)
+
+	return app.controller.Wait(
+		ctx,
+		replicaToOptimize,
+	)
+}
+
+func (app *App) startSyncerGoroutine(
+	ctx context.Context,
+	ticker *time.Ticker,
+	cluster optimization.Cluster,
+) {
+	go func() {
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			case <-ticker.C:
+				err := app.syncer.Sync(cluster)
+				if err != nil {
+					app.logger.Errorf("sync error: %s", err)
+				}
+			}
+		}
+	}()
 }
 
 func (app *App) chooseReplicaToOptimize(
@@ -288,7 +323,12 @@ func (app *App) getMostDesirableReplicaToOptimize(positions []nodePosition) (str
 	return getMostDesirableNode(app.logger, positions, lagThreshold)
 }
 
-func (app *App) optimizationPhase(activeNodes []string, switchover *Switchover, oldMaster string) error {
+func (app *App) optimizationPhase(
+	activeNodes []string,
+	switchover *Switchover,
+	oldMaster string,
+	clusterState map[string]*nodestate.NodeState,
+) error {
 	if !app.switchHelper.IsOptimizationPhaseAllowed() {
 		app.logger.Info("switchover: phase 0: turbo mode is skipped")
 		return nil
@@ -303,9 +343,16 @@ func (app *App) optimizationPhase(activeNodes []string, switchover *Switchover, 
 		oldMaster,
 		desirableReplica,
 	)
+
+	clusterAdapter := NewOptimizationClusterAdapter(
+		app.cluster,
+		clusterState,
+		oldMaster,
+	)
 	err := app.optimizeReplicaWithSmallestLag(
 		appropriateReplicas,
 		desirableReplica,
+		clusterAdapter,
 	)
 	if err != nil && errors.Is(err, ErrOptimizationPhaseDeadlineExceeded) {
 		app.logger.Infof("switchover: phase 0: turbo mode failed: %v", err)
