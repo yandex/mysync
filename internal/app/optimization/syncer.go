@@ -1,6 +1,8 @@
 package optimization
 
 import (
+	"fmt"
+
 	"github.com/yandex/mysync/internal/config"
 	"github.com/yandex/mysync/internal/mysql"
 	"github.com/yandex/mysync/internal/util"
@@ -90,6 +92,13 @@ type hostsState struct {
 	MalfunctioningHosts []string
 }
 
+func (hs *hostsState) String() string {
+	return fmt.Sprintf(
+		"<disabled: %v, optimizing: %v, optimized: %v, malfunc: %v>",
+		hs.DisabledHosts, hs.OptimizingHosts, hs.OptimizedHosts, hs.MalfunctioningHosts,
+	)
+}
+
 func (s *syncer) Sync(c Cluster) error {
 	masterRs, err := s.getMasterReplSettings(c)
 	if err != nil {
@@ -100,6 +109,10 @@ func (s *syncer) Sync(c Cluster) error {
 	if err != nil {
 		return err
 	}
+	s.logger.Infof(
+		"optimization: %s",
+		hostsState.String(),
+	)
 
 	hostsToDisable := util.Union(
 		hostsState.OptimizedHosts,

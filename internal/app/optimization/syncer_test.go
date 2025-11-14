@@ -16,7 +16,10 @@ import (
 func TestBasicOptimization(t *testing.T) {
 	t.Run("Sync on master does nothing", func(t *testing.T) {
 		ctrl := gomock.NewController(t)
+
 		logger := NewMockLogger(ctrl)
+		logger.EXPECT().Infof("optimization: %s", "<disabled: [], optimizing: [], optimized: [], malfunc: []>")
+
 		config := config.OptimizationConfig{
 			LowReplicationMark:  5 * time.Second,
 			HighReplicationMark: 120 * time.Second,
@@ -53,7 +56,10 @@ func TestBasicOptimization(t *testing.T) {
 
 	t.Run("Sync on master with 'optimizing' dcs status turns optimization off", func(t *testing.T) {
 		ctrl := gomock.NewController(t)
+
 		logger := NewMockLogger(ctrl)
+		logger.EXPECT().Infof("optimization: %s", "<disabled: [], optimizing: [], optimized: [], malfunc: [master]>")
+
 		config := config.OptimizationConfig{
 			LowReplicationMark:  5 * time.Second,
 			HighReplicationMark: 120 * time.Second,
@@ -103,6 +109,7 @@ func TestHAClusterOptimization(t *testing.T) {
 		ctrl := gomock.NewController(t)
 
 		logger := NewMockLogger(ctrl)
+		logger.EXPECT().Infof("optimization: %s", "<disabled: [], optimizing: [], optimized: [], malfunc: []>")
 
 		config := config.OptimizationConfig{
 			LowReplicationMark:  5 * time.Second,
@@ -144,7 +151,10 @@ func TestHAClusterOptimization(t *testing.T) {
 
 	t.Run("Sync on hosts with optimization and without lag disables optimization", func(t *testing.T) {
 		ctrl := gomock.NewController(t)
+
 		logger := NewMockLogger(ctrl)
+		logger.EXPECT().Infof("optimization: %s", "<disabled: [], optimizing: [], optimized: [replica1], malfunc: []>")
+
 		config := config.OptimizationConfig{
 			LowReplicationMark:  5 * time.Second,
 			HighReplicationMark: 120 * time.Second,
@@ -207,7 +217,10 @@ func TestHAClusterOptimization(t *testing.T) {
 
 	t.Run("Sync on hosts with optimization and lag does nothing", func(t *testing.T) {
 		ctrl := gomock.NewController(t)
+
 		logger := NewMockLogger(ctrl)
+		logger.EXPECT().Infof("optimization: %s", "<disabled: [], optimizing: [replica1], optimized: [], malfunc: []>")
+
 		config := config.OptimizationConfig{
 			LowReplicationMark:  5 * time.Second,
 			HighReplicationMark: 120 * time.Second,
@@ -267,6 +280,7 @@ func TestOneHostOptimizationPolicy(t *testing.T) {
 		ctrl := gomock.NewController(t)
 
 		logger := NewMockLogger(ctrl)
+		logger.EXPECT().Infof("optimization: %s", "<disabled: [], optimizing: [replica1 replica2], optimized: [], malfunc: []>")
 		logger.EXPECT().Infof("optimization: there are too many nodes: %d. Turn %d off", 2, 1)
 
 		config := config.OptimizationConfig{
@@ -350,10 +364,11 @@ func TestOneHostOptimizationPolicy(t *testing.T) {
 }
 
 func TestTurnBackOnOptimization(t *testing.T) {
-	t.Run("Optimization will be enabled if the host was changed manually", func(t *testing.T) {
+	t.Run("Optimization will be enabled if the host options were changed manually", func(t *testing.T) {
 		ctrl := gomock.NewController(t)
 
 		logger := NewMockLogger(ctrl)
+		logger.EXPECT().Infof("optimization: %s", "<disabled: [], optimizing: [replica1], optimized: [], malfunc: []>")
 		logger.EXPECT().Warnf("Node %s should be optimizing but is not - restarting optimization", "replica1")
 
 		config := config.OptimizationConfig{
@@ -471,7 +486,10 @@ func TestNetworkErrors(t *testing.T) {
 
 	t.Run("Sync network error on the MySQL replicas side keeps cluster unchanged", func(t *testing.T) {
 		ctrl := gomock.NewController(t)
+
 		logger := NewMockLogger(ctrl)
+		logger.EXPECT().Infof("optimization: %s", "<disabled: [], optimizing: [], optimized: [replica1], malfunc: []>")
+
 		config := config.OptimizationConfig{
 			LowReplicationMark:  5 * time.Second,
 			HighReplicationMark: 120 * time.Second,
@@ -531,7 +549,10 @@ func TestNetworkErrors(t *testing.T) {
 func TestDeadReplica(t *testing.T) {
 	t.Run("Sync an optimizing dead replica", func(t *testing.T) {
 		ctrl := gomock.NewController(t)
+
 		logger := NewMockLogger(ctrl)
+		logger.EXPECT().Infof("optimization: %s", "<disabled: [], optimizing: [], optimized: [], malfunc: [replica1]>")
+
 		config := config.OptimizationConfig{
 			LowReplicationMark:  5 * time.Second,
 			HighReplicationMark: 120 * time.Second,

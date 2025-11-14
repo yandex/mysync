@@ -71,10 +71,13 @@ func (oda *OptimizationDCSAdapter) GetState(hostname string) (*optimization.DCSS
 	path := dcs.JoinPath(pathOptimizationNodes, hostname)
 
 	err := oda.dcs.Get(path, state)
-	if err != nil && err != dcs.ErrNotFound && err != dcs.ErrMalformed {
+	if err != nil && err != dcs.ErrNotFound {
 		return nil, err
 	}
-	return nil, nil
+	if err == dcs.ErrNotFound {
+		return nil, nil
+	}
+	return state, nil
 }
 
 func (oda *OptimizationDCSAdapter) DeleteHosts(hostnames ...string) error {
