@@ -254,7 +254,7 @@ func (app *App) optimizeReplicaWithSmallestLag(
 	}
 	replicaToOptimize := app.cluster.Get(hostnameToOptimize)
 
-	err = app.controller.Enable(replicaToOptimize)
+	err = app.optController.Enable(replicaToOptimize)
 	if err != nil {
 		return err
 	}
@@ -271,7 +271,7 @@ func (app *App) optimizeReplicaWithSmallestLag(
 		clusterAdapter,
 	)
 
-	return app.controller.Wait(
+	return app.optController.Wait(
 		ctx,
 		replicaToOptimize,
 	)
@@ -288,7 +288,7 @@ func (app *App) startSyncerGoroutine(
 			case <-ctx.Done():
 				return
 			case <-ticker.C:
-				err := app.syncer.Sync(cluster)
+				err := app.optSyncer.Sync(cluster)
 				if err != nil {
 					app.logger.Errorf("sync error: %s", err)
 				}
