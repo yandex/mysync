@@ -63,11 +63,12 @@ func (oda *OptimizationDCSAdapter) initDcs() error {
 	oda.dcsInitiator.Do(func() {
 		err = oda.dcs.Create(pathOptimizationNodes, "")
 	})
-	if err != nil {
+	if err != nil && err != dcs.ErrExists {
 		oda.dcsInitiator = sync.Once{}
+		return err
 	}
 
-	return err
+	return nil
 }
 
 func (oda *OptimizationDCSAdapter) GetHosts() ([]string, error) {
