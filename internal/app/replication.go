@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"time"
 
+	app_dcs "github.com/yandex/mysync/internal/app/dcs"
 	nodestate "github.com/yandex/mysync/internal/app/node_state"
 	"github.com/yandex/mysync/internal/app/optimization"
 	"github.com/yandex/mysync/internal/mysql"
@@ -344,7 +345,7 @@ func (app *App) optimizationPhase(
 		desirableReplica,
 	)
 
-	clusterAdapter := NewOptimizationClusterAdapter(
+	clusterAdapter := app_dcs.NewOptimizationClusterAdapter(
 		app.cluster,
 		clusterState,
 		oldMaster,

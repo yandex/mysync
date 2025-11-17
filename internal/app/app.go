@@ -18,6 +18,7 @@ import (
 	mysql_driver "github.com/go-sql-driver/mysql"
 	"github.com/gofrs/flock"
 
+	app_dcs "github.com/yandex/mysync/internal/app/dcs"
 	nodestate "github.com/yandex/mysync/internal/app/node_state"
 	"github.com/yandex/mysync/internal/app/optimization"
 	"github.com/yandex/mysync/internal/app/resetup"
@@ -47,8 +48,8 @@ type App struct {
 	switchHelper        mysql.ISwitchHelper
 	lostQuorumTime      time.Time
 
-	syncer     OptimizationSyncer
-	controller OptimizationController
+	optSyncer     OptimizationSyncer
+	optController OptimizationController
 
 	lagResetupper *resetup.LagResetupper
 }
@@ -387,39 +388,27 @@ func (app *App) stateFirstRun() appState {
 		return stateFirstRun
 	}
 	app.dcs.Initialize()
-
-	err := app.initializeOptimizationModule()
-	if err != nil {
-		app.logger.Errorf("optimization module initialization failed: %s", err)
-		return stateFirstRun
-	}
-
+	app.initializeOptimizationModule()
 	if app.AcquireLock(pathManagerLock) {
 		return stateManager
 	}
 	return stateCandidate
 }
 
-func (app *App) initializeOptimizationModule() error {
-	DCSAdapter, err := NewOptimizationDCSAdapter(app.dcs)
-	if err != nil {
-		return err
-	}
-	app.syncer, err = optimization.NewSyncer(
+func (app *App) initializeOptimizationModule() {
+	DCSAdapter := app_dcs.NewOptimizationDCSAdapter(app.dcs)
+	app.optSyncer = optimization.NewSyncer(
 		app.logger,
 		app.config.OptimizationConfig,
 		DCSAdapter,
 	)
-	if err != nil {
-		return err
-	}
-	app.controller = optimization.NewController(
+
+	app.optController = optimization.NewController(
 		app.config.OptimizationConfig,
 		app.logger,
 		DCSAdapter,
 		3*time.Second,
 	)
-	return nil
 }
 
 func (app *App) stateLost() appState {
@@ -688,12 +677,12 @@ func (app *App) stateManager() appState {
 		}
 	}
 
-	clusterAdapter := NewOptimizationClusterAdapter(
+	clusterAdapter := app_dcs.NewOptimizationClusterAdapter(
 		app.cluster,
 		clusterStateDcs,
 		master,
 	)
-	err = app.syncer.Sync(clusterAdapter)
+	err = app.optSyncer.Sync(clusterAdapter)
 	if err != nil {
 		app.logger.Errorf("failed to sync local optimization settings: %s", err)
 		return stateManager
@@ -1199,7 +1188,7 @@ func (app *App) disableSemiSyncOnSlaves(becomeInactive, becomeDataLag []string) 
 
 		node := app.cluster.Get(host)
 
-		err = app.controller.Enable(node)
+		err = app.optController.Enable(node)
 		if err != nil {
 			app.logger.Warnf("failed to enable optimization on slave %s: %v", host, err)
 		}
@@ -1680,7 +1669,7 @@ func (app *App) repairSlaveOfflineMode(host string, state *nodestate.NodeState, 
 		} else {
 			app.logger.Infof("repair: slave %s set offline, because ReplicationLag (%f s) >= OfflineModeEnableLag (%v)",
 				host, *state.SlaveState.ReplicationLag, app.config.OfflineModeEnableLag)
-			err = app.controller.Enable(node)
+			err = app.optController.Enable(node)
 			if err != nil {
 				app.logger.Errorf("repair: failed to set optimize replication settings on slave %s: %s", host, err)
 			}
@@ -2393,7 +2382,7 @@ func (app *App) stopActiveNodeOptimization(oldMaster string, activeNodes []strin
 		nodes = append(nodes, app.cluster.Get(hostname))
 	}
 
-	return app.controller.DisableAll(
+	return app.optController.DisableAll(
 		masterNode,
 		convertNodesToReplicationControllers(nodes),
 	)

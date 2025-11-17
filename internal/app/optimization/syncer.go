@@ -12,12 +12,12 @@ func NewSyncer(
 	logger Logger,
 	config config.OptimizationConfig,
 	Dcs DCS,
-) (*Syncer, error) {
+) *Syncer {
 	return &Syncer{
 		logger: logger,
 		config: config,
 		dcs:    Dcs,
-	}, nil
+	}
 }
 
 type Syncer struct {
