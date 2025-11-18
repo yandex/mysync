@@ -23,7 +23,7 @@ func (app *App) CliEnableOptimization() int {
 	}
 
 	if status == Optimizable {
-		err = app.replicationOptimizer.EnableNodeOptimization(node)
+		err = app.optController.Enable(node)
 		if err != nil {
 			fmt.Printf("%s\n", err)
 			return 1
@@ -45,15 +45,15 @@ func (app *App) CliDisableOptimization() int {
 	}
 	defer cancel()
 
-	masterHost, err := app.GetMasterHostFromDcs()
+	master, err := app.GetMasterHostFromDcs()
 	if err != nil {
 		fmt.Printf("%s\n", err)
 		return 1
 	}
+	masterNode := app.cluster.Get(master)
 
 	node := app.cluster.Local()
-	master := app.cluster.Get(masterHost)
-	err = app.replicationOptimizer.DisableNodeOptimization(master, node)
+	err = app.optController.Disable(masterNode, node)
 	if err != nil {
 		fmt.Printf("%s\n", err)
 		return 1
@@ -70,21 +70,22 @@ func (app *App) CliDisableAllOptimization() int {
 	}
 	defer cancel()
 
-	masterHost, err := app.GetMasterHostFromDcs()
+	master, err := app.GetMasterHostFromDcs()
 	if err != nil {
 		fmt.Printf("%s\n", err)
 		return 1
 	}
 
-	master := app.cluster.Get(masterHost)
 	hosts := app.cluster.AllNodeHosts()
 	var nodes []*mysql.Node
 	for _, host := range hosts {
 		nodes = append(nodes, app.cluster.Get(host))
 	}
 
-	controllerNodes := convertNodesToReplicationControllers(nodes)
-	err = app.replicationOptimizer.DisableAllNodeOptimization(master, controllerNodes)
+	err = app.optController.DisableAll(
+		app.cluster.Get(master),
+		convertNodesToReplicationControllers(nodes),
+	)
 	if err != nil {
 		fmt.Printf("%s\n", err)
 		return 1

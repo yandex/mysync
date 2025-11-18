@@ -18,6 +18,7 @@ import (
 	mysql_driver "github.com/go-sql-driver/mysql"
 	"github.com/gofrs/flock"
 
+	app_dcs "github.com/yandex/mysync/internal/app/dcs"
 	nodestate "github.com/yandex/mysync/internal/app/node_state"
 	"github.com/yandex/mysync/internal/app/optimization"
 	"github.com/yandex/mysync/internal/app/resetup"
@@ -31,23 +32,26 @@ import (
 
 // App is main application structure
 type App struct {
-	state                appState
-	logger               *log.Logger
-	sysLog               *syslog.Writer
-	config               *config.Config
-	dcs                  dcs.DCS
-	cluster              *mysql.Cluster
-	filelock             *flock.Flock
-	t                    *Timings
-	slaveReadPositions   map[string]string
-	daemonState          *nodestate.DaemonState
-	daemonMutex          sync.Mutex
-	replRepairState      map[string]*ReplicationRepairState
-	externalReplication  mysql.IExternalReplication
-	switchHelper         mysql.ISwitchHelper
-	lostQuorumTime       time.Time
-	replicationOptimizer optimization.ReplicationOpitimizer
-	lagResetupper        *resetup.LagResetupper
+	state               appState
+	logger              *log.Logger
+	sysLog              *syslog.Writer
+	config              *config.Config
+	dcs                 dcs.DCS
+	cluster             *mysql.Cluster
+	filelock            *flock.Flock
+	t                   *Timings
+	slaveReadPositions  map[string]string
+	daemonState         *nodestate.DaemonState
+	daemonMutex         sync.Mutex
+	replRepairState     map[string]*ReplicationRepairState
+	externalReplication mysql.IExternalReplication
+	switchHelper        mysql.ISwitchHelper
+	lostQuorumTime      time.Time
+
+	optSyncer     OptimizationSyncer
+	optController OptimizationController
+
+	lagResetupper *resetup.LagResetupper
 }
 
 // NewApp returns new App. Suddenly.
@@ -86,23 +90,18 @@ func NewApp(configFile, logLevel string, interactive bool) (*App, error) {
 		logger.Errorf("external replication initialization failed: %s", err)
 		return nil, err
 	}
-	replicationOptimizer := optimization.NewOptimizer(
-		logger,
-		config.OptimizationConfig,
-	)
 
 	switchHelper := mysql.NewSwitchHelper(config)
 	app := &App{
-		state:                stateFirstRun,
-		config:               config,
-		sysLog:               sysLog,
-		logger:               logger,
-		t:                    NewTimings(),
-		replRepairState:      make(map[string]*ReplicationRepairState),
-		slaveReadPositions:   make(map[string]string),
-		externalReplication:  externalReplication,
-		switchHelper:         switchHelper,
-		replicationOptimizer: replicationOptimizer,
+		state:               stateFirstRun,
+		config:              config,
+		sysLog:              sysLog,
+		logger:              logger,
+		t:                   NewTimings(),
+		replRepairState:     make(map[string]*ReplicationRepairState),
+		slaveReadPositions:  make(map[string]string),
+		externalReplication: externalReplication,
+		switchHelper:        switchHelper,
 	}
 
 	// TODO: appDcs should be separate entity
@@ -160,7 +159,7 @@ func (app *App) newDBCluster() error {
 
 func (app *App) writeEmergeFile(msg string) {
 	app.logger.Warn("touch emerge file")
-	err := os.WriteFile(app.config.Emergefile, []byte(msg), 0644)
+	err := os.WriteFile(app.config.Emergefile, []byte(msg), 0o644)
 	if err != nil {
 		app.logger.Errorf("failed to write emerge file: %v", err)
 	}
@@ -168,7 +167,7 @@ func (app *App) writeEmergeFile(msg string) {
 
 func (app *App) writeResetupFile() {
 	app.logger.Warn("touch resetup file")
-	err := os.WriteFile(app.config.Resetupfile, []byte{}, 0644)
+	err := os.WriteFile(app.config.Resetupfile, []byte{}, 0o644)
 	if err != nil {
 		app.logger.Errorf("failed to write resetup file: %v", err)
 	}
@@ -181,7 +180,7 @@ func (app *App) doesResetupFileExist() bool {
 
 func (app *App) writeMaintenanceFile() {
 	app.logger.Warn("touch maintenance file")
-	err := os.WriteFile(app.config.Maintenancefile, []byte(""), 0644)
+	err := os.WriteFile(app.config.Maintenancefile, []byte(""), 0o644)
 	if err != nil {
 		app.logger.Errorf("failed to write maintenance file: %v", err)
 	}
@@ -239,7 +238,7 @@ func (app *App) stateFileHandler(ctx context.Context) {
 				_ = os.Remove(app.config.InfoFile)
 				continue
 			}
-			err = os.WriteFile(app.config.InfoFile, data, 0666)
+			err = os.WriteFile(app.config.InfoFile, data, 0o666)
 			if err != nil {
 				app.logger.Errorf("stateFileHandler: failed to write info file %v", err)
 				_ = os.Remove(app.config.InfoFile)
@@ -389,16 +388,27 @@ func (app *App) stateFirstRun() appState {
 		return stateFirstRun
 	}
 	app.dcs.Initialize()
-	err := app.replicationOptimizer.Initialize(app.dcs)
-	if err != nil {
-		app.logger.Errorf("can not initialize ReplicationOpitimizer module: %s", err)
-		return stateFirstRun
-	}
-
+	app.initializeOptimizationModule()
 	if app.AcquireLock(pathManagerLock) {
 		return stateManager
 	}
 	return stateCandidate
+}
+
+func (app *App) initializeOptimizationModule() {
+	DCSAdapter := app_dcs.NewOptimizationDCSAdapter(app.dcs)
+	app.optSyncer = optimization.NewSyncer(
+		app.logger,
+		app.config.OptimizationConfig,
+		DCSAdapter,
+	)
+
+	app.optController = optimization.NewController(
+		app.config.OptimizationConfig,
+		app.logger,
+		DCSAdapter,
+		3*time.Second,
+	)
 }
 
 func (app *App) stateLost() appState {
@@ -667,11 +677,12 @@ func (app *App) stateManager() appState {
 		}
 	}
 
-	err = app.replicationOptimizer.SyncState(
-		app.cluster.Get(master),
+	clusterAdapter := app_dcs.NewOptimizationClusterAdapter(
+		app.cluster,
 		clusterStateDcs,
-		convertNodesToReplicationControllers(app.cluster.GetClusterNodes()),
+		master,
 	)
+	err = app.optSyncer.Sync(clusterAdapter)
 	if err != nil {
 		app.logger.Errorf("failed to sync local optimization settings: %s", err)
 		return stateManager
@@ -1176,7 +1187,8 @@ func (app *App) disableSemiSyncOnSlaves(becomeInactive, becomeDataLag []string) 
 		}
 
 		node := app.cluster.Get(host)
-		err = app.replicationOptimizer.EnableNodeOptimization(node)
+
+		err = app.optController.Enable(node)
 		if err != nil {
 			app.logger.Warnf("failed to enable optimization on slave %s: %v", host, err)
 		}
@@ -1263,15 +1275,12 @@ func (app *App) performSwitchover(clusterState map[string]*nodestate.NodeState, 
 		activeNodes = filterOut(activeNodes, []string{oldMaster})
 	}
 
-	err := app.stopAllNodeOptimization(
-		oldMaster,
-		clusterState,
-	)
+	err := app.stopActiveNodeOptimization(oldMaster, activeNodes)
 	if err != nil {
 		return err
 	}
 	if switchover.MasterTransition == SwitchoverTransition {
-		err = app.optimizationPhase(activeNodes, switchover, oldMaster)
+		err = app.optimizationPhase(activeNodes, switchover, oldMaster, clusterState)
 		if err != nil {
 			return err
 		}
@@ -1660,7 +1669,7 @@ func (app *App) repairSlaveOfflineMode(host string, state *nodestate.NodeState, 
 		} else {
 			app.logger.Infof("repair: slave %s set offline, because ReplicationLag (%f s) >= OfflineModeEnableLag (%v)",
 				host, *state.SlaveState.ReplicationLag, app.config.OfflineModeEnableLag)
-			err = app.replicationOptimizer.EnableNodeOptimization(node)
+			err = app.optController.Enable(node)
 			if err != nil {
 				app.logger.Errorf("repair: failed to set optimize replication settings on slave %s: %s", host, err)
 			}
@@ -2365,16 +2374,18 @@ func (app *App) waitForCatchUp(node *mysql.Node, gtidset gtids.GTIDSet, timeout 
 	return false, nil
 }
 
-func (app *App) stopAllNodeOptimization(master string, clusterState map[string]*nodestate.NodeState) error {
-	masterNode := app.cluster.Get(master)
+func (app *App) stopActiveNodeOptimization(oldMaster string, activeNodes []string) error {
+	masterNode := app.cluster.Get(oldMaster)
 
 	var nodes []*mysql.Node
-	for hostname := range clusterState {
+	for _, hostname := range activeNodes {
 		nodes = append(nodes, app.cluster.Get(hostname))
 	}
 
-	controllerNodes := convertNodesToReplicationControllers(nodes)
-	return app.replicationOptimizer.DisableAllNodeOptimization(masterNode, controllerNodes)
+	return app.optController.DisableAll(
+		masterNode,
+		convertNodesToReplicationControllers(nodes),
+	)
 }
 
 // Set master offline and disable semi-sync replication

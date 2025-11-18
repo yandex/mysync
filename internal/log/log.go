@@ -11,20 +11,6 @@ import (
 	"time"
 )
 
-type ILogger interface {
-	Debug(msg string)
-	Info(msg string)
-	Warn(msg string)
-	Error(msg string)
-	Fatal(msg string)
-
-	Debugf(msg string, args ...any)
-	Infof(msg string, args ...any)
-	Warnf(msg string, args ...any)
-	Errorf(msg string, args ...any)
-	Fatalf(msg string, args ...any)
-}
-
 type Level int
 
 const (
@@ -103,7 +89,7 @@ func (l *Logger) ReOpen() error {
 		l.fh = os.Stderr
 		return nil
 	}
-	fh, err := os.OpenFile(l.path, os.O_WRONLY|os.O_CREATE|os.O_APPEND, 0644)
+	fh, err := os.OpenFile(l.path, os.O_WRONLY|os.O_CREATE|os.O_APPEND, 0o644)
 	if err != nil {
 		return fmt.Errorf("failed to open log %s: %w", l.path, err)
 	}

@@ -14,13 +14,7 @@ func (app *App) cliInitApp() (func(), error) {
 		app.dcs.Close()
 		return nil, err
 	}
-
-	err = app.replicationOptimizer.Initialize(app.dcs)
-	if err != nil {
-		app.dcs.Close()
-		return nil, err
-	}
-
+	app.initializeOptimizationModule()
 	err = app.cluster.UpdateHostsInfo()
 	if err != nil {
 		app.dcs.Close()
