@@ -38,10 +38,7 @@ func (app *App) replicationLagChecker(ctx context.Context) {
 		case <-ticker.C:
 			if app.doesResetupFileExist() {
 				app.logger.Infof("lag check: resetup file exists, waiting for resetup to complete")
-				return
-			}
-
-			if app.lagResetupper.CheckNeedResetup(app.cluster) {
+			} else if app.lagResetupper.CheckNeedResetup(app.cluster) {
 				app.writeResetupFile()
 			}
 		case <-ctx.Done():
