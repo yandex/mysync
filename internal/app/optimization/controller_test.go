@@ -2,7 +2,6 @@ package optimization
 
 import (
 	"context"
-	"database/sql"
 	"fmt"
 	"testing"
 	"time"
@@ -30,12 +29,8 @@ func TestWaitOptimization(t *testing.T) {
 		logger.EXPECT().Infof("optimization: waiting is complete, as replication lag is converged: %s", 1.0)
 		logger.EXPECT().Infof("optimization: waiting is complete")
 
-		node := NewMockNode(ctrl)
-		node.EXPECT().Host().Return("replica1").AnyTimes()
-		node.EXPECT().GetReplicaStatus().
-			Return(&mysql.ReplicaStatusStruct{
-				Lag: sql.NullFloat64{Valid: true, Float64: 1.0},
-			}, nil)
+		node := MakeNodeMock(ctrl, "replica1")
+		node.WithGetReplicaStatus(1.0)
 
 		Dcs := NewMockDCS(ctrl)
 		Dcs.EXPECT().GetState("replica1").
@@ -66,8 +61,7 @@ func TestWaitOptimization(t *testing.T) {
 		logger := NewMockLogger(ctrl)
 		logger.EXPECT().Infof("optimization: waiting is complete")
 
-		node := NewMockNode(ctrl)
-		node.EXPECT().Host().Return("replica1").AnyTimes()
+		node := MakeNodeMock(ctrl, "replica1")
 
 		Dcs := NewMockDCS(ctrl)
 		Dcs.EXPECT().GetState("replica1").
@@ -100,12 +94,8 @@ func TestWaitOptimization(t *testing.T) {
 		logger.EXPECT().Infof("optimization: waiting; node is optimizing").AnyTimes()
 		logger.EXPECT().Infof("optimization: waiting; replication lag is %f", 1024.0).AnyTimes()
 
-		node := NewMockNode(ctrl)
-		node.EXPECT().Host().Return("replica1").AnyTimes()
-		node.EXPECT().GetReplicaStatus().
-			Return(&mysql.ReplicaStatusStruct{
-				Lag: sql.NullFloat64{Valid: true, Float64: 1024.0},
-			}, nil).AnyTimes()
+		node := MakeNodeMock(ctrl, "replica1")
+		node.WithGetReplicaStatus(1024.0).AnyTimes()
 
 		Dcs := NewMockDCS(ctrl)
 		Dcs.EXPECT().GetState("replica1").
@@ -141,20 +131,10 @@ func TestWaitOptimization(t *testing.T) {
 		logger.EXPECT().Infof("optimization: waiting is complete, as replication lag is converged: %s", 4.0)
 		logger.EXPECT().Infof("optimization: waiting is complete")
 
-		node := NewMockNode(ctrl)
-		node.EXPECT().Host().Return("replica1").AnyTimes()
-		node.EXPECT().GetReplicaStatus().
-			Return(&mysql.ReplicaStatusStruct{
-				Lag: sql.NullFloat64{Valid: true, Float64: 800.0},
-			}, nil)
-		node.EXPECT().GetReplicaStatus().
-			Return(&mysql.ReplicaStatusStruct{
-				Lag: sql.NullFloat64{Valid: true, Float64: 200.0},
-			}, nil)
-		node.EXPECT().GetReplicaStatus().
-			Return(&mysql.ReplicaStatusStruct{
-				Lag: sql.NullFloat64{Valid: true, Float64: 4.0},
-			}, nil)
+		node := MakeNodeMock(ctrl, "replica1")
+		node.WithGetReplicaStatus(800.0)
+		node.WithGetReplicaStatus(200.0)
+		node.WithGetReplicaStatus(4.0)
 
 		Dcs := NewMockDCS(ctrl)
 		Dcs.EXPECT().GetState("replica1").
@@ -179,8 +159,7 @@ func TestEnableNodeOptimization(t *testing.T) {
 
 		logger := NewMockLogger(ctrl)
 
-		node := NewMockNode(ctrl)
-		node.EXPECT().Host().Return("replica1").AnyTimes()
+		node := MakeNodeMock(ctrl, "replica1")
 
 		Dcs := NewMockDCS(ctrl)
 		Dcs.EXPECT().CreateHosts("replica1")
@@ -201,8 +180,7 @@ func TestEnableNodeOptimization(t *testing.T) {
 
 		logger := NewMockLogger(ctrl)
 
-		node := NewMockNode(ctrl)
-		node.EXPECT().Host().Return("replica1").AnyTimes()
+		node := MakeNodeMock(ctrl, "replica1")
 
 		Dcs := NewMockDCS(ctrl)
 		Dcs.EXPECT().CreateHosts("replica1").
@@ -226,19 +204,11 @@ func TestDisableNodeOptimization(t *testing.T) {
 
 		logger := NewMockLogger(ctrl)
 
-		node := NewMockNode(ctrl)
-		node.EXPECT().Host().Return("replica1").AnyTimes()
-		node.EXPECT().SetReplicationSettings(mysql.ReplicationSettings{
-			InnodbFlushLogAtTrxCommit: 1,
-			SyncBinlog:                1,
-		})
+		master := MakeNodeMock(ctrl, "master")
+		master.WithGetReplicationSettings()
 
-		master := NewMockNode(ctrl)
-		master.EXPECT().Host().Return("master").AnyTimes()
-		master.EXPECT().GetReplicationSettings().Return(mysql.ReplicationSettings{
-			InnodbFlushLogAtTrxCommit: 1,
-			SyncBinlog:                1,
-		}, nil)
+		node := MakeNodeMock(ctrl, "replica1")
+		node.WithSetReplicationSettings()
 
 		Dcs := NewMockDCS(ctrl)
 		Dcs.EXPECT().DeleteHosts("replica1")
@@ -259,19 +229,11 @@ func TestDisableNodeOptimization(t *testing.T) {
 
 		logger := NewMockLogger(ctrl)
 
-		node := NewMockNode(ctrl)
-		node.EXPECT().Host().Return("replica1").AnyTimes()
-		node.EXPECT().SetReplicationSettings(mysql.ReplicationSettings{
-			InnodbFlushLogAtTrxCommit: 1,
-			SyncBinlog:                1,
-		})
+		master := MakeNodeMock(ctrl, "master")
+		master.WithGetReplicationSettings()
 
-		master := NewMockNode(ctrl)
-		master.EXPECT().Host().Return("master").AnyTimes()
-		master.EXPECT().GetReplicationSettings().Return(mysql.ReplicationSettings{
-			InnodbFlushLogAtTrxCommit: 1,
-			SyncBinlog:                1,
-		}, nil)
+		node := MakeNodeMock(ctrl, "replica1")
+		node.WithSetReplicationSettings()
 
 		Dcs := NewMockDCS(ctrl)
 		Dcs.EXPECT().DeleteHosts("replica1").
@@ -294,17 +256,12 @@ func TestDisableNodeOptimization(t *testing.T) {
 		logger := NewMockLogger(ctrl)
 		logger.EXPECT().Warnf("cannot get replication setting from the master: %s", "network-error")
 
-		node := NewMockNode(ctrl)
-		node.EXPECT().Host().Return("replica1").AnyTimes()
-		node.EXPECT().SetReplicationSettings(mysql.ReplicationSettings{
-			InnodbFlushLogAtTrxCommit: 1,
-			SyncBinlog:                1,
-		})
-
-		master := NewMockNode(ctrl)
-		master.EXPECT().Host().Return("master").AnyTimes()
+		master := MakeNodeMock(ctrl, "master")
 		master.EXPECT().GetReplicationSettings().
 			Return(mysql.ReplicationSettings{}, fmt.Errorf("network-error"))
+
+		node := MakeNodeMock(ctrl, "replica1")
+		node.WithSetReplicationSettings()
 
 		Dcs := NewMockDCS(ctrl)
 		Dcs.EXPECT().DeleteHosts("replica1").
@@ -329,26 +286,14 @@ func TestDisableAllNodeOptimization(t *testing.T) {
 
 		logger := NewMockLogger(ctrl)
 
-		master := NewMockNode(ctrl)
-		master.EXPECT().Host().Return("master").AnyTimes()
-		master.EXPECT().GetReplicationSettings().Return(mysql.ReplicationSettings{
-			InnodbFlushLogAtTrxCommit: 1,
-			SyncBinlog:                1,
-		}, nil)
+		master := MakeNodeMock(ctrl, "master")
+		master.WithGetReplicationSettings()
 
-		replica1 := NewMockNode(ctrl)
-		replica1.EXPECT().Host().Return("replica1").AnyTimes()
-		replica1.EXPECT().SetReplicationSettings(mysql.ReplicationSettings{
-			InnodbFlushLogAtTrxCommit: 1,
-			SyncBinlog:                1,
-		})
+		replica1 := MakeNodeMock(ctrl, "replica1")
+		replica1.WithSetReplicationSettings()
 
-		replica2 := NewMockNode(ctrl)
-		replica2.EXPECT().Host().Return("replica2").AnyTimes()
-		replica2.EXPECT().SetReplicationSettings(mysql.ReplicationSettings{
-			InnodbFlushLogAtTrxCommit: 1,
-			SyncBinlog:                1,
-		})
+		replica2 := MakeNodeMock(ctrl, "replica2")
+		replica2.WithSetReplicationSettings()
 
 		Dcs := NewMockDCS(ctrl)
 		Dcs.EXPECT().GetHosts().
@@ -373,22 +318,11 @@ func TestDisableAllNodeOptimization(t *testing.T) {
 		logger := NewMockLogger(ctrl)
 		logger.EXPECT().Warnf("host %s was not found", "replica2")
 
-		master := NewMockNode(ctrl)
-		master.EXPECT().Host().Return("master").AnyTimes()
-		master.EXPECT().GetReplicationSettings().Return(mysql.ReplicationSettings{
-			InnodbFlushLogAtTrxCommit: 1,
-			SyncBinlog:                1,
-		}, nil)
+		master := MakeNodeMock(ctrl, "master")
+		master.WithGetReplicationSettings()
 
-		replica1 := NewMockNode(ctrl)
-		replica1.EXPECT().Host().Return("replica1").AnyTimes()
-		replica1.EXPECT().SetReplicationSettings(mysql.ReplicationSettings{
-			InnodbFlushLogAtTrxCommit: 1,
-			SyncBinlog:                1,
-		})
-
-		replica2 := NewMockNode(ctrl)
-		replica2.EXPECT().Host().Return("replica2").AnyTimes()
+		replica1 := MakeNodeMock(ctrl, "replica1")
+		replica1.WithSetReplicationSettings()
 
 		Dcs := NewMockDCS(ctrl)
 		Dcs.EXPECT().GetHosts().
@@ -411,26 +345,14 @@ func TestDisableAllNodeOptimization(t *testing.T) {
 
 		logger := NewMockLogger(ctrl)
 
-		master := NewMockNode(ctrl)
-		master.EXPECT().Host().Return("master").AnyTimes()
-		master.EXPECT().GetReplicationSettings().Return(mysql.ReplicationSettings{
-			InnodbFlushLogAtTrxCommit: 1,
-			SyncBinlog:                1,
-		}, nil)
+		master := MakeNodeMock(ctrl, "master")
+		master.WithGetReplicationSettings()
 
-		replica1 := NewMockNode(ctrl)
-		replica1.EXPECT().Host().Return("replica1").AnyTimes()
-		replica1.EXPECT().SetReplicationSettings(mysql.ReplicationSettings{
-			InnodbFlushLogAtTrxCommit: 1,
-			SyncBinlog:                1,
-		})
+		replica1 := MakeNodeMock(ctrl, "replica1")
+		replica1.WithSetReplicationSettings()
 
-		replica2 := NewMockNode(ctrl)
-		replica2.EXPECT().Host().Return("replica2").AnyTimes()
-		replica2.EXPECT().SetReplicationSettings(mysql.ReplicationSettings{
-			InnodbFlushLogAtTrxCommit: 1,
-			SyncBinlog:                1,
-		})
+		replica2 := MakeNodeMock(ctrl, "replica2")
+		replica2.WithSetReplicationSettings()
 
 		Dcs := NewMockDCS(ctrl)
 		Dcs.EXPECT().GetHosts().
@@ -457,23 +379,14 @@ func TestDisableAllNodeOptimization(t *testing.T) {
 		logger := NewMockLogger(ctrl)
 		logger.EXPECT().Warnf("cannot get replication setting from the master: %s", "network-error")
 
-		master := NewMockNode(ctrl)
-		master.EXPECT().Host().Return("master").AnyTimes()
+		master := MakeNodeMock(ctrl, "master")
 		master.EXPECT().GetReplicationSettings().Return(mysql.ReplicationSettings{}, fmt.Errorf("network-error"))
 
-		replica1 := NewMockNode(ctrl)
-		replica1.EXPECT().Host().Return("replica1").AnyTimes()
-		replica1.EXPECT().SetReplicationSettings(mysql.ReplicationSettings{
-			InnodbFlushLogAtTrxCommit: 1,
-			SyncBinlog:                1,
-		})
+		replica1 := MakeNodeMock(ctrl, "replica1")
+		replica1.WithSetReplicationSettings()
 
-		replica2 := NewMockNode(ctrl)
-		replica2.EXPECT().Host().Return("replica2").AnyTimes()
-		replica2.EXPECT().SetReplicationSettings(mysql.ReplicationSettings{
-			InnodbFlushLogAtTrxCommit: 1,
-			SyncBinlog:                1,
-		})
+		replica2 := MakeNodeMock(ctrl, "replica2")
+		replica2.WithSetReplicationSettings()
 
 		Dcs := NewMockDCS(ctrl)
 		Dcs.EXPECT().GetHosts().
