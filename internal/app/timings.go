@@ -12,6 +12,7 @@ const (
 	NodeFailedAt       TimingType = "nodeFailedAt"
 	StreamFromFailedAt TimingType = "streamFromFailedAt"
 	MasterStuckAt      TimingType = "masterStuckAt"
+	ZKHALost           TimingType = "ZKHALost"
 )
 
 func NewTimings() *Timings {
