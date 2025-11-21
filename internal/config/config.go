@@ -34,6 +34,15 @@ type MySQLConfig struct {
 
 // Config contains all mysync configuration
 type Config struct {
+	// We need only few timeout settings:
+	// - Fast (read sqls, 5 sec),
+	// - Meduim (modifying sqls, start-stop, etc, 30 sec)
+	// - perhaps, Long (?)
+	// Let's start with meduim...
+
+	// 30 sec timeout - sql, etc
+	MedTimeout time.Duration `config:"m_timeout" yaml:"m_timeout"`
+
 	DevMode                                 bool                         `config:"dev_mode" yaml:"dev_mode"`
 	SemiSync                                bool                         `config:"semi_sync" yaml:"semi_sync"`
 	SemiSyncEnableLag                       int64                        `config:"semi_sync_enable_lag" yaml:"semi_sync_enable_lag"`
@@ -58,16 +67,12 @@ type Config struct {
 	DcsWaitTimeout                          time.Duration                `config:"dcs_wait_timeout" yaml:"dcs_wait_timeout"`
 	DBTimeout                               time.Duration                `config:"db_timeout" yaml:"db_timeout"`
 	DBLostCheckTimeout                      time.Duration                `config:"db_lost_check_timeout" yaml:"db_lost_check_timeout"`
-	DBSetRoTimeout                          time.Duration                `config:"db_set_ro_timeout" yaml:"db_set_ro_timeout"`
-	DBSetRoForceTimeout                     time.Duration                `config:"db_set_ro_force_timeout" yaml:"db_set_ro_force_timeout"`
-	DBStopSlaveSQLThreadTimeout             time.Duration                `config:"db_stop_slave_sql_thread_timeout" yaml:"db_stop_slave_sql_thread_timeout"`
 	TickInterval                            time.Duration                `config:"tick_interval" yaml:"tick_interval"`
 	HealthCheckInterval                     time.Duration                `config:"healthcheck_interval" yaml:"healthcheck_interval"`
 	InfoFileHandlerInterval                 time.Duration                `config:"info_file_handler_interval" yaml:"info_file_handler_interval"`
 	RecoveryCheckInterval                   time.Duration                `config:"recoverycheck_interval" yaml:"recoverycheck_interval"`
 	ExternalCAFileCheckInterval             time.Duration                `config:"external_ca_file_check_interval" yaml:"external_ca_file_check_interval"`
 	ManagerElectionDelayAfterQuorumLoss     time.Duration                `config:"manager_election_delay_after_quorum_loss" yaml:"manager_election_delay_after_quorum_loss"`
-	ManagerLockAcquireDelayAfterQuorumLoss  time.Duration                `config:"manager_lock_acquire_delay_after_quorum_loss" yaml:"manager_lock_acquire_delay_after_quorum_loss"`
 	MaxAcceptableLag                        float64                      `config:"max_acceptable_lag" yaml:"max_acceptable_lag"`
 	SlaveCatchUpTimeout                     time.Duration                `config:"slave_catch_up_timeout" yaml:"slave_catch_up_timeout"`
 	DisableSemiSyncReplicationOnMaintenance bool                         `config:"disable_semi_sync_replication_on_maintenance" yaml:"disable_semi_sync_replication_on_maintenance"`
@@ -123,6 +128,7 @@ func DefaultConfig() (Config, error) {
 		return Config{}, err
 	}
 	config := Config{
+		MedTimeout:        30 * time.Second,
 		DevMode:           false,
 		SemiSync:          false,
 		SemiSyncEnableLag: 100 * 1024 * 1024, // 100Mb
@@ -156,18 +162,14 @@ func DefaultConfig() (Config, error) {
 		DcsWaitTimeout:                          10 * time.Second,
 		DBTimeout:                               5 * time.Second,
 		DBLostCheckTimeout:                      5 * time.Second,
-		DBSetRoTimeout:                          30 * time.Second,
-		DBSetRoForceTimeout:                     30 * time.Second,
 		DisableSetReadonlyOnLost:                false,
 		ResetupCrashedHosts:                     false,
-		DBStopSlaveSQLThreadTimeout:             30 * time.Second,
 		TickInterval:                            5 * time.Second,
 		HealthCheckInterval:                     5 * time.Second,
 		InfoFileHandlerInterval:                 30 * time.Second,
 		RecoveryCheckInterval:                   5 * time.Second,
 		ExternalCAFileCheckInterval:             5 * time.Second,
-		ManagerElectionDelayAfterQuorumLoss:     30 * time.Second, // need more than 15 sec
-		ManagerLockAcquireDelayAfterQuorumLoss:  45 * time.Second,
+		ManagerElectionDelayAfterQuorumLoss:     30 * time.Second,
 		MaxAcceptableLag:                        60.0,
 		SlaveCatchUpTimeout:                     30 * time.Minute,
 		DisableSemiSyncReplicationOnMaintenance: true,
