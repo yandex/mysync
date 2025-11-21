@@ -324,7 +324,7 @@ func (app *App) replMonWriter(ctx context.Context) {
 	}
 }
 
-func (app *App) checkHAReplicasRunning(local *mysql.Node) bool {
+func (app *App) checkHAReplicasRunning(local *mysql.Node) (replicasRunning bool, hasUnreachReplicas bool) {
 	checker := func(host string) error {
 		node := app.cluster.Get(host)
 		status, err := node.ReplicaStatusWithTimeout(app.config.DBLostCheckTimeout, app.config.ReplicationChannel)
@@ -356,27 +356,34 @@ func (app *App) checkHAReplicasRunning(local *mysql.Node) bool {
 	results := util.RunParallel(checker, app.cluster.HANodeHosts())
 
 	availableReplicas := 0
+	unreachableReplicas := 0
 	for hostname, err := range results {
 		if err == nil {
 			availableReplicas++
 			app.logger.Debugf("mysync HA Replicas check: %s good replica", hostname)
 		} else {
-			app.logger.Debugf("mysync HA Replicas check: %v", err.Error())
+			if errors.Is(err, context.DeadlineExceeded) {
+				unreachableReplicas++
+				app.logger.Warnf("mysync HA Replicas check: %s is unreachable", hostname)
+			} else {
+				app.logger.Warnf("mysync HA Replicas check: %s %v", hostname, err.Error())
+			}
 		}
 	}
 
-	app.logger.Infof("mysync HA Replicas check: live replicas %d, number of hosts %d ", availableReplicas, len(app.cluster.HANodeHosts()))
+	app.logger.Infof("mysync HA Replicas check: live replicas %d, unreachable replicas: %d number of hosts %d ",
+		availableReplicas, unreachableReplicas, len(app.cluster.HANodeHosts()))
 
 	if app.config.SemiSync {
 		status, err := local.SemiSyncStatus()
 		if err != nil {
 			app.logger.Errorf("failed to get semisync status: %v", err)
-			return false
+			return false, unreachableReplicas > 0
 		}
-		return availableReplicas >= status.WaitSlaveCount
+		return availableReplicas >= status.WaitSlaveCount, unreachableReplicas > 0
 	} else {
 		// check connectivity to all replicas:
-		return availableReplicas >= len(app.cluster.HANodeHosts())-1
+		return availableReplicas >= len(app.cluster.HANodeHosts())-1, unreachableReplicas > 0
 	}
 }
 
@@ -412,7 +419,9 @@ func (app *App) initializeOptimizationModule() {
 }
 
 func (app *App) stateLost() appState {
+	node := app.cluster.Local()
 	if app.dcs.IsConnected() {
+		app.t.Clean(ZKHALost, node.Host())
 		return stateCandidate
 	}
 	if len(app.cluster.HANodeHosts()) == 1 || !app.cluster.IsHAHost(app.cluster.Local().Host()) {
@@ -425,11 +434,21 @@ func (app *App) stateLost() appState {
 		return stateLost
 	}
 
-	node := app.cluster.Local()
 	localNodeState := app.getLocalNodeState()
-	if localNodeState.IsMaster && app.checkHAReplicasRunning(node) {
+	replRunning, hasUnreachRepl := app.checkHAReplicasRunning(node)
+	if localNodeState.IsMaster && replRunning {
 		app.logger.Infof("mysync have lost connection to ZK. However HA cluster is live. Do nothing")
+		app.t.Clean(ZKHALost, node.Host())
 		return stateLost
+	}
+
+	// We need to wait, if some of HA-replicas are really unreachable
+	if hasUnreachRepl {
+		app.t.SetIfZero(ZKHALost, node.Host(), time.Now())
+		// 30 sec
+		if time.Since(app.t.Get(ZKHALost, node.Host())) <= app.config.InactivationDelay {
+			return stateLost
+		}
 	}
 
 	app.logger.Infof("mysync have lost connection to ZK. MySQL HA cluster is not reachable. Switching to RO")
