@@ -54,6 +54,8 @@ lockfile: /var/run/mysync/mysync.lock
 emergefile: /var/run/mysync/mysync.emerge
 resetupfile: /var/run/mysync/mysync.resetup
 
+sql_modify_timeout: 30s
+
 resetup_crashed_hosts: False
 db_timeout: 2s
 db_lost_check_timeout: 5s
@@ -65,8 +67,6 @@ critical_disk_usage: 95.00
 not_critical_disk_usage: 94.76
 disable_semi_sync_replication_on_maintenance: true
 keep_super_writable_on_critical_disk_usage: true
-db_set_ro_timeout: 30s
-db_set_ro_force_timeout: 60s
 priority_choice_max_lag: 60s
 offline_mode_enable_interval: 900s
 offline_mode_enable_lag: 86400s
