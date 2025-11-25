@@ -12,6 +12,7 @@ const (
 	NodeFailedAt       TimingType = "nodeFailedAt"
 	StreamFromFailedAt TimingType = "streamFromFailedAt"
 	MasterStuckAt      TimingType = "masterStuckAt"
+	ZKHALost           TimingType = "ZKHALost"
 )
 
 func NewTimings() *Timings {
@@ -20,6 +21,7 @@ func NewTimings() *Timings {
 	t.m[NodeFailedAt] = make(map[string]time.Time)
 	t.m[StreamFromFailedAt] = make(map[string]time.Time)
 	t.m[MasterStuckAt] = make(map[string]time.Time)
+	t.m[ZKHALost] = make(map[string]time.Time)
 	return t
 }
 
