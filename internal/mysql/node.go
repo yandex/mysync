@@ -713,7 +713,7 @@ func (n *Node) IsReadOnly() (bool, bool, error) {
 // Setting server read-only may take a while
 // as server waits all running commits (not transactions) to be finished
 func (n *Node) SetReadOnly(superReadOnly bool) error {
-	return n.setReadonlyWithTimeout(superReadOnly, n.config.DBSetRoTimeout)
+	return n.setReadonlyWithTimeout(superReadOnly, n.config.SQLModifyTimeout)
 }
 
 func (n *Node) setReadonlyWithTimeout(superReadOnly bool, timeout time.Duration) error {
@@ -780,7 +780,7 @@ func (n *Node) SetReadOnlyWithForce(excludeUsers []string, superReadOnly bool) e
 
 	defer func() { quit <- true }()
 
-	return n.setReadonlyWithTimeout(superReadOnly, n.config.DBSetRoForceTimeout)
+	return n.setReadonlyWithTimeout(superReadOnly, n.config.SQLModifyTimeout)
 }
 
 // SetWritable sets MySQL Node to be writable, eg. disables read-only
@@ -796,7 +796,7 @@ func (n *Node) StopSlave() error {
 	}
 	return n.execMogrifyWithTimeout(q, map[string]any{
 		"channel": n.config.ReplicationChannel,
-	}, n.config.DBStopSlaveSQLThreadTimeout)
+	}, n.config.SQLModifyTimeout)
 }
 
 // StartSlave starts replication (both IO and SQL threads)
@@ -858,7 +858,7 @@ func (n *Node) StopSlaveSQLThread() error {
 	}
 	return n.execMogrifyWithTimeout(q, map[string]any{
 		"channel": n.config.ReplicationChannel,
-	}, n.config.DBStopSlaveSQLThreadTimeout)
+	}, n.config.SQLModifyTimeout)
 }
 
 // StartSlaveSQLThread starts SQL replication thread
