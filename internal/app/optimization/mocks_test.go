@@ -5,10 +5,11 @@
 package optimization
 
 import (
+	reflect "reflect"
+
 	gomock "github.com/golang/mock/gomock"
 	node_state "github.com/yandex/mysync/internal/app/node_state"
 	mysql "github.com/yandex/mysync/internal/mysql"
-	reflect "reflect"
 )
 
 // MockLogger is a mock of Logger interface

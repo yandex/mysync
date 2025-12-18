@@ -35,6 +35,7 @@ type RandomHostProviderConfig struct {
 	LookupTTL                time.Duration `config:"lookup_ttl" yaml:"lookup_ttl"`
 	ConnectivityCheckTimeout time.Duration `config:"connectivity_check_timeout" yaml:"connectivity_check_timeout"`
 	LookupTickInterval       time.Duration `config:"lookup_tick_interval" yaml:"lookup_tick_interval"`
+	RetryJitter              time.Duration `config:"retry_jitter" yaml:"retry_jitter"`
 }
 
 func DefaultRandomHostProviderConfig() RandomHostProviderConfig {
@@ -43,6 +44,7 @@ func DefaultRandomHostProviderConfig() RandomHostProviderConfig {
 		LookupTTL:                300 * time.Second,
 		ConnectivityCheckTimeout: 3 * time.Second,
 		LookupTickInterval:       60 * time.Second,
+		RetryJitter:              30 * time.Second,
 	}
 }
 
