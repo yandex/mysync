@@ -37,13 +37,12 @@ mysql:
   error_log: /var/log/mysql/error.log
 queries:
   replication_lag: $MYSYNC_REPLICATION_LAG_QUERY
+sql_modify_timeout: 30s
 disable_semi_sync_replication_on_maintenance: ${MYSYNC_DISABLE_REPLICATION_ON_MAINT:-false}
 rpl_semi_sync_master_wait_for_slave_count: ${MYSYNC_WAIT_FOR_SLAVE_COUNT:-1}
 critical_disk_usage: ${MYSYNC_CRITICAL_DISK_USAGE:-100}
 keep_super_writable_on_critical_disk_usage: ${MYSYNC_KEEP_SUPER_WRITABLE_ON_CRITICAL_DISK_USAGE:-false}
 test_disk_usage_file: /tmp/usedspace
-db_set_ro_force_timeout: 40s
-db_set_ro_timeout: ${MYSYNC_SET_RO_TIMEOUT:-30s}
 offline_mode_enable_lag: ${OFFLINE_MODE_ENABLE_LAG:-10s}
 offline_mode_disable_lag: 5s
 priority_choice_max_lag: ${MYSYNC_PRIORITY_CHOICE_LAG:-60s}
@@ -67,7 +66,6 @@ manager_switchover: ${MANAGER_SWITCHOVER:-true}
 replication_convergence_timeout_switchover: 300s
 manager_election_delay_after_quorum_loss: ${MANAGER_ELECTION_DELAY_AFTER_QUORUM_LOSS:-15s}
 resetup_host_lag: ${RESETUP_HOST_LAG:-30000s}
-manager_lock_acquire_delay_after_quorum_loss: ${MANAGER_LOCK_ACQUIRE_DELAY_AFTER_QUORUM_LOSS:-30s}
 optimization_config:
   high_replication_mark: ${HIGH_REPLICATION_MARK:-60s}
   low_replication_mark: ${LOW_REPLICATION_MARK:-60s}
