@@ -1,6 +1,6 @@
 Feature: optimization mode works on replicas
 
-  Scenario: replicas automatically detect absense of lag
+  Scenario: replicas automatically detect absence of lag
     Given cluster is up and running
     And zookeeper node "/test/active_nodes" should match json_exactly within "30" seconds
     """
