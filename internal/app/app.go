@@ -84,7 +84,7 @@ func NewApp(configFile, logLevel string, interactive bool) (*App, error) {
 	if logPath != "" {
 		logger.ReOpenOnSignal(syscall.SIGUSR2, sysLog)
 	}
-	log.WriteSysLogInfo(sysLog, "logger initilization completed")
+	log.WriteSysLogInfo(sysLog, "logger initialization completed")
 	externalReplication, err := mysql.NewExternalReplication(config.ExternalReplicationType, logger)
 	if err != nil {
 		logger.Errorf("external replication initialization failed: %s", err)
