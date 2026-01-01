@@ -27,7 +27,7 @@ jobs:
 
       - name: Docker images caching
         id: cache-images
-        uses: actions/cache@v4
+        uses: actions/cache@v5
         with:
           path: ~/mysync-base-img8.4.tgz
           key: mysync-base-img8.4-${{ hashFiles('tests/images/base/*') }}
@@ -91,7 +91,7 @@ jobs:
 
       - name: Load docker images
         id: cache-images
-        uses: actions/cache@v4
+        uses: actions/cache@v5
         with:
           path: ~/mysync-base-img8.4.tgz
           key: mysync-base-img8.4-${{ hashFiles('tests/images/base/*') }}
@@ -108,7 +108,7 @@ jobs:
       - name: Run test
         run: ${{ matrix.command }}
         
-      - uses: actions/upload-artifact@v5
+      - uses: actions/upload-artifact@v6
         if: failure()
         with:
           name: logs
