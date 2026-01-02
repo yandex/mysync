@@ -760,7 +760,7 @@ func (app *App) checkQuorum(clusterStateFromDB, clusterStateDcs map[string]*node
 		}
 	}
 
-	managerElectionDelayAfterQuorumLoss := app.config.ManagerElectionDelayAfterQuorumLoss
+	managerElectionDelay := app.config.ManagerElectionDelayAfterQuorumLoss
 
 	if workingHANodesCount > 0 && visibleHAHostsCount <= (workingHANodesCount-1)/2 {
 		app.logger.Infof("manager lost quorum (%d/%d visible HAHosts)", visibleHAHostsCount, workingHANodesCount)
@@ -769,13 +769,13 @@ func (app *App) checkQuorum(clusterStateFromDB, clusterStateDcs map[string]*node
 		if app.lostQuorumTime.IsZero() {
 			app.lostQuorumTime = time.Now()
 		} else {
-			// Lost quorum less than 15 (default WaitingRecoveryNetworkTimestamp) seconds ago
+			// Lost quorum less than 30 (default ManagerElectionDelayAfterQuorumLoss) seconds ago
 			// Just wait manager recover connection
-			if lostQuorumDuration <= managerElectionDelayAfterQuorumLoss {
+			if lostQuorumDuration <= managerElectionDelay {
 				app.logger.Warnf("Quorum loss ongoing (%0.2fs): manager wait for network recovery", lostQuorumDuration.Seconds())
-				// Lost quorum more than 15 (default WaitingRecoveryNetworkTimestamp) seconds ago
-				// Manager should release lock and dont acquire lock for 45 (default ManagerElectionDelayAfterQuorumLoss) seconds
-			} else if lostQuorumDuration > managerElectionDelayAfterQuorumLoss {
+				// Lost quorum more than 30 (default ManagerElectionDelayAfterQuorumLoss) seconds ago
+				// Manager should release lock and dont acquire lock for 60 (default ManagerElectionDelayAfterQuorumLoss * 2) seconds
+			} else {
 				app.logger.Warnf("Quorum loss ongoing (%0.2fs): manager release lock", lostQuorumDuration.Seconds())
 				app.dcs.ReleaseLock(pathManagerLock)
 				return stateCandidate, false
@@ -794,29 +794,27 @@ func (app *App) AcquireLock(path string) bool {
 		return app.dcs.AcquireLock(path)
 	}
 
-	managerElectionDelayAfterQuorumLoss := app.config.ManagerElectionDelayAfterQuorumLoss
-	managerLockAcquireDelayAfterQuorumLoss := app.config.ManagerLockAcquireDelayAfterQuorumLoss
+	electionDelay := app.config.ManagerElectionDelayAfterQuorumLoss
+	lockAcquireDelay := 2 * electionDelay
 
 	lostQuorumDuration := time.Since(app.lostQuorumTime)
-	if lostQuorumDuration < managerElectionDelayAfterQuorumLoss {
+	if lostQuorumDuration < electionDelay {
 		app.logger.Debug("manager try to acquire lock")
 		return app.dcs.AcquireLock(path)
-	} else if lostQuorumDuration <= managerElectionDelayAfterQuorumLoss+managerLockAcquireDelayAfterQuorumLoss {
-		// Manager cant AcquireLock in delay
+	} else if lostQuorumDuration <= electionDelay+lockAcquireDelay {
+		// Manager can't AcquireLock in delay
 		app.logger.Debugf(
 			"Quorum loss ongoing (%0.2fs): manager lock acquisition blocked (%0.2fs/%0.2fs cooldown)",
 			lostQuorumDuration.Seconds(),
-			lostQuorumDuration.Seconds()-managerElectionDelayAfterQuorumLoss.Seconds(),
-			managerLockAcquireDelayAfterQuorumLoss.Seconds(),
+			lostQuorumDuration.Seconds()-electionDelay.Seconds(),
+			lockAcquireDelay.Seconds(),
 		)
 		return false
 		// Manager start to try to AcquireLock
-	} else if lostQuorumDuration > app.config.ManagerElectionDelayAfterQuorumLoss+app.config.ManagerLockAcquireDelayAfterQuorumLoss {
+	} else {
 		app.lostQuorumTime = time.Time{}
 		return app.dcs.AcquireLock(path)
 	}
-
-	return false
 }
 
 func (app *App) approveFailover(clusterState, clusterStateDcs map[string]*nodestate.NodeState, activeNodes []string, master string) error {
