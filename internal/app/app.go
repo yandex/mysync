@@ -829,8 +829,9 @@ func (app *App) approveFailover(clusterState, clusterStateDcs map[string]*nodest
 	} else if clusterStateDcs[master].IsFileSystemReadonly {
 		app.logger.Infof("approve failover: filesystem is readonly, skip replication and delay checks")
 	} else {
-		if countRunningHASlaves(clusterState) == countHANodes(clusterState)-1 {
-			return fmt.Errorf("all replicas are alive and running replication, seems zk problems")
+		runningHASlaves := countRunningHASlaves(clusterState)
+		if runningHASlaves > 0 && runningHASlaves == countHANodes(clusterState)-1 {
+			return fmt.Errorf("%d replicas are alive and running replication, seems zk problems", runningHASlaves)
 		}
 		if app.config.FailoverDelay > 0 {
 			failingTime := time.Since(app.t.Get(NodeFailedAt, master))
