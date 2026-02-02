@@ -199,8 +199,7 @@ func ChangeSourceAlgorithm(app *App, node *mysql.Node, _ string, channel string)
 }
 
 func (app *App) getSuitableAlgorithmType(state *ReplicationRepairState, channel string) (ReplicationRepairAlgorithmType, int, error) {
-	for _, i := range app.getAlgorithmOrder(channel) {
-		algorithmType := ReplicationRepairAlgorithmType(i)
+	for _, algorithmType := range app.getAlgorithmOrder(channel) {
 		count := state.History[algorithmType]
 		if count < app.config.ReplicationRepairMaxAttempts {
 			return algorithmType, count, nil
