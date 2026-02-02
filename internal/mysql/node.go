@@ -1049,11 +1049,11 @@ func (n *Node) GetStartupTime() (time.Time, error) {
 }
 
 func (n *Node) UpdateExternalCAFile() error {
-	var replSettings replicationSettings
+	replSettings := new(replicationSettings)
 	err := n.queryRowMogrify(queryGetExternalReplicationSettings, map[string]any{
 		"channel": n.config.ExternalReplicationChannel,
 	},
-		&replSettings)
+		replSettings)
 	if err != nil {
 		return nil
 	}
@@ -1354,14 +1354,14 @@ func (n *Node) GetListSlaveSideDisabledEventsQuery() (string, error) {
 	}
 }
 
-func (n *Node) GetExternalReplicationSources() ([]ReplicationSource, error) {
-	var replicationSources []ReplicationSource
+func (n *Node) GetExternalReplicationSources() (*[]ReplicationSource, error) {
+	replicationSources := new([]ReplicationSource)
 	err := n.queryRowMogrify(queryGetExternalReplicationSources, map[string]any{
 		"channel": n.config.ExternalReplicationChannel,
 	},
-		&replicationSources)
+		replicationSources)
 	if IsErrorTableDoesNotExists(err) || err == sql.ErrNoRows {
-		return replicationSources, nil
+		return nil, nil
 	}
 	return replicationSources, err
 }

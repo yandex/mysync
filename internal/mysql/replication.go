@@ -102,11 +102,11 @@ func (er *ExternalReplication) IsSupported(n *Node) (bool, error) {
 }
 
 func (er *ExternalReplication) Set(n *Node) error {
-	var replSettings replicationSettings
+	replSettings := new(replicationSettings)
 	err := n.queryRowMogrify(queryGetExternalReplicationSettings, map[string]any{
 		"channel": n.config.ExternalReplicationChannel,
 	},
-		&replSettings)
+		replSettings)
 	if err != nil {
 		// If no table in scheme then we consider external replication not existing so we do nothing
 		if IsErrorTableDoesNotExists(err) {
@@ -173,11 +173,11 @@ func (er *ExternalReplication) Set(n *Node) error {
 }
 
 func (er *ExternalReplication) IsRunningByUser(n *Node) bool {
-	var replSettings replicationSettings
+	replSettings := new(replicationSettings)
 	err := n.queryRowMogrify(queryGetExternalReplicationSettings, map[string]any{
 		"channel": n.config.ExternalReplicationChannel,
 	},
-		&replSettings)
+		replSettings)
 	if err != nil {
 		return false
 	}

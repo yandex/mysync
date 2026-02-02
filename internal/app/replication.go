@@ -173,7 +173,7 @@ func ChangeSourceAlgorithm(app *App, node *mysql.Node, _ string, channel string)
 	if err != nil {
 		return err
 	}
-	if len(replicationSources) == 0 {
+	if replicationSources == nil {
 		app.logger.Infof("No available sources in external replication sources table found for channel %s", channel)
 		return nil
 	}
@@ -183,7 +183,7 @@ func ChangeSourceAlgorithm(app *App, node *mysql.Node, _ string, channel string)
 	}
 	// mark current source as error and then trying to change it
 	app.externalReplication.SetSourcesStatus(replicaStatus.GetMasterHost(), mysql.ErrorStatus)
-	for _, source := range replicationSources {
+	for _, source := range *replicationSources {
 		value := app.externalReplication.GetSourcesStatus(source.SourceHost)
 		if value == mysql.ErrorStatus {
 			continue
