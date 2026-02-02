@@ -1050,7 +1050,7 @@ func (n *Node) GetStartupTime() (time.Time, error) {
 
 func (n *Node) UpdateExternalCAFile() error {
 	var replSettings replicationSettings
-	err := n.queryRow(queryGetExternalReplicationSettings, map[string]any{
+	err := n.queryRowMogrify(queryGetExternalReplicationSettings, map[string]any{
 		"channel": n.config.ExternalReplicationChannel,
 	},
 		&replSettings)
@@ -1356,7 +1356,7 @@ func (n *Node) GetListSlaveSideDisabledEventsQuery() (string, error) {
 
 func (n *Node) GetExternalReplicationSources() ([]ReplicationSource, error) {
 	var replicationSources []ReplicationSource
-	err := n.queryRow(queryGetExternalReplicationSources, map[string]any{
+	err := n.queryRowMogrify(queryGetExternalReplicationSources, map[string]any{
 		"channel": n.config.ExternalReplicationChannel,
 	},
 		&replicationSources)

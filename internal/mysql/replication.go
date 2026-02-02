@@ -103,7 +103,7 @@ func (er *ExternalReplication) IsSupported(n *Node) (bool, error) {
 
 func (er *ExternalReplication) Set(n *Node) error {
 	var replSettings replicationSettings
-	err := n.queryRow(queryGetExternalReplicationSettings, map[string]any{
+	err := n.queryRowMogrify(queryGetExternalReplicationSettings, map[string]any{
 		"channel": n.config.ExternalReplicationChannel,
 	},
 		&replSettings)
@@ -174,7 +174,7 @@ func (er *ExternalReplication) Set(n *Node) error {
 
 func (er *ExternalReplication) IsRunningByUser(n *Node) bool {
 	var replSettings replicationSettings
-	err := n.queryRow(queryGetExternalReplicationSettings, map[string]any{
+	err := n.queryRowMogrify(queryGetExternalReplicationSettings, map[string]any{
 		"channel": n.config.ExternalReplicationChannel,
 	},
 		&replSettings)

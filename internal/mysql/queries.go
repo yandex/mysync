@@ -188,7 +188,7 @@ var DefaultQueries = map[string]string{
 								priority AS Priority
 							FROM mysql.replication_sources
 							WHERE channel_name = :channel
-							ORDER BY priority DESC`,
+							ORDER BY Priority DESC`,
 	queryChangeSourceHost: `CHANGE REPLICATION SOURCE TO
 								SOURCE_HOST = :host,
 						FOR CHANNEL :channel`,

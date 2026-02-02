@@ -95,7 +95,9 @@ func (app *App) TryRepairReplication(node *mysql.Node, master string, channel st
 		app.logger.Errorf("repair error on channel %s: host %s, %v", channel, node.Host(), err)
 	}
 
-	replState.History[algorithmType] = count + 1
+	if algorithmType != ChangeSource {
+		replState.History[algorithmType] = count + 1
+	}
 	replState.LastAttempt = time.Now()
 }
 
@@ -172,6 +174,7 @@ func ChangeSourceAlgorithm(app *App, node *mysql.Node, _ string, channel string)
 		return err
 	}
 	if len(replicationSources) == 0 {
+		app.logger.Infof("No available sources in external replication sources table found for channel %s", channel)
 		return nil
 	}
 	replicaStatus, err := app.externalReplication.GetReplicaStatus(node)
