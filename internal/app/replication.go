@@ -75,7 +75,7 @@ func (app *App) MarkReplicationRunning(node *mysql.Node, channel string) {
 func (app *App) TryRepairReplication(node *mysql.Node, master string, channel string) {
 	replState, err := app.getOrCreateHostRepairState(app.makeReplStateKey(node, channel), node.Host(), channel)
 	if err != nil {
-		app.logger.Errorf("repair error: host %s, %v", node.Host(), err)
+		app.logger.Errorf("repair error on channel %s: host %s, %v", channel, node.Host(), err)
 		return
 	}
 
@@ -85,14 +85,14 @@ func (app *App) TryRepairReplication(node *mysql.Node, master string, channel st
 
 	algorithmType, count, err := app.getSuitableAlgorithmType(replState, channel)
 	if err != nil {
-		app.logger.Errorf("repair error: host %s, %v", node.Host(), err)
+		app.logger.Errorf("repair error on channel %s: host %s, %v", channel, node.Host(), err)
 		return
 	}
 
 	algorithm := getRepairAlgorithm(algorithmType)
 	err = algorithm(app, node, master, channel)
 	if err != nil {
-		app.logger.Errorf("repair error: %v", err)
+		app.logger.Errorf("repair error on channel %s: host %s, %v", channel, node.Host(), err)
 	}
 
 	replState.History[algorithmType] = count + 1
@@ -199,7 +199,7 @@ func ChangeSourceAlgorithm(app *App, node *mysql.Node, _ string, channel string)
 }
 
 func (app *App) getSuitableAlgorithmType(state *ReplicationRepairState, channel string) (ReplicationRepairAlgorithmType, int, error) {
-	for i := range app.getAlgorithmOrder(channel) {
+	for _, i := range app.getAlgorithmOrder(channel) {
 		algorithmType := ReplicationRepairAlgorithmType(i)
 		count := state.History[algorithmType]
 		if count < app.config.ReplicationRepairMaxAttempts {
