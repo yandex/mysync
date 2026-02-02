@@ -61,6 +61,11 @@ type replicationSettings struct {
 	ReplicationFilter sql.NullString `db:"ReplicationFilter"`
 }
 
+type ReplicationSource struct {
+	SourceHost string `db:"SourceHost"`
+	Priority   int    `db:"Priority"`
+}
+
 // SlaveStatusStruct contains SHOW SLAVE STATUS response
 type SlaveStatusStruct struct {
 	MasterHost       string          `db:"Master_Host"`

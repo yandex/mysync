@@ -58,6 +58,8 @@ const (
 	queryCalcReplMonTSDelay             = "calc_repl_mon_ts_delay"
 	queryCreateReplMonTable             = "create_repl_mon_table"
 	queryUpdateReplMon                  = "update_repl_mon"
+	queryGetExternalReplicationSources  = "get_external_replication_sources"
+	queryChangeSourceHost               = "change_source_host"
 )
 
 var DefaultQueries = map[string]string{
@@ -135,7 +137,7 @@ var DefaultQueries = map[string]string{
 								replication_status AS ReplicationStatus,
 								replication_filter AS ReplicationFilter
 							FROM mysql.replication_settings
-							WHERE channel_name = 'external'`,
+							WHERE channel_name = :channel`,
 	queryChangeSource: `CHANGE REPLICATION SOURCE TO
 								SOURCE_HOST = :host,
 								SOURCE_PORT = :port,
@@ -181,4 +183,13 @@ var DefaultQueries = map[string]string{
 											WHERE @@read_only = 0
 										)
 									ON DUPLICATE KEY UPDATE ts = CURRENT_TIMESTAMP(3)`,
+	queryGetExternalReplicationSources: `SELECT
+								source_host AS SourceHost,
+								priority AS Priority
+							FROM mysql.replication_sources
+							WHERE channel_name = :channel
+							ORDER BY priority DESC`,
+	queryChangeSourceHost: `CHANGE REPLICATION SOURCE TO
+								SOURCE_HOST = :host,
+						FOR CHANNEL :channel`,
 }

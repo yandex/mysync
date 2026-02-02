@@ -1050,7 +1050,10 @@ func (n *Node) GetStartupTime() (time.Time, error) {
 
 func (n *Node) UpdateExternalCAFile() error {
 	var replSettings replicationSettings
-	err := n.queryRow(queryGetExternalReplicationSettings, nil, &replSettings)
+	err := n.queryRow(queryGetExternalReplicationSettings, map[string]any{
+		"channel": n.config.ExternalReplicationChannel,
+	},
+		&replSettings)
 	if err != nil {
 		return nil
 	}
@@ -1349,4 +1352,16 @@ func (n *Node) GetListSlaveSideDisabledEventsQuery() (string, error) {
 	} else {
 		return queryListSlavesideDisabledEvents, nil
 	}
+}
+
+func (n *Node) GetExternalReplicationSources() ([]ReplicationSource, error) {
+	var replicationSources []ReplicationSource
+	err := n.queryRow(queryGetExternalReplicationSources, map[string]any{
+		"channel": n.config.ExternalReplicationChannel,
+	},
+		&replicationSources)
+	if IsErrorTableDoesNotExists(err) || err == sql.ErrNoRows {
+		return replicationSources, nil
+	}
+	return replicationSources, err
 }

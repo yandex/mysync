@@ -20,6 +20,7 @@ type ReplicationRepairAlgorithmType int
 const (
 	StartSlave ReplicationRepairAlgorithmType = iota
 	ResetSlave
+	ChangeSource
 )
 
 type ReplicationRepairState struct {
@@ -82,7 +83,7 @@ func (app *App) TryRepairReplication(node *mysql.Node, master string, channel st
 		return
 	}
 
-	algorithmType, count, err := app.getSuitableAlgorithmType(replState)
+	algorithmType, count, err := app.getSuitableAlgorithmType(replState, channel)
 	if err != nil {
 		app.logger.Errorf("repair error: host %s, %v", node.Host(), err)
 		return
@@ -160,8 +161,45 @@ func ResetSlaveAlgorithm(app *App, node *mysql.Node, master string, channel stri
 	return nil
 }
 
-func (app *App) getSuitableAlgorithmType(state *ReplicationRepairState) (ReplicationRepairAlgorithmType, int, error) {
-	for i := range app.getAlgorithmOrder() {
+func ChangeSourceAlgorithm(app *App, node *mysql.Node, _ string, channel string) error {
+	app.logger.Infof("repair: trying to repair replication using ChangeSourceAlgorithm...")
+	if channel != app.config.ExternalReplicationChannel {
+		app.logger.Infof("ChangeSourceAlgorithm works only for external replication")
+		return nil
+	}
+	replicationSources, err := node.GetExternalReplicationSources()
+	if err != nil {
+		return err
+	}
+	if len(replicationSources) == 0 {
+		return nil
+	}
+	replicaStatus, err := app.externalReplication.GetReplicaStatus(node)
+	if err != nil {
+		return err
+	}
+	// mark current source as error and then trying to change it
+	app.externalReplication.SetSourcesStatus(replicaStatus.GetMasterHost(), mysql.ErrorStatus)
+	for _, source := range replicationSources {
+		value := app.externalReplication.GetSourcesStatus(source.SourceHost)
+		if value == mysql.ErrorStatus {
+			continue
+		}
+		app.logger.Infof("ChangeSourceAlgorithm repair: trying change source to %s", source.SourceHost)
+		err := app.externalReplication.ChangeSourceHost(node, source.SourceHost)
+		if err != nil {
+			return err
+		}
+		return nil
+	}
+	// if there was no return from the loop above then we assume that all hosts are now marked as error
+	// so we shall reset sources status and try again on next iteration
+	app.externalReplication.ResetSourcesStatus()
+	return nil
+}
+
+func (app *App) getSuitableAlgorithmType(state *ReplicationRepairState, channel string) (ReplicationRepairAlgorithmType, int, error) {
+	for i := range app.getAlgorithmOrder(channel) {
 		algorithmType := ReplicationRepairAlgorithmType(i)
 		count := state.History[algorithmType]
 		if count < app.config.ReplicationRepairMaxAttempts {
@@ -207,7 +245,7 @@ func (app *App) createRepairState(hostname, channel string) (*ReplicationRepairS
 		LastGTIDExecuted: status.GetExecutedGtidSet(),
 	}
 
-	for i := range app.getAlgorithmOrder() {
+	for i := range app.getAlgorithmOrder(channel) {
 		result.History[ReplicationRepairAlgorithmType(i)] = 0
 	}
 
@@ -223,7 +261,15 @@ var aggressiveOrder = []ReplicationRepairAlgorithmType{
 	ResetSlave,
 }
 
-func (app *App) getAlgorithmOrder() []ReplicationRepairAlgorithmType {
+var externalReplicationOrder = []ReplicationRepairAlgorithmType{
+	StartSlave,
+	ChangeSource,
+}
+
+func (app *App) getAlgorithmOrder(channel string) []ReplicationRepairAlgorithmType {
+	if channel == app.config.ExternalReplicationChannel {
+		return externalReplicationOrder
+	}
 	if app.config.ReplicationRepairAggressiveMode {
 		return aggressiveOrder
 	} else {
@@ -232,8 +278,9 @@ func (app *App) getAlgorithmOrder() []ReplicationRepairAlgorithmType {
 }
 
 var mapping = map[ReplicationRepairAlgorithmType]RepairReplicationAlgorithm{
-	StartSlave: StartSlaveAlgorithm,
-	ResetSlave: ResetSlaveAlgorithm,
+	StartSlave:   StartSlaveAlgorithm,
+	ResetSlave:   ResetSlaveAlgorithm,
+	ChangeSource: ChangeSourceAlgorithm,
 }
 
 func getRepairAlgorithm(algoType ReplicationRepairAlgorithmType) RepairReplicationAlgorithm {
