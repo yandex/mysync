@@ -55,7 +55,7 @@ exclude_users:
     - 'admin'
     - 'monitor'
     - 'event_scheduler'
-replication_repair_cooldown: 10s
+replication_repair_cooldown: ${MYSYNC_REPLICATION_REPAIR_COOLDOWN:-10s}
 replication_repair_aggressive_mode: ${MYSYNC_REPLICATION_REPAIR_AGGRESSIVE_MODE:-false}
 test_filesystem_readonly_file: /tmp/readonly
 replication_channel: ''

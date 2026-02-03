@@ -85,7 +85,8 @@ func NewExternalReplication(replicationType util.ExternalReplicationType, logger
 	case util.MyExternalReplication:
 		logger.Info("external replication is enabled")
 		return &ExternalReplication{
-			logger: logger,
+			logger:        logger,
+			sourcesStatus: make(map[string]ExternalSourceStatus),
 		}, nil
 	default:
 		logger.Info("external replication is disabled")

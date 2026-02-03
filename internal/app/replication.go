@@ -109,7 +109,7 @@ func (app *App) makeReplStateKey(node *mysql.Node, channel string) string {
 }
 
 func StartSlaveAlgorithm(app *App, node *mysql.Node, _ string, channel string) error {
-	app.logger.Infof("repair: trying to repair replication using StartSlaveAlgorithm...")
+	app.logger.Infof("repair %s: trying to repair replication using StartSlaveAlgorithm...", channel)
 	if channel == app.config.ExternalReplicationChannel {
 		return app.externalReplication.Start(node)
 	}
@@ -123,7 +123,7 @@ func ResetSlaveAlgorithm(app *App, node *mysql.Node, master string, channel stri
 		app.logger.Infof("external repair: don't want to use ResetSlaveAlgorithm, leaving")
 		return nil
 	}
-	app.logger.Infof("repair: trying to repair replication using ResetSlaveAlgorithm...")
+	app.logger.Infof("repair %: trying to repair replication using ResetSlaveAlgorithm...", channel)
 	app.logger.Infof("repair: executing set slave offline")
 	err := node.SetOffline()
 	if err != nil {
@@ -164,7 +164,7 @@ func ResetSlaveAlgorithm(app *App, node *mysql.Node, master string, channel stri
 }
 
 func ChangeSourceAlgorithm(app *App, node *mysql.Node, _ string, channel string) error {
-	app.logger.Infof("repair: trying to repair replication using ChangeSourceAlgorithm...")
+	app.logger.Infof("repair %s: trying to repair replication using ChangeSourceAlgorithm...", channel)
 	if channel != app.config.ExternalReplicationChannel {
 		app.logger.Infof("ChangeSourceAlgorithm works only for external replication")
 		return nil
@@ -186,13 +186,23 @@ func ChangeSourceAlgorithm(app *App, node *mysql.Node, _ string, channel string)
 	for _, source := range *replicationSources {
 		value := app.externalReplication.GetSourcesStatus(source.SourceHost)
 		if value == mysql.ErrorStatus {
+			app.logger.Infof("repair (external): ignoring source host %s due to error status in the past", source.SourceHost)
 			continue
 		}
-		app.logger.Infof("ChangeSourceAlgorithm repair: trying change source to %s", source.SourceHost)
-		err := app.externalReplication.ChangeSourceHost(node, source.SourceHost)
+		app.logger.Infof("repair (external): trying change source to %s", source.SourceHost)
+		err := app.externalReplication.Stop(node)
 		if err != nil {
 			return err
 		}
+		err = app.externalReplication.ChangeSourceHost(node, source.SourceHost)
+		if err != nil {
+			return err
+		}
+		err = app.externalReplication.Start(node)
+		if err != nil {
+			return err
+		}
+		app.logger.Infof("repair (external): source changed to %s", source.SourceHost)
 		return nil
 	}
 	// if there was no return from the loop above then we assume that all hosts are now marked as error

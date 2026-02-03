@@ -190,6 +190,6 @@ var DefaultQueries = map[string]string{
 							WHERE channel_name = :channel
 							ORDER BY Priority DESC`,
 	queryChangeSourceHost: `CHANGE REPLICATION SOURCE TO
-								SOURCE_HOST = :host,
+								SOURCE_HOST = :host
 						FOR CHANNEL :channel`,
 }

@@ -242,9 +242,27 @@ func (n *Node) queryRowWithTimeout(queryName string, arg any, result any, timeou
 }
 
 // nolint: unparam
-func (n *Node) queryRows(queryName string, arg any, scanner func(*sqlx.Rows) error) error {
+func (n *Node) queryRows(queryName string, arg map[string]any, scanner func(*sqlx.Rows) error) error {
 	// TODO we need to rewrite processQuery, to make traceQuery work properly
 	// traceQuery should be called with result, not *Rows
+	return n.processQuery(queryName, arg, func(rows *sqlx.Rows) error {
+		var err error
+
+		for rows.Next() {
+			err = scanner(rows)
+			if err != nil {
+				break
+			}
+		}
+
+		return err
+	}, n.config.DBTimeout)
+}
+
+// nolint: unparam
+func (n *Node) queryRowsMogrify(queryName string, arg map[string]any, scanner func(*sqlx.Rows) error) error {
+	query := n.getQuery(queryName)
+	query = Mogrify(query, arg)
 	return n.processQuery(queryName, arg, func(rows *sqlx.Rows) error {
 		var err error
 
@@ -1356,10 +1374,17 @@ func (n *Node) GetListSlaveSideDisabledEventsQuery() (string, error) {
 
 func (n *Node) GetExternalReplicationSources() (*[]ReplicationSource, error) {
 	replicationSources := new([]ReplicationSource)
-	err := n.queryRowMogrify(queryGetExternalReplicationSources, map[string]any{
+	err := n.queryRowsMogrify(queryGetExternalReplicationSources, map[string]any{
 		"channel": n.config.ExternalReplicationChannel,
-	},
-		replicationSources)
+	}, func(rows *sqlx.Rows) error {
+		var source ReplicationSource
+		err := rows.StructScan(&source)
+		if err != nil {
+			return err
+		}
+		*replicationSources = append(*replicationSources, source)
+		return nil
+	})
 	if IsErrorTableDoesNotExists(err) || err == sql.ErrNoRows {
 		return nil, nil
 	}
