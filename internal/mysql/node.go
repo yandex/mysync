@@ -263,7 +263,7 @@ func (n *Node) queryRows(queryName string, arg map[string]any, scanner func(*sql
 func (n *Node) queryRowsMogrify(queryName string, arg map[string]any, scanner func(*sqlx.Rows) error) error {
 	query := n.getQuery(queryName)
 	query = Mogrify(query, arg)
-	return n.processQuery(queryName, arg, func(rows *sqlx.Rows) error {
+	return n.processQuery(query, arg, func(rows *sqlx.Rows) error {
 		var err error
 
 		for rows.Next() {
