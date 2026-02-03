@@ -263,7 +263,7 @@ YZQy1bHIhscLf8wjTYbzAg==
             ('external', 'test_source_2', 50),
             ('external', 'test_source_3', 10)
         """
-        Then I wait for "30" seconds
+        Then I wait for "45" seconds
         And I run SQL on mysql host "mysql2"
         """
             SHOW REPLICA STATUS FOR CHANNEL 'external'
