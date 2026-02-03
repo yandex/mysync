@@ -373,7 +373,7 @@ YZQy1bHIhscLf8wjTYbzAg==
             "Replicate_Do_DB": "testdb1"
         }]
         """
-        Then I wait for "45" seconds
+        Then I wait for "50" seconds
         And I run SQL on mysql host "mysql2"
         """
             SHOW REPLICA STATUS FOR CHANNEL 'external'
@@ -461,7 +461,7 @@ YZQy1bHIhscLf8wjTYbzAg==
             "Replicate_Do_DB": "testdb1"
         }]
         """
-        Then I wait for "45" seconds
+        Then I wait for "50" seconds
         And I run SQL on mysql host "mysql2"
         """
             SHOW REPLICA STATUS FOR CHANNEL 'external'
@@ -549,7 +549,7 @@ YZQy1bHIhscLf8wjTYbzAg==
             "Replicate_Do_DB": "testdb1"
         }]
         """
-        Then I wait for "45" seconds
+        Then I wait for "50" seconds
         And I run SQL on mysql host "mysql2"
         """
             SHOW REPLICA STATUS FOR CHANNEL 'external'
