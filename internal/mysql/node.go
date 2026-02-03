@@ -261,9 +261,7 @@ func (n *Node) queryRows(queryName string, arg map[string]any, scanner func(*sql
 
 // nolint: unparam
 func (n *Node) queryRowsMogrify(queryName string, arg map[string]any, scanner func(*sqlx.Rows) error) error {
-	query := n.getQuery(queryName)
-	query = Mogrify(query, arg)
-	return n.processQuery(query, arg, func(rows *sqlx.Rows) error {
+	return n.processQueryMogrify(queryName, arg, func(rows *sqlx.Rows) error {
 		var err error
 
 		for rows.Next() {
@@ -286,6 +284,27 @@ func (n *Node) processQuery(queryName string, arg any, rowsProcessor func(*sqlx.
 	defer cancel()
 
 	query := n.getQuery(queryName)
+	db, err := n.GetDB()
+	if err != nil {
+		return err
+	}
+	rows, err := db.NamedQueryContext(ctx, query, arg)
+	n.traceQuery(query, arg, rows, err)
+	if err != nil {
+		return err
+	}
+
+	defer func() { _ = rows.Close() }()
+
+	return rowsProcessor(rows)
+}
+
+func (n *Node) processQueryMogrify(queryName string, arg map[string]any, rowsProcessor func(*sqlx.Rows) error, timeout time.Duration) error {
+	ctx, cancel := context.WithTimeout(context.Background(), timeout)
+	defer cancel()
+
+	query := n.getQuery(queryName)
+	query = Mogrify(query, arg)
 	db, err := n.GetDB()
 	if err != nil {
 		return err
