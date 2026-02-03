@@ -123,7 +123,7 @@ func ResetSlaveAlgorithm(app *App, node *mysql.Node, master string, channel stri
 		app.logger.Infof("external repair: don't want to use ResetSlaveAlgorithm, leaving")
 		return nil
 	}
-	app.logger.Infof("repair %: trying to repair replication using ResetSlaveAlgorithm...", channel)
+	app.logger.Infof("repair %s: trying to repair replication using ResetSlaveAlgorithm...", channel)
 	app.logger.Infof("repair: executing set slave offline")
 	err := node.SetOffline()
 	if err != nil {
