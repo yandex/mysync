@@ -373,7 +373,7 @@ YZQy1bHIhscLf8wjTYbzAg==
             "Replicate_Do_DB": "testdb1"
         }]
         """
-        Then I wait for "50" seconds
+        Then I wait for "45" seconds
         And I run SQL on mysql host "mysql2"
         """
             SHOW REPLICA STATUS FOR CHANNEL 'external'
@@ -461,7 +461,7 @@ YZQy1bHIhscLf8wjTYbzAg==
             "Replicate_Do_DB": "testdb1"
         }]
         """
-        Then I wait for "50" seconds
+        Then I wait for "45" seconds
         And I run SQL on mysql host "mysql2"
         """
             SHOW REPLICA STATUS FOR CHANNEL 'external'
@@ -514,7 +514,7 @@ YZQy1bHIhscLf8wjTYbzAg==
         """
         [{
             "Replica_IO_State": "Connecting to source",
-            "Source_Host": "test_source3",
+            "Source_Host": "test_source_3",
             "Source_Port": 2222,
             "Source_User": "test_user_2",
             "Replica_IO_Running": "Connecting",
@@ -549,7 +549,7 @@ YZQy1bHIhscLf8wjTYbzAg==
             "Replicate_Do_DB": "testdb1"
         }]
         """
-        Then I wait for "50" seconds
+        Then I wait for "45" seconds
         And I run SQL on mysql host "mysql2"
         """
             SHOW REPLICA STATUS FOR CHANNEL 'external'
