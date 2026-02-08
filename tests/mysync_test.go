@@ -1625,8 +1625,8 @@ func InitializeScenario(s *godog.ScenarioContext) {
 	s.Step(`^I set used space on host "([^"]*)" to (\d+)%$`, tctx.stepSetUsedSpace)
 	s.Step(`^I set readonly file system on host "([^"]*)" to "([^"]*)"$`, tctx.stepSetReadonlyStatus)
 	s.Step(`^SQL result should match (\w+) witch I will save as "(\w+)"$`, tctx.stepSQLResultShouldMatchWithTextIWillSave)
-	s.Step(`^SQL result should match saved (\w+) text on path "([^"]*)"`, tctx.stepSQLResultShouldMatchSaved)
-	s.Step(`^SQL result should match saved (\w+) text on path "([^"]*) with following changes$ (\w+)`, tctx.stepSQLResultShouldMatchSavedWithChanges)
+	s.Step(`^SQL result should match saved (\w+) text on path "(\w+)"$"`, tctx.stepSQLResultShouldMatchSaved)
+	s.Step(`^SQL result should match saved (\w+) text on path "(\w+)" with following changes$`, tctx.stepSQLResultShouldMatchSavedWithChanges)
 
 	// zookeeper manipulation
 	s.Step(`^I get zookeeper node "([^"]*)"$`, tctx.stepIGetZookeeperNode)
