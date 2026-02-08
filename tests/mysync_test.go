@@ -1503,7 +1503,7 @@ func (tctx *testContext) stepSQLResultShouldMatchWithTextIWillSave(matcher strin
 		return err
 	}
 	if len(tctx.sqlQueryResult) != 1 {
-		err := fmt.Errorf("using saved query result works only for 1 row responce")
+		err := fmt.Errorf("using saved query result works only for 1 row response")
 		return err
 	}
 	res, err := json.Marshal(tctx.sqlQueryResult[0])
@@ -1539,7 +1539,7 @@ func (tctx *testContext) stepSQLResultShouldMatchSavedWithChanges(matcher string
 	}
 
 	if len(tctx.sqlQueryResult) != 1 {
-		err := fmt.Errorf("using saved query result works only for 1 row responce")
+		err := fmt.Errorf("using saved query result works only for 1 row response")
 		return err
 	}
 	res, err := json.Marshal(tctx.sqlQueryResult[0])
