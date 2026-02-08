@@ -1503,10 +1503,13 @@ func (tctx *testContext) stepSQLResultShouldMatchWithTextIWillSave(matcher strin
 		return err
 	}
 	if len(tctx.sqlQueryResult) != 1 {
-		err := fmt.Errorf("using saved query result works only for 1 row responces")
+		err := fmt.Errorf("using saved query result works only for 1 row responce")
 		return err
 	}
 	res, err := json.Marshal(tctx.sqlQueryResult[0])
+	if err != nil {
+		return err
+	}
 	tctx.comparisonSaved[name] = strings.TrimSpace(body.Content)
 	return m(string(res), strings.TrimSpace(body.Content))
 }
@@ -1516,15 +1519,14 @@ func (tctx *testContext) stepSQLResultShouldMatchSavedWithChanges(matcher string
 	if err != nil {
 		return err
 	}
-	strSaved := tctx.comparisonSaved[name]
-	extected := string(strSaved)
+	extected := tctx.comparisonSaved[name]
 	if body != nil {
 		var changes, saved sqlQueryResultRow
 		err = json.Unmarshal([]byte(strings.TrimSpace(body.Content)), &changes)
 		if err != nil {
 			return err
 		}
-		err = json.Unmarshal([]byte(strSaved), &saved)
+		err = json.Unmarshal([]byte(extected), &saved)
 		if err != nil {
 			return err
 		}
@@ -1537,14 +1539,14 @@ func (tctx *testContext) stepSQLResultShouldMatchSavedWithChanges(matcher string
 	}
 
 	if len(tctx.sqlQueryResult) != 1 {
-		err := fmt.Errorf("using saved query result works only for 1 row responces")
+		err := fmt.Errorf("using saved query result works only for 1 row responce")
 		return err
 	}
 	res, err := json.Marshal(tctx.sqlQueryResult[0])
 	if err != nil {
 		return err
 	}
-	return m(string(res), string(extected))
+	return m(string(res), extected)
 }
 
 func (tctx *testContext) stepSQLResultShouldMatchSaved(matcher string, name string) error {
