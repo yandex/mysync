@@ -186,9 +186,9 @@ YZQy1bHIhscLf8wjTYbzAg==
         """
             SHOW REPLICA STATUS FOR CHANNEL 'external'
         """
-        Then SQL result should match json
+        Then SQL result should match json witch I will save as "external_repl_status"
         """
-        [{
+        {
             "Replica_IO_State": "Connecting to source",
             "Source_Host": "test_source_2",
             "Source_Port": 2222,
@@ -201,7 +201,7 @@ YZQy1bHIhscLf8wjTYbzAg==
             "Replicate_Ignore_DB": "mysql",
             "Source_SSL_CA_File": "/etc/mysql/ssl/external_CA.pem",
             "Replicate_Do_DB": "testdb1"
-        }]
+        }
         """
         And host "mysql2" should have file "/etc/mysql/ssl/external_CA.pem" within "10" seconds
 
@@ -239,23 +239,7 @@ YZQy1bHIhscLf8wjTYbzAg==
         """
             SHOW REPLICA STATUS FOR CHANNEL 'external'
         """
-        Then SQL result should match json
-        """
-        [{
-            "Replica_IO_State": "Connecting to source",
-            "Source_Host": "test_source_2",
-            "Source_Port": 2222,
-            "Source_User": "test_user_2",
-            "Replica_IO_Running": "Connecting",
-            "Replica_SQL_Running": "Yes",
-            "Relay_Source_Log_File": "",
-            "Exec_Source_Log_Pos": 0,
-            "Channel_Name": "external",
-            "Replicate_Ignore_DB": "mysql",
-            "Source_SSL_CA_File": "/etc/mysql/ssl/external_CA.pem",
-            "Replicate_Do_DB": "testdb1"
-        }]
-        """
+        Then SQL result should match saved json text on path "external_repl_status"
         When I run SQL on mysql host "mysql2"
         """
             INSERT INTO mysql.replication_sources (channel_name, source_host, priority) VALUES 
@@ -268,306 +252,121 @@ YZQy1bHIhscLf8wjTYbzAg==
         """
             SHOW REPLICA STATUS FOR CHANNEL 'external'
         """
-        Then SQL result should match json
-        """
-        [{
-            "Replica_IO_State": "Connecting to source",
-            "Source_Host": "test_source_2",
-            "Source_Port": 2222,
-            "Source_User": "test_user_2",
-            "Replica_IO_Running": "Connecting",
-            "Replica_SQL_Running": "Yes",
-            "Relay_Source_Log_File": "",
-            "Exec_Source_Log_Pos": 0,
-            "Channel_Name": "external",
-            "Replicate_Ignore_DB": "mysql",
-            "Source_SSL_CA_File": "/etc/mysql/ssl/external_CA.pem",
-            "Replicate_Do_DB": "testdb1"
-        }]
-        """        
+        Then SQL result should match saved json text on path "external_repl_status"
         Then I wait for "16" seconds
         And I run SQL on mysql host "mysql2"
         """
             SHOW REPLICA STATUS FOR CHANNEL 'external'
         """
-        Then SQL result should match json
+        Then SQL result should match saved json text on path "external_repl_status" with following changes
         """
-        [{
-            "Replica_IO_State": "Connecting to source",
-            "Source_Host": "test_source",
-            "Source_Port": 2222,
-            "Source_User": "test_user_2",
-            "Replica_IO_Running": "Connecting",
-            "Replica_SQL_Running": "Yes",
-            "Relay_Source_Log_File": "",
-            "Exec_Source_Log_Pos": 0,
-            "Channel_Name": "external",
-            "Replicate_Ignore_DB": "mysql",
-            "Source_SSL_CA_File": "/etc/mysql/ssl/external_CA.pem",
-            "Replicate_Do_DB": "testdb1"
-        }]
+        {"Source_Host": "test_source"}
         """
         Then I wait for "16" seconds
         And I run SQL on mysql host "mysql2"
         """
             SHOW REPLICA STATUS FOR CHANNEL 'external'
         """
-        Then SQL result should match json
+        Then SQL result should match saved json text on path "external_repl_status" with following changes
         """
-        [{
-            "Replica_IO_State": "Connecting to source",
-            "Source_Host": "test_source",
-            "Source_Port": 2222,
-            "Source_User": "test_user_2",
-            "Replica_IO_Running": "Connecting",
-            "Replica_SQL_Running": "Yes",
-            "Relay_Source_Log_File": "",
-            "Exec_Source_Log_Pos": 0,
-            "Channel_Name": "external",
-            "Replicate_Ignore_DB": "mysql",
-            "Source_SSL_CA_File": "/etc/mysql/ssl/external_CA.pem",
-            "Replicate_Do_DB": "testdb1"
-        }]
+        {"Source_Host": "test_source"}
         """
         Then I wait for "16" seconds
         And I run SQL on mysql host "mysql2"
         """
             SHOW REPLICA STATUS FOR CHANNEL 'external'
         """
-        Then SQL result should match json
+        Then SQL result should match saved json text on path "external_repl_status" with following changes
         """
-        [{
-            "Replica_IO_State": "Connecting to source",
-            "Source_Host": "test_source_3",
-            "Source_Port": 2222,
-            "Source_User": "test_user_2",
-            "Replica_IO_Running": "Connecting",
-            "Replica_SQL_Running": "Yes",
-            "Relay_Source_Log_File": "",
-            "Exec_Source_Log_Pos": 0,
-            "Channel_Name": "external",
-            "Replicate_Ignore_DB": "mysql",
-            "Source_SSL_CA_File": "/etc/mysql/ssl/external_CA.pem",
-            "Replicate_Do_DB": "testdb1"
-        }]
+        {"Source_Host": "test_source_3"}
         """
         Then I wait for "16" seconds
         And I run SQL on mysql host "mysql2"
         """
             SHOW REPLICA STATUS FOR CHANNEL 'external'
         """
-        Then SQL result should match json
+        Then SQL result should match saved json text on path "external_repl_status" with following changes
         """
-        [{
-            "Replica_IO_State": "Connecting to source",
-            "Source_Host": "test_source_3",
-            "Source_Port": 2222,
-            "Source_User": "test_user_2",
-            "Replica_IO_Running": "Connecting",
-            "Replica_SQL_Running": "Yes",
-            "Relay_Source_Log_File": "",
-            "Exec_Source_Log_Pos": 0,
-            "Channel_Name": "external",
-            "Replicate_Ignore_DB": "mysql",
-            "Source_SSL_CA_File": "/etc/mysql/ssl/external_CA.pem",
-            "Replicate_Do_DB": "testdb1"
-        }]
+        {"Source_Host": "test_source_3"}
         """
         Then I wait for "45" seconds
         And I run SQL on mysql host "mysql2"
         """
             SHOW REPLICA STATUS FOR CHANNEL 'external'
         """
-        Then SQL result should match json
+        Then SQL result should match saved json text on path "external_repl_status" with following changes
         """
-        [{
-            "Replica_IO_State": "Connecting to source",
-            "Source_Host": "test_source",
-            "Source_Port": 2222,
-            "Source_User": "test_user_2",
-            "Replica_IO_Running": "Connecting",
-            "Replica_SQL_Running": "Yes",
-            "Relay_Source_Log_File": "",
-            "Exec_Source_Log_Pos": 0,
-            "Channel_Name": "external",
-            "Replicate_Ignore_DB": "mysql",
-            "Source_SSL_CA_File": "/etc/mysql/ssl/external_CA.pem",
-            "Replicate_Do_DB": "testdb1"
-        }]
+        {"Source_Host": "test_source"}
         """
         Then I wait for "16" seconds
         And I run SQL on mysql host "mysql2"
         """
             SHOW REPLICA STATUS FOR CHANNEL 'external'
         """
-        Then SQL result should match json
+        Then SQL result should match saved json text on path "external_repl_status" with following changes
         """
-        [{
-            "Replica_IO_State": "Connecting to source",
-            "Source_Host": "test_source",
-            "Source_Port": 2222,
-            "Source_User": "test_user_2",
-            "Replica_IO_Running": "Connecting",
-            "Replica_SQL_Running": "Yes",
-            "Relay_Source_Log_File": "",
-            "Exec_Source_Log_Pos": 0,
-            "Channel_Name": "external",
-            "Replicate_Ignore_DB": "mysql",
-            "Source_SSL_CA_File": "/etc/mysql/ssl/external_CA.pem",
-            "Replicate_Do_DB": "testdb1"
-        }]
+        {"Source_Host": "test_source"}
         """
         Then I wait for "16" seconds
         And I run SQL on mysql host "mysql2"
         """
             SHOW REPLICA STATUS FOR CHANNEL 'external'
         """
-        Then SQL result should match json
+        Then SQL result should match saved json text on path "external_repl_status" with following changes
         """
-        [{
-            "Replica_IO_State": "Connecting to source",
-            "Source_Host": "test_source_2",
-            "Source_Port": 2222,
-            "Source_User": "test_user_2",
-            "Replica_IO_Running": "Connecting",
-            "Replica_SQL_Running": "Yes",
-            "Relay_Source_Log_File": "",
-            "Exec_Source_Log_Pos": 0,
-            "Channel_Name": "external",
-            "Replicate_Ignore_DB": "mysql",
-            "Source_SSL_CA_File": "/etc/mysql/ssl/external_CA.pem",
-            "Replicate_Do_DB": "testdb1"
-        }]
+        {"Source_Host": "test_source_2"}
         """
         Then I wait for "16" seconds
         And I run SQL on mysql host "mysql2"
         """
             SHOW REPLICA STATUS FOR CHANNEL 'external'
         """
-        Then SQL result should match json
+        Then SQL result should match saved json text on path "external_repl_status" with following changes
         """
-        [{
-            "Replica_IO_State": "Connecting to source",
-            "Source_Host": "test_source_2",
-            "Source_Port": 2222,
-            "Source_User": "test_user_2",
-            "Replica_IO_Running": "Connecting",
-            "Replica_SQL_Running": "Yes",
-            "Relay_Source_Log_File": "",
-            "Exec_Source_Log_Pos": 0,
-            "Channel_Name": "external",
-            "Replicate_Ignore_DB": "mysql",
-            "Source_SSL_CA_File": "/etc/mysql/ssl/external_CA.pem",
-            "Replicate_Do_DB": "testdb1"
-        }]
+        {"Source_Host": "test_source_2"}
         """
         Then I wait for "45" seconds
         And I run SQL on mysql host "mysql2"
         """
             SHOW REPLICA STATUS FOR CHANNEL 'external'
         """
-        Then SQL result should match json
+        Then SQL result should match saved json text on path "external_repl_status" with following changes
         """
-        [{
-            "Replica_IO_State": "Connecting to source",
-            "Source_Host": "test_source",
-            "Source_Port": 2222,
-            "Source_User": "test_user_2",
-            "Replica_IO_Running": "Connecting",
-            "Replica_SQL_Running": "Yes",
-            "Relay_Source_Log_File": "",
-            "Exec_Source_Log_Pos": 0,
-            "Channel_Name": "external",
-            "Replicate_Ignore_DB": "mysql",
-            "Source_SSL_CA_File": "/etc/mysql/ssl/external_CA.pem",
-            "Replicate_Do_DB": "testdb1"
-        }]
+        {"Source_Host": "test_source"}
         """
         Then I wait for "16" seconds
         And I run SQL on mysql host "mysql2"
         """
             SHOW REPLICA STATUS FOR CHANNEL 'external'
         """
-        Then SQL result should match json
+        Then SQL result should match saved json text on path "external_repl_status" with following changes
         """
-        [{
-            "Replica_IO_State": "Connecting to source",
-            "Source_Host": "test_source",
-            "Source_Port": 2222,
-            "Source_User": "test_user_2",
-            "Replica_IO_Running": "Connecting",
-            "Replica_SQL_Running": "Yes",
-            "Relay_Source_Log_File": "",
-            "Exec_Source_Log_Pos": 0,
-            "Channel_Name": "external",
-            "Replicate_Ignore_DB": "mysql",
-            "Source_SSL_CA_File": "/etc/mysql/ssl/external_CA.pem",
-            "Replicate_Do_DB": "testdb1"
-        }]
+        {"Source_Host": "test_source"}
         """
         Then I wait for "20" seconds
         And I run SQL on mysql host "mysql2"
         """
             SHOW REPLICA STATUS FOR CHANNEL 'external'
         """
-        Then SQL result should match json
+        Then SQL result should match saved json text on path "external_repl_status" with following changes
         """
-        [{
-            "Replica_IO_State": "Connecting to source",
-            "Source_Host": "test_source_3",
-            "Source_Port": 2222,
-            "Source_User": "test_user_2",
-            "Replica_IO_Running": "Connecting",
-            "Replica_SQL_Running": "Yes",
-            "Relay_Source_Log_File": "",
-            "Exec_Source_Log_Pos": 0,
-            "Channel_Name": "external",
-            "Replicate_Ignore_DB": "mysql",
-            "Source_SSL_CA_File": "/etc/mysql/ssl/external_CA.pem",
-            "Replicate_Do_DB": "testdb1"
-        }]
+        {"Source_Host": "test_source_3"}
         """
         Then I wait for "16" seconds
         And I run SQL on mysql host "mysql2"
         """
             SHOW REPLICA STATUS FOR CHANNEL 'external'
         """
-        Then SQL result should match json
+        Then SQL result should match saved json text on path "external_repl_status" with following changes
         """
-        [{
-            "Replica_IO_State": "Connecting to source",
-            "Source_Host": "test_source_3",
-            "Source_Port": 2222,
-            "Source_User": "test_user_2",
-            "Replica_IO_Running": "Connecting",
-            "Replica_SQL_Running": "Yes",
-            "Relay_Source_Log_File": "",
-            "Exec_Source_Log_Pos": 0,
-            "Channel_Name": "external",
-            "Replicate_Ignore_DB": "mysql",
-            "Source_SSL_CA_File": "/etc/mysql/ssl/external_CA.pem",
-            "Replicate_Do_DB": "testdb1"
-        }]
+        {"Source_Host": "test_source_3"}
         """
         Then I wait for "45" seconds
         And I run SQL on mysql host "mysql2"
         """
             SHOW REPLICA STATUS FOR CHANNEL 'external'
         """
-        Then SQL result should match json
+        Then SQL result should match saved json text on path "external_repl_status" with following changes
         """
-        [{
-            "Replica_IO_State": "Connecting to source",
-            "Source_Host": "test_source",
-            "Source_Port": 2222,
-            "Source_User": "test_user_2",
-            "Replica_IO_Running": "Connecting",
-            "Replica_SQL_Running": "Yes",
-            "Relay_Source_Log_File": "",
-            "Exec_Source_Log_Pos": 0,
-            "Channel_Name": "external",
-            "Replicate_Ignore_DB": "mysql",
-            "Source_SSL_CA_File": "/etc/mysql/ssl/external_CA.pem",
-            "Replicate_Do_DB": "testdb1"
-        }]
+        {"Source_Host": "test_source"}
         """

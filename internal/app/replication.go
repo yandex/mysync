@@ -184,7 +184,7 @@ func ChangeSourceAlgorithm(app *App, node *mysql.Node, _ string, channel string)
 	// mark current source as error and then trying to change it
 	app.externalReplication.SetSourcesStatus(replicaStatus.GetMasterHost(), mysql.ErrorStatus)
 	for _, source := range *replicationSources {
-		value := app.externalReplication.GetSourcesStatus(source.SourceHost)
+		value := app.externalReplication.GetExtSourcesStatus(source.SourceHost)
 		if value == mysql.ErrorStatus {
 			app.logger.Infof("repair (external): ignoring source host %s due to error status in the past", source.SourceHost)
 			continue

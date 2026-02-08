@@ -16,7 +16,7 @@ type IExternalReplication interface {
 	Stop(*Node) error
 	IsRunningByUser(*Node) bool
 	ChangeSourceHost(*Node, string) error
-	GetSourcesStatus(string) ExternalSourceStatus
+	GetExtSourcesStatus(string) ExternalSourceStatus
 	SetSourcesStatus(string, ExternalSourceStatus)
 	ResetSourcesStatus()
 }
@@ -55,7 +55,7 @@ func (d *UnimplementedExternalReplication) ChangeSourceHost(*Node, string) error
 	return nil
 }
 
-func (d *UnimplementedExternalReplication) GetSourcesStatus(string) ExternalSourceStatus {
+func (d *UnimplementedExternalReplication) GetExtSourcesStatus(string) ExternalSourceStatus {
 	return UnknownStatus
 }
 
@@ -76,17 +76,19 @@ const (
 )
 
 type ExternalReplication struct {
-	logger        *log.Logger
-	sourcesStatus map[string]ExternalSourceStatus
+	logger             *log.Logger
+	sourcesStatus      map[string]ExternalSourceStatus
+	replicationChannel string
 }
 
-func NewExternalReplication(replicationType util.ExternalReplicationType, logger *log.Logger) (IExternalReplication, error) {
+func NewExternalReplication(replicationType util.ExternalReplicationType, logger *log.Logger, replicationChannel string) (IExternalReplication, error) {
 	switch replicationType {
 	case util.MyExternalReplication:
 		logger.Info("external replication is enabled")
 		return &ExternalReplication{
-			logger:        logger,
-			sourcesStatus: make(map[string]ExternalSourceStatus),
+			logger:             logger,
+			sourcesStatus:      make(map[string]ExternalSourceStatus),
+			replicationChannel: replicationChannel,
 		}, nil
 	default:
 		logger.Info("external replication is disabled")
@@ -105,7 +107,7 @@ func (er *ExternalReplication) IsSupported(n *Node) (bool, error) {
 func (er *ExternalReplication) Set(n *Node) error {
 	replSettings := new(replicationSettings)
 	err := n.queryRowMogrify(queryGetExternalReplicationSettings, map[string]any{
-		"channel": n.config.ExternalReplicationChannel,
+		"channel": er.replicationChannel,
 	},
 		replSettings)
 	if err != nil {
@@ -145,14 +147,14 @@ func (er *ExternalReplication) Set(n *Node) error {
 		"retryCount":      n.config.MySQL.ReplicationRetryCount,
 		"connectRetry":    n.config.MySQL.ReplicationConnectRetry,
 		"heartbeatPeriod": n.config.MySQL.ReplicationHeartbeatPeriod,
-		"channel":         n.config.ExternalReplicationChannel,
+		"channel":         er.replicationChannel,
 	})
 	if err != nil {
 		return err
 	}
 	err = n.execMogrify(queryIgnoreDB, map[string]any{
 		"ignoreList": schemaname("mysql"),
-		"channel":    n.config.ExternalReplicationChannel,
+		"channel":    er.replicationChannel,
 	})
 	if err != nil {
 		return err
@@ -161,7 +163,7 @@ func (er *ExternalReplication) Set(n *Node) error {
 	if filter.Valid && filter.String != "" {
 		err = n.execMogrify(querySetReplFilter, map[string]any{
 			"filter":  inlinestr(filter.String),
-			"channel": n.config.ExternalReplicationChannel,
+			"channel": er.replicationChannel,
 		})
 		if err != nil {
 			return err
@@ -176,7 +178,7 @@ func (er *ExternalReplication) Set(n *Node) error {
 func (er *ExternalReplication) IsRunningByUser(n *Node) bool {
 	replSettings := new(replicationSettings)
 	err := n.queryRowMogrify(queryGetExternalReplicationSettings, map[string]any{
-		"channel": n.config.ExternalReplicationChannel,
+		"channel": er.replicationChannel,
 	},
 		replSettings)
 	if err != nil {
@@ -198,7 +200,7 @@ func (er *ExternalReplication) GetReplicaStatus(n *Node) (ReplicaStatus, error) 
 		return nil, nil
 	}
 
-	return n.ReplicaStatusWithTimeout(n.config.DBTimeout, n.config.ExternalReplicationChannel)
+	return n.ReplicaStatusWithTimeout(n.config.DBTimeout, er.replicationChannel)
 }
 
 // StartExternalReplication starts external replication
@@ -209,7 +211,7 @@ func (er *ExternalReplication) Start(n *Node) error {
 	}
 	if checked {
 		err := n.execMogrify(queryStartReplica, map[string]any{
-			"channel": n.config.ExternalReplicationChannel,
+			"channel": er.replicationChannel,
 		})
 		if err != nil {
 			return err
@@ -226,7 +228,7 @@ func (er *ExternalReplication) Stop(n *Node) error {
 	}
 	if checked {
 		err := n.execMogrify(queryStopReplica, map[string]any{
-			"channel": n.config.ExternalReplicationChannel,
+			"channel": er.replicationChannel,
 		})
 		if err != nil && !IsErrorChannelDoesNotExists(err) {
 			return err
@@ -243,7 +245,7 @@ func (er *ExternalReplication) Reset(n *Node) error {
 	}
 	if checked {
 		err := n.execMogrify(queryResetReplicaAll, map[string]any{
-			"channel": n.config.ExternalReplicationChannel,
+			"channel": er.replicationChannel,
 		})
 		if err != nil && !IsErrorChannelDoesNotExists(err) {
 			return err
@@ -255,11 +257,11 @@ func (er *ExternalReplication) Reset(n *Node) error {
 func (er *ExternalReplication) ChangeSourceHost(n *Node, host string) error {
 	return n.execMogrify(queryChangeSourceHost, map[string]any{
 		"host":    host,
-		"channel": n.config.ExternalReplicationChannel,
+		"channel": er.replicationChannel,
 	})
 }
 
-func (er *ExternalReplication) GetSourcesStatus(host string) ExternalSourceStatus {
+func (er *ExternalReplication) GetExtSourcesStatus(host string) ExternalSourceStatus {
 	value, ok := er.sourcesStatus[host]
 	if ok {
 		return value
