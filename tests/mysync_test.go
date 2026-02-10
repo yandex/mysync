@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"io"
 	"log"
+	"maps"
 	"os"
 	"path/filepath"
 	"strings"
@@ -67,6 +68,8 @@ func (noLogger) Printf(string, ...any) {}
 
 func (noLogger) Print(...any) {}
 
+type sqlQueryResultRow map[string]any
+
 type testContext struct {
 	variables         map[string]any
 	templateErr       error
@@ -75,11 +78,12 @@ type testContext struct {
 	zk                *zk.Conn
 	dbs               map[string]*sqlx.DB
 	zkQueryResult     string
-	sqlQueryResult    []map[string]any
+	sqlQueryResult    []sqlQueryResultRow
 	sqlUserQueryError sync.Map // host -> error
 	commandRetcode    int
 	commandOutput     string
 	acl               []zk.ACL
+	comparisonSaved   map[string]string
 }
 
 func newTestContext() (*testContext, error) {
@@ -209,10 +213,11 @@ func (tctx *testContext) cleanup() {
 	tctx.variables = make(map[string]any)
 	tctx.composerEnv = make([]string, 0)
 	tctx.zkQueryResult = ""
-	tctx.sqlQueryResult = make([]map[string]any, 0)
+	tctx.sqlQueryResult = make([]sqlQueryResultRow, 0)
 	tctx.sqlUserQueryError = sync.Map{}
 	tctx.commandRetcode = 0
 	tctx.commandOutput = ""
+	tctx.comparisonSaved = make(map[string]string, 0)
 }
 
 func (tctx *testContext) connectZookeeper(addrs []string, timeout time.Duration) (*zk.Conn, error) {
@@ -289,7 +294,7 @@ func (tctx *testContext) getMysqlConnection(host string) (*sqlx.DB, error) {
 	return db, nil
 }
 
-func (tctx *testContext) queryMysql(host string, query string, args any) ([]map[string]any, error) {
+func (tctx *testContext) queryMysql(host string, query string, args any) ([]sqlQueryResultRow, error) {
 	if args == nil {
 		args = struct{}{}
 	}
@@ -301,7 +306,7 @@ func (tctx *testContext) queryMysql(host string, query string, args any) ([]map[
 	// sqlx can't execute requests with semicolon
 	// we will execute them in single connection
 	queries := strings.Split(query, ";")
-	var result []map[string]any
+	var result []sqlQueryResultRow
 
 	for _, q := range queries {
 		tctx.sqlQueryResult = nil
@@ -317,7 +322,7 @@ func (tctx *testContext) queryMysql(host string, query string, args any) ([]map[
 	return result, err
 }
 
-func (tctx *testContext) queryMysqlViaConnection(db *sqlx.DB, host string, query string, args any, timeout time.Duration) ([]map[string]any, error) {
+func (tctx *testContext) queryMysqlViaConnection(db *sqlx.DB, host string, query string, args any, timeout time.Duration) ([]sqlQueryResultRow, error) {
 	if args == nil {
 		args = struct{}{}
 	}
@@ -332,7 +337,7 @@ func (tctx *testContext) queryMysqlViaConnection(db *sqlx.DB, host string, query
 	return result, err
 }
 
-func (tctx *testContext) doMysqlQuery(db *sqlx.DB, query string, args any, timeout time.Duration) ([]map[string]any, error) {
+func (tctx *testContext) doMysqlQuery(db *sqlx.DB, query string, args any, timeout time.Duration) ([]sqlQueryResultRow, error) {
 	if args == nil {
 		args = struct{}{}
 	}
@@ -347,7 +352,7 @@ func (tctx *testContext) doMysqlQuery(db *sqlx.DB, query string, args any, timeo
 		_ = rows.Close()
 	}()
 
-	result := make([]map[string]any, 0)
+	result := make([]sqlQueryResultRow, 0)
 	for rows.Next() {
 		rowmap := make(map[string]any)
 		err = rows.MapScan(rowmap)
@@ -936,7 +941,7 @@ func (tctx *testContext) stepSQLResultShouldMatch(matcher string, body *godog.Do
 	}
 	res, err := json.Marshal(tctx.sqlQueryResult)
 	if err != nil {
-		panic(err)
+		return err
 	}
 	return m(string(res), strings.TrimSpace(body.Content))
 }
@@ -1492,6 +1497,62 @@ func (tctx *testContext) stepInfoFileOnHostMatch(filepath, host, matcher string,
 	return err
 }
 
+func (tctx *testContext) stepSQLResultShouldMatchWithTextIWillSave(matcher string, name string, body *godog.DocString) error {
+	m, err := matchers.GetMatcher(matcher)
+	if err != nil {
+		return err
+	}
+	if len(tctx.sqlQueryResult) != 1 {
+		err := fmt.Errorf("using saved query result works only for 1 row response")
+		return err
+	}
+	res, err := json.Marshal(tctx.sqlQueryResult[0])
+	if err != nil {
+		return err
+	}
+	tctx.comparisonSaved[name] = strings.TrimSpace(body.Content)
+	return m(string(res), strings.TrimSpace(body.Content))
+}
+
+func (tctx *testContext) stepSQLResultShouldMatchSavedWithChanges(matcher string, name string, body *godog.DocString) error {
+	m, err := matchers.GetMatcher(matcher)
+	if err != nil {
+		return err
+	}
+	extected := tctx.comparisonSaved[name]
+	if body != nil {
+		var changes, saved sqlQueryResultRow
+		err = json.Unmarshal([]byte(strings.TrimSpace(body.Content)), &changes)
+		if err != nil {
+			return err
+		}
+		err = json.Unmarshal([]byte(extected), &saved)
+		if err != nil {
+			return err
+		}
+		maps.Copy(saved, changes)
+		s, err := json.Marshal(saved)
+		if err != nil {
+			return err
+		}
+		extected = string(s)
+	}
+
+	if len(tctx.sqlQueryResult) != 1 {
+		err := fmt.Errorf("using saved query result works only for 1 row response")
+		return err
+	}
+	res, err := json.Marshal(tctx.sqlQueryResult[0])
+	if err != nil {
+		return err
+	}
+	return m(string(res), extected)
+}
+
+func (tctx *testContext) stepSQLResultShouldMatchSaved(matcher string, name string) error {
+	return tctx.stepSQLResultShouldMatchSavedWithChanges(matcher, name, nil)
+}
+
 // nolint: unused
 func InitializeScenario(s *godog.ScenarioContext) {
 	tctx, err := newTestContext()
@@ -1563,6 +1624,9 @@ func InitializeScenario(s *godog.ScenarioContext) {
 	s.Step(`^I break replication on host "([^"]*)" in repairable way$`, tctx.stepBreakReplicationOnHostInARepairableWay)
 	s.Step(`^I set used space on host "([^"]*)" to (\d+)%$`, tctx.stepSetUsedSpace)
 	s.Step(`^I set readonly file system on host "([^"]*)" to "([^"]*)"$`, tctx.stepSetReadonlyStatus)
+	s.Step(`^SQL result should match (\w+) witch I will save as "(\w+)"$`, tctx.stepSQLResultShouldMatchWithTextIWillSave)
+	s.Step(`^SQL result should match saved (\w+) text on path "(\w+)"$`, tctx.stepSQLResultShouldMatchSaved)
+	s.Step(`^SQL result should match saved (\w+) text on path "(\w+)" with following changes$`, tctx.stepSQLResultShouldMatchSavedWithChanges)
 
 	// zookeeper manipulation
 	s.Step(`^I get zookeeper node "([^"]*)"$`, tctx.stepIGetZookeeperNode)

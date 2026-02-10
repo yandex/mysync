@@ -55,6 +55,7 @@ jobs:
           - 'VERSION=8.0 GODOG_FEATURE=crash_recovery.feature make test'
           - 'VERSION=8.0 GODOG_FEATURE=events_reenable.feature make test'
           - 'VERSION=8.0 GODOG_FEATURE=external_replication.feature make test'
+          - 'VERSION=8.0 GODOG_FEATURE=external_replication_multiple.feature make test'
           - 'VERSION=8.0 GODOG_FEATURE=failover.feature make test'
           - 'VERSION=8.0 GODOG_FEATURE=free_space.feature make test'
           - 'VERSION=8.0 GODOG_FEATURE=host_discovery.feature make test'

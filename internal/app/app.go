@@ -85,7 +85,7 @@ func NewApp(configFile, logLevel string, interactive bool) (*App, error) {
 		logger.ReOpenOnSignal(syscall.SIGUSR2, sysLog)
 	}
 	log.WriteSysLogInfo(sysLog, "logger initialization completed")
-	externalReplication, err := mysql.NewExternalReplication(config.ExternalReplicationType, logger)
+	externalReplication, err := mysql.NewExternalReplication(config.ExternalReplicationType, logger, config.ExternalReplicationChannel)
 	if err != nil {
 		logger.Errorf("external replication initialization failed: %s", err)
 		return nil, err
@@ -2059,6 +2059,7 @@ func (app *App) repairExternalReplication(masterNode *mysql.Node) {
 	}
 
 	if app.externalReplication.IsRunningByUser(masterNode) && !extReplStatus.ReplicationRunning() {
+		app.logger.Info("repair (external): calling TryRepairReplication")
 		// TODO: remove "". Master is not needed for external replication now
 		app.TryRepairReplication(masterNode, "", app.config.ExternalReplicationChannel)
 	}
