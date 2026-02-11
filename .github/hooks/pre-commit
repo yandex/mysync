@@ -1,0 +1,8 @@
+#!/bin/sh
+set -e
+
+if command -v golangci-lint >/dev/null 2>&1; then
+    golangci-lint run
+else
+    make lint
+fi
