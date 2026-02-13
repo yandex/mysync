@@ -11,8 +11,8 @@ import (
 type ZookeeperConfig struct {
 	Hostname              string                   `config:"hostname" yaml:"hostname"`
 	SessionTimeout        time.Duration            `config:"session_timeout" yaml:"session_timeout"`
-	Namespace             string                   `config:"namespace,required"`
-	Hosts                 []string                 `config:"hosts,required"`
+	Namespace             string                   `config:"namespace,required" yaml:"namespace"`
+	Hosts                 []string                 `config:"hosts,required" yaml:"hosts"`
 	BackoffInterval       time.Duration            `config:"backoff_interval" yaml:"backoff_interval"`
 	BackoffRandFactor     float64                  `config:"backoff_rand_factor" yaml:"backoff_rand_factor"`
 	BackoffMultiplier     float64                  `config:"backoff_multiplier" yaml:"backoff_multiplier"`
