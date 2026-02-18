@@ -139,11 +139,11 @@ func (tctx *testContext) saveLogs(scenario string) error {
 		}
 	}
 	if len(errs) > 0 {
-		msg := ""
+		var msg strings.Builder
 		for _, err := range errs {
-			msg += err.Error() + "\n"
+			msg.WriteString(err.Error() + "\n")
 		}
-		return errors.New(msg)
+		return errors.New(msg.String())
 	}
 	return nil
 }
