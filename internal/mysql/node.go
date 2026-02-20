@@ -510,15 +510,15 @@ func (n *Node) GetDiskUsage() (used uint64, total uint64, err error) {
 }
 
 func getFlagsFromProcMounts(file, filesystem string) (string, error) {
-	for _, line := range strings.Split(file, "\n") {
+	for line := range strings.SplitSeq(file, "\n") {
 		components := strings.Split(line, " ")
 		if len(components) < 3 {
 			continue
 		}
 
 		if components[1] == filesystem {
-			flags := strings.Split(components[3], ",")
-			for _, flag := range flags {
+			flags := strings.SplitSeq(components[3], ",")
+			for flag := range flags {
 				if flag == "ro" || flag == "rw" {
 					return flag, nil
 				}
