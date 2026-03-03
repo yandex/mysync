@@ -215,12 +215,12 @@ func (z *zkDCS) handleSessionEvent(ev zk.Event) {
 		}
 		z.connectedLock.Unlock()
 	} else {
+		z.lockHeld.Clear()
 		if z.closeTimer == nil {
 			z.closeTimer = time.AfterFunc(z.config.SessionTimeout, func() {
 				z.connectedLock.Lock()
 				if z.isConnected && z.closeTimer != nil {
 					defer z.logger.Info("session lost")
-					z.lockHeld.Clear()
 					z.isConnected = false
 					err := z.disconnectCallback()
 					if err != nil {
