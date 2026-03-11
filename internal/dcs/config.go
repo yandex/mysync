@@ -11,6 +11,7 @@ import (
 type ZookeeperConfig struct {
 	Hostname              string                   `config:"hostname" yaml:"hostname"`
 	SessionTimeout        time.Duration            `config:"session_timeout" yaml:"session_timeout"`
+	LockHeldTTL           time.Duration            `config:"lock_held_ttl" yaml:"lock_held_ttl"`
 	Namespace             string                   `config:"namespace,required" yaml:"namespace"`
 	Hosts                 []string                 `config:"hosts,required" yaml:"hosts"`
 	BackoffInterval       time.Duration            `config:"backoff_interval" yaml:"backoff_interval"`
@@ -57,6 +58,7 @@ func DefaultZookeeperConfig() (ZookeeperConfig, error) {
 	config := ZookeeperConfig{
 		Hostname:              hostname,
 		SessionTimeout:        2 * time.Second,
+		LockHeldTTL:           30 * time.Second,
 		BackoffInterval:       backoff.DefaultInitialInterval,
 		BackoffRandFactor:     backoff.DefaultRandomizationFactor,
 		BackoffMultiplier:     backoff.DefaultMultiplier,

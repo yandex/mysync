@@ -340,9 +340,11 @@ func (z *zkDCS) retryDelete(path string, version int32) (err error) {
 
 func (z *zkDCS) AcquireLock(path string) bool {
 	fullPath := z.buildFullPath(path)
-	_, hasLock := z.lockHeld.Load(fullPath)
-	if hasLock {
-		return true
+	if cached, hasLock := z.lockHeld.Load(fullPath); hasLock {
+		if time.Since(cached.(time.Time)) < z.config.LockHeldTTL {
+			return true
+		}
+		z.lockHeld.Delete(fullPath)
 	}
 	self := z.getSelfLockOwner()
 	data, _, err := z.retryGet(fullPath)
@@ -362,7 +364,7 @@ func (z *zkDCS) AcquireLock(path string) bool {
 			}
 			return false
 		}
-		z.lockHeld.Store(fullPath, struct{}{})
+		z.lockHeld.Store(fullPath, time.Now())
 		return true
 	}
 	owner := LockOwner{}
@@ -371,7 +373,7 @@ func (z *zkDCS) AcquireLock(path string) bool {
 		return false
 	}
 	if owner == self {
-		z.lockHeld.Store(fullPath, struct{}{})
+		z.lockHeld.Store(fullPath, time.Now())
 		return true
 	}
 	return false
