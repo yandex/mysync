@@ -175,7 +175,17 @@ func (s *Syncer) stopNodes(
 	rs mysql.ReplicationSettings,
 ) error {
 	for _, host := range hosts {
-		err := c.GetNode(host).SetReplicationSettings(rs)
+		node := c.GetNode(host)
+		if node == nil {
+			s.logger.Infof(
+				"optimization: host %s was disabled, no need to turn off optimizations - skipping",
+				host,
+			)
+
+			continue
+		}
+
+		err := node.SetReplicationSettings(rs)
 		if err != nil {
 			return err
 		}

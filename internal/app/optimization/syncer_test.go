@@ -586,4 +586,56 @@ func TestDeadReplica(t *testing.T) {
 		err := opt.Sync(cluster)
 		require.NoError(t, err)
 	})
+
+	t.Run("Sync already deleted replica", func(t *testing.T) {
+		ctrl := gomock.NewController(t)
+
+		logger := NewMockLogger(ctrl)
+		logger.EXPECT().Infof("optimization: %s", "<disabled: [], optimizing: [], optimized: [], malfunc: [replica1]>")
+		logger.EXPECT().Infof("optimization: host %s was disabled, no need to turn off optimizations - skipping", "replica1")
+
+		config := config.OptimizationConfig{
+			LowReplicationMark:  5 * time.Second,
+			HighReplicationMark: 120 * time.Second,
+		}
+
+		master := NewMockNode(ctrl)
+
+		cluster := NewMockCluster(ctrl)
+		cluster.EXPECT().GetMaster().
+			Return("master").AnyTimes()
+		cluster.EXPECT().GetNode("master").
+			Return(master).AnyTimes()
+		cluster.EXPECT().GetState("master").
+			Return(
+				nodestate.NodeState{
+					ReplicationSettings: &mysql.ReplicationSettings{
+						InnodbFlushLogAtTrxCommit: 1,
+						SyncBinlog:                1,
+					},
+				}).AnyTimes()
+
+		cluster.EXPECT().GetNode("replica1").
+			Return(nil).AnyTimes()
+		cluster.EXPECT().GetState("replica1").
+			Return(
+				nodestate.NodeState{
+					ReplicationSettings: &mysql.ReplicationSettings{
+						InnodbFlushLogAtTrxCommit: 2,
+						SyncBinlog:                1000,
+					},
+					IsMaster: true, // Replica will be diagnosed as malfunctioned
+				}).AnyTimes()
+
+		Dcs := NewMockDCS(ctrl)
+		Dcs.EXPECT().GetHosts().
+			Return([]string{"replica1"}, nil)
+		Dcs.EXPECT().GetState("replica1").
+			Return(&DCSState{Status: "enabled"}, nil)
+		Dcs.EXPECT().DeleteHosts("replica1")
+
+		opt := NewSyncer(logger, config, Dcs)
+		err := opt.Sync(cluster)
+		require.NoError(t, err)
+	})
 }
