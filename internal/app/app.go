@@ -48,8 +48,9 @@ type App struct {
 	switchHelper        mysql.ISwitchHelper
 	lostQuorumTime      time.Time
 
-	optSyncer     OptimizationSyncer
-	optController OptimizationController
+	optSyncer         OptimizationSyncer
+	optController     OptimizationController
+	offlineModeFilter OfflineModeFilter
 
 	lagResetupper *resetup.LagResetupper
 }
@@ -102,6 +103,7 @@ func NewApp(configFile, logLevel string, interactive bool) (*App, error) {
 		slaveReadPositions:  make(map[string]string),
 		externalReplication: externalReplication,
 		switchHelper:        switchHelper,
+		offlineModeFilter:   NewOfflineModeFilter(config, logger),
 	}
 
 	// TODO: appDcs should be separate entity
@@ -1613,6 +1615,8 @@ func (app *App) getMasterHost(clusterState map[string]*nodestate.NodeState) (str
 
 func (app *App) repairOfflineMode(clusterState map[string]*nodestate.NodeState, master string) {
 	masterNode := app.cluster.Get(master)
+
+	pendingOfflineByAZ := make(map[string]int)
 	for host, state := range clusterState {
 		if !state.PingOk {
 			continue
@@ -1620,7 +1624,7 @@ func (app *App) repairOfflineMode(clusterState map[string]*nodestate.NodeState, 
 		if host == master {
 			app.repairMasterOfflineMode(host, state)
 		} else {
-			app.repairSlaveOfflineMode(host, state, masterNode, clusterState[master])
+			app.repairSlaveOfflineMode(host, state, masterNode, clusterState[master], clusterState, pendingOfflineByAZ)
 		}
 	}
 }
@@ -1641,7 +1645,7 @@ func (app *App) repairMasterOfflineMode(host string, state *nodestate.NodeState)
 }
 
 // nolint: gocyclo
-func (app *App) repairSlaveOfflineMode(host string, state *nodestate.NodeState, masterNode *mysql.Node, masterState *nodestate.NodeState) {
+func (app *App) repairSlaveOfflineMode(host string, state *nodestate.NodeState, masterNode *mysql.Node, masterState *nodestate.NodeState, clusterState map[string]*nodestate.NodeState, pendingOfflineByAZ map[string]int) {
 	if state.SlaveState == nil || state.SlaveState.ReplicationLag == nil {
 		return
 	}
@@ -1683,16 +1687,26 @@ func (app *App) repairSlaveOfflineMode(host string, state *nodestate.NodeState, 
 	}
 	// online => offline, if lag has increased
 	if !state.IsOffline && !masterState.IsReadOnly && *state.SlaveState.ReplicationLag > app.config.OfflineModeEnableLag.Seconds() {
-		err := node.SetOffline()
-		if err != nil {
-			app.logger.Errorf("repair: failed to set slave %s offline: %s", host, err)
-		} else {
-			app.logger.Infof("repair: slave %s set offline, because ReplicationLag (%f s) >= OfflineModeEnableLag (%v)",
-				host, *state.SlaveState.ReplicationLag, app.config.OfflineModeEnableLag)
-			err = app.optController.Enable(node)
+		if app.offlineModeFilter.CanSetOffline(host, clusterState, pendingOfflineByAZ) {
+			err := node.SetOffline()
 			if err != nil {
-				app.logger.Errorf("repair: failed to set optimize replication settings on slave %s: %s", host, err)
+				app.logger.Errorf("repair: failed to set slave %s offline: %s", host, err)
+			} else {
+				app.logger.Infof("repair: slave %s set offline, because ReplicationLag (%f s) >= OfflineModeEnableLag (%v)",
+					host, *state.SlaveState.ReplicationLag, app.config.OfflineModeEnableLag)
+
+				// Track all replicas which were set offline on current step
+				az := getAvailabilityZone(host, app.config.OfflineModeAZSeparator)
+				pendingOfflineByAZ[az]++
+
+				err = app.optController.Enable(node)
+				if err != nil {
+					app.logger.Errorf("repair: failed to set optimize replication settings on slave %s: %s", host, err)
+				}
 			}
+		} else {
+			app.logger.Warnf("repair: skip setting slave %s offline: AZ offline limit reached (offline_mode_max_offline_pct=%d)",
+				host, app.config.OfflineModeMaxOfflinePct)
 		}
 	}
 
