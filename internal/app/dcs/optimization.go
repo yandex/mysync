@@ -28,7 +28,11 @@ type OptimizationClusterAdapter struct {
 }
 
 func (ocs *OptimizationClusterAdapter) GetNode(hostname string) optimization.Node {
-	return ocs.cluster.Get(hostname)
+	node := ocs.cluster.Get(hostname)
+	if node == nil {
+		return nil
+	}
+	return node
 }
 
 func (ocs *OptimizationClusterAdapter) GetState(hostname string) nodestate.NodeState {
