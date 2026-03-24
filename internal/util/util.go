@@ -64,14 +64,14 @@ func RunParallel(f func(string) error, arguments []string) map[string]error {
 }
 
 func CombineErrors(allErrors map[string]error) error {
-	var errStr string
+	var errStr strings.Builder
 	for _, err := range allErrors {
 		if err != nil {
-			errStr += err.Error() + ";"
+			errStr.WriteString(err.Error() + ";")
 		}
 	}
-	if errStr != "" {
-		return errors.New(errStr)
+	if errStr.String() != "" {
+		return errors.New(errStr.String())
 	}
 	return nil
 }

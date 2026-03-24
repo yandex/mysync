@@ -88,3 +88,31 @@ Feature: hosts recovery
     """
     And I wait for "30" seconds
     And host "mysql2" should have file "/tmp/mysync.resetup" within "20" seconds
+
+  Scenario: deleted host, which is still present in zookeeper don't cause crash system
+    Given cluster is up and running
+    And zookeeper node "/test/active_nodes" should match json_exactly within "30" seconds
+    """
+    ["mysql1","mysql2","mysql3"]
+    """
+    And mysql host "mysql1" should be master
+    When I set zookeeper node "/test/optimization_nodes" to
+      """
+      {}
+      """
+    And I set zookeeper node "/test/optimization_nodes/mysql2" to
+      """
+      {}
+      """
+    And I set zookeeper node "/test/optimization_nodes/mysql3" to
+      """
+      {}
+      """
+    And I set zookeeper node "/test/optimization_nodes/not_existing" to
+      """
+      {}
+      """
+    Then zookeeper node "/test/optimization_nodes/mysql2" should not exist within "30" seconds
+    And zookeeper node "/test/optimization_nodes/mysql3" should not exist within "30" seconds
+    And zookeeper node "/test/optimization_nodes/not_existing" should not exist within "30" seconds
+
