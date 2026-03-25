@@ -35,18 +35,20 @@ func TestGetAvailabilityZone(t *testing.T) {
 }
 
 func TestNewOfflineModeFilter(t *testing.T) {
-	require.IsType(t, &neverAllowOfflineFilter{}, NewOfflineModeFilter(&config.Config{OfflineModeMaxOfflinePct: 0}, nil))
-	require.IsType(t, &neverAllowOfflineFilter{}, NewOfflineModeFilter(&config.Config{OfflineModeMaxOfflinePct: -1}, nil))
-	require.IsType(t, &alwaysAllowOfflineFilter{}, NewOfflineModeFilter(&config.Config{OfflineModeMaxOfflinePct: 100}, nil))
-	require.IsType(t, &alwaysAllowOfflineFilter{}, NewOfflineModeFilter(&config.Config{OfflineModeMaxOfflinePct: 110}, nil))
-	require.IsType(t, &azLimitedOfflineFilter{}, NewOfflineModeFilter(&config.Config{OfflineModeMaxOfflinePct: 50}, nil))
+	logger := getLogger()
+
+	require.IsType(t, &neverAllowOfflineFilter{}, NewOfflineModeFilter(&config.Config{OfflineModeMaxOfflinePct: 0}, logger))
+	require.IsType(t, &neverAllowOfflineFilter{}, NewOfflineModeFilter(&config.Config{OfflineModeMaxOfflinePct: -1}, logger))
+	require.IsType(t, &alwaysAllowOfflineFilter{}, NewOfflineModeFilter(&config.Config{OfflineModeMaxOfflinePct: 100}, logger))
+	require.IsType(t, &alwaysAllowOfflineFilter{}, NewOfflineModeFilter(&config.Config{OfflineModeMaxOfflinePct: 110}, logger))
+	require.IsType(t, &azLimitedOfflineFilter{}, NewOfflineModeFilter(&config.Config{OfflineModeMaxOfflinePct: 50}, logger))
 }
 
 func TestAlwaysAllowOfflineFilter(t *testing.T) {
 	f := &alwaysAllowOfflineFilter{}
 	require.True(t, f.CanSetOffline("any", nil, nil))
 	require.True(t, f.CanSetOffline("any", map[string]*nodestate.NodeState{
-		"vla-host-1": ns(true),
+		"vla-host-1": ns(false),
 		"vla-host-2": ns(true),
 	}, nil))
 }
@@ -144,16 +146,20 @@ func TestAzLimitedOfflineFilter_CanSetOffline(t *testing.T) {
 		},
 	}
 
+	logger := getLogger()
+
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			f := &azLimitedOfflineFilter{maxOfflinePct: tc.pct, azSeparator: sep}
+			f := &azLimitedOfflineFilter{maxOfflinePct: tc.pct, azSeparator: sep, logger: logger}
 			require.Equal(t, tc.want, f.CanSetOffline(tc.host, tc.state, map[string]int{}))
 		})
 	}
 }
 
 func TestAzLimitedOfflineFilter_EmptySeparator_AllHostsSameZone(t *testing.T) {
-	f := &azLimitedOfflineFilter{maxOfflinePct: 50, azSeparator: ""}
+	logger := getLogger()
+
+	f := &azLimitedOfflineFilter{maxOfflinePct: 50, azSeparator: "", logger: logger}
 	state := map[string]*nodestate.NodeState{
 		"vla-host-1": ns(false),
 		"sas-host-1": ns(false),
@@ -165,8 +171,10 @@ func TestAzLimitedOfflineFilter_EmptySeparator_AllHostsSameZone(t *testing.T) {
 }
 
 func TestAzLimitedOfflineFilter_PendingOfflineByAZ(t *testing.T) {
+	logger := getLogger()
 	const sep = "-"
-	f := &azLimitedOfflineFilter{maxOfflinePct: 50, azSeparator: sep}
+
+	f := &azLimitedOfflineFilter{maxOfflinePct: 50, azSeparator: sep, logger: logger}
 
 	state := map[string]*nodestate.NodeState{
 		"vla-host-1": ns(false),

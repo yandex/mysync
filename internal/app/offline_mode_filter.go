@@ -17,29 +17,17 @@ type OfflineModeFilter interface {
 
 func NewOfflineModeFilter(cfg *config.Config, logger *log.Logger) OfflineModeFilter {
 	if cfg.OfflineModeMaxOfflinePct <= 0 {
-		if logger != nil {
-			logger.Infof(
-				"offline mode filter: using neverAllowOfflineFilter (offline_mode_max_offline_pct=%d <= 0, no replicas may go offline)",
-				cfg.OfflineModeMaxOfflinePct,
-			)
-		}
+		logger.Infof("using neverAllowOfflineFilter, no replicas allowed to go offline")
 		return &neverAllowOfflineFilter{logger: logger}
 	}
 	if cfg.OfflineModeMaxOfflinePct >= 100 {
-		if logger != nil {
-			logger.Infof(
-				"offline mode filter: using alwaysAllowOfflineFilter (offline_mode_max_offline_pct=%d >= 100, all replicas may go offline)",
-				cfg.OfflineModeMaxOfflinePct,
-			)
-		}
+		logger.Infof("using alwaysAllowOfflineFilter, all replicas allowed to go offline")
 		return &alwaysAllowOfflineFilter{logger: logger}
 	}
-	if logger != nil {
-		logger.Infof(
-			"offline mode filter: using azLimitedOfflineFilter (offline_mode_max_offline_pct=%d%%, offline_mode_az_separator=%q)",
-			cfg.OfflineModeMaxOfflinePct, cfg.OfflineModeAZSeparator,
-		)
-	}
+	logger.Infof(
+		"offline mode filter: using azLimitedOfflineFilter (offline_mode_max_offline_pct=%d%%, offline_mode_az_separator=%q)",
+		cfg.OfflineModeMaxOfflinePct, cfg.OfflineModeAZSeparator,
+	)
 	return &azLimitedOfflineFilter{
 		maxOfflinePct: cfg.OfflineModeMaxOfflinePct,
 		azSeparator:   cfg.OfflineModeAZSeparator,
@@ -53,9 +41,6 @@ type alwaysAllowOfflineFilter struct {
 }
 
 func (f *alwaysAllowOfflineFilter) CanSetOffline(host string, _ map[string]*nodestate.NodeState, _ map[string]int) bool {
-	if f.logger != nil {
-		f.logger.Debugf("offline mode filter: host %s can go offline (offline_mode_max_offline_pct=100, all replicas allowed)", host)
-	}
 	return true
 }
 
@@ -65,9 +50,6 @@ type neverAllowOfflineFilter struct {
 }
 
 func (f *neverAllowOfflineFilter) CanSetOffline(host string, _ map[string]*nodestate.NodeState, _ map[string]int) bool {
-	if f.logger != nil {
-		f.logger.Debugf("offline mode filter: host %s cannot go offline (offline_mode_max_offline_pct=0, no replicas allowed)", host)
-	}
 	return false
 }
 
@@ -96,9 +78,6 @@ func (f *azLimitedOfflineFilter) CanSetOffline(host string, clusterState map[str
 
 	// Probably unreachable
 	if totalInAZ == 0 {
-		if f.logger != nil {
-			f.logger.Debugf("offline mode filter: host %s (az=%q): no replicas found in AZ, denying offline", host, az)
-		}
 		return false
 	}
 
@@ -111,12 +90,10 @@ func (f *azLimitedOfflineFilter) CanSetOffline(host string, clusterState map[str
 	willBeOfflinePct := int(math.Floor(100 * float64(offlineInAZ+1) / float64(totalInAZ)))
 
 	canGoOffline := willBeOfflinePct <= f.maxOfflinePct
-	if f.logger != nil {
-		f.logger.Debugf(
-			"offline mode filter: host %s (az=%q): total=%d, already_offline=%d, pending=%d, will_be_offline_pct=%d%%, max_offline_pct=%d%% => can_go_offline=%v",
-			host, az, totalInAZ, offlineInAZ-pendingInAZ, pendingInAZ, willBeOfflinePct, f.maxOfflinePct, canGoOffline,
-		)
-	}
+	f.logger.Debugf(
+		"offline mode filter: host %s (az=%q): total=%d, already_offline=%d, pending=%d, will_be_offline_pct=%d%%, max_offline_pct=%d%% => can_go_offline=%v",
+		host, az, totalInAZ, offlineInAZ-pendingInAZ, pendingInAZ, willBeOfflinePct, f.maxOfflinePct, canGoOffline,
+	)
 	return canGoOffline
 }
 
