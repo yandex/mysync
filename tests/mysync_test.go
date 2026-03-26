@@ -1553,6 +1553,56 @@ func (tctx *testContext) stepSQLResultShouldMatchSaved(matcher string, name stri
 	return tctx.stepSQLResultShouldMatchSavedWithChanges(matcher, name, nil)
 }
 
+func (tctx *testContext) stepMysqlOnlineReplicaCountShouldBe(count int) error {
+	online := 0
+	for _, service := range tctx.composer.Services() {
+		if !strings.HasPrefix(service, mysqlName) {
+			continue
+		}
+
+		res, err := tctx.queryMysql(service, "SELECT @@offline_mode AS offline_mode", nil)
+
+		if err != nil {
+			continue
+		}
+		if len(res) == 0 {
+			continue
+		}
+
+		var offlineMode int64
+		switch v := res[0]["offline_mode"].(type) {
+		case int64:
+			offlineMode = v
+		default:
+			continue
+		}
+
+		if offlineMode == 0 {
+			slaveStatus, err := tctx.runSlaveStatusQuery(service)
+			if err != nil {
+				continue
+			}
+			if slaveStatus != nil {
+				online++
+			}
+		}
+	}
+
+	if online != count {
+		return fmt.Errorf("expected %d online replicas, got %d", count, online)
+	}
+	return nil
+}
+
+func (tctx *testContext) stepMysqlOnlineReplicaCountShouldBeWithin(count int, timeout int) error {
+	var err error
+	testutil.Retry(func() bool {
+		err = tctx.stepMysqlOnlineReplicaCountShouldBe(count)
+		return err == nil
+	}, time.Duration(timeout*int(time.Second)), time.Second)
+	return err
+}
+
 // nolint: unused
 func InitializeScenario(s *godog.ScenarioContext) {
 	tctx, err := newTestContext()
@@ -1662,6 +1712,8 @@ func InitializeScenario(s *godog.ScenarioContext) {
 	s.Step(`^mysql host "([^"]*)" should become writable within "(\d+)" seconds$`, tctx.stepMysqlHostShouldBecomeWritableWithin)
 	s.Step(`^mysql host "([^"]*)" should be offline within "(\d+)" seconds`, tctx.shouldHaveVariableSetWithinFactory("offline_mode", "1"))
 	s.Step(`^mysql host "([^"]*)" should be online within "(\d+)" seconds$`, tctx.shouldHaveVariableSetWithinFactory("offline_mode", "0"))
+	s.Step(`^(\d+) mysql replicas should be online$`, tctx.stepMysqlOnlineReplicaCountShouldBe)
+	s.Step(`^(\d+) mysql replicas should be online within "(\d+)" seconds$`, tctx.stepMysqlOnlineReplicaCountShouldBeWithin)
 	s.Step(`^mysql host "([^"]*)" should have variable "([^"]*)" set to "([^"]*)"$`, tctx.stepMysqlHostShouldHaveVariableSet)
 	s.Step(`^mysql host "([^"]*)" should have variable "([^"]*)" set to "([^"]*)" within "(\d+)" seconds$`, tctx.stepMysqlHostShouldHaveVariableSetWithin)
 	s.Step(`^mysql host "([^"]*)" should have event "([^"]*)" in status "([^"]*)"$`, tctx.stepMysqlHostShouldHaveEventInStatus)

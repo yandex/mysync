@@ -46,6 +46,7 @@ db_set_ro_force_timeout: 40s
 db_set_ro_timeout: ${MYSYNC_SET_RO_TIMEOUT:-30s}
 offline_mode_enable_lag: ${OFFLINE_MODE_ENABLE_LAG:-10s}
 offline_mode_disable_lag: 5s
+offline_mode_max_offline_pct: ${OFFLINE_MODE_MAX_OFFLINE_PCT:-100}
 priority_choice_max_lag: ${MYSYNC_PRIORITY_CHOICE_LAG:-60s}
 disable_set_readonly_on_lost: false
 stream_from_reasonable_lag: ${MYSYNC_STREAM_FROM_REASONABLE_LAG:-5m}
