@@ -62,6 +62,7 @@ jobs:
           - 'VERSION=8.4 GODOG_FEATURE=host_management.feature make test'
           - 'VERSION=8.4 GODOG_FEATURE=maintenance.84.feature make test'
           - 'VERSION=8.4 GODOG_FEATURE=offline_mode.84.feature make test'
+          - 'VERSION=8.4 GODOG_FEATURE=offline_mode_az_limit.feature make test'
           - 'VERSION=8.4 GODOG_FEATURE=priority.feature make test'
           - 'VERSION=8.4 GODOG_FEATURE=readonly_filesystem.feature make test'
           - 'VERSION=8.4 GODOG_FEATURE=recovery.feature make test'

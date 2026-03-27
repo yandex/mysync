@@ -76,6 +76,8 @@ type Config struct {
 	OfflineModeEnableInterval               time.Duration                `config:"offline_mode_enable_interval" yaml:"offline_mode_enable_interval"`
 	OfflineModeEnableLag                    time.Duration                `config:"offline_mode_enable_lag" yaml:"offline_mode_enable_lag"`
 	OfflineModeDisableLag                   time.Duration                `config:"offline_mode_disable_lag" yaml:"offline_mode_disable_lag"`
+	OfflineModeMaxOfflinePct                int                          `config:"offline_mode_max_offline_pct" yaml:"offline_mode_max_offline_pct"`
+	OfflineModeAZSeparator                  string                       `config:"offline_mode_az_separator" yaml:"offline_mode_az_separator"`
 	ResetupHostLag                          time.Duration                `config:"resetup_host_lag" yaml:"resetup_host_lag"`
 	DisableSetReadonlyOnLost                bool                         `config:"disable_set_readonly_on_lost" yaml:"disable_set_readonly_on_lost"`
 	ResetupCrashedHosts                     bool                         `config:"resetup_crashed_hosts" yaml:"resetup_crashed_hosts"`
@@ -176,6 +178,8 @@ func DefaultConfig() (Config, error) {
 		OfflineModeEnableInterval:               15 * time.Minute,
 		OfflineModeEnableLag:                    24 * time.Hour,
 		OfflineModeDisableLag:                   30 * time.Second,
+		OfflineModeMaxOfflinePct:                100, // 100% of replicas can go offline by default
+		OfflineModeAZSeparator:                  "-", // availability prefix separator
 		ResetupHostLag:                          25 * time.Hour,
 		StreamFromReasonableLag:                 5 * time.Minute,
 		PriorityChoiceMaxLag:                    60 * time.Second,
