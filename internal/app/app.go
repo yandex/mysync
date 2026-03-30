@@ -497,6 +497,22 @@ func (app *App) stateLost() appState {
 	return stateLost
 }
 
+func (app *App) tryLeaveMaintenance() appState {
+	if app.AcquireLock(pathManagerLock) {
+		app.logger.Info("leaving maintenance")
+		err := app.leaveMaintenance()
+		if err != nil {
+			app.logger.Errorf("maintenance: failed to leave: %v", err)
+			return stateMaintenance
+		}
+		app.removeMaintenanceFile()
+		return stateManager
+	} else {
+		app.removeMaintenanceFile()
+		return stateCandidate
+	}
+}
+
 func (app *App) stateMaintenance() appState {
 	if !app.doesMaintenanceFileExist() {
 		app.writeMaintenanceFile()
@@ -506,19 +522,7 @@ func (app *App) stateMaintenance() appState {
 		return stateMaintenance
 	}
 	if err == dcs.ErrNotFound || maintenance.ShouldLeave {
-		if app.AcquireLock(pathManagerLock) {
-			app.logger.Info("leaving maintenance")
-			err := app.leaveMaintenance()
-			if err != nil {
-				app.logger.Errorf("maintenance: failed to leave: %v", err)
-				return stateMaintenance
-			}
-			app.removeMaintenanceFile()
-			return stateManager
-		} else {
-			app.removeMaintenanceFile()
-			return stateCandidate
-		}
+		return app.tryLeaveMaintenance()
 	}
 	return stateMaintenance
 }
@@ -585,7 +589,17 @@ func (app *App) stateManager() appState {
 		app.logger.Errorf("failed to get maintenance from zk %v", err)
 		return stateManager
 	}
-	if maintenance != nil {
+
+	// Handle maintenance light mode
+	lightMaintenance := maintenance != nil && maintenance.IsLightMode()
+	if lightMaintenance {
+		app.logger.Info("entering light maintenance mode")
+		if maintenance.ShouldLeave {
+			return app.tryLeaveMaintenance()
+		}
+	}
+
+	if maintenance != nil && !lightMaintenance {
 		if !maintenance.MySyncPaused {
 			app.logger.Info("entering maintenance")
 			err := app.enterMaintenance(maintenance, master)
@@ -600,64 +614,75 @@ func (app *App) stateManager() appState {
 	// check if switchover required or in progress
 	switchover := new(Switchover)
 	if err := app.dcs.Get(pathCurrentSwitch, switchover); err == nil {
-		err = app.approveSwitchover(switchover, activeNodes, clusterState)
-		if err != nil {
-			app.logger.Errorf("cannot perform switchover: %s", err)
-			err = app.FinishSwitchover(switchover, err)
-			if err != nil {
-				app.logger.Errorf("failed to reject switchover: %s", err)
-			}
-			return stateManager
-		}
-
-		err = app.StartSwitchover(switchover)
-		if err != nil {
-			app.logger.Errorf("failed to start switchover: %s", err)
-			return stateManager
-		}
-		err = app.performSwitchover(clusterState, activeNodes, switchover, master)
-		if app.dcs.Get(pathCurrentSwitch, new(Switchover)) == dcs.ErrNotFound {
-			app.logger.Errorf("switchover was aborted")
+		if lightMaintenance {
+			app.logger.Debugf("cannot perform switchover: blocked by light maintenance mode, skipping iteration")
 		} else {
+			err = app.approveSwitchover(switchover, activeNodes, clusterState)
 			if err != nil {
-				err = app.FailSwitchover(switchover, err)
+				app.logger.Errorf("cannot perform switchover: %s", err)
+				err = app.FinishSwitchover(switchover, err)
 				if err != nil {
-					app.logger.Errorf("failed to report switchover failure: %s", err)
+					app.logger.Errorf("failed to reject switchover: %s", err)
 				}
+				return stateManager
+			}
+
+			err = app.StartSwitchover(switchover)
+			if err != nil {
+				app.logger.Errorf("failed to start switchover: %s", err)
+				return stateManager
+			}
+			err = app.performSwitchover(clusterState, activeNodes, switchover, master)
+			if app.dcs.Get(pathCurrentSwitch, new(Switchover)) == dcs.ErrNotFound {
+				app.logger.Errorf("switchover was aborted")
 			} else {
-				err = app.FinishSwitchover(switchover, nil)
 				if err != nil {
-					// we failed to update status in DCS, it's highly possible
-					// that current process lost DCS connection
-					// and another process will take managerLock
-					app.logger.Errorf("failed to report switchover finish: %s", err)
+					err = app.FailSwitchover(switchover, err)
+					if err != nil {
+						app.logger.Errorf("failed to report switchover failure: %s", err)
+					}
+				} else {
+					err = app.FinishSwitchover(switchover, nil)
+					if err != nil {
+						// we failed to update status in DCS, it's highly possible
+						// that current process lost DCS connection
+						// and another process will take managerLock
+						app.logger.Errorf("failed to report switchover finish: %s", err)
+					}
 				}
 			}
+			return stateManager
 		}
-		return stateManager
 	} else if err != dcs.ErrNotFound {
 		app.logger.Error(err.Error())
 		return stateManager
 	}
 
 	// perform failover if needed
+
 	if !clusterStateDcs[master].PingOk || clusterStateDcs[master].IsFileSystemReadonly {
 		app.logger.Errorf("MASTER FAILURE")
 		app.t.SetIfZero(NodeFailedAt, master, time.Now())
-		err = app.approveFailover(clusterState, clusterStateDcs, activeNodes, master)
-		if err == nil {
-			app.logger.Infof("failover approved")
-			err = app.IssueFailover(master)
-			if err != nil {
-				app.logger.Error(err.Error())
-			}
+		if lightMaintenance {
+			app.logger.Infof("failover suppressed by light maintenance mode")
 		} else {
-			app.logger.Errorf("failover was not approved: %v", err)
+			err = app.approveFailover(clusterState, clusterStateDcs, activeNodes, master)
+			if err == nil {
+				app.logger.Infof("failover approved")
+				err = app.IssueFailover(master)
+				if err != nil {
+					app.logger.Error(err.Error())
+				}
+			} else {
+				app.logger.Errorf("failover was not approved: %v", err)
+			}
+
+			return stateManager
 		}
-		return stateManager
 	} else {
 		app.t.Clean(NodeFailedAt, master)
 	}
+
 	if !clusterState[master].PingOk {
 		app.logger.Errorf("MASTER SUSPICIOUS, do not perform any kind of repair")
 		return stateManager
@@ -672,16 +697,20 @@ func (app *App) stateManager() appState {
 	// perform after-crash failover if needed
 	if app.config.ResetupCrashedHosts && countHANodes(clusterState) > 1 && clusterStateDcs[master].DaemonState != nil && clusterStateDcs[master].DaemonState.CrashRecovery {
 		app.logger.Errorf("MASTER FAILURE (CRASH RECOVERY)")
-		err = app.approveFailover(clusterState, clusterStateDcs, activeNodes, master)
-		if err == nil {
-			app.logger.Infof("failover approved")
-			err = app.IssueFailover(master)
-			if err != nil {
-				app.logger.Error(err.Error())
-			}
-			return stateManager
+		if lightMaintenance {
+			app.logger.Infof("after-crash failover suppressed by light maintenance mode")
 		} else {
-			app.logger.Errorf("failover was not approved: %v", err)
+			err = app.approveFailover(clusterState, clusterStateDcs, activeNodes, master)
+			if err == nil {
+				app.logger.Infof("failover approved")
+				err = app.IssueFailover(master)
+				if err != nil {
+					app.logger.Error(err.Error())
+				}
+				return stateManager
+			} else {
+				app.logger.Errorf("failover was not approved: %v", err)
+			}
 		}
 	}
 

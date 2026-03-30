@@ -75,6 +75,7 @@ jobs:
           - 'VERSION=8.4 GODOG_FEATURE=zk_maintenance.feature make test'
           - 'VERSION=8.4 GODOG_FEATURE=manager_switchover.feature make test'
           - 'VERSION=8.4 GODOG_FEATURE=optimization.feature make test'
+          - 'VERSION=8.4 GODOG_FEATURE=light_maintenance_mode.feature make test'
       fail-fast: false
 
     steps:

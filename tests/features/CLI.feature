@@ -129,3 +129,32 @@ Feature: CLI
         """
         Then command return code should be "0"
         Then zookeeper node "/test/cascade_nodes/mysql2" should not exist within "5" seconds
+
+    Scenario: CLI maintenance light mode writes to DCS and exits correctly
+        Given cluster is up and running
+        When I run command on host "mysql1"
+        """
+        mysync maint on --light
+        """
+        Then command return code should be "0"
+        And command output should match regexp
+        """
+        maintenance enabled
+        """
+        And zookeeper node "/test/maintenance" should match json within "30" seconds
+        """
+        {
+          "initiated_by": "REGEXP:.*@mysql1",
+          "mode": "light"
+        }
+        """
+        When I run command on host "mysql1"
+        """
+        mysync maint off
+        """
+        Then command return code should be "0"
+        And command output should match regexp
+        """
+        maintenance disabled
+        """
+        And zookeeper node "/test/maintenance" should not exist within "30" seconds

@@ -135,12 +135,29 @@ type SwitchoverResult struct {
 }
 
 // Maintenance struct presence means that cluster under manual control
+// Light mode allows everything except failover and switchover
+type MaintenanceMode string
+
+const (
+	LightMode MaintenanceMode = "light"
+	FullMode  MaintenanceMode = "full"
+)
+
 type Maintenance struct {
-	InitiatedBy  string    `json:"initiated_by"`
-	InitiatedAt  time.Time `json:"initiated_at"`
-	MySyncPaused bool      `json:"mysync_paused"`
-	ShouldLeave  bool      `json:"should_leave"`
-	Reason       string    `json:"reason,omitempty"`
+	InitiatedBy  string          `json:"initiated_by"`
+	InitiatedAt  time.Time       `json:"initiated_at"`
+	MySyncPaused bool            `json:"mysync_paused"`
+	ShouldLeave  bool            `json:"should_leave"`
+	Reason       string          `json:"reason,omitempty"`
+	Mode         MaintenanceMode `json:"mode"`
+}
+
+func (m *Maintenance) MaintAcquired() bool {
+	return m.IsLightMode() || m.MySyncPaused
+}
+
+func (m *Maintenance) IsLightMode() bool {
+	return m != nil && m.Mode == LightMode
 }
 
 func (m *Maintenance) String() string {
@@ -155,5 +172,6 @@ func (m *Maintenance) String() string {
 	if m.Reason != "" {
 		reasonSuffix = fmt.Sprintf(" (%s)", m.Reason)
 	}
-	return fmt.Sprintf("<%s by %s at %s%s>", ms, m.InitiatedBy, m.InitiatedAt, reasonSuffix)
+
+	return fmt.Sprintf("<%s by %s at %s%s. mode: %s>", ms, m.InitiatedBy, m.InitiatedAt, reasonSuffix, m.Mode)
 }

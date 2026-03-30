@@ -10,7 +10,7 @@ import (
 )
 
 // CliEnableMaintenance enables maintenance mode
-func (app *App) CliEnableMaintenance(waitTimeout time.Duration, reason string) int {
+func (app *App) CliEnableMaintenance(waitTimeout time.Duration, reason string, mode MaintenanceMode) int {
 	ctx := app.baseContext()
 	err := app.connectDCS()
 	if err != nil {
@@ -24,13 +24,14 @@ func (app *App) CliEnableMaintenance(waitTimeout time.Duration, reason string) i
 		InitiatedBy: util.GuessWhoRunning() + "@" + app.config.Hostname,
 		InitiatedAt: time.Now(),
 		Reason:      reason,
+		Mode:        mode,
 	}
 	err = app.dcs.Create(pathMaintenance, maintenance)
 	if err != nil && err != dcs.ErrExists {
 		app.logger.Error(err.Error())
 		return 1
 	}
-	// wait for mysync to pause
+	// wait for mysync to pause or for maintenance with light mode to appear in DCS
 	if waitTimeout > 0 {
 		waitCtx, cancel := context.WithTimeout(ctx, waitTimeout)
 		defer cancel()
@@ -43,14 +44,14 @@ func (app *App) CliEnableMaintenance(waitTimeout time.Duration, reason string) i
 				if err != nil {
 					app.logger.Error(err.Error())
 				}
-				if maintenance.MySyncPaused {
+				if maintenance.MaintAcquired() {
 					break Out
 				}
 			case <-waitCtx.Done():
 				break Out
 			}
 		}
-		if !maintenance.MySyncPaused {
+		if !maintenance.MaintAcquired() {
 			app.logger.Error("could not wait for mysync to enter maintenance")
 			return 1
 		}
