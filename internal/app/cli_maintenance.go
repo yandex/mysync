@@ -10,7 +10,7 @@ import (
 )
 
 // CliEnableMaintenance enables maintenance mode
-func (app *App) CliEnableMaintenance(waitTimeout time.Duration, reason string, mode string) int {
+func (app *App) CliEnableMaintenance(waitTimeout time.Duration, reason string, mode MaintenanceMode) int {
 	ctx := app.baseContext()
 	err := app.connectDCS()
 	if err != nil {
@@ -44,14 +44,14 @@ func (app *App) CliEnableMaintenance(waitTimeout time.Duration, reason string, m
 				if err != nil {
 					app.logger.Error(err.Error())
 				}
-				if maintenance.IsLightMode() || maintenance.MySyncPaused {
+				if maintenance.MaintAcquired() {
 					break Out
 				}
 			case <-waitCtx.Done():
 				break Out
 			}
 		}
-		if !maintenance.IsLightMode() && !maintenance.MySyncPaused {
+		if !maintenance.MaintAcquired() {
 			app.logger.Error("could not wait for mysync to enter maintenance")
 			return 1
 		}

@@ -12,7 +12,7 @@ import (
 
 var maintWait time.Duration
 var maintReason string
-var mode string
+var mode app.MaintenanceMode
 var maintLight bool
 
 var maintCmd = &cobra.Command{
@@ -33,9 +33,9 @@ var maintOnCmd = &cobra.Command{
 		"Use --light to enable light maintenance mode, which keeps MySync running but blocks automatic failover and switchover.",
 	Run: func(cmd *cobra.Command, args []string) {
 		if maintLight {
-			mode = "light"
+			mode = app.LightMode
 		} else {
-			mode = ""
+			mode = app.FullMode
 		}
 		app, err := app.NewApp(configFile, logLevel, true)
 		if err != nil {
