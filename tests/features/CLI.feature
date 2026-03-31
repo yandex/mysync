@@ -145,7 +145,8 @@ Feature: CLI
         """
         {
           "initiated_by": "REGEXP:.*@mysql1",
-          "mode": "light"
+          "mode": "light",
+          "mysync_paused": true
         }
         """
         When I run command on host "mysql1"

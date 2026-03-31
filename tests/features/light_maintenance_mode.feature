@@ -30,7 +30,8 @@ Feature: light maintenance mode behaviour
         """
         {
             "initiated_by": "test",
-            "mode": "light"
+            "mode": "light",
+            "mysync_paused": true
         }
         """
 
@@ -84,7 +85,8 @@ Feature: light maintenance mode behaviour
         """
         {
             "initiated_by": "test",
-            "mode": "light"
+            "mode": "light",
+            "mysync_paused": true
         }
         """
         When host "mysql1" is stopped
@@ -129,7 +131,8 @@ Feature: light maintenance mode behaviour
         """
         {
         "initiated_by": "test",
-        "mode": "light"
+        "mode": "light",
+        "mysync_paused": true
         }
         """
         And zookeeper node "/test/active_nodes" should match json_exactly
@@ -164,14 +167,12 @@ Feature: light maintenance mode behaviour
         }
         """
 
-        # Expecting mysync_paused field to be empty(false), because in light mode
-        # we don't deactivate it
-
         Then zookeeper node "/test/maintenance" should match json within "30" seconds
         """
         {
         "initiated_by": "test",
-        "mode": "light"
+        "mode": "light",
+        "mysync_paused": true
         }
         """
         When I run command on host "mysql1"
