@@ -153,7 +153,7 @@ type Maintenance struct {
 }
 
 func (m *Maintenance) MaintAcquired() bool {
-	return m.IsLightMode() || m.MySyncPaused
+	return m != nil && m.MySyncPaused
 }
 
 func (m *Maintenance) IsLightMode() bool {
@@ -162,7 +162,7 @@ func (m *Maintenance) IsLightMode() bool {
 
 func (m *Maintenance) String() string {
 	ms := "entering"
-	if m.MySyncPaused {
+	if m.MaintAcquired() {
 		ms = "ON"
 	}
 	if m.ShouldLeave {

@@ -524,6 +524,7 @@ func (app *App) stateMaintenance() appState {
 	if err == dcs.ErrNotFound || maintenance.ShouldLeave {
 		return app.tryLeaveMaintenance()
 	}
+
 	return stateMaintenance
 }
 
@@ -587,28 +588,47 @@ func (app *App) stateManager() appState {
 	maintenance, err := app.GetMaintenance()
 	if err != nil && err != dcs.ErrNotFound {
 		app.logger.Errorf("failed to get maintenance from zk %v", err)
-		return stateManager
+
+		// If maintenance file doesn't exist we were in light maintenance mode
+		// and can proceed in state Manager
+		if app.doesMaintenanceFileExist() {
+			return stateMaintenance
+		}
 	}
 
-	// Handle maintenance light mode
 	lightMaintenance := maintenance != nil && maintenance.IsLightMode()
+
+	// Handle maintenance light mode
 	if lightMaintenance {
 		app.logger.Info("entering light maintenance mode")
 		if maintenance.ShouldLeave {
 			return app.tryLeaveMaintenance()
 		}
-	}
 
-	if maintenance != nil && !lightMaintenance {
-		if !maintenance.MySyncPaused {
-			app.logger.Info("entering maintenance")
-			err := app.enterMaintenance(maintenance, master)
+		// Signal to dcs that we have set light maintenance mode
+		if !maintenance.MaintAcquired() {
+			maintenance.MySyncPaused = true
+			err := app.dcs.Set(pathMaintenance, maintenance)
+
 			if err != nil {
-				app.logger.Errorf("failed to enter maintenance: %v", err)
+				app.logger.Errorf("failed to enter light maintenance mode: %v", err)
 				return stateManager
 			}
 		}
-		return stateMaintenance
+	} else {
+		// Handle maintenance full mode
+		if maintenance != nil {
+			if !maintenance.MaintAcquired() {
+				app.logger.Info("entering full maintenance mode")
+				err := app.enterMaintenance(maintenance, master)
+				if err != nil {
+					app.logger.Errorf("failed to enter maintenance: %v", err)
+					return stateManager
+				}
+			}
+
+			return stateMaintenance
+		}
 	}
 
 	// check if switchover required or in progress
@@ -912,7 +932,7 @@ func (app *App) stateCandidate() appState {
 		return stateCandidate
 	}
 	// candidate enters maintenane only after manager, when mysync already paused
-	if maintenance != nil && maintenance.MySyncPaused {
+	if maintenance != nil && maintenance.MySyncPaused && !maintenance.IsLightMode() {
 		return stateMaintenance
 	}
 	if app.AcquireLock(pathManagerLock) {
