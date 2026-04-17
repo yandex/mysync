@@ -274,10 +274,10 @@ func (z *zkDCS) Initialize() {
 func (z *zkDCS) retryRequestInternal(code func() error) error {
 	err := code()
 	if err != zk.ErrConnectionClosed {
-		return nil
+		return backoff.Permanent(err)
 	}
 	if !z.IsConnected() {
-		return nil
+		return backoff.Permanent(err)
 	}
 	return err
 }

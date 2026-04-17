@@ -100,7 +100,11 @@ Feature: CLI
         Then command return code should be "2"
         And command output should match regexp
         """
-        .*replica can be set cascade.*[[:space:]].*node already has priority 5 set.*
+        .*replica can be set cascade.*
+        """
+        And command output should match regexp
+        """
+        .*node already has priority 5 set.*
         """
         When I run command on host "mysql3"
         """
@@ -114,7 +118,11 @@ Feature: CLI
         Then command return code should be "1"
         And command output should match regexp
         """
-        .*node is already streaming from mysql3[[:space:]].*node mysql2 is not HA node, priority cannot be set.*
+        .*node is already streaming from mysql3.*
+        """
+        And command output should match regexp
+        """
+        .*node mysql2 is not HA node, priority cannot be set.*
         """
         Then zookeeper node "/test/cascade_nodes/mysql2" should exist within "5" seconds
         When I run command on host "mysql3"
