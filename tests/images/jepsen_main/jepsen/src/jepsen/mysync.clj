@@ -20,6 +20,9 @@
 
 (def register (atom 0))
 
+(def zk-user "testuser")
+(def zk-password "testpassword123")
+
 (defn open-conn
   "Given a JDBC connection spec, opens a new connection unless one already
   exists. JDBC represents open connections as a map with a :connection key.
@@ -66,6 +69,28 @@
    :user        "client"
    :password    "client_pwd"})
 
+(defn zk-connect-auth
+  "Connect to ZooKeeper and add digest auth required to read /test paths."
+  [test]
+  (let [zk-hosts (clojure.string/join
+                   ","
+                   (map (fn [x] (str x ":2181"))
+                        (filter (fn [x] (string/includes? (name x) "zookeeper"))
+                                (:nodes test))))
+        client   (zk/connect zk-hosts)]
+    (zk/add-auth-info client "digest" (str zk-user ":" zk-password))
+    client))
+
+(defn resolve-master
+  "Query ZooKeeper for the current mysync master hostname."
+  [test]
+  (let [client (zk-connect-auth test)]
+    (try
+      (clojure.string/replace
+        (String. (get (zk/data client "/test/master") :data))
+        #"\"" "")
+      (finally (zk/close client)))))
+
 (defn noop-client
   "Noop client"
   []
@@ -79,14 +104,13 @@
     client/Reusable
     (reusable? [_ test] true)))
 
-(defn read_portion [c n chunk_size]
-  (def q (str "select value from test1.test_set where value > " (* n chunk_size) " and value <= " (* (+ n 1) chunk_size)))
-  (info (str "Query: " q))
-  (def result_value (->> (j/query c [q]
-                              {:row-fn :value})
-                    (vec)
-                    (set)))
-  result_value)
+(defn read-portion
+  "Read a single chunk of values in (low, high] from connection c."
+  [c low high]
+  (let [q (str "select value from test1.test_set where value > " low " and value <= " high)]
+    (info (str "Query: " q))
+    (->> (j/query c [q] {:row-fn :value})
+         (into #{}))))
 
 (defn mysql-client
   "MySQL client"
@@ -104,28 +128,51 @@
     (invoke! [this test op]
       (try
             (case (:f op)
-              ; read resultset
-              ; timeout in milliseconds
-              :read (timeout 120000 (assoc op :type :info, :error "read-timeout")
-                  (do
-                    (close-conn conn)
-                    (with-conn [c conn]
-                    (cond (= (count (j/query c ["show slave status for channel ''"])) 0)
-                      (do
-                          ; Dataset may be huge, we will read chunks and concat them later
-                          (def max_value (:max_value (first (j/query c ["select max(value) as max_value from test1.test_set"]))))
-                          (def chunk_size 10000)
-                          (def portion_cnt (Math/ceil (/ max_value chunk_size)))
-                          (info (str "Max value: " max_value))
-                          (info (str "Portions count: " portion_cnt))
-                          (def result_set (set '()))
-                          (dotimes [n (+ portion_cnt 1)]
-                              (info (str "Reading portion " n))
-                              (def result_set (set/union result_set (read_portion c n chunk_size))))
-                          (assoc op :type :ok,
-                                    :value result_set))
-                        true
-                        (assoc op :type :info, :error "read-only")))))
+              :read
+                (let [master-host (resolve-master test)
+                      master-conn (atom (conn-spec master-host))]
+                  (info (str "Resolved master: " master-host))
+                  (try
+                    (with-conn [c master-conn]
+                      (let [max-value  (:max_value (first (j/query c ["select max(value) as max_value from test1.test_set"])))
+                            chunk-size 10000
+                            chunks     (if (or (nil? max-value) (zero? max-value))
+                                         0
+                                         (long (Math/ceil (/ (double max-value) chunk-size))))]
+                        (info (str "max-value=" max-value " chunks=" chunks))
+                        (let [result
+                              (loop [n 0 acc #{}]
+                                (if (>= n chunks)
+                                  acc
+                                  (let [low     (* n chunk-size)
+                                        high    (* (inc n) chunk-size)
+                                        portion (loop [attempt 0]
+                                                  (let [res (try
+                                                              (timeout 30000 ::chunk-timeout
+                                                                       (read-portion c low high))
+                                                              (catch Throwable t
+                                                                (warn (str "chunk " n
+                                                                           " attempt " attempt
+                                                                           " error: " (.getMessage t)))
+                                                                ::chunk-error))]
+                                                    (if (or (= res ::chunk-timeout)
+                                                            (= res ::chunk-error))
+                                                      (if (< attempt 2)
+                                                        (do
+                                                          (locking master-conn
+                                                            (swap! master-conn (comp open-conn close-conn)))
+                                                          (recur (inc attempt)))
+                                                        ::chunk-failed)
+                                                      res)))]
+                                    (if (= portion ::chunk-failed)
+                                      ::abort
+                                      (recur (inc n) (into acc portion))))))]
+                          (if (= result ::abort)
+                            (assoc op :type :info, :error "chunk-failed")
+                            (do
+                              (info (str "Read OK: " (count result) " elements"))
+                              (assoc op :type :ok, :value result))))))
+                    (finally (close-conn @master-conn))))
               ; inserts value into table
               :add (timeout 5000 (assoc op :type :info, :error "add-timeout")
                   (with-conn [c conn]
@@ -139,7 +186,7 @@
               (re-find #"The MySQL server is running with the --(super-)?read-only option so it cannot execute this statement" m#) (assoc op :type :info, :error "catch-read-only")
               (re-find #"The server is currently in offline mode" m#) (assoc op :type :info, :error "catch-offline")
               true (do
-                     (warn (str "Query error: " m# " on adding: " (get op :value)))
+                     (warn (str "Query error: " m# " on op: " (:f op)))
                      (assoc op :type :info, :error m#)
                     ))))))
 
@@ -244,20 +291,16 @@
 
     (invoke! [this test op]
              (case (:f op)
-               :switch (assoc op :value
-                         (try
-                           (let [client (zk/connect
-                                          (clojure.string/join
-                                            ","
-                                            (map (fn [x] (str x ":2181"))
-                                                 (filter (fn [x] (string/includes? (name x) "zookeeper"))
-                                                         (:nodes test)))))]
-                             (let [master (clojure.string/replace (String. (get (zk/data client "/test/master") :data))
-                                                                  #"\"" "")
-                                   node (rand-nth (filter (fn [x] (not (string/includes? (name x) "zookeeper"))) (:nodes test)))]
-                                (info (str "running switchover from " master))
-                                (control/on node
-                                  (control/exec :mysync :switch :--from master))))
+                :switch (assoc op :value
+                          (try
+                            (let [client (zk-connect-auth test)]
+                              (let [master (clojure.string/replace (String. (get (zk/data client "/test/master") :data))
+                                                                   #"\"" "")
+                                    node (rand-nth (filter (fn [x] (not (string/includes? (name x) "zookeeper"))) (:nodes test)))]
+                                 (info (str "running switchover from " master))
+                                 (zk/close client)
+                                 (control/on node
+                                   (control/exec :mysync :switch :--from master))))
                              (catch Throwable t#
                                (let [m# (.getMessage t#)]
                                  (do (warn (str "Unable to run switch: "
@@ -303,15 +346,14 @@
                                     {:type :sleep, :value 60}
                                     {:type :info, :f :stop}
                                     {:type :sleep, :value 60}])))
-                     (gen/time-limit 3600))
-                (gen/sleep 10) 
-                (->> r
-                     ; try to read test data each 5 seconds for 1200 seconds
-                     (gen/stagger 5)
-                     (gen/nemesis
-                       (fn [] (map gen/once
-                                   [{:type :info, :f :stop}
-                                    {:type :sleep, :value 200}])))
-                     (gen/time-limit 1200)))
+                      (gen/time-limit 3600))
+                 (gen/sleep 10)
+                 (->> r
+                      (gen/stagger 30)
+                      (gen/nemesis
+                        (fn [] (map gen/once
+                                    [{:type :info, :f :stop}
+                                     {:type :sleep, :value 300}])))
+                      (gen/time-limit 600)))
    :checker   mysync-set
    :remote    control/ssh})
