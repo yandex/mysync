@@ -15,7 +15,7 @@ func (app *App) GetActiveNodes() ([]string, error) {
 	var activeNodes []string
 	err := app.dcs.Get(pathActiveNodes, &activeNodes)
 	if err != nil {
-		if err == dcs.ErrNotFound {
+		if err == dcs.ErrNotFound || err == dcs.ErrMalformed {
 			return nil, nil
 		}
 		return nil, fmt.Errorf("failed to get active nodes from zk %v", err)

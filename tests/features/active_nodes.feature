@@ -154,3 +154,52 @@ Feature: mysync saves quorum hosts in zk
     """
     ["mysql1","mysql2","mysql3"]
     """
+
+  Scenario: mysync recovers from malformed active nodes after restart
+    Given cluster is up and running
+    And zookeeper node "/test/active_nodes" should match json_exactly within "30" seconds
+    """
+    ["mysql1","mysql2","mysql3"]
+    """
+    When I run command on host "mysql1" with timeout "20" seconds
+      """
+      supervisorctl stop mysync
+      """
+    Then command return code should be "0"
+    When I run command on host "mysql2" with timeout "20" seconds
+      """
+      supervisorctl stop mysync
+      """
+    Then command return code should be "0"
+    When I run command on host "mysql3" with timeout "20" seconds
+      """
+      supervisorctl stop mysync
+      """
+    Then command return code should be "0"
+    When I set raw zookeeper node "/test/active_nodes" to
+      """
+      [[[]garbage
+      """
+    When I run command on host "mysql1" with timeout "20" seconds
+      """
+      supervisorctl start mysync
+      """
+    Then command return code should be "0"
+    When I run command on host "mysql2" with timeout "20" seconds
+      """
+      supervisorctl start mysync
+      """
+    Then command return code should be "0"
+    When I run command on host "mysql3" with timeout "20" seconds
+      """
+      supervisorctl start mysync
+      """
+    Then command return code should be "0"
+    Then mysql host "mysql1" should be master
+    And mysql host "mysql2" should be replica of "mysql1"
+    And mysql host "mysql3" should be replica of "mysql1"
+    And mysql host "mysql1" should be writable
+    And zookeeper node "/test/active_nodes" should match json_exactly within "30" seconds
+    """
+    ["mysql1","mysql2","mysql3"]
+    """
