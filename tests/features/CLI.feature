@@ -167,3 +167,66 @@ Feature: CLI
         maintenance disabled
         """
         And zookeeper node "/test/maintenance" should not exist within "30" seconds
+
+    Scenario: CLI info short prints cluster nodes
+        Given cluster is up and running
+        Then mysql host "mysql1" should be master
+        And mysql host "mysql2" should be replica of "mysql1"
+        And mysql replication on host "mysql2" should run fine within "5" seconds
+        And mysql host "mysql3" should be replica of "mysql1"
+        And mysql replication on host "mysql3" should run fine within "5" seconds
+
+        When I run command on host "mysql1"
+        """
+        mysync info -s
+        """
+        Then command return code should be "0"
+        And command output should match regexp
+        """
+        (?s).*ha_nodes:.*mysql1.*mysql2.*mysql3.*
+        """
+        And command output should match regexp
+        """
+        (?s).*active_nodes:.*mysql1.*mysql2.*mysql3.*
+        """
+        And command output should match regexp
+        """
+        (?s).*health:\n- '===> "mysql1": .*\n- '     "mysql2": .*\n- '     "mysql3": .*
+        """
+
+    Scenario: CLI info short filters health by host and zone
+        Given cluster is up and running
+        Then mysql host "mysql1" should be master
+        And mysql host "mysql2" should be replica of "mysql1"
+        And mysql replication on host "mysql2" should run fine within "5" seconds
+        And mysql host "mysql3" should be replica of "mysql1"
+        And mysql replication on host "mysql3" should run fine within "5" seconds
+
+        When I run command on host "mysql1"
+        """
+        mysync info -s --host mysql2
+        """
+        Then command return code should be "0"
+        And command output should match regexp
+        """
+        (?s).*health:.*"mysql2".*
+        """
+        And command output should not match regexp
+        """
+        (?s).*health:.*"mysql1".*
+        """
+
+        When I run command on host "mysql1"
+        """
+        mysync info -s --zone klg
+        """
+        Then command return code should be "0"
+        And command output should not match regexp
+        """
+        (?s).*health:.*"mysql2".*
+        """
+        And command output should not match regexp
+        """
+        (?s).*health:.*"mysql1".*
+        """
+
