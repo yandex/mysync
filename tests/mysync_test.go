@@ -1060,11 +1060,7 @@ func (tctx *testContext) createZookeeperNode(node string) error {
 	return nil
 }
 
-func (tctx *testContext) stepISetZookeeperNode(node string, body *godog.DocString) error {
-	data := []byte(strings.TrimSpace(body.Content))
-	if !json.Valid(data) {
-		return fmt.Errorf("node value is not valid json")
-	}
+func (tctx *testContext) setZookeeperNode(node string, data []byte) error {
 	_, stat, err := tctx.zk.Get(node)
 	if err != nil && err != zk.ErrNoNode {
 		return err
@@ -1075,6 +1071,19 @@ func (tctx *testContext) stepISetZookeeperNode(node string, body *godog.DocStrin
 		_, err = tctx.zk.Set(node, data, stat.Version)
 	}
 	return err
+}
+
+func (tctx *testContext) stepISetZookeeperNode(node string, body *godog.DocString) error {
+	data := []byte(strings.TrimSpace(body.Content))
+	if !json.Valid(data) {
+		return fmt.Errorf("node value is not valid json")
+	}
+	return tctx.setZookeeperNode(node, data)
+}
+
+func (tctx *testContext) stepISetRawZookeeperNode(node string, body *godog.DocString) error {
+	data := []byte(strings.TrimSpace(body.Content))
+	return tctx.setZookeeperNode(node, data)
 }
 
 func (tctx *testContext) stepIDeleteZookeeperNode(node string) error {
@@ -1681,6 +1690,7 @@ func InitializeScenario(s *godog.ScenarioContext) {
 	// zookeeper manipulation
 	s.Step(`^I get zookeeper node "([^"]*)"$`, tctx.stepIGetZookeeperNode)
 	s.Step(`^I set zookeeper node "([^"]*)" to$`, tctx.stepISetZookeeperNode)
+	s.Step(`^I set raw zookeeper node "([^"]*)" to$`, tctx.stepISetRawZookeeperNode)
 	s.Step(`^I delete zookeeper node "([^"]*)"$`, tctx.stepIDeleteZookeeperNode)
 
 	// zookeeper checking
