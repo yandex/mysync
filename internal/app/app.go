@@ -637,6 +637,14 @@ func (app *App) stateManager() appState {
 		if lightMaintenance {
 			app.logger.Debugf("cannot perform switchover: blocked by light maintenance mode, skipping iteration")
 		} else {
+			if !switchover.InitiatedAt.IsZero() && time.Since(switchover.InitiatedAt) > app.config.SwitchoverTimeout {
+				app.logger.Errorf("switchover %s => %s timed out after %s", switchover.From, switchover.To, time.Since(switchover.InitiatedAt))
+				err = app.FailSwitchover(switchover, fmt.Errorf("switchover timed out after %s", time.Since(switchover.InitiatedAt)))
+				if err != nil {
+					app.logger.Errorf("failed to report switchover timeout: %s", err)
+				}
+				return stateManager
+			}
 			err = app.approveSwitchover(switchover, activeNodes, clusterState)
 			if err != nil {
 				app.logger.Errorf("cannot perform switchover: %s", err)
@@ -1429,6 +1437,10 @@ func (app *App) performSwitchover(clusterState map[string]*nodestate.NodeState, 
 			return fmt.Errorf("%s", errMessage)
 		}
 		app.logger.Infof("switchover: host %s replication IO thread stopped", host)
+		ns := app.getNodeState(host)
+		if broken, _ := ns.IsReplicationPermanentlyBroken(); broken {
+			return fmt.Errorf("switchover: host %s replication is permanently broken", host)
+		}
 		return nil
 	}, filterOut(activeNodes, []string{oldMaster}))
 
