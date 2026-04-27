@@ -1444,6 +1444,45 @@ func (app *App) performSwitchover(clusterState map[string]*nodestate.NodeState, 
 		return err
 	}
 
+	hostsOnRecovery, hostsOnRecoveryErr := app.GetHostsOnRecovery()
+	if hostsOnRecoveryErr != nil {
+		app.logger.Warnf("switchover: failed to get hosts on recovery: %v", hostsOnRecoveryErr)
+	}
+	var nonActiveReachable []string
+	for _, host := range app.cluster.HANodeHosts() {
+		if host == oldMaster {
+			continue
+		}
+		if slices.Contains(activeNodes, host) {
+			continue
+		}
+		if state, ok := clusterState[host]; !ok || !state.PingOk {
+			continue
+		}
+		if hostsOnRecovery != nil && slices.Contains(hostsOnRecovery, host) {
+			continue
+		}
+		nonActiveReachable = append(nonActiveReachable, host)
+	}
+	frozenNonActive := make(map[string]struct{}, len(nonActiveReachable))
+	if len(nonActiveReachable) > 0 {
+		errs3 := util.RunParallel(func(host string) error {
+			node := app.cluster.Get(host)
+			err := node.StopSlaveIOThread()
+			if err != nil {
+				app.logger.Warnf("switchover: best-effort freeze of non-active host %s failed: %v", host, err)
+				return err
+			}
+			app.logger.Infof("switchover: non-active host %s replication IO thread stopped (cluster-wide check)", host)
+			return nil
+		}, nonActiveReachable)
+		for _, host := range nonActiveReachable {
+			if errs3[host] == nil {
+				frozenNonActive[host] = struct{}{}
+			}
+		}
+	}
+
 	// setting server read-only may take a while so we need to ensure we are still a manager
 	if !app.AcquireLock(pathManagerLock) || app.emulateError("set_read_only_lost_lock") {
 		return errors.New("manger lock lost during switchover, new manager should finish the process, leaving")
@@ -1460,6 +1499,48 @@ func (app *App) performSwitchover(clusterState map[string]*nodestate.NodeState, 
 	}
 	if len(positions) == 1 && switchover.From == positions[0].host {
 		return fmt.Errorf("switchover: no suitable nodes to switchover from  %s, delaying", switchover.From)
+	}
+
+	if len(frozenNonActive) > 0 {
+		activeMostRecent, _, activeSplitbrain := findMostRecentNodeAndDetectSplitbrain(positions)
+		if !activeSplitbrain && activeMostRecent != "" {
+			clusterWide := append([]string{}, frozenActiveNodes...)
+			for host := range frozenNonActive {
+				clusterWide = append(clusterWide, host)
+			}
+			allPositions, perr := app.getNodePositions(clusterWide)
+			if perr != nil {
+				app.logger.Warnf("switchover: cluster-wide position collection failed: %v (continuing with active-only check)", perr)
+			} else {
+				var truthGtid gtids.GTIDSet
+				for _, p := range allPositions {
+					if p.host == activeMostRecent {
+						truthGtid = p.gtidset
+						break
+					}
+				}
+				if truthGtid != nil {
+					var diverged []string
+					for _, p := range allPositions {
+						if slices.Contains(frozenActiveNodes, p.host) {
+							continue
+						}
+						if !truthGtid.Contain(p.gtidset) {
+							diverged = append(diverged, p.host)
+							app.logger.Errorf("switchover: non-active host %s has divergent GTIDs (host=%s, active-leader=%s)", p.host, p.gtidset, truthGtid)
+						}
+					}
+					if len(diverged) > 0 {
+						for _, h := range diverged {
+							if err := app.SetRecovery(h); err != nil {
+								app.logger.Errorf("switchover: failed to mark %s for recovery: %v", h, err)
+							}
+						}
+						return fmt.Errorf("aborting switchover: non-active host(s) have divergent GTIDs and were marked for resetup: %v", diverged)
+					}
+				}
+			}
+		}
 	}
 
 	// find most recent host
@@ -1975,7 +2056,13 @@ func (app *App) repairSlaveNode(node *mysql.Node, clusterState map[string]*nodes
 	if state.SlaveState != nil {
 		if state.SlaveState.ReplicationState == mysql.ReplicationError {
 			if result, code := state.IsReplicationPermanentlyBroken(); result {
-				app.logger.Warnf("repair: replication on host %v is permanently broken, error code: %d", host, code)
+				app.logger.Errorf("repair: replication on host %s is permanently broken (err %d), stopping replication and marking for resetup", host, code)
+				if err := node.StopSlave(); err != nil {
+					app.logger.Errorf("repair: failed to stop slave on %s: %v", host, err)
+				}
+				if err := app.SetRecovery(host); err != nil {
+					app.logger.Errorf("repair: failed to mark %s for recovery: %v", host, err)
+				}
 			} else {
 				app.TryRepairReplication(node, master, app.config.ReplicationChannel)
 			}
