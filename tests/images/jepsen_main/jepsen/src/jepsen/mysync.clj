@@ -12,9 +12,9 @@
                     [nemesis :as nemesis]
                     [generator :as gen]
                     [checker :as checker]
+                    [history :as h]
                     [util :as util :refer [timeout]]
                     [net :as net]]
-            [knossos [op :as op]]
             [clojure.java.jdbc :as j]
             [zookeeper :as zk]))
 
@@ -215,17 +215,17 @@
   (reify checker/Checker
     (check [this test history opts]
       (let [attempts (->> history
-                      (r/filter op/invoke?)
+                      (r/filter h/invoke?)
                       (r/filter #(= :add (:f %)))
                       (r/map :value)
                       (into #{}))
             adds (->> history
-                      (r/filter op/ok?)
+                      (r/filter h/ok?)
                       (r/filter #(= :add (:f %)))
                       (r/map :value)
                       (into #{}))
             final-read (->> history
-                      (r/filter op/ok?)
+                      (r/filter h/ok?)
                       (r/filter #(= :read (:f %)))
                       (r/map :value)
                       (reduce (fn [_ x] x) nil))]
@@ -280,7 +280,7 @@
     (teardown! [this test]
       (info (str "Stopping killer")))
     nemesis/Reflection
-    (fs [this] #{})))
+    (fs [this] #{:kill})))
 
 (defn zk-switcher
   []
@@ -309,7 +309,7 @@
     (teardown! [this test]
       (info (str "Stopping switcher")))
     nemesis/Reflection
-    (fs [this] #{})))
+    (fs [this] #{:switch})))
 
 (def nemesis-starts [:start-halves :start-ring :start-one :switch :kill])
 
@@ -319,7 +319,7 @@
    :name      "mysync"
    :os        os/noop
    :db        (db)
-   :ssh       {:private-key-path "/root/.ssh/id_rsa" :strict-host-key-checking :no}
+   :ssh       {:private-key-path "/root/.ssh/id_rsa" :strict-host-key-checking false}
    :net       net/iptables
    :client    (mysql-client nil)
    :nemesis   (nemesis/compose {{:start-halves :start} (nemesis/partition-random-halves)
