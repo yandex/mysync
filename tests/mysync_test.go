@@ -910,6 +910,17 @@ func (tctx *testContext) stepCommandOutputShouldMatch(matcher string, body *godo
 	return m(tctx.commandOutput, strings.TrimSpace(body.Content))
 }
 
+func (tctx *testContext) stepCommandOutputShouldNotMatch(matcher string, body *godog.DocString) error {
+	m, err := matchers.GetMatcher(matcher)
+	if err != nil {
+		return err
+	}
+	if err = m(tctx.commandOutput, strings.TrimSpace(body.Content)); err == nil {
+		return fmt.Errorf("command output unexpectedly matched %s", matcher)
+	}
+	return nil
+}
+
 func (tctx *testContext) stepIRunSQLOnHost(host string, body *godog.DocString) error {
 	query := strings.TrimSpace(body.Content)
 	_, err := tctx.queryMysql(host, query, struct{}{})
@@ -1676,6 +1687,7 @@ func InitializeScenario(s *godog.ScenarioContext) {
 	s.Step(`^I change replication source on host "([^"]*)" to "([^"]*)"$`, tctx.stepIChangeReplicationSource)
 	s.Step(`^command return code should be "(\d+)"$`, tctx.stepCommandReturnCodeShouldBe)
 	s.Step(`^command output should match (\w+)$`, tctx.stepCommandOutputShouldMatch)
+	s.Step(`^command output should not match (\w+)$`, tctx.stepCommandOutputShouldNotMatch)
 	s.Step(`^I run SQL on mysql host "([^"]*)"$`, tctx.stepIRunSQLOnHost)
 	s.Step(`^I run SQL on mysql host "([^"]*)" expecting error on number "(\d+)"$`, tctx.stepIRunSQLOnHostExpectingErrorOfNumber)
 	s.Step(`^SQL result should match (\w+)$`, tctx.stepSQLResultShouldMatch)
