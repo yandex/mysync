@@ -18,7 +18,9 @@ var stateCmd = &cobra.Command{
 			fmt.Println(err)
 			os.Exit(1)
 		}
-		os.Exit(app.CliState(short))
+		code := app.CliState(short)
+		app.CloseLogger()
+		os.Exit(code)
 	},
 }
 

@@ -14,7 +14,7 @@ import (
 func (app *App) CliHostList() int {
 	err := app.connectDCS()
 	if err != nil {
-		app.logger.Error(err.Error())
+		app.logger.Error().Err(err).Msg("")
 		return 1
 	}
 	app.dcs.Initialize()
@@ -22,7 +22,7 @@ func (app *App) CliHostList() int {
 
 	err = app.newDBCluster()
 	if err != nil {
-		app.logger.Error(err.Error())
+		app.logger.Error().Err(err).Msg("")
 		return 1
 	}
 	defer app.cluster.Close()
@@ -31,7 +31,7 @@ func (app *App) CliHostList() int {
 
 	haNodes, err := app.cluster.GetClusterHAFqdnsFromDcs()
 	if err != nil {
-		app.logger.Errorf("failed to get ha nodes: %v", err)
+		app.logger.Error().Err(err).Msg("failed to get ha nodes")
 		return 1
 	}
 	sort.Strings(haNodes)
@@ -39,14 +39,14 @@ func (app *App) CliHostList() int {
 
 	cascadeNodes, err := app.cluster.GetClusterCascadeHostsFromDcs()
 	if err != nil {
-		app.logger.Errorf("failed to get cascade nodes: %v", err)
+		app.logger.Error().Err(err).Msg("failed to get cascade nodes")
 		return 1
 	}
 	data[pathCascadeNodesPrefix] = cascadeNodes
 
 	out, err := yaml.Marshal(data)
 	if err != nil {
-		app.logger.Errorf("failed to marshal yaml: %v", err)
+		app.logger.Error().Err(err).Msg("failed to marshal yaml")
 		return 1
 	}
 	fmt.Print(string(out))
@@ -58,13 +58,13 @@ func (app *App) CliHostAdd(host string, streamFrom *string, priority *int64, dry
 	err := validatePriority(priority)
 	if err != nil {
 		fmt.Println(err.Error())
-		app.logger.Error(err.Error())
+		app.logger.Error().Err(err).Msg("")
 		return 1
 	}
 
 	err = app.connectDCS()
 	if err != nil {
-		app.logger.Error(err.Error())
+		app.logger.Error().Err(err).Msg("")
 		return 1
 	}
 	defer app.dcs.Close()
@@ -72,7 +72,7 @@ func (app *App) CliHostAdd(host string, streamFrom *string, priority *int64, dry
 
 	err = app.newDBCluster()
 	if err != nil {
-		app.logger.Error(err.Error())
+		app.logger.Error().Err(err).Msg("")
 		return 1
 	}
 	defer app.cluster.Close()
@@ -89,17 +89,17 @@ func (app *App) CliHostAdd(host string, streamFrom *string, priority *int64, dry
 
 	err = app.cluster.UpdateHostsInfo()
 	if err != nil {
-		app.logger.Error(err.Error())
+		app.logger.Error().Err(err).Msg("")
 		return 1
 	}
 
 	ok, err := pingMysql(skipMySQLCheck, app.cluster, host)
 	if err != nil {
-		app.logger.Errorf("failed to check connection to %q: %v, can't tell if it's alive", host, err)
+		app.logger.Error().Err(err).Msgf("failed to check connection to %q: can't tell if it's alive", host)
 		return 1
 	}
 	if !ok {
-		app.logger.Errorf("host %q is inaccessible, please start it before adding to the cluster", host)
+		app.logger.Error().Msgf("host %q is inaccessible, please start it before adding to the cluster", host)
 		return 1
 	}
 
@@ -147,7 +147,7 @@ func (app *App) CliHostAdd(host string, streamFrom *string, priority *int64, dry
 func (app *App) CliHostRemove(host string) int {
 	err := app.connectDCS()
 	if err != nil {
-		app.logger.Error(err.Error())
+		app.logger.Error().Err(err).Msg("")
 		return 1
 	}
 	defer app.dcs.Close()
@@ -155,18 +155,18 @@ func (app *App) CliHostRemove(host string) int {
 
 	err = app.newDBCluster()
 	if err != nil {
-		app.logger.Error(err.Error())
+		app.logger.Error().Err(err).Msg("")
 		return 1
 	}
 	defer app.cluster.Close()
 
 	ok, err := app.cluster.PingNode(host)
 	if err != nil {
-		app.logger.Errorf("failed to check connection to %q: %v, can't tell if it's alive", host, err)
+		app.logger.Error().Err(err).Msgf("failed to check connection to %q: can't tell if it's alive", host)
 		return 1
 	}
 	if ok {
-		app.logger.Errorf("host %q is still accessible, please stop it before removing from the cluster", host)
+		app.logger.Error().Msgf("host %q is still accessible, please stop it before removing from the cluster", host)
 		return 1
 	}
 	err = app.dcs.Delete(dcs.JoinPath(pathHANodes, host))
@@ -228,12 +228,12 @@ func (app *App) processReplicationSource(streamFrom string, dryRun bool, host st
 
 		ok, err := pingMysql(skipMySQLCheck, app.cluster, streamFrom)
 		if err != nil {
-			app.logger.Errorf("failed to check connection to %q: %v, can't tell if it's alive", streamFrom, err)
+			app.logger.Error().Err(err).Msgf("failed to check connection to %q: can't tell if it's alive", streamFrom)
 			return false, err
 		}
 		if !ok {
 			err = fmt.Errorf("host %q is inaccessible, please start it before adding it as stream_from source", streamFrom)
-			app.logger.Error(err.Error())
+			app.logger.Error().Err(err).Msg("")
 			return false, err
 		}
 

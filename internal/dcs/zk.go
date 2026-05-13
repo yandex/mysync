@@ -38,8 +38,8 @@ const (
 	PathCascadeNodesPrefix = "cascade_nodes"
 )
 
-func (zklp zkLoggerProxy) Printf(fmt string, args ...any) {
-	zklp.Debugf(fmt, args...)
+func (zklp zkLoggerProxy) Printf(format string, args ...any) {
+	zklp.Logger.Debug().Msgf(format, args...)
 }
 
 func retry(config *ZookeeperConfig, operation func() error) error {
@@ -191,7 +191,7 @@ func (z *zkDCS) makePath(path string) error {
 
 func (z *zkDCS) handleEvents() {
 	for ev := range z.eventsChan {
-		z.logger.Debugf("got ZK event %+v", ev)
+		z.logger.Debug().Msgf("got ZK event %+v", ev)
 		if ev.Type == zk.EventSession {
 			z.handleSessionEvent(ev)
 		}
@@ -206,7 +206,7 @@ func (z *zkDCS) handleSessionEvent(ev zk.Event) {
 			z.closeTimer = nil
 		}
 		if !z.isConnected {
-			defer z.logger.Infof("session established")
+			defer z.logger.Info().Msg("session established")
 			z.isConnected = true
 			for _, c := range z.connectedChans {
 				close(c)
@@ -220,11 +220,11 @@ func (z *zkDCS) handleSessionEvent(ev zk.Event) {
 			z.closeTimer = time.AfterFunc(z.config.SessionTimeout, func() {
 				z.connectedLock.Lock()
 				if z.isConnected && z.closeTimer != nil {
-					defer z.logger.Info("session lost")
+					defer z.logger.Info().Msg("session lost")
 					z.isConnected = false
 					err := z.disconnectCallback()
 					if err != nil {
-						z.logger.Errorf("Disconnect callback failure: %s", err.Error())
+						z.logger.Error().Err(err).Msg("Disconnect callback failure")
 					}
 				}
 				z.connectedLock.Unlock()
@@ -259,7 +259,7 @@ func (z *zkDCS) WaitConnected(timeout time.Duration) bool {
 	case <-c:
 		return true
 	case <-t.C:
-		z.logger.Errorf("failed to connect to DCS within %s", timeout)
+		z.logger.Error().Msgf("failed to connect to DCS within %s", timeout)
 		return false
 	}
 }
@@ -267,7 +267,7 @@ func (z *zkDCS) WaitConnected(timeout time.Duration) bool {
 func (z *zkDCS) Initialize() {
 	err := z.makePath(z.config.Namespace)
 	if err != nil {
-		z.logger.Errorf("failed create root path %s : %v", z.config.Namespace, err)
+		z.logger.Error().Err(err).Msgf("failed create root path %s", z.config.Namespace)
 	}
 }
 
@@ -289,7 +289,7 @@ func (z *zkDCS) retryRequest(code func() error) {
 
 	err := retry(z.config, operation)
 	if err != nil {
-		z.logger.Errorf("retryRequest failed: %v", err)
+		z.logger.Error().Err(err).Msg("retryRequest failed")
 	}
 }
 
@@ -349,9 +349,10 @@ func (z *zkDCS) AcquireLock(path string) bool {
 	self := z.getSelfLockOwner()
 	data, _, err := z.retryGet(fullPath)
 	if err != nil && err != zk.ErrNoNode {
-		z.logger.Errorf("failed to get lock info %s: %v", fullPath, err)
+		z.logger.Error().Err(err).Msgf("failed to get lock info %s", fullPath)
 		return false
 	}
+
 	if err == zk.ErrNoNode {
 		data, err = json.Marshal(&self)
 		if err != nil {
@@ -360,7 +361,7 @@ func (z *zkDCS) AcquireLock(path string) bool {
 		_, err = z.retryCreate(fullPath, data, zk.FlagEphemeral, z.acl)
 		if err != nil {
 			if err != zk.ErrNodeExists {
-				z.logger.Errorf("failed to acquire lock %s: %v", fullPath, err)
+				z.logger.Error().Err(err).Msgf("failed to acquire lock %s", fullPath)
 			}
 			return false
 		}
@@ -369,7 +370,7 @@ func (z *zkDCS) AcquireLock(path string) bool {
 	}
 	owner := LockOwner{}
 	if err = json.Unmarshal(data, &owner); err != nil {
-		z.logger.Errorf("malformed lock data %s (%s): %v", fullPath, data, err)
+		z.logger.Error().Err(err).Msgf("malformed lock data %s (%s)", fullPath, data)
 		return false
 	}
 	if owner == self {
@@ -384,21 +385,21 @@ func (z *zkDCS) ReleaseLock(path string) {
 	z.lockHeld.Delete(fullPath)
 	data, stat, err := z.retryGet(fullPath)
 	if err != nil && err != zk.ErrNoNode {
-		z.logger.Errorf("failed to get lock info %s: %v", fullPath, err)
+		z.logger.Error().Err(err).Msgf("failed to get lock info %s", fullPath)
 		return
 	}
 	owner := LockOwner{}
 	if err = json.Unmarshal(data, &owner); err != nil {
-		z.logger.Errorf("unexpected lock data %s (%s): %v", fullPath, data, err)
+		z.logger.Error().Err(err).Msgf("unexpected lock data %s (%s)", fullPath, data)
 		return
 	}
 	if owner != z.getSelfLockOwner() {
-		z.logger.Errorf("failed to release lock %s: process is not an owner", fullPath)
+		z.logger.Error().Msgf("failed to release lock %s: process is not an owner", fullPath)
 		return
 	}
 	err = z.retryDelete(fullPath, stat.Version)
 	if err != nil {
-		z.logger.Errorf("failed to delete lock node %s: %v", fullPath, err)
+		z.logger.Error().Err(err).Msgf("failed to delete lock node %s", fullPath)
 	}
 }
 
@@ -413,7 +414,7 @@ func (z *zkDCS) create(path string, val any, flags int32) error {
 		if err == zk.ErrNodeExists {
 			return ErrExists
 		}
-		z.logger.Errorf("failed to create node %s with %+v: %v", fullPath, val, err)
+		z.logger.Error().Err(err).Msgf("failed to create node %s with %+v", fullPath, val)
 	}
 	return err
 }
@@ -434,7 +435,7 @@ func (z *zkDCS) set(path string, val any, flags int32) error {
 	}
 	_, stat, err := z.retryGet(fullPath)
 	if err != nil && err != zk.ErrNoNode {
-		z.logger.Errorf("failed to get node %s: %v", fullPath, err)
+		z.logger.Error().Err(err).Msgf("failed to get node %s", fullPath)
 		return err
 	}
 	if err == zk.ErrNoNode {
@@ -445,7 +446,7 @@ func (z *zkDCS) set(path string, val any, flags int32) error {
 		}
 		_, err = z.retryCreate(fullPath, data, flags, z.acl)
 		if err != nil {
-			z.logger.Errorf("failed to create node %s with %v: %v", fullPath, val, err)
+			z.logger.Error().Err(err).Msgf("failed to create node %s with %v", fullPath, val)
 		}
 		return err
 	}
@@ -454,7 +455,7 @@ func (z *zkDCS) set(path string, val any, flags int32) error {
 	}
 	_, err = z.retrySet(fullPath, data, stat.Version)
 	if err != nil {
-		z.logger.Errorf("failed to set node %s to %+v: %v", fullPath, val, err)
+		z.logger.Error().Err(err).Msgf("failed to set node %s to %+v", fullPath, val)
 	}
 	return err
 }
@@ -474,12 +475,12 @@ func (z *zkDCS) Delete(path string) error {
 		return nil
 	}
 	if err != nil {
-		z.logger.Errorf("failed to get node %s: %v", fullPath, err)
+		z.logger.Error().Err(err).Msgf("failed to get node %s", fullPath)
 		return err
 	}
 	err = z.retryDelete(fullPath, stat.Version)
 	if err != nil {
-		z.logger.Errorf("failed to delete node %s: %v", fullPath, err)
+		z.logger.Error().Err(err).Msgf("failed to delete node %s", fullPath)
 	}
 	return err
 }
@@ -491,11 +492,11 @@ func (z *zkDCS) Get(path string, dest any) error {
 		return ErrNotFound
 	}
 	if err != nil {
-		z.logger.Errorf("failed to get node %s: %v", fullPath, err)
+		z.logger.Error().Err(err).Msgf("failed to get node %s", fullPath)
 		return err
 	}
 	if err = json.Unmarshal(data, dest); err != nil {
-		z.logger.Errorf("malformed node data %s (%s): %v", fullPath, data, err)
+		z.logger.Error().Err(err).Msgf("malformed node data %s (%s)", fullPath, data)
 		return ErrMalformed
 	}
 	return nil
@@ -505,14 +506,14 @@ func (z *zkDCS) GetTree(path string) (any, error) {
 	fullPath := z.buildFullPath(path)
 	children, _, err := z.retryChildren(fullPath)
 	if err != nil {
-		z.logger.Errorf("failed to get children of %s: %v", fullPath, err)
+		z.logger.Error().Err(err).Msgf("failed to get children of %s", fullPath)
 		return nil, err
 	}
 	if len(children) == 0 {
 		var data []byte
 		data, _, err = z.retryGet(fullPath)
 		if err != nil {
-			z.logger.Errorf("failed to get data of %s: %v", fullPath, err)
+			z.logger.Error().Err(err).Msgf("failed to get data of %s", fullPath)
 			return nil, err
 		}
 		if len(data) == 0 {
@@ -521,7 +522,7 @@ func (z *zkDCS) GetTree(path string) (any, error) {
 		var ret any
 		err = json.Unmarshal(data, &ret)
 		if err != nil {
-			z.logger.Warnf("malformed node data %s (%s): %v", fullPath, data, err)
+			z.logger.Warn().Err(err).Msgf("malformed node data %s (%s)", fullPath, data)
 			return string(data[:]), nil
 		}
 		return ret, nil
@@ -543,7 +544,7 @@ func (z *zkDCS) GetChildren(path string) ([]string, error) {
 		return nil, ErrNotFound
 	}
 	if err != nil {
-		z.logger.Errorf("failed to get children of %s: %v", fullPath, err)
+		z.logger.Error().Err(err).Msgf("failed to get children of %s", fullPath)
 		return nil, err
 	}
 	return children, nil

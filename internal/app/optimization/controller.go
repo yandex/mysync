@@ -6,13 +6,14 @@ import (
 	"time"
 
 	"github.com/yandex/mysync/internal/config"
+	"github.com/yandex/mysync/internal/log"
 	"github.com/yandex/mysync/internal/mysql"
 	"github.com/yandex/mysync/internal/util"
 )
 
 func NewController(
 	config config.OptimizationConfig,
-	logger Logger,
+	logger *log.Logger,
 	dcs DCS,
 	waitingCheckInterval time.Duration,
 ) *Controller {
@@ -26,7 +27,7 @@ func NewController(
 
 type Controller struct {
 	config               config.OptimizationConfig
-	logger               Logger
+	logger               *log.Logger
 	dcs                  DCS
 	waitingCheckInterval time.Duration
 }
@@ -47,11 +48,11 @@ func (m *Controller) Wait(ctx context.Context, node Node) error {
 		case <-ticker.C:
 			isOptimized, err := m.isOptimizedDuringWaiting(node)
 			if err != nil {
-				m.logger.Errorf("optimization: waiting; err %s", err)
+				m.logger.Error().Err(err).Msg("optimization: waiting")
 				consequentErrors += 1
 			}
 			if isOptimized {
-				m.logger.Infof("optimization: waiting is complete")
+				m.logger.Info().Msg("optimization: waiting is complete")
 				return nil
 			}
 			if consequentErrors > maxConsequentErrors {
@@ -70,7 +71,7 @@ func (m *Controller) isOptimizedDuringWaiting(node Node) (bool, error) {
 		return true, nil
 	}
 	if dcsState.Status == StatusEnabled {
-		m.logger.Infof("optimization: waiting; node is optimizing")
+		m.logger.Info().Msg("optimization: waiting; node is optimizing")
 	} else {
 		return true, nil
 	}
@@ -82,11 +83,11 @@ func (m *Controller) isOptimizedDuringWaiting(node Node) (bool, error) {
 
 	lag := replicationStatus.GetReplicationLag()
 	if lag.Valid && lag.Float64 < float64(m.config.LowReplicationMark) {
-		m.logger.Infof("optimization: waiting is complete, as replication lag is converged: %s", lag.Float64)
+		m.logger.Info().Msgf("optimization: waiting is complete, as replication lag is converged: %v", lag.Float64)
 		return true, m.dcs.DeleteHosts(node.Host())
 	}
 
-	m.logger.Infof("optimization: waiting; replication lag is %f", lag.Float64)
+	m.logger.Info().Msgf("optimization: waiting; replication lag is %f", lag.Float64)
 	return false, nil
 }
 
@@ -104,7 +105,7 @@ func (m *Controller) Enable(node Node) error {
 func (m *Controller) Disable(master, node Node) error {
 	rs, err := master.GetReplicationSettings()
 	if err != nil {
-		m.logger.Warnf("cannot get replication setting from the master: %s", err.Error())
+		m.logger.Warn().Err(err).Msg("cannot get replication setting from the master")
 		rs = mysql.SafeReplicationSettings
 	}
 	return m.disable(rs, node)
@@ -120,14 +121,14 @@ func (m *Controller) DisableAll(master Node, nodes []Node) error {
 	errors := make([]error, 0, len(nodes))
 	rs, err := master.GetReplicationSettings()
 	if err != nil {
-		m.logger.Warnf("cannot get replication setting from the master: %s", err.Error())
+		m.logger.Warn().Err(err).Msg("cannot get replication setting from the master")
 		rs = mysql.SafeReplicationSettings
 	}
 
 	for _, hostname := range hostnames {
 		node, ok := hostnameToNode[hostname]
 		if !ok {
-			m.logger.Warnf("host %s was not found", hostname)
+			m.logger.Warn().Msgf("host %s was not found", hostname)
 			continue
 		}
 

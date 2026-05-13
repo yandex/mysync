@@ -17,14 +17,14 @@ type OfflineModeFilter interface {
 
 func NewOfflineModeFilter(cfg *config.Config, logger *log.Logger) OfflineModeFilter {
 	if cfg.OfflineModeMaxOfflinePct <= 0 {
-		logger.Infof("using neverAllowOfflineFilter, no replicas allowed to go offline")
+		logger.Info().Msg("using neverAllowOfflineFilter, no replicas allowed to go offline")
 		return &neverAllowOfflineFilter{logger: logger}
 	}
 	if cfg.OfflineModeMaxOfflinePct >= 100 {
-		logger.Infof("using alwaysAllowOfflineFilter, all replicas allowed to go offline")
+		logger.Info().Msg("using alwaysAllowOfflineFilter, all replicas allowed to go offline")
 		return &alwaysAllowOfflineFilter{logger: logger}
 	}
-	logger.Infof(
+	logger.Info().Msgf(
 		"offline mode filter: using azLimitedOfflineFilter (offline_mode_max_offline_pct=%d%%, offline_mode_az_separator=%q)",
 		cfg.OfflineModeMaxOfflinePct, cfg.OfflineModeAZSeparator,
 	)
@@ -90,7 +90,7 @@ func (f *azLimitedOfflineFilter) CanSetOffline(host string, clusterState map[str
 	willBeOfflinePct := int(math.Floor(100 * float64(offlineInAZ+1) / float64(totalInAZ)))
 
 	canGoOffline := willBeOfflinePct <= f.maxOfflinePct
-	f.logger.Debugf(
+	f.logger.Debug().Msgf(
 		"offline mode filter: host %s (az=%q): total=%d, already_offline=%d, pending=%d, will_be_offline_pct=%d%%, max_offline_pct=%d%% => can_go_offline=%v",
 		host, az, totalInAZ, offlineInAZ-pendingInAZ, pendingInAZ, willBeOfflinePct, f.maxOfflinePct, canGoOffline,
 	)

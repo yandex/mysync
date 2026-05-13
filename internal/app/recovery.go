@@ -25,7 +25,7 @@ func (app *App) recoveryChecker(ctx context.Context) {
 func (app *App) SetResetupStatus() {
 	err := app.setResetupStatus(app.cluster.Local().Host(), app.doesResetupFileExist())
 	if err != nil {
-		app.logger.Errorf("recovery: failed to set resetup status: %v", err)
+		app.logger.Error().Err(err).Msg("recovery: failed to set resetup status")
 	}
 }
 
@@ -34,49 +34,49 @@ func (app *App) checkRecovery() {
 		return
 	}
 	if app.doesResetupFileExist() {
-		app.logger.Infof("recovery: resetup file exists, waiting for resetup to complete")
+		app.logger.Info().Msg("recovery: resetup file exists, waiting for resetup to complete")
 		return
 	}
 
 	localNode := app.cluster.Local()
 	sstatus, err := localNode.GetReplicaStatus()
 	if err != nil {
-		app.logger.Errorf("recovery: host %s failed to get slave status %v", localNode.Host(), err)
+		app.logger.Error().Err(err).Msgf("recovery: host %s failed to get slave status", localNode.Host())
 		return
 	}
 
 	var master string
 	err = app.dcs.Get(pathMasterNode, &master)
 	if err != nil {
-		app.logger.Errorf("recovery: failed to get current master from dcs: %v", err)
+		app.logger.Error().Err(err).Msg("recovery: failed to get current master from dcs")
 		return
 	}
 	err = app.cluster.UpdateHostsInfo()
 	if err != nil {
-		app.logger.Errorf("recovery: updating hosts info failed due: %s", err)
+		app.logger.Error().Err(err).Msg("recovery: updating hosts info failed")
 		return
 	}
 	masterNode := app.cluster.Get(master)
 	mgtids, err := masterNode.GTIDExecutedParsed()
 	if err != nil {
-		app.logger.Errorf("recovery: host %s failed to get master status %v", masterNode, err)
+		app.logger.Error().Err(err).Msgf("recovery: host %s failed to get master status", masterNode)
 		return
 	}
 
 	// Old master may be stuck on 'Waiting for semi-sync'
 	oldMasterStuck, err := localNode.IsWaitingSemiSyncAck()
 	if err != nil {
-		app.logger.Errorf("recovery: host %s failed to get stuck processes %v", localNode.Host(), err)
+		app.logger.Error().Err(err).Msgf("recovery: host %s failed to get stuck processes", localNode.Host())
 	}
 	if oldMasterStuck {
-		app.logger.Errorf("recovery: old master %s has stuck processes", localNode.Host())
+		app.logger.Error().Msgf("recovery: old master %s has stuck processes", localNode.Host())
 		app.t.SetIfZero(MasterStuckAt, localNode.Host(), time.Now())
 	} else {
 		app.t.Clean(MasterStuckAt, localNode.Host())
 	}
 
 	if sstatus == nil && !oldMasterStuck {
-		app.logger.Info("recovery: waiting for manager to turn us to a new master")
+		app.logger.Info().Msg("recovery: waiting for manager to turn us to a new master")
 		return
 	}
 
@@ -84,49 +84,49 @@ func (app *App) checkRecovery() {
 		// Wait STUCK_WAIT_TIME before write resetup file
 		stuckTime := time.Since(app.t.Get(MasterStuckAt, localNode.Host()))
 		if stuckTime < StuckWaitTime {
-			app.logger.Infof("recovery: current node is stuck for %v, waiting...", stuckTime)
+			app.logger.Info().Msgf("recovery: current node is stuck for %v, waiting...", stuckTime)
 			return
 		}
 
-		app.logger.Infof("recovery: new master is found %s, and current node is stuck for more than %v. Writing resetup file", master, StuckWaitTime)
+		app.logger.Info().Msgf("recovery: new master is found %s, and current node is stuck for more than %v. Writing resetup file", master, StuckWaitTime)
 		app.writeResetupFile()
 		app.t.Clean(MasterStuckAt, localNode.Host())
 		return
 	}
 
-	app.logger.Infof("recovery: master %s has GTIDs %s", master, mgtids)
-	app.logger.Infof("recovery: local node %s has GTIDs %s", localNode.Host(), sstatus.GetExecutedGtidSet())
+	app.logger.Info().Msgf("recovery: master %s has GTIDs %s", master, mgtids)
+	app.logger.Info().Msgf("recovery: local node %s has GTIDs %s", localNode.Host(), sstatus.GetExecutedGtidSet())
 
 	if isSlavePermanentlyLost(sstatus, mgtids) {
 		rp, err := localNode.GetReplicaStatus()
 		if err == nil {
 			if rp.GetLastError() != "" {
-				app.logger.Errorf("recovery: local node %s has error: %s", localNode.Host(), rp.GetLastError())
+				app.logger.Error().Msgf("recovery: local node %s has error: %s", localNode.Host(), rp.GetLastError())
 			}
 			if rp.GetLastIOError() != "" {
-				app.logger.Errorf("recovery: local node %s has IO error: %s", localNode.Host(), rp.GetLastIOError())
+				app.logger.Error().Msgf("recovery: local node %s has IO error: %s", localNode.Host(), rp.GetLastIOError())
 			}
 		} else {
-			app.logger.Errorf("recovery: error getting replica status: %v", err)
+			app.logger.Error().Err(err).Msg("recovery: error getting replica status")
 		}
-		app.logger.Errorf("recovery: local node %s is NOT behind the master %s, need RESETUP", localNode.Host(), masterNode)
+		app.logger.Error().Msgf("recovery: local node %s is NOT behind the master %s, need RESETUP", localNode.Host(), masterNode)
 		app.writeResetupFile()
 	} else {
 		readOnly, _, err := localNode.IsReadOnly()
 		if err != nil {
-			app.logger.Errorf("recovery: failed to check if host is read-only: %v", err)
+			app.logger.Error().Err(err).Msg("recovery: failed to check if host is read-only")
 			return
 		}
 
 		if !readOnly {
-			app.logger.Errorf("recovery: host is not read-only, we should wait for it...")
+			app.logger.Error().Msg("recovery: host is not read-only, we should wait for it...")
 			return
 		}
 
-		app.logger.Infof("recovery: local node %s is not ahead of master, recovery finished", localNode.Host())
+		app.logger.Info().Msgf("recovery: local node %s is not ahead of master, recovery finished", localNode.Host())
 		err = app.ClearRecovery(app.config.Hostname)
 		if err != nil {
-			app.logger.Errorf("recovery: failed to clear recovery flag in zk: %v", err)
+			app.logger.Error().Err(err).Msg("recovery: failed to clear recovery flag in zk")
 		}
 	}
 }
@@ -136,19 +136,19 @@ func (app *App) checkCrashRecovery() {
 		return
 	}
 	if app.doesResetupFileExist() {
-		app.logger.Infof("recovery: resetup file exists, waiting for resetup to complete")
+		app.logger.Info().Msg("recovery: resetup file exists, waiting for resetup to complete")
 		return
 	}
 	ds, err := app.getLocalDaemonState()
 	if err != nil {
-		app.logger.Errorf("recovery: failed to get local daemon state: %v", err)
+		app.logger.Error().Err(err).Msg("recovery: failed to get local daemon state")
 		return
 	}
 	if !ds.StartTime.IsZero() {
-		app.logger.Debugf("recovery: daemon state: start time: %s", ds.StartTime)
+		app.logger.Debug().Msgf("recovery: daemon state: start time: %s", ds.StartTime)
 	}
 	if !ds.RecoveryTime.IsZero() {
-		app.logger.Debugf("recovery: daemon state: crash recovery time: %s", ds.RecoveryTime)
+		app.logger.Debug().Msgf("recovery: daemon state: crash recovery time: %s", ds.RecoveryTime)
 	}
 	if !ds.CrashRecovery {
 		return
@@ -156,13 +156,13 @@ func (app *App) checkCrashRecovery() {
 	localNode := app.cluster.Local()
 	sstatus, err := localNode.GetReplicaStatus()
 	if err != nil {
-		app.logger.Errorf("recovery: host %s failed to get slave status %v", localNode.Host(), err)
+		app.logger.Error().Err(err).Msgf("recovery: host %s failed to get slave status", localNode.Host())
 		return
 	}
 	if sstatus == nil {
-		app.logger.Info("recovery: resetup after crash recovery may happen only on replicas")
+		app.logger.Info().Msg("recovery: resetup after crash recovery may happen only on replicas")
 		return
 	}
-	app.logger.Errorf("recovery: local node %s is running after crash recovery %v, need RESETUP", localNode.Host(), ds.RecoveryTime)
+	app.logger.Error().Msgf("recovery: local node %s is running after crash recovery %v, need RESETUP", localNode.Host(), ds.RecoveryTime)
 	app.writeResetupFile()
 }

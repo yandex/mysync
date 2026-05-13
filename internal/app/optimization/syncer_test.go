@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/golang/mock/gomock"
+	"github.com/rs/zerolog"
 	"github.com/stretchr/testify/require"
 	nodestate "github.com/yandex/mysync/internal/app/node_state"
 	"github.com/yandex/mysync/internal/config"
@@ -16,9 +17,7 @@ import (
 func TestBasicOptimization(t *testing.T) {
 	t.Run("Sync on master does nothing", func(t *testing.T) {
 		ctrl := gomock.NewController(t)
-
-		logger := NewMockLogger(ctrl)
-		logger.EXPECT().Infof("optimization: %s", "<disabled: [], optimizing: [], optimized: [], malfunc: []>")
+		logger := zerolog.Nop()
 
 		config := config.OptimizationConfig{
 			LowReplicationMark:  5 * time.Second,
@@ -47,16 +46,14 @@ func TestBasicOptimization(t *testing.T) {
 		Dcs.EXPECT().GetHosts().
 			Return([]string{}, nil)
 
-		opt := NewSyncer(logger, config, Dcs)
+		opt := NewSyncer(&logger, config, Dcs)
 		err := opt.Sync(cluster)
 		require.NoError(t, err)
 	})
 
 	t.Run("Sync on master with 'optimizing' dcs status turns optimization off", func(t *testing.T) {
 		ctrl := gomock.NewController(t)
-
-		logger := NewMockLogger(ctrl)
-		logger.EXPECT().Infof("optimization: %s", "<disabled: [], optimizing: [], optimized: [], malfunc: [master]>")
+		logger := zerolog.Nop()
 
 		config := config.OptimizationConfig{
 			LowReplicationMark:  5 * time.Second,
@@ -93,7 +90,7 @@ func TestBasicOptimization(t *testing.T) {
 			Return(&DCSState{Status: "enabled"}, nil)
 		Dcs.EXPECT().DeleteHosts("master")
 
-		opt := NewSyncer(logger, config, Dcs)
+		opt := NewSyncer(&logger, config, Dcs)
 		err := opt.Sync(cluster)
 		require.NoError(t, err)
 	})
@@ -103,9 +100,7 @@ func TestBasicOptimization(t *testing.T) {
 func TestHAClusterOptimization(t *testing.T) {
 	t.Run("Sync works on hosts without optimization", func(t *testing.T) {
 		ctrl := gomock.NewController(t)
-
-		logger := NewMockLogger(ctrl)
-		logger.EXPECT().Infof("optimization: %s", "<disabled: [], optimizing: [], optimized: [], malfunc: []>")
+		logger := zerolog.Nop()
 
 		config := config.OptimizationConfig{
 			LowReplicationMark:  5 * time.Second,
@@ -138,16 +133,14 @@ func TestHAClusterOptimization(t *testing.T) {
 		Dcs.EXPECT().GetHosts().
 			Return([]string{}, nil)
 
-		opt := NewSyncer(logger, config, Dcs)
+		opt := NewSyncer(&logger, config, Dcs)
 		err := opt.Sync(cluster)
 		require.NoError(t, err)
 	})
 
 	t.Run("Sync on hosts with optimization and without lag disables optimization", func(t *testing.T) {
 		ctrl := gomock.NewController(t)
-
-		logger := NewMockLogger(ctrl)
-		logger.EXPECT().Infof("optimization: %s", "<disabled: [], optimizing: [], optimized: [replica1], malfunc: []>")
+		logger := zerolog.Nop()
 
 		config := config.OptimizationConfig{
 			LowReplicationMark:  5 * time.Second,
@@ -202,16 +195,14 @@ func TestHAClusterOptimization(t *testing.T) {
 			Return(&DCSState{Status: "enabled"}, nil)
 		Dcs.EXPECT().DeleteHosts("replica1")
 
-		opt := NewSyncer(logger, config, Dcs)
+		opt := NewSyncer(&logger, config, Dcs)
 		err := opt.Sync(cluster)
 		require.NoError(t, err)
 	})
 
 	t.Run("Sync on hosts with optimization and lag does nothing", func(t *testing.T) {
 		ctrl := gomock.NewController(t)
-
-		logger := NewMockLogger(ctrl)
-		logger.EXPECT().Infof("optimization: %s", "<disabled: [], optimizing: [replica1], optimized: [], malfunc: []>")
+		logger := zerolog.Nop()
 
 		config := config.OptimizationConfig{
 			LowReplicationMark:  5 * time.Second,
@@ -259,7 +250,7 @@ func TestHAClusterOptimization(t *testing.T) {
 		Dcs.EXPECT().GetState("replica1").
 			Return(&DCSState{Status: "enabled"}, nil)
 
-		opt := NewSyncer(logger, config, Dcs)
+		opt := NewSyncer(&logger, config, Dcs)
 		err := opt.Sync(cluster)
 		require.NoError(t, err)
 	})
@@ -268,10 +259,7 @@ func TestHAClusterOptimization(t *testing.T) {
 func TestOneHostOptimizationPolicy(t *testing.T) {
 	t.Run("Optimization can be enabled on just one host", func(t *testing.T) {
 		ctrl := gomock.NewController(t)
-
-		logger := NewMockLogger(ctrl)
-		logger.EXPECT().Infof("optimization: %s", "<disabled: [], optimizing: [replica1 replica2], optimized: [], malfunc: []>")
-		logger.EXPECT().Infof("optimization: there are too many nodes: %d. Turn %d off", 2, 1)
+		logger := zerolog.Nop()
 
 		config := config.OptimizationConfig{
 			LowReplicationMark:  5 * time.Second,
@@ -345,7 +333,7 @@ func TestOneHostOptimizationPolicy(t *testing.T) {
 		Dcs.EXPECT().GetState("replica2").
 			Return(&DCSState{Status: "enabled"}, nil)
 
-		opt := NewSyncer(logger, config, Dcs)
+		opt := NewSyncer(&logger, config, Dcs)
 		err := opt.Sync(cluster)
 		require.NoError(t, err)
 	})
@@ -354,10 +342,7 @@ func TestOneHostOptimizationPolicy(t *testing.T) {
 func TestTurnBackOnOptimization(t *testing.T) {
 	t.Run("Optimization will be enabled if the host options were changed manually", func(t *testing.T) {
 		ctrl := gomock.NewController(t)
-
-		logger := NewMockLogger(ctrl)
-		logger.EXPECT().Infof("optimization: %s", "<disabled: [], optimizing: [replica1], optimized: [], malfunc: []>")
-		logger.EXPECT().Warnf("Node %s should be optimizing but is not - restarting optimization", "replica1")
+		logger := zerolog.Nop()
 
 		config := config.OptimizationConfig{
 			LowReplicationMark:  5 * time.Second,
@@ -408,7 +393,7 @@ func TestTurnBackOnOptimization(t *testing.T) {
 		Dcs.EXPECT().GetState("replica1").
 			Return(&DCSState{Status: "enabled"}, nil)
 
-		opt := NewSyncer(logger, config, Dcs)
+		opt := NewSyncer(&logger, config, Dcs)
 		err := opt.Sync(cluster)
 		require.NoError(t, err)
 	})
@@ -417,7 +402,8 @@ func TestTurnBackOnOptimization(t *testing.T) {
 func TestNetworkErrors(t *testing.T) {
 	t.Run("Sync network error on the DCS side keeps cluster unchanged", func(t *testing.T) {
 		ctrl := gomock.NewController(t)
-		logger := NewMockLogger(ctrl)
+		logger := zerolog.Nop()
+
 		config := config.OptimizationConfig{
 			LowReplicationMark:  5 * time.Second,
 			HighReplicationMark: 120 * time.Second,
@@ -463,16 +449,14 @@ func TestNetworkErrors(t *testing.T) {
 		Dcs.EXPECT().GetHosts().
 			Return([]string{}, fmt.Errorf("network-error"))
 
-		opt := NewSyncer(logger, config, Dcs)
+		opt := NewSyncer(&logger, config, Dcs)
 		err := opt.Sync(cluster)
 		require.EqualError(t, err, "network-error")
 	})
 
 	t.Run("Sync network error on the MySQL replicas side keeps cluster unchanged", func(t *testing.T) {
 		ctrl := gomock.NewController(t)
-
-		logger := NewMockLogger(ctrl)
-		logger.EXPECT().Infof("optimization: %s", "<disabled: [], optimizing: [], optimized: [replica1], malfunc: []>")
+		logger := zerolog.Nop()
 
 		config := config.OptimizationConfig{
 			LowReplicationMark:  5 * time.Second,
@@ -522,7 +506,7 @@ func TestNetworkErrors(t *testing.T) {
 		Dcs.EXPECT().GetState("replica1").
 			Return(&DCSState{Status: "enabled"}, nil)
 
-		opt := NewSyncer(logger, config, Dcs)
+		opt := NewSyncer(&logger, config, Dcs)
 		err := opt.Sync(cluster)
 		require.EqualError(t, err, "network-error")
 	})
@@ -531,9 +515,7 @@ func TestNetworkErrors(t *testing.T) {
 func TestDeadReplica(t *testing.T) {
 	t.Run("Sync an optimizing dead replica", func(t *testing.T) {
 		ctrl := gomock.NewController(t)
-
-		logger := NewMockLogger(ctrl)
-		logger.EXPECT().Infof("optimization: %s", "<disabled: [], optimizing: [], optimized: [], malfunc: [replica1]>")
+		logger := zerolog.Nop()
 
 		config := config.OptimizationConfig{
 			LowReplicationMark:  5 * time.Second,
@@ -582,17 +564,14 @@ func TestDeadReplica(t *testing.T) {
 			Return(&DCSState{Status: "enabled"}, nil)
 		Dcs.EXPECT().DeleteHosts("replica1")
 
-		opt := NewSyncer(logger, config, Dcs)
+		opt := NewSyncer(&logger, config, Dcs)
 		err := opt.Sync(cluster)
 		require.NoError(t, err)
 	})
 
 	t.Run("Sync already deleted replica", func(t *testing.T) {
 		ctrl := gomock.NewController(t)
-
-		logger := NewMockLogger(ctrl)
-		logger.EXPECT().Infof("optimization: %s", "<disabled: [], optimizing: [], optimized: [], malfunc: [replica1]>")
-		logger.EXPECT().Infof("optimization: host %s was disabled, no need to turn off optimizations - skipping", "replica1")
+		logger := zerolog.Nop()
 
 		config := config.OptimizationConfig{
 			LowReplicationMark:  5 * time.Second,
@@ -634,7 +613,7 @@ func TestDeadReplica(t *testing.T) {
 			Return(&DCSState{Status: "enabled"}, nil)
 		Dcs.EXPECT().DeleteHosts("replica1")
 
-		opt := NewSyncer(logger, config, Dcs)
+		opt := NewSyncer(&logger, config, Dcs)
 		err := opt.Sync(cluster)
 		require.NoError(t, err)
 	})

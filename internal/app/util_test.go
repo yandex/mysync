@@ -305,10 +305,11 @@ func TestCalcLagBytes(t *testing.T) {
 }
 
 func getLogger() *log.Logger {
-	l, err := log.Open("/dev/null", "fatal")
+	l, closer, _, err := log.Open("/dev/null", "fatal", 100, 0)
 	if err != nil {
 		panic(fmt.Sprintf("failed to create logger: %v", err))
 	}
+	_ = closer
 	return l
 }
 

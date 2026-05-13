@@ -25,7 +25,9 @@ var switchCmd = &cobra.Command{
 			fmt.Println(err)
 			os.Exit(1)
 		}
-		os.Exit(app.CliSwitch(switchFrom, switchTo, switchWait, failover))
+		code := app.CliSwitch(switchFrom, switchTo, switchWait, failover)
+		app.CloseLogger()
+		os.Exit(code)
 	},
 }
 

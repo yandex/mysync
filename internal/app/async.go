@@ -9,19 +9,19 @@ import (
 
 func (app *App) CheckAsyncSwitchAllowed(node *mysql.Node, switchover *Switchover) bool {
 	if app.config.ASync && switchover.Cause == CauseAuto && app.config.AsyncAllowedLag > 0 {
-		app.logger.Infof("async mode is active and this is auto switch so we checking new master delay")
+		app.logger.Info().Msg("async mode is active and this is auto switch so we checking new master delay")
 		ts, err := app.GetReplMonTS()
 		if err != nil {
-			app.logger.Errorf("failed to get mdb repl mon ts: %v", err)
+			app.logger.Error().Err(err).Msg("failed to get mdb repl mon ts")
 			return false
 		}
 		delay, err := node.CalcReplMonTSDelay(app.config.ReplMonSchemeName, app.config.ReplMonTableName, ts)
 		if err != nil {
-			app.logger.Errorf("failed to calc mdb repl mon ts: %v", err)
+			app.logger.Error().Err(err).Msg("failed to calc mdb repl mon ts")
 			return false
 		}
 		if time.Duration(delay)*time.Second < app.config.AsyncAllowedLag {
-			app.logger.Infof("async allowed lag is %f seconds and current lag on host %s is %d, so we don't wait for catch up any more",
+			app.logger.Info().Msgf("async allowed lag is %f seconds and current lag on host %s is %d, so we don't wait for catch up any more",
 				app.config.AsyncAllowedLag.Seconds(), node.Host(), delay)
 			return true
 		}

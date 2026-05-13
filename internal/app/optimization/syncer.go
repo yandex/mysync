@@ -4,12 +4,13 @@ import (
 	"fmt"
 
 	"github.com/yandex/mysync/internal/config"
+	"github.com/yandex/mysync/internal/log"
 	"github.com/yandex/mysync/internal/mysql"
 	"github.com/yandex/mysync/internal/util"
 )
 
 func NewSyncer(
-	logger Logger,
+	logger *log.Logger,
 	config config.OptimizationConfig,
 	Dcs DCS,
 ) *Syncer {
@@ -21,7 +22,7 @@ func NewSyncer(
 }
 
 type Syncer struct {
-	logger Logger
+	logger *log.Logger
 	config config.OptimizationConfig
 	dcs    DCS
 }
@@ -102,7 +103,7 @@ func (s *Syncer) Sync(c Cluster) error {
 	if err != nil {
 		return err
 	}
-	s.logger.Infof(
+	s.logger.Info().Msgf(
 		"optimization: %s",
 		hostsState.String(),
 	)
@@ -126,7 +127,7 @@ func (s *Syncer) balanceToSingleNode(
 ) error {
 	switch {
 	case len(hostsState.OptimizingHosts) > 1:
-		s.logger.Infof(
+		s.logger.Info().Msgf(
 			"optimization: there are too many nodes: %d. Turn %d off",
 			len(hostsState.OptimizingHosts),
 			len(hostsState.OptimizingHosts)-1,
@@ -143,7 +144,7 @@ func (s *Syncer) balanceToSingleNode(
 		return s.syncNodeOptions(host, c.GetNode(host))
 
 	case len(hostsState.OptimizingHosts) == 0 && len(hostsState.DisabledHosts) > 0:
-		s.logger.Infof(
+		s.logger.Info().Msgf(
 			"optimization: start optimizing new node %s",
 			hostsState.DisabledHosts[0],
 		)
@@ -177,7 +178,7 @@ func (s *Syncer) stopNodes(
 	for _, host := range hosts {
 		node := c.GetNode(host)
 		if node == nil {
-			s.logger.Infof(
+			s.logger.Info().Msgf(
 				"optimization: host %s was disabled, no need to turn off optimizations - skipping",
 				host,
 			)
@@ -218,7 +219,7 @@ func (s *Syncer) syncNodeOptions(
 		return err
 	}
 	if settings.CanBeOptimized() {
-		s.logger.Warnf("Node %s should be optimizing but is not - restarting optimization", host)
+		s.logger.Warn().Msgf("Node %s should be optimizing but is not - restarting optimization", host)
 		return node.OptimizeReplication()
 	}
 	return nil

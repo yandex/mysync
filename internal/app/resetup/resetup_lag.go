@@ -30,13 +30,13 @@ func NewLagResetupper(l *log.Logger, dcs LagResetupperDcs, lag float64) *LagRese
 func (r *LagResetupper) CheckNeedResetup(cluster *mysql.Cluster) bool {
 	err := cluster.UpdateHostsInfo()
 	if err != nil {
-		r.logger.Errorf("%s: failed to update hosts info: %v", prefix, err)
+		r.logger.Error().Err(err).Msgf("%s: failed to update hosts info", prefix)
 		return false
 	}
 	localNode := cluster.Local()
 	sstatus, err := localNode.GetReplicaStatus()
 	if err != nil {
-		r.logger.Errorf("%s: host %s failed to get slave status %v", prefix, localNode.Host(), err)
+		r.logger.Error().Err(err).Msgf("%s: host %s failed to get slave status", prefix, localNode.Host())
 		return false
 	}
 
@@ -48,7 +48,7 @@ func (r *LagResetupper) CheckNeedResetup(cluster *mysql.Cluster) bool {
 	var master string
 	master, err = r.dcs.GetMasterHostFromDcs()
 	if err != nil {
-		r.logger.Errorf("%s: failed to get current master from dcs: %v", prefix, err)
+		r.logger.Error().Err(err).Msgf("%s: failed to get current master from dcs", prefix)
 		return false
 	}
 
@@ -66,19 +66,19 @@ func (r *LagResetupper) CheckNeedResetup(cluster *mysql.Cluster) bool {
 	// so, we clearly have replica with large lag
 	ifOffline, err := localNode.IsOffline()
 	if err != nil {
-		r.logger.Errorf("%s: failed to check local node if offline: %v", prefix, err)
+		r.logger.Error().Err(err).Msgf("%s: failed to check local node if offline", prefix)
 		return false
 	}
 
 	masterNode := cluster.Get(master)
 	masterRO, _, err := masterNode.IsReadOnly()
 	if err != nil {
-		r.logger.Errorf("%s: failed to check master (%s) if RO: %v", prefix, master, err)
+		r.logger.Error().Err(err).Msgf("%s: failed to check master (%s) if RO", prefix, master)
 		return false
 	}
 
 	if ifOffline && !masterRO {
-		r.logger.Infof("%s: local host set to resetup, because ReplicationLag (%f s) > ResetupHostLag (%v)",
+		r.logger.Info().Msgf("%s: local host set to resetup, because ReplicationLag (%f s) > ResetupHostLag (%v)",
 			prefix, lag.Float64, r.resetupHostLag)
 
 		return true

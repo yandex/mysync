@@ -21,14 +21,14 @@ type lagFilter struct {
 func (app *App) CliInfo(short bool, zone string, lag string, hostFilter string) int {
 	cancel, err := app.cliInitApp()
 	if err != nil {
-		app.logger.Error(err.Error())
+		app.logger.Error().Err(err).Msg("")
 		return 1
 	}
 	defer cancel()
 
 	parsedLag, err := parseLagFilter(lag)
 	if err != nil {
-		app.logger.Error(err.Error())
+		app.logger.Error().Err(err).Msg("")
 		return 1
 	}
 
@@ -36,19 +36,19 @@ func (app *App) CliInfo(short bool, zone string, lag string, hostFilter string) 
 	if short {
 		tree, err = app.buildShortInfo(zone, hostFilter, parsedLag)
 		if err != nil {
-			app.logger.Error(err.Error())
+			app.logger.Error().Err(err).Msg("")
 			return 1
 		}
 	} else {
 		tree, err = app.dcs.GetTree("")
 		if err != nil {
-			app.logger.Error(err.Error())
+			app.logger.Error().Err(err).Msg("")
 			return 1
 		}
 	}
 	data, err := yaml.Marshal(tree)
 	if err != nil {
-		app.logger.Errorf("failed to marshal yaml: %v", err)
+		app.logger.Error().Err(err).Msg("failed to marshal yaml")
 		return 1
 	}
 	fmt.Print(string(data))

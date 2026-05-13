@@ -27,7 +27,9 @@ var optimizeOnCmd = &cobra.Command{
 			fmt.Println(err)
 			os.Exit(1)
 		}
-		os.Exit(app.CliEnableOptimization())
+		code := app.CliEnableOptimization()
+		app.CloseLogger()
+		os.Exit(code)
 	},
 }
 
@@ -40,7 +42,9 @@ var optimizeOffCmd = &cobra.Command{
 			fmt.Println(err)
 			os.Exit(1)
 		}
-		os.Exit(app.CliDisableOptimization())
+		code := app.CliDisableOptimization()
+		app.CloseLogger()
+		os.Exit(code)
 	},
 }
 
@@ -53,7 +57,9 @@ var optimizeOffAllCmd = &cobra.Command{
 			fmt.Println(err)
 			os.Exit(1)
 		}
-		os.Exit(app.CliDisableAllOptimization())
+		code := app.CliDisableAllOptimization()
+		app.CloseLogger()
+		os.Exit(code)
 	},
 }
 
@@ -65,7 +71,9 @@ var optimizeGetCmd = &cobra.Command{
 			fmt.Println(err)
 			os.Exit(1)
 		}
-		os.Exit(app.CliGetOptimization())
+		code := app.CliGetOptimization()
+		app.CloseLogger()
+		os.Exit(code)
 	},
 }
 

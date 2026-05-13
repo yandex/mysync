@@ -1,18 +1,10 @@
-//go:generate mockgen -source=deps.go -destination=mocks_test.go -package=optimization . DCS,Node,Logger,Cluster
+//go:generate mockgen -source=deps.go -destination=mocks_test.go -package=optimization . DCS,Node,Cluster
 package optimization
 
 import (
 	nodestate "github.com/yandex/mysync/internal/app/node_state"
 	"github.com/yandex/mysync/internal/mysql"
 )
-
-type Logger interface {
-	Debugf(msg string, args ...any)
-	Infof(msg string, args ...any)
-	Warnf(msg string, args ...any)
-	Errorf(msg string, args ...any)
-	Fatalf(msg string, args ...any)
-}
 
 type DCS interface {
 	GetHosts() ([]string, error)

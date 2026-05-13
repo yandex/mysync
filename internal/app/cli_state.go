@@ -10,7 +10,7 @@ import (
 func (app *App) CliState(short bool) int {
 	cancel, err := app.cliInitApp()
 	if err != nil {
-		app.logger.Error(err.Error())
+		app.logger.Error().Err(err).Msg("")
 		return 1
 	}
 	defer cancel()
@@ -28,7 +28,7 @@ func (app *App) CliState(short bool) int {
 	}
 	data, err := yaml.Marshal(tree)
 	if err != nil {
-		app.logger.Errorf("failed to marshal yaml: %v", err)
+		app.logger.Error().Err(err).Msg("failed to marshal yaml")
 		return 1
 	}
 	fmt.Print(string(data))

@@ -84,14 +84,14 @@ type ExternalReplication struct {
 func NewExternalReplication(replicationType util.ExternalReplicationType, logger *log.Logger, replicationChannel string) (IExternalReplication, error) {
 	switch replicationType {
 	case util.MyExternalReplication:
-		logger.Info("external replication is enabled")
+		logger.Info().Msg("external replication is enabled")
 		return &ExternalReplication{
 			logger:             logger,
 			sourcesStatus:      make(map[string]ExternalSourceStatus),
 			replicationChannel: replicationChannel,
 		}, nil
 	default:
-		logger.Info("external replication is disabled")
+		logger.Info().Msg("external replication is disabled")
 		return &UnimplementedExternalReplication{}, nil
 	}
 }
@@ -117,7 +117,7 @@ func (er *ExternalReplication) Set(n *Node) error {
 		}
 		// If there is no rows in table for external replication - do nothing
 		if err == sql.ErrNoRows {
-			n.logger.Infof("no external replication records found in replication table on host %s", n.host)
+			n.logger.Info().Msgf("no external replication records found in replication table on host %s", n.host)
 			return nil
 		}
 		return err

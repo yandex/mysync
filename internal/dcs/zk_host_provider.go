@@ -54,7 +54,7 @@ func (rhp *RandomHostProvider) Init(servers []string) error {
 	for _, host := range servers {
 		resolved, err := rhp.resolveHost(host)
 		if err != nil {
-			rhp.logger.Errorf("host definition %s is invalid %v", host, err)
+			rhp.logger.Error().Err(err).Msgf("host definition %s is invalid", host)
 			continue
 		}
 
@@ -89,10 +89,10 @@ func (rhp *RandomHostProvider) checkZKConnectivity(servers []string) error {
 		conn, err := net.DialTimeout("tcp", server, rhp.connectivityCheckTimeout)
 		if err == nil {
 			conn.Close()
-			rhp.logger.Infof("zk connectivity check succeeded for %s", server)
+			rhp.logger.Info().Msgf("zk connectivity check succeeded for %s", server)
 			return nil
 		}
-		rhp.logger.Errorf("connectivity check failed for %s: %s", server, err)
+		rhp.logger.Error().Err(err).Msgf("connectivity check failed for %s", server)
 	}
 
 	return fmt.Errorf("failed to connect to any zk server: all attempts timed out or refused")
@@ -110,7 +110,7 @@ func (rhp *RandomHostProvider) resolveHosts() {
 				if len(zhost.resolved) == 0 || time.Since(zhost.lastLookup) > rhp.lookupTTL {
 					resolved, err := rhp.resolveHost(pair)
 					if err != nil || len(resolved) == 0 {
-						rhp.logger.Errorf("background resolve for %s failed: %v", pair, err)
+						rhp.logger.Error().Err(err).Msgf("background resolve for %s failed", pair)
 						continue
 					}
 					rhp.hosts.Store(pair, zkhost{
@@ -135,7 +135,7 @@ func (rhp *RandomHostProvider) resolveHost(pair string) ([]string, error) {
 	defer cancel()
 	addrs, err := rhp.resolver.LookupHost(ctx, host)
 	if err != nil {
-		rhp.logger.Errorf("unable to resolve %s: %v", host, err)
+		rhp.logger.Error().Err(err).Msgf("unable to resolve %s", host)
 	}
 	for _, addr := range addrs {
 		res = append(res, net.JoinHostPort(addr, port))
@@ -151,7 +151,7 @@ func (rhp *RandomHostProvider) Len() int {
 func (rhp *RandomHostProvider) Next() (server string, retryStart bool) {
 	if rhp.isRetry {
 		v := time.Duration(rand.Float64() * float64(rhp.retryJitter))
-		rhp.logger.Infof("Triggering connection retry jitter: %v", v)
+		rhp.logger.Info().Msgf("Triggering connection retry jitter: %v", v)
 		time.Sleep(v)
 		rhp.isRetry = false
 	}

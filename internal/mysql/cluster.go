@@ -186,7 +186,7 @@ func (c *Cluster) updateHAHostsInfo() error {
 	if err != nil {
 		return err
 	}
-	c.logger.Infof("HA nodes: %s", hosts)
+	c.logger.Info().Msgf("HA nodes: %s", hosts)
 	set := make(map[string]int, len(hosts))
 	for _, host := range hosts {
 		set[host]++
@@ -227,7 +227,7 @@ func (c *Cluster) updateCascadeHostsInfo() error {
 	for host := range hosts {
 		hostList = append(hostList, host)
 	}
-	c.logger.Infof("cascade nodes: %s", hostList)
+	c.logger.Info().Msgf("cascade nodes: %s", hostList)
 
 	for host := range hosts {
 		if _, found := c.cascadeNodes[host]; !found {
