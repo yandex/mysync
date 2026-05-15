@@ -17,11 +17,17 @@ require (
 	github.com/google/uuid v1.6.0
 	github.com/heetch/confita v0.11.0
 	github.com/jmoiron/sqlx v1.4.0
+	github.com/rs/zerolog v1.35.1
 	github.com/shirou/gopsutil/v3 v3.24.5
 	github.com/spf13/cobra v1.10.2
 	github.com/spf13/pflag v1.0.10
 	github.com/stretchr/testify v1.11.1
 	gopkg.in/yaml.v2 v2.4.0
+)
+
+require (
+	github.com/mattn/go-colorable v0.1.14 // indirect
+	github.com/mattn/go-isatty v0.0.20 // indirect
 )
 
 require (

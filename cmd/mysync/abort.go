@@ -19,7 +19,9 @@ var abortCmd = &cobra.Command{
 			fmt.Println(err)
 			os.Exit(1)
 		}
-		os.Exit(app.CliAbort())
+		code := app.CliAbort()
+		app.CloseLogger()
+		os.Exit(code)
 	},
 }
 

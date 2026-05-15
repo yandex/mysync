@@ -32,7 +32,7 @@ func getMostDesirableNode(logger *log.Logger, positions []nodePosition, priority
 		return "", fmt.Errorf("destination node not found")
 	}
 	if mostPriorityNode.lag <= maxLagInSeconds {
-		logger.Infof("switchover: host %s selected as highest priority (by lag). Priority: %d, lag: %f (maxLag %f)", mostPriorityNode.host, mostPriorityNode.priority, mostPriorityNode.lag, maxLagInSeconds)
+		logger.Info().Msgf("switchover: host %s selected as highest priority (by lag). Priority: %d, lag: %f (maxLag %f)", mostPriorityNode.host, mostPriorityNode.priority, mostPriorityNode.lag, maxLagInSeconds)
 		return mostPriorityNode.host, nil
 	}
 
@@ -46,19 +46,19 @@ func getMostDesirableNode(logger *log.Logger, positions []nodePosition, priority
 	}
 
 	if len(moreRecentHosts) == 0 {
-		logger.Infof("switchover: host %s selected as highest priority (no more recent hosts). Priority: %d, lag: %f (maxLag %f)", mostPriorityNode.host, mostPriorityNode.priority, mostPriorityNode.lag, maxLagInSeconds)
+		logger.Info().Msgf("switchover: host %s selected as highest priority (no more recent hosts). Priority: %d, lag: %f (maxLag %f)", mostPriorityNode.host, mostPriorityNode.priority, mostPriorityNode.lag, maxLagInSeconds)
 		return mostPriorityNode.host, nil
 	}
 
-	logger.Infof("switchover: new recurse step, %d hosts with less lag. Skipping host %s, priority: %d, lag: %f (maxLag %f)", len(moreRecentHosts), mostPriorityNode.host, mostPriorityNode.priority, mostPriorityNode.lag, maxLagInSeconds)
+	logger.Info().Msgf("switchover: new recurse step, %d hosts with less lag. Skipping host %s, priority: %d, lag: %f (maxLag %f)", len(moreRecentHosts), mostPriorityNode.host, mostPriorityNode.priority, mostPriorityNode.lag, maxLagInSeconds)
 
 	return getMostDesirableNode(logger, moreRecentHosts, priorityChoiceMaxLag)
 }
 
 func printHostPriorities(logger *log.Logger, positions []nodePosition) {
-	logger.Info("switchover: We will select most desirable node among these:")
+	logger.Info().Msg("switchover: We will select most desirable node among these:")
 	for _, kv := range positions {
-		logger.Infof("switchover: host: %s, priority: %d, lag: %f", kv.host, kv.priority, kv.lag)
+		logger.Info().Msgf("switchover: host: %s, priority: %d, lag: %f", kv.host, kv.priority, kv.lag)
 	}
 }
 
@@ -242,7 +242,7 @@ func getNodeStatesInParallel(hosts []string, getter func(string) (*nodestate.Nod
 		if clusterState[masterHost] != nil {
 			clusterState[host].MasterState = clusterState[masterHost].MasterState
 		} else {
-			logger.Error("Can not get master state")
+			logger.Error().Msg("Can not get master state")
 		}
 	}
 	return clusterState, nil

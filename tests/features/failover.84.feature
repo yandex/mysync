@@ -100,7 +100,7 @@ Feature: failover
         """
       Then command output should match regexp
         """
-        .*failover was not approved:.*no quorum.*
+        .*failover was not approved.*no quorum.*
         """
 
     Scenario: failover works well with dynamic quorum
@@ -213,7 +213,7 @@ Feature: failover
         """
       Then command output should match regexp
         """
-        .*failover was not approved:.*cooldown.*
+        .*failover was not approved.*cooldown.*
         """
 
 
@@ -246,7 +246,7 @@ Feature: failover
         """
       Then command output should match regexp
         """
-        .*failover was not approved:.*delay is not yet elapsed.*
+        .*failover was not approved.*delay is not yet elapsed.*
         """
 
       When I wait for "20" seconds
@@ -399,7 +399,7 @@ Feature: failover
     """
     Then command output should match regexp
     """
-      .*failover was not approved: no quorum.*
+      .*failover was not approved.*no quorum.*
     """
 
 

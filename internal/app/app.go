@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"log/syslog"
 	"os"
 	"os/signal"
@@ -34,6 +35,7 @@ import (
 type App struct {
 	state               appState
 	logger              *log.Logger
+	loggerCloser        io.Closer
 	sysLog              *syslog.Writer
 	config              *config.Config
 	dcs                 dcs.DCS
@@ -72,7 +74,7 @@ func NewApp(configFile, logLevel string, interactive bool) (*App, error) {
 		logLevel = config.LogLevel
 		logPath = config.Log
 	}
-	logger, err := log.Open(logPath, logLevel)
+	logger, loggerCloser, logRW, err := log.Open(logPath, logLevel, config.LogBufferSize, config.LogPollInterval)
 	if err != nil {
 		errStr := fmt.Sprintf("logger creation failed: %s", err)
 		sysErr := sysLog.Err(errStr)
@@ -82,13 +84,11 @@ func NewApp(configFile, logLevel string, interactive bool) (*App, error) {
 		return nil, err
 	}
 	log.WriteSysLogInfo(sysLog, "logger created")
-	if logPath != "" {
-		logger.ReOpenOnSignal(syscall.SIGUSR2, sysLog)
-	}
+	log.ReOpenOnSignal(syscall.SIGUSR2, logRW, logPath, sysLog)
 	log.WriteSysLogInfo(sysLog, "logger initialization completed")
 	externalReplication, err := mysql.NewExternalReplication(config.ExternalReplicationType, logger, config.ExternalReplicationChannel)
 	if err != nil {
-		logger.Errorf("external replication initialization failed: %s", err)
+		logger.Error().Err(err).Msg("external replication initialization failed")
 		return nil, err
 	}
 
@@ -98,6 +98,7 @@ func NewApp(configFile, logLevel string, interactive bool) (*App, error) {
 		config:              config,
 		sysLog:              sysLog,
 		logger:              logger,
+		loggerCloser:        loggerCloser,
 		t:                   NewTimings(),
 		replRepairState:     make(map[string]*ReplicationRepairState),
 		slaveReadPositions:  make(map[string]string),
@@ -109,7 +110,7 @@ func NewApp(configFile, logLevel string, interactive bool) (*App, error) {
 	// TODO: appDcs should be separate entity
 	app.lagResetupper = resetup.NewLagResetupper(logger, app, config.ResetupHostLag.Seconds())
 
-	logger.Info("app created")
+	logger.Info().Msg("app created")
 	return app, nil
 }
 
@@ -160,18 +161,18 @@ func (app *App) newDBCluster() error {
 }
 
 func (app *App) writeEmergeFile(msg string) {
-	app.logger.Warn("touch emerge file")
+	app.logger.Warn().Msg("touch emerge file")
 	err := os.WriteFile(app.config.Emergefile, []byte(msg), 0o644)
 	if err != nil {
-		app.logger.Errorf("failed to write emerge file: %v", err)
+		app.logger.Error().Err(err).Msg("failed to write emerge file")
 	}
 }
 
 func (app *App) writeResetupFile() {
-	app.logger.Warn("touch resetup file")
+	app.logger.Warn().Msg("touch resetup file")
 	err := os.WriteFile(app.config.Resetupfile, []byte{}, 0o644)
 	if err != nil {
-		app.logger.Errorf("failed to write resetup file: %v", err)
+		app.logger.Error().Err(err).Msg("failed to write resetup file")
 	}
 }
 
@@ -181,10 +182,10 @@ func (app *App) doesResetupFileExist() bool {
 }
 
 func (app *App) writeMaintenanceFile() {
-	app.logger.Warn("touch maintenance file")
+	app.logger.Warn().Msg("touch maintenance file")
 	err := os.WriteFile(app.config.Maintenancefile, []byte(""), 0o644)
 	if err != nil {
-		app.logger.Errorf("failed to write maintenance file: %v", err)
+		app.logger.Error().Err(err).Msg("failed to write maintenance file")
 	}
 }
 
@@ -196,7 +197,7 @@ func (app *App) doesMaintenanceFileExist() bool {
 func (app *App) removeMaintenanceFile() {
 	err := os.Remove(app.config.Maintenancefile)
 	if err != nil && !os.IsNotExist(err) {
-		app.logger.Errorf("failed to remove maintenance file: %v", err)
+		app.logger.Error().Err(err).Msg("failed to remove maintenance file")
 	}
 }
 
@@ -210,10 +211,10 @@ func (app *App) healthChecker(ctx context.Context) {
 		case <-ticker.C:
 			hc := app.getLocalNodeState()
 			logFile, maxLogPos = hc.UpdateBinlogStatus(logFile, maxLogPos)
-			app.logger.Infof("healthcheck: %v", hc)
+			app.logger.Info().Msgf("healthcheck: %v", hc)
 			err := app.dcs.SetEphemeral(dcs.JoinPath(pathHealthPrefix, app.config.Hostname), hc)
 			if err != nil {
-				app.logger.Errorf("healthcheck: failed to set status to dcs: %s", err)
+				app.logger.Error().Err(err).Msg("healthcheck: failed to set status to dcs")
 			}
 		case <-ctx.Done():
 			return
@@ -230,19 +231,19 @@ func (app *App) stateFileHandler(ctx context.Context) {
 
 			tree, err := app.dcs.GetTree("")
 			if err != nil {
-				app.logger.Errorf("stateFileHandler: failed to get current zk tree: %v", err)
+				app.logger.Error().Err(err).Msg("stateFileHandler: failed to get current zk tree")
 				_ = os.Remove(app.config.InfoFile)
 				continue
 			}
 			data, err := json.Marshal(tree)
 			if err != nil {
-				app.logger.Errorf("stateFileHandler: failed to marshal zk node data: %v", err)
+				app.logger.Error().Err(err).Msg("stateFileHandler: failed to marshal zk node data")
 				_ = os.Remove(app.config.InfoFile)
 				continue
 			}
 			err = os.WriteFile(app.config.InfoFile, data, 0o666)
 			if err != nil {
-				app.logger.Errorf("stateFileHandler: failed to write info file %v", err)
+				app.logger.Error().Err(err).Msg("stateFileHandler: failed to write info file")
 				_ = os.Remove(app.config.InfoFile)
 				continue
 			}
@@ -263,17 +264,17 @@ func (app *App) externalCAFileChecker(ctx context.Context) {
 			replicaStatus, err := app.externalReplication.GetReplicaStatus(localNode)
 			if err != nil {
 				if !mysql.IsErrorChannelDoesNotExists(err) {
-					app.logger.Errorf("external CA file checker: host %s failed to get external replica status %v", localNode.Host(), err)
+					app.logger.Error().Err(err).Msgf("external CA file checker: host %s failed to get external replica status", localNode.Host())
 				}
 				continue
 			}
 			if replicaStatus == nil {
-				app.logger.Infof("external CA file checker: no external replication found on host %v", localNode.Host())
+				app.logger.Info().Msgf("external CA file checker: no external replication found on host %v", localNode.Host())
 				continue
 			}
 			err = localNode.UpdateExternalCAFile()
 			if err != nil {
-				app.logger.Errorf("external CA file checker: failed check and update CA file: %s", err)
+				app.logger.Error().Err(err).Msg("external CA file checker: failed check and update CA file")
 			}
 		case <-ctx.Done():
 			return
@@ -289,23 +290,23 @@ func (app *App) replMonWriter(ctx context.Context) {
 			localNode := app.cluster.Local()
 			sstatus, err := localNode.GetReplicaStatus()
 			if err != nil {
-				app.logger.Errorf("repl mon writer: got error %v while checking replica status", err)
+				app.logger.Error().Err(err).Msg("repl mon writer: error while checking replica status")
 				time.Sleep(app.config.ReplMonErrorWaitInterval)
 				continue
 			}
 			if sstatus != nil {
-				app.logger.Infof("repl mon writer: host is replica")
+				app.logger.Info().Msgf("repl mon writer: host is replica")
 				time.Sleep(app.config.ReplMonSlaveWaitInterval)
 				continue
 			}
 			readOnly, _, err := localNode.IsReadOnly()
 			if err != nil {
-				app.logger.Errorf("repl mon writer: got error %v while checking read only status", err)
+				app.logger.Error().Err(err).Msg("repl mon writer: error while checking read only status")
 				time.Sleep(app.config.ReplMonErrorWaitInterval)
 				continue
 			}
 			if readOnly {
-				app.logger.Infof("repl mon writer: host is read only")
+				app.logger.Info().Msgf("repl mon writer: host is read only")
 				time.Sleep(app.config.ReplMonSlaveWaitInterval)
 				continue
 			}
@@ -314,11 +315,11 @@ func (app *App) replMonWriter(ctx context.Context) {
 				if mysql.IsErrorTableDoesNotExists(err) {
 					err = localNode.CreateReplMonTable(app.config.ReplMonSchemeName, app.config.ReplMonTableName)
 					if err != nil {
-						app.logger.Errorf("repl mon writer: got error %v while creating repl mon table", err)
+						app.logger.Error().Err(err).Msg("repl mon writer: error while creating repl mon table")
 					}
 					continue
 				}
-				app.logger.Errorf("repl mon writer: got error %v while writing in repl mon table", err)
+				app.logger.Error().Err(err).Msg("repl mon writer: error while writing in repl mon table")
 			}
 		case <-ctx.Done():
 			return
@@ -362,24 +363,24 @@ func (app *App) checkHAReplicasRunning(local *mysql.Node) (replicasRunning bool,
 	for hostname, err := range results {
 		if err == nil {
 			availableReplicas++
-			app.logger.Debugf("mysync HA Replicas check: %s good replica", hostname)
+			app.logger.Debug().Msgf("mysync HA Replicas check: %s good replica", hostname)
 		} else {
 			if errors.Is(err, context.DeadlineExceeded) {
 				unreachableReplicas++
-				app.logger.Warnf("mysync HA Replicas check: %s is unreachable", hostname)
+				app.logger.Warn().Msgf("mysync HA Replicas check: %s is unreachable", hostname)
 			} else {
-				app.logger.Warnf("mysync HA Replicas check: %s %v", hostname, err.Error())
+				app.logger.Warn().Msgf("mysync HA Replicas check: %s %v", hostname, err.Error())
 			}
 		}
 	}
 
-	app.logger.Infof("mysync HA Replicas check: live replicas %d, unreachable replicas: %d number of hosts %d ",
+	app.logger.Info().Msgf("mysync HA Replicas check: live replicas %d, unreachable replicas: %d number of hosts %d ",
 		availableReplicas, unreachableReplicas, len(app.cluster.HANodeHosts()))
 
 	if app.config.SemiSync {
 		status, err := local.SemiSyncStatus()
 		if err != nil {
-			app.logger.Errorf("failed to get semisync status: %v", err)
+			app.logger.Error().Err(err).Msg("failed to get semisync status")
 			return false, unreachableReplicas > 0
 		}
 		return availableReplicas >= status.WaitSlaveCount, unreachableReplicas > 0
@@ -432,14 +433,14 @@ func (app *App) stateLost() appState {
 	}
 
 	if app.config.DisableSetReadonlyOnLost {
-		app.logger.Infof("mysync have lost connection to ZK. MySQL HA cluster is not reachable. However switching to RO is prohibited by mysync configuration. Do nothing")
+		app.logger.Info().Msgf("mysync have lost connection to ZK. MySQL HA cluster is not reachable. However switching to RO is prohibited by mysync configuration. Do nothing")
 		return stateLost
 	}
 
 	localNodeState := app.getLocalNodeState()
 	replRunning, hasUnreachRepl := app.checkHAReplicasRunning(node)
 	if localNodeState.IsMaster && replRunning {
-		app.logger.Infof("mysync have lost connection to ZK. However HA cluster is live. Do nothing")
+		app.logger.Info().Msgf("mysync have lost connection to ZK. However HA cluster is live. Do nothing")
 		app.t.Clean(ZKHALost, node.Host())
 		return stateLost
 	}
@@ -453,32 +454,32 @@ func (app *App) stateLost() appState {
 		}
 	}
 
-	app.logger.Infof("mysync have lost connection to ZK. MySQL HA cluster is not reachable. Switching to RO")
+	app.logger.Info().Msgf("mysync have lost connection to ZK. MySQL HA cluster is not reachable. Switching to RO")
 	var err error
 	if localNodeState.IsMaster {
 		err = node.SetReadOnlyWithForce(app.config.ExcludeUsers, true)
 
 		merr, ok := err.(*mysql_driver.MySQLError)
 		if !errors.Is(err, context.DeadlineExceeded) && (!ok || merr.Number != 1205) { // Error 1205: Lock wait timeout exceeded; try restarting transaction
-			app.logger.Errorf("failed to set node %s read-only: %v", node.Host(), err)
+			app.logger.Error().Err(err).Msgf("failed to set node %s read-only", node.Host())
 			return stateLost
 		}
 
 		isBlocked, err := node.IsWaitingSemiSyncAck()
 		if err != nil {
-			app.logger.Errorf("Failed to fetch processlist on %s: %v", node.Host(), err)
+			app.logger.Error().Err(err).Msgf("Failed to fetch processlist on %s", node.Host())
 			return stateLost
 		}
 		if isBlocked {
-			app.logger.Errorf("Master %s is waiting for semi-sync ack, trying to take it offline", node.Host())
+			app.logger.Error().Msgf("Master %s is waiting for semi-sync ack, trying to take it offline", node.Host())
 			err = app.stopReplicationOnMaster(node)
 			if err != nil {
-				app.logger.Errorf("node %s: %v", node.Host(), err)
+				app.logger.Error().Err(err).Msgf("node %s", node.Host())
 				return stateLost
 			}
 			err = node.SetReadOnlyWithForce(app.config.ExcludeUsers, true)
 			if err != nil {
-				app.logger.Errorf("failed to set master %s read-only: %v", node.Host(), err)
+				app.logger.Error().Err(err).Msgf("failed to set master %s read-only", node.Host())
 				return stateLost
 			}
 		}
@@ -486,23 +487,23 @@ func (app *App) stateLost() appState {
 		err = node.SetReadOnly(true)
 	}
 	if err != nil {
-		app.logger.Errorf("lost: failed to set local node %s read-only: %v", node.Host(), err)
+		app.logger.Error().Err(err).Msgf("lost: failed to set local node %s read-only", node.Host())
 	}
 	gtidExecuted, err := node.GTIDExecutedParsed()
 	if err != nil {
-		app.logger.Errorf("lost: failed get master status: %v", err)
+		app.logger.Error().Err(err).Msg("lost: failed get master status")
 	}
-	app.logger.Infof("lost: gtid executed is %s", gtidExecuted)
+	app.logger.Info().Msgf("lost: gtid executed is %s", gtidExecuted)
 
 	return stateLost
 }
 
 func (app *App) tryLeaveMaintenance() appState {
 	if app.AcquireLock(pathManagerLock) {
-		app.logger.Info("leaving maintenance")
+		app.logger.Info().Msg("leaving maintenance")
 		err := app.leaveMaintenance()
 		if err != nil {
-			app.logger.Errorf("maintenance: failed to leave: %v", err)
+			app.logger.Error().Err(err).Msg("maintenance: failed to leave")
 			return stateMaintenance
 		}
 		app.removeMaintenanceFile()
@@ -540,7 +541,7 @@ func (app *App) stateManager() appState {
 	err := app.cluster.UpdateHostsInfo()
 	if err != nil {
 		// we are connected to dcs, but updating hosts info failed - lets log and ignore
-		app.logger.Errorf("updating hosts info failed due: %s", err)
+		app.logger.Error().Err(err).Msg("updating hosts info failed due")
 	}
 
 	// clusterState is manager-view of cluster state, up-to-date
@@ -550,7 +551,7 @@ func (app *App) stateManager() appState {
 	// but contains additional info such as DiskState
 	clusterStateDcs, err := app.getClusterStateFromDcs()
 	if err != nil {
-		app.logger.Errorf("failed to get cluster state from DCS: %s", err)
+		app.logger.Error().Err(err).Msg("failed to get cluster state from DCS")
 		return stateManager
 	}
 
@@ -566,7 +567,7 @@ func (app *App) stateManager() appState {
 	// master is master host that should be on cluster
 	master, err := app.getCurrentMaster(clusterState)
 	if err != nil {
-		app.logger.Errorf("failed to get or identify master: %s", err)
+		app.logger.Error().Err(err).Msg("failed to get or identify master")
 		if errors.Is(err, ErrManyMasters) {
 			app.writeEmergeFile(err.Error())
 		}
@@ -576,18 +577,18 @@ func (app *App) stateManager() appState {
 	// activeNodes are master + alive running replicas
 	activeNodes, err := app.GetActiveNodes()
 	if err != nil {
-		app.logger.Error(err.Error())
+		app.logger.Error().Err(err).Msg("")
 		return stateManager
 	}
-	app.logger.Infof("active: %v", activeNodes)
-	app.logger.Infof("master: %s", master)
-	app.logger.Infof("cs: %v", clusterState)
-	app.logger.Infof("dcs cs: %v", clusterStateDcs)
+	app.logger.Info().Msgf("active: %v", activeNodes)
+	app.logger.Info().Msgf("master: %s", master)
+	app.logger.Info().Msgf("cs: %v", clusterState)
+	app.logger.Info().Msgf("dcs cs: %v", clusterStateDcs)
 
 	// check if we are in maintenance
 	maintenance, err := app.GetMaintenance()
 	if err != nil && err != dcs.ErrNotFound {
-		app.logger.Errorf("failed to get maintenance from zk %v", err)
+		app.logger.Error().Err(err).Msg("failed to get maintenance from zk")
 
 		// If maintenance file doesn't exist we were in light maintenance mode
 		// and can proceed in state Manager
@@ -600,7 +601,7 @@ func (app *App) stateManager() appState {
 
 	// Handle maintenance light mode
 	if lightMaintenance {
-		app.logger.Info("entering light maintenance mode")
+		app.logger.Info().Msg("entering light maintenance mode")
 		if maintenance.ShouldLeave {
 			return app.tryLeaveMaintenance()
 		}
@@ -611,7 +612,7 @@ func (app *App) stateManager() appState {
 			err := app.dcs.Set(pathMaintenance, maintenance)
 
 			if err != nil {
-				app.logger.Errorf("failed to enter light maintenance mode: %v", err)
+				app.logger.Error().Err(err).Msg("failed to enter light maintenance mode")
 				return stateManager
 			}
 		}
@@ -619,10 +620,10 @@ func (app *App) stateManager() appState {
 		// Handle maintenance full mode
 		if maintenance != nil {
 			if !maintenance.MaintAcquired() {
-				app.logger.Info("entering full maintenance mode")
+				app.logger.Info().Msg("entering full maintenance mode")
 				err := app.enterMaintenance(maintenance, master)
 				if err != nil {
-					app.logger.Errorf("failed to enter maintenance: %v", err)
+					app.logger.Error().Err(err).Msg("failed to enter maintenance")
 					return stateManager
 				}
 			}
@@ -635,39 +636,39 @@ func (app *App) stateManager() appState {
 	switchover := new(Switchover)
 	if err := app.dcs.Get(pathCurrentSwitch, switchover); err == nil {
 		if lightMaintenance {
-			app.logger.Debugf("cannot perform switchover: blocked by light maintenance mode, skipping iteration")
+			app.logger.Debug().Msgf("cannot perform switchover: blocked by light maintenance mode, skipping iteration")
 		} else {
 			if !switchover.InitiatedAt.IsZero() && time.Since(switchover.InitiatedAt) > app.config.SwitchoverTimeout {
-				app.logger.Errorf("switchover %s => %s timed out after %s", switchover.From, switchover.To, time.Since(switchover.InitiatedAt))
+				app.logger.Error().Msgf("switchover %s => %s timed out after %s", switchover.From, switchover.To, time.Since(switchover.InitiatedAt))
 				err = app.FailSwitchover(switchover, fmt.Errorf("switchover timed out after %s", time.Since(switchover.InitiatedAt)))
 				if err != nil {
-					app.logger.Errorf("failed to report switchover timeout: %s", err)
+					app.logger.Error().Err(err).Msg("failed to report switchover timeout")
 				}
 				return stateManager
 			}
 			err = app.approveSwitchover(switchover, activeNodes, clusterState)
 			if err != nil {
-				app.logger.Errorf("cannot perform switchover: %s", err)
+				app.logger.Error().Err(err).Msg("cannot perform switchover")
 				err = app.FinishSwitchover(switchover, err)
 				if err != nil {
-					app.logger.Errorf("failed to reject switchover: %s", err)
+					app.logger.Error().Err(err).Msg("failed to reject switchover")
 				}
 				return stateManager
 			}
 
 			err = app.StartSwitchover(switchover)
 			if err != nil {
-				app.logger.Errorf("failed to start switchover: %s", err)
+				app.logger.Error().Err(err).Msg("failed to start switchover")
 				return stateManager
 			}
 			err = app.performSwitchover(clusterState, activeNodes, switchover, master)
 			if app.dcs.Get(pathCurrentSwitch, new(Switchover)) == dcs.ErrNotFound {
-				app.logger.Errorf("switchover was aborted")
+				app.logger.Error().Msgf("switchover was aborted")
 			} else {
 				if err != nil {
 					err = app.FailSwitchover(switchover, err)
 					if err != nil {
-						app.logger.Errorf("failed to report switchover failure: %s", err)
+						app.logger.Error().Err(err).Msg("failed to report switchover failure")
 					}
 				} else {
 					err = app.FinishSwitchover(switchover, nil)
@@ -675,34 +676,34 @@ func (app *App) stateManager() appState {
 						// we failed to update status in DCS, it's highly possible
 						// that current process lost DCS connection
 						// and another process will take managerLock
-						app.logger.Errorf("failed to report switchover finish: %s", err)
+						app.logger.Error().Err(err).Msg("failed to report switchover finish")
 					}
 				}
 			}
 			return stateManager
 		}
 	} else if err != dcs.ErrNotFound {
-		app.logger.Error(err.Error())
+		app.logger.Error().Err(err).Msg("")
 		return stateManager
 	}
 
 	// perform failover if needed
 
 	if !clusterStateDcs[master].PingOk || clusterStateDcs[master].IsFileSystemReadonly {
-		app.logger.Errorf("MASTER FAILURE")
+		app.logger.Error().Msgf("MASTER FAILURE")
 		app.t.SetIfZero(NodeFailedAt, master, time.Now())
 		if lightMaintenance {
-			app.logger.Infof("failover suppressed by light maintenance mode")
+			app.logger.Info().Msgf("failover suppressed by light maintenance mode")
 		} else {
 			err = app.approveFailover(clusterState, clusterStateDcs, activeNodes, master)
 			if err == nil {
-				app.logger.Infof("failover approved")
+				app.logger.Info().Msgf("failover approved")
 				err = app.IssueFailover(master)
 				if err != nil {
-					app.logger.Error(err.Error())
+					app.logger.Error().Err(err).Msg("")
 				}
 			} else {
-				app.logger.Errorf("failover was not approved: %v", err)
+				app.logger.Error().Err(err).Msg("failover was not approved")
 			}
 
 			return stateManager
@@ -712,7 +713,7 @@ func (app *App) stateManager() appState {
 	}
 
 	if !clusterState[master].PingOk {
-		app.logger.Errorf("MASTER SUSPICIOUS, do not perform any kind of repair")
+		app.logger.Error().Msgf("MASTER SUSPICIOUS, do not perform any kind of repair")
 		return stateManager
 	}
 
@@ -724,20 +725,20 @@ func (app *App) stateManager() appState {
 
 	// perform after-crash failover if needed
 	if app.config.ResetupCrashedHosts && countHANodes(clusterState) > 1 && clusterStateDcs[master].DaemonState != nil && clusterStateDcs[master].DaemonState.CrashRecovery {
-		app.logger.Errorf("MASTER FAILURE (CRASH RECOVERY)")
+		app.logger.Error().Msgf("MASTER FAILURE (CRASH RECOVERY)")
 		if lightMaintenance {
-			app.logger.Infof("after-crash failover suppressed by light maintenance mode")
+			app.logger.Info().Msgf("after-crash failover suppressed by light maintenance mode")
 		} else {
 			err = app.approveFailover(clusterState, clusterStateDcs, activeNodes, master)
 			if err == nil {
-				app.logger.Infof("failover approved")
+				app.logger.Info().Msgf("failover approved")
 				err = app.IssueFailover(master)
 				if err != nil {
-					app.logger.Error(err.Error())
+					app.logger.Error().Err(err).Msg("")
 				}
 				return stateManager
 			} else {
-				app.logger.Errorf("failover was not approved: %v", err)
+				app.logger.Error().Err(err).Msg("failover was not approved")
 			}
 		}
 	}
@@ -745,13 +746,13 @@ func (app *App) stateManager() appState {
 	// if everything is fine - update active nodes
 	err = app.updateActiveNodes(clusterState, clusterStateDcs, activeNodes, master)
 	if err != nil {
-		app.logger.Errorf("failed to update active nodes in dcs: %v", err)
+		app.logger.Error().Err(err).Msg("failed to update active nodes in dcs")
 	}
 
 	if app.config.ReplMon {
 		err = app.updateReplMonTS(master)
 		if err != nil {
-			app.logger.Errorf("failed to update repl_mon timestamp: %v", err)
+			app.logger.Error().Err(err).Msg("failed to update repl_mon timestamp")
 		}
 	}
 
@@ -762,7 +763,7 @@ func (app *App) stateManager() appState {
 	)
 	err = app.optSyncer.Sync(clusterAdapter)
 	if err != nil {
-		app.logger.Errorf("failed to sync local optimization settings: %s", err)
+		app.logger.Error().Err(err).Msg("failed to sync local optimization settings")
 		return stateManager
 	}
 
@@ -772,19 +773,19 @@ func (app *App) stateManager() appState {
 func (app *App) checkMasterVisible(clusterStateFromDB, clusterStateDcs map[string]*nodestate.NodeState) (bool, error) {
 	masterHost, err := app.getMasterHost(clusterStateDcs)
 	if err != nil {
-		app.logger.Errorf("checkMasterVisible: can't get master host, error: %s", err)
+		app.logger.Error().Err(err).Msg("checkMasterVisible: can't get master host, error")
 		return false, err
 	}
 	state, ok := clusterStateFromDB[masterHost]
-	app.logger.Debugf("master(%s) state pingOk == %s", masterHost, state)
+	app.logger.Debug().Msgf("master(%s) state pingOk == %s", masterHost, state)
 	if ok && state.PingOk {
-		app.logger.Debug("Master is visible by manager; then, we don't need switchover")
+		app.logger.Debug().Msg("Master is visible by manager; then, we don't need switchover")
 		return true, nil
 	}
 
 	retryPingOk, err := app.cluster.PingNode(masterHost)
 	if err != nil {
-		app.logger.Errorf("checkMasterVisible: app.cluster.PingNode(%s) fail with error: %s", masterHost, err)
+		app.logger.Error().Err(err).Msgf("checkMasterVisible: app.cluster.PingNode(%s) failed", masterHost)
 	}
 
 	return retryPingOk, err
@@ -799,14 +800,14 @@ func (app *App) checkQuorum(clusterStateFromDB, clusterStateDcs map[string]*node
 	for _, host := range HAHosts {
 		nodeStateFromDB, ok := clusterStateFromDB[host]
 		if !ok {
-			app.logger.Errorf("app.cluster.HANodesHosts() returns host %s, which does not exist in app.getClusterStateFromDB()", host)
+			app.logger.Error().Msgf("app.cluster.HANodesHosts() returns host %s, which does not exist in app.getClusterStateFromDB()", host)
 			break
 		}
 		pingFromDB := nodeStateFromDB.PingOk
 
 		nodeStateFromDcs, ok := clusterStateDcs[host]
 		if !ok {
-			app.logger.Errorf("host %s exists in clusterstate from DB, but does not exit in clusterstate from DCS", host)
+			app.logger.Error().Msgf("host %s exists in clusterstate from DB, but does not exit in clusterstate from DCS", host)
 			break
 		}
 		pingFromDcs := nodeStateFromDcs.PingOk
@@ -822,7 +823,7 @@ func (app *App) checkQuorum(clusterStateFromDB, clusterStateDcs map[string]*node
 	managerElectionDelayAfterQuorumLoss := app.config.ManagerElectionDelayAfterQuorumLoss
 
 	if workingHANodesCount > 0 && visibleHAHostsCount <= (workingHANodesCount-1)/2 {
-		app.logger.Infof("manager lost quorum (%d/%d visible HAHosts)", visibleHAHostsCount, workingHANodesCount)
+		app.logger.Info().Msgf("manager lost quorum (%d/%d visible HAHosts)", visibleHAHostsCount, workingHANodesCount)
 		lostQuorumDuration := time.Since(app.lostQuorumTime)
 
 		if app.lostQuorumTime.IsZero() {
@@ -831,17 +832,17 @@ func (app *App) checkQuorum(clusterStateFromDB, clusterStateDcs map[string]*node
 			// Lost quorum less than 15 (default WaitingRecoveryNetworkTimestamp) seconds ago
 			// Just wait manager recover connection
 			if lostQuorumDuration <= managerElectionDelayAfterQuorumLoss {
-				app.logger.Warnf("Quorum loss ongoing (%0.2fs): manager wait for network recovery", lostQuorumDuration.Seconds())
+				app.logger.Warn().Msgf("Quorum loss ongoing (%0.2fs): manager wait for network recovery", lostQuorumDuration.Seconds())
 				// Lost quorum more than 15 (default WaitingRecoveryNetworkTimestamp) seconds ago
 				// Manager should release lock and dont acquire lock for 45 (default ManagerElectionDelayAfterQuorumLoss) seconds
 			} else if lostQuorumDuration > managerElectionDelayAfterQuorumLoss {
-				app.logger.Warnf("Quorum loss ongoing (%0.2fs): manager release lock", lostQuorumDuration.Seconds())
+				app.logger.Warn().Msgf("Quorum loss ongoing (%0.2fs): manager release lock", lostQuorumDuration.Seconds())
 				app.dcs.ReleaseLock(pathManagerLock)
 				return stateCandidate, false
 			}
 		}
 	} else {
-		app.logger.Debugf("manager sees %d HAHosts of %d (manager has quorum), then the manager should not release the lock", visibleHAHostsCount, workingHANodesCount)
+		app.logger.Debug().Msgf("manager sees %d HAHosts of %d (manager has quorum), then the manager should not release the lock", visibleHAHostsCount, workingHANodesCount)
 		app.lostQuorumTime = time.Time{}
 	}
 
@@ -858,11 +859,11 @@ func (app *App) AcquireLock(path string) bool {
 
 	lostQuorumDuration := time.Since(app.lostQuorumTime)
 	if lostQuorumDuration < managerElectionDelayAfterQuorumLoss {
-		app.logger.Debug("manager try to acquire lock")
+		app.logger.Debug().Msg("manager try to acquire lock")
 		return app.dcs.AcquireLock(path)
 	} else if lostQuorumDuration <= managerElectionDelayAfterQuorumLoss+managerLockAcquireDelayAfterQuorumLoss {
 		// Manager cant AcquireLock in delay
-		app.logger.Debugf(
+		app.logger.Debug().Msgf(
 			"Quorum loss ongoing (%0.2fs): manager lock acquisition blocked (%0.2fs/%0.2fs cooldown)",
 			lostQuorumDuration.Seconds(),
 			lostQuorumDuration.Seconds()-managerElectionDelayAfterQuorumLoss.Seconds(),
@@ -884,9 +885,9 @@ func (app *App) approveFailover(clusterState, clusterStateDcs map[string]*nodest
 	}
 	afterCrashRecovery := clusterStateDcs[master].DaemonState != nil && clusterStateDcs[master].DaemonState.CrashRecovery && app.config.ResetupCrashedHosts
 	if afterCrashRecovery {
-		app.logger.Infof("approve failover: after crash recovery, skip replication and delay checks")
+		app.logger.Info().Msgf("approve failover: after crash recovery, skip replication and delay checks")
 	} else if clusterStateDcs[master].IsFileSystemReadonly {
-		app.logger.Infof("approve failover: filesystem is readonly, skip replication and delay checks")
+		app.logger.Info().Msgf("approve failover: filesystem is readonly, skip replication and delay checks")
 	} else {
 		runningHASlaves := countRunningHASlaves(clusterState)
 		if runningHASlaves > 0 && runningHASlaves == countHANodes(clusterState)-1 {
@@ -900,7 +901,7 @@ func (app *App) approveFailover(clusterState, clusterStateDcs map[string]*nodest
 		}
 	}
 
-	app.logger.Infof("approve failover: active nodes are %v", activeNodes)
+	app.logger.Info().Msgf("approve failover: active nodes are %v", activeNodes)
 	// number of active slaves that we can use to perform switchover
 	permissibleSlaves := countAliveHASlavesWithinNodes(activeNodes, clusterState)
 	err := app.switchHelper.CheckFailoverQuorum(activeNodes, permissibleSlaves)
@@ -931,12 +932,12 @@ func (app *App) stateCandidate() appState {
 	}
 	err := app.cluster.UpdateHostsInfo()
 	if err != nil {
-		app.logger.Errorf("candidate: failed to update host info zk %v", err)
+		app.logger.Error().Err(err).Msg("candidate: failed to update host info zk")
 		return stateCandidate
 	}
 	maintenance, err := app.GetMaintenance()
 	if err != nil && err != dcs.ErrNotFound {
-		app.logger.Errorf("candidate: failed to get maintenance from zk %v", err)
+		app.logger.Error().Err(err).Msg("candidate: failed to get maintenance from zk")
 		return stateCandidate
 	}
 	// candidate enters maintenane only after manager, when mysync already paused
@@ -955,7 +956,7 @@ func (app *App) emulateError(pos string) bool {
 	}
 	ee := util.GetEnvVariable("MYSYNC_EMULATE_ERROR", "")
 	if slices.Contains(strings.Split(ee, ","), pos) {
-		app.logger.Debugf("devmode: error emulated: %s", pos)
+		app.logger.Debug().Msgf("devmode: error emulated: %s", pos)
 		return true
 	}
 	return false
@@ -977,17 +978,17 @@ func (app *App) calcActiveNodes(clusterState, clusterStateDcs map[string]*nodest
 	masterNode := app.cluster.Get(master)
 	hostsOnRecovery, err := app.GetHostsOnRecovery()
 	if err != nil {
-		app.logger.Errorf("failed to get hosts on recovery: %v", err)
+		app.logger.Error().Err(err).Msg("failed to get hosts on recovery")
 		return nil, err
 	}
 	mgtids, err := masterNode.GTIDExecutedParsed()
 	if err != nil {
-		app.logger.Warnf("failed to get master status %v", err)
+		app.logger.Warn().Msgf("failed to get master status %v", err)
 		return nil, err
 	}
 	muuid, err := masterNode.UUID()
 	if err != nil {
-		app.logger.Warnf("failed to get master uuid %v", err)
+		app.logger.Warn().Msgf("failed to get master uuid %v", err)
 		return nil, err
 	}
 
@@ -1006,7 +1007,7 @@ func (app *App) calcActiveNodes(clusterState, clusterStateDcs map[string]*nodest
 			if node.PingDubious || clusterStateDcs[host].PingOk {
 				// we can't rely on ping and slave status if ping was dubious
 				if slices.Contains(oldActiveNodes, host) {
-					app.logger.Warnf("calc active nodes: %s is dubious or keep health lock in dcs, keeping active...", host)
+					app.logger.Warn().Msgf("calc active nodes: %s is dubious or keep health lock in dcs, keeping active...", host)
 					activeNodes = append(activeNodes, host)
 				}
 				continue
@@ -1015,11 +1016,11 @@ func (app *App) calcActiveNodes(clusterState, clusterStateDcs map[string]*nodest
 			failingTime := time.Since(app.t.Get(NodeFailedAt, host))
 			if failingTime < app.config.InactivationDelay {
 				if slices.Contains(oldActiveNodes, host) {
-					app.logger.Warnf("calc active nodes: %s is failing: remaining %v", host, app.config.InactivationDelay-failingTime)
+					app.logger.Warn().Msgf("calc active nodes: %s is failing: remaining %v", host, app.config.InactivationDelay-failingTime)
 					activeNodes = append(activeNodes, host)
 				}
 			} else {
-				app.logger.Errorf("calc active nodes: %s is down, deleting from active...", host)
+				app.logger.Error().Msgf("calc active nodes: %s is down, deleting from active...", host)
 				delete(app.slaveReadPositions, host)
 			}
 			continue
@@ -1028,12 +1029,12 @@ func (app *App) calcActiveNodes(clusterState, clusterStateDcs map[string]*nodest
 		}
 		sstatus := node.SlaveState
 		if sstatus == nil {
-			app.logger.Warnf("calc active nodes: lost master %s", host)
+			app.logger.Warn().Msgf("calc active nodes: lost master %s", host)
 			continue
 		}
 		sgtids := gtids.ParseGtidSet(sstatus.ExecutedGtidSet)
 		if sstatus.ReplicationState != mysql.ReplicationRunning || gtids.IsSplitBrained(sgtids, mgtids, muuid) {
-			app.logger.Errorf("calc active nodes: %s is not replicating or splitbrained, deleting from active...", host)
+			app.logger.Error().Msgf("calc active nodes: %s is not replicating or splitbrained, deleting from active...", host)
 			continue
 		}
 		activeNodes = append(activeNodes, host)
@@ -1078,7 +1079,7 @@ func (app *App) calcActiveNodesChanges(clusterState map[string]*nodestate.NodeSt
 		// We can't check all the replicas on each iteration, because SHOW BINARY LOGS is pretty heavy request
 		masterBinlogs, err := masterNode.GetBinlogs()
 		if err != nil {
-			app.logger.Errorf("calc active nodes: failed to list master binlogs on %s: %v", master, err)
+			app.logger.Error().Err(err).Msgf("calc active nodes: failed to list master binlogs on %s", master)
 			return nil, nil, nil, err
 		}
 		for _, host := range becomeActive {
@@ -1089,10 +1090,10 @@ func (app *App) calcActiveNodesChanges(clusterState map[string]*nodestate.NodeSt
 				oldBinLogPos := app.slaveReadPositions[host]
 
 				if newBinLogPos <= oldBinLogPos {
-					app.logger.Warnf("calc active nodes: %v should become active, but it has data lag %d and it's IO is stopped, delaying...", host, dataLag)
+					app.logger.Warn().Msgf("calc active nodes: %v should become active, but it has data lag %d and it's IO is stopped, delaying...", host, dataLag)
 					becomeInactive = append(becomeInactive, host)
 				} else {
-					app.logger.Warnf("calc active nodes: %v has data lag %d, but it's IO is working. Old binlog: %s, new binlog: %s", host, dataLag, oldBinLogPos, newBinLogPos)
+					app.logger.Warn().Msgf("calc active nodes: %v has data lag %d, but it's IO is working. Old binlog: %s, new binlog: %s", host, dataLag, oldBinLogPos, newBinLogPos)
 					dataLagging = append(dataLagging, host)
 				}
 
@@ -1122,7 +1123,7 @@ func (app *App) updateActiveNodes(clusterState, clusterStateDcs map[string]*node
 	masterState := clusterState[master]
 	activeNodes, err := app.calcActiveNodes(clusterState, clusterStateDcs, oldActiveNodes, master)
 	if err != nil {
-		app.logger.Errorf("update active nodes: failed to calc new active nodes: %v", err)
+		app.logger.Error().Err(err).Msg("update active nodes: failed to calc new active nodes")
 		return err
 	}
 
@@ -1135,7 +1136,7 @@ func (app *App) updateActiveNodes(clusterState, clusterStateDcs map[string]*node
 		// than update DCS
 		err = app.dcs.Set(pathActiveNodes, activeNodes)
 		if err != nil {
-			app.logger.Errorf("update active nodes: failed to update active nodes in dcs %v", err)
+			app.logger.Error().Err(err).Msg("update active nodes: failed to update active nodes in dcs")
 			return err
 		}
 		return nil
@@ -1143,7 +1144,7 @@ func (app *App) updateActiveNodes(clusterState, clusterStateDcs map[string]*node
 
 	becomeActive, becomeInactive, becomeDataLag, err := app.calcActiveNodesChanges(clusterState, activeNodes, oldActiveNodes, master)
 	if err != nil {
-		app.logger.Errorf("update active nodes: failed to calc active nodes changes: %v", err)
+		app.logger.Error().Err(err).Msg("update active nodes: failed to calc active nodes changes")
 		return err
 	}
 	oldWaitSlaveCount := 0
@@ -1154,20 +1155,20 @@ func (app *App) updateActiveNodes(clusterState, clusterStateDcs map[string]*node
 	notLaggingActive := filterOut(activeNodes, becomeDataLag)
 	waitSlaveCount := app.switchHelper.GetRequiredWaitSlaveCount(notLaggingActive)
 
-	app.logger.Infof("update active nodes: active nodes are: %v, wait_slave_count %d", activeNodes, waitSlaveCount)
+	app.logger.Info().Msgf("update active nodes: active nodes are: %v, wait_slave_count %d", activeNodes, waitSlaveCount)
 	if len(becomeActive) > 0 {
-		app.logger.Infof("update active nodes: slave enter HA-group: %v", becomeActive)
+		app.logger.Info().Msgf("update active nodes: slave enter HA-group: %v", becomeActive)
 	}
 	if len(becomeInactive) > 0 {
-		app.logger.Infof("update active nodes: slave leave HA-group: %v", becomeInactive)
+		app.logger.Info().Msgf("update active nodes: slave leave HA-group: %v", becomeInactive)
 	}
 	if oldWaitSlaveCount != waitSlaveCount {
-		app.logger.Infof("update active nodes: master change wait_slave_count: %d => %d", oldWaitSlaveCount, waitSlaveCount)
+		app.logger.Info().Msgf("update active nodes: master change wait_slave_count: %d => %d", oldWaitSlaveCount, waitSlaveCount)
 	}
 
 	// double check master status before inactivating nodes
 	if ok, err := masterNode.Ping(); !ok {
-		app.logger.Errorf("update active nodes: MASTER SUSPICIOUS, do not update active nodes: %v", err)
+		app.logger.Error().Err(err).Msg("update active nodes: MASTER SUSPICIOUS, do not update active nodes")
 		return err
 	}
 
@@ -1175,14 +1176,14 @@ func (app *App) updateActiveNodes(clusterState, clusterStateDcs map[string]*node
 	if waitSlaveCount > oldWaitSlaveCount {
 		err := app.adjustSemiSyncOnMaster(masterNode, masterState, waitSlaveCount)
 		if err != nil {
-			app.logger.Errorf("failed to adjust semi-sync on master %s to %d: %v", masterNode.Host(), waitSlaveCount, err)
+			app.logger.Error().Err(err).Msgf("failed to adjust semi-sync on master %s to %d", masterNode.Host(), waitSlaveCount)
 			return err
 		}
 	}
 
 	errs := app.disableSemiSyncOnSlaves(becomeInactive, becomeDataLag)
 	if len(errs) > 0 {
-		app.logger.Warnf("cannot disable semisync on inactive hosts: %s", err)
+		app.logger.Warn().Msgf("cannot disable semisync on inactive hosts: %s", err)
 	}
 
 	// enlarge HA-group, if needed (and if possible)
@@ -1197,20 +1198,20 @@ func (app *App) updateActiveNodes(clusterState, clusterStateDcs map[string]*node
 		host := app.cluster.Get(hostname)
 		err = host.SetDefaultReplicationSettings(masterNode)
 		if err != nil {
-			app.logger.Errorf("failed to set default replication settings %s: %v", hostname, err)
+			app.logger.Error().Err(err).Msgf("failed to set default replication settings %s", hostname)
 		}
 	}
 	if waitSlaveCount < oldWaitSlaveCount {
 		err := app.adjustSemiSyncOnMaster(masterNode, masterState, waitSlaveCount)
 		if err != nil {
-			app.logger.Errorf("failed to adjust semi-sync on master %s to %d: %v", masterNode.Host(), waitSlaveCount, err)
+			app.logger.Error().Err(err).Msgf("failed to adjust semi-sync on master %s to %d", masterNode.Host(), waitSlaveCount)
 		}
 	}
 
 	// than update DCS
 	err = app.dcs.Set(pathActiveNodes, activeNodes)
 	if err != nil {
-		app.logger.Errorf("update active nodes: failed to update active nodes in dcs %v", err)
+		app.logger.Error().Err(err).Msg("update active nodes: failed to update active nodes in dcs")
 		return err
 	}
 
@@ -1269,7 +1270,7 @@ func (app *App) disableSemiSyncOnSlaves(becomeInactive, becomeDataLag []string) 
 
 		err = app.optController.Enable(node)
 		if err != nil {
-			app.logger.Warnf("failed to enable optimization on slave %s: %v", host, err)
+			app.logger.Warn().Msgf("failed to enable optimization on slave %s: %v", host, err)
 		}
 	}
 
@@ -1280,7 +1281,7 @@ func (app *App) enableSemiSyncOnSlave(host string, slaveState, masterState *node
 	node := app.cluster.Get(host)
 	err := node.SemiSyncSetSlave()
 	if err != nil {
-		app.logger.Errorf("failed to enable semi_sync_slave on %s: %s", host, err)
+		app.logger.Error().Err(err).Msgf("failed to enable semi_sync_slave on %s", host)
 		return err
 	}
 	masterGtidSet := gtids.ParseGtidSet(masterState.MasterState.ExecutedGtidSet)
@@ -1290,13 +1291,13 @@ func (app *App) enableSemiSyncOnSlave(host string, slaveState, masterState *node
 		// we should restart only replicas ahead of the master
 		err = node.RestartReplica()
 		if err != nil {
-			app.logger.Errorf("failed restart replication after set semi_sync_slave on %s: %s", host, err)
+			app.logger.Error().Err(err).Msgf("failed restart replication after set semi_sync_slave on %s", host)
 			return err
 		}
 	} else {
 		err = node.RestartSlaveIOThread()
 		if err != nil {
-			app.logger.Errorf("failed restart slave io thread after set semi_sync_slave on %s: %s", host, err)
+			app.logger.Error().Err(err).Msgf("failed restart slave io thread after set semi_sync_slave on %s", host)
 			return err
 		}
 	}
@@ -1308,14 +1309,14 @@ func (app *App) disableSemiSyncOnSlave(host string, restartIOThread bool) error 
 	node := app.cluster.Get(host)
 	err := node.SemiSyncDisable()
 	if err != nil {
-		app.logger.Errorf("failed to disable semi_sync_slave on %s: %s", host, err)
+		app.logger.Error().Err(err).Msgf("failed to disable semi_sync_slave on %s", host)
 		return err
 	}
 
 	if restartIOThread {
 		err = node.RestartSlaveIOThread()
 		if err != nil {
-			app.logger.Errorf("failed restart slave io thread after set semi_sync_slave on %s: %s", host, err)
+			app.logger.Error().Err(err).Msgf("failed restart slave io thread after set semi_sync_slave on %s", host)
 			return err
 		}
 	}
@@ -1326,10 +1327,10 @@ func (app *App) disableSemiSyncOnSlave(host string, restartIOThread bool) error 
 func (app *App) disableSemiSyncIfNonNeeded(node *mysql.Node, state *nodestate.NodeState) {
 	if state.SemiSyncState != nil && (state.SemiSyncState.MasterEnabled || state.SemiSyncState.SlaveEnabled) {
 		host := node.Host()
-		app.logger.Warnf("update_active_nodes: semi_sync is enabled on host %s, but disabled in mysync config. turning it off..", host)
+		app.logger.Warn().Msgf("update_active_nodes: semi_sync is enabled on host %s, but disabled in mysync config. turning it off..", host)
 		err := node.SemiSyncDisable()
 		if err != nil {
-			app.logger.Errorf("update_active_nodes: failed to disable semi_sync on %s: %s", host, err)
+			app.logger.Error().Err(err).Msgf("update_active_nodes: failed to disable semi_sync on %s", host)
 		}
 	}
 }
@@ -1345,7 +1346,7 @@ func (app *App) performSwitchover(clusterState map[string]*nodestate.NodeState, 
 	if dubious := getDubiousHAHosts(clusterState); len(dubious) > 0 {
 		return fmt.Errorf("switchover: failed to ping hosts: %v with dubious errors", dubious)
 	}
-	app.logger.Infof("switchover: %+v", switchover.MasterTransition)
+	app.logger.Info().Msgf("switchover: %+v", switchover.MasterTransition)
 
 	activeNodesWithOldMaster := activeNodes
 
@@ -1366,7 +1367,7 @@ func (app *App) performSwitchover(clusterState map[string]*nodestate.NodeState, 
 	}
 
 	// set read only everywhere (all HA-nodes) and stop replication
-	app.logger.Info("switchover: phase 1: enter read only")
+	app.logger.Info().Msg("switchover: phase 1: enter read only")
 	errs := util.RunParallel(func(host string) error {
 		if !clusterState[host].PingOk {
 			return fmt.Errorf("switchover: failed to ping host %s", host)
@@ -1383,19 +1384,19 @@ func (app *App) performSwitchover(clusterState map[string]*nodestate.NodeState, 
 			defer func() {
 				err := node.SetOnline()
 				if err != nil {
-					app.logger.Errorf("failed to set node %s online after setting force offline: %v", host, err)
+					app.logger.Error().Err(err).Msgf("failed to set node %s online after setting force offline", host)
 				}
 			}()
 		}
 
 		err := node.SetReadOnly(true)
 		if err != nil || app.emulateError("freeze_ro") {
-			app.logger.Infof("switchover: failed to set node %s read-only, trying kill bad queries: %v", host, err)
+			app.logger.Info().Msgf("switchover: failed to set node %s read-only, trying kill bad queries: %v", host, err)
 			if err := node.SetReadOnlyWithForce(app.config.ExcludeUsers, true); err != nil {
 				return fmt.Errorf("failed to set node %s read-only: %v", host, err)
 			}
 		}
-		app.logger.Infof("switchover: host %s set read-only", host)
+		app.logger.Info().Msgf("switchover: host %s set read-only", host)
 		return nil
 	}, activeNodes)
 
@@ -1403,16 +1404,16 @@ func (app *App) performSwitchover(clusterState map[string]*nodestate.NodeState, 
 	// MasterTransition may not be set if issued from worker
 	if err, ok := errs[oldMaster]; ok && err != nil && switchover.MasterTransition != FailoverTransition {
 		err = fmt.Errorf("switchover: failed to set old master %s read-only %s", oldMaster, err)
-		app.logger.Info(err.Error())
+		app.logger.Info().Msg(err.Error())
 		switchErr := app.FinishSwitchover(switchover, err)
 		if switchErr != nil {
 			return fmt.Errorf("switchover: failed to reject switchover %s", switchErr)
 		}
-		app.logger.Info("switchover: rejected")
+		app.logger.Info().Msg("switchover: rejected")
 		return err
 	}
 
-	app.logger.Info("switchover: phase 2: stop replication")
+	app.logger.Info().Msg("switchover: phase 2: stop replication")
 
 	oldMasterNode := app.cluster.Get(oldMaster)
 	if clusterState[oldMaster].PingOk {
@@ -1425,7 +1426,7 @@ func (app *App) performSwitchover(clusterState map[string]*nodestate.NodeState, 
 	errs2 := util.RunParallel(func(host string) error {
 		if !clusterState[host].PingOk {
 			errMessage := fmt.Sprintf("switchover: failed to ping host %s", host)
-			app.logger.Warn(errMessage)
+			app.logger.Warn().Msg(errMessage)
 			return fmt.Errorf("%s", errMessage)
 		}
 		node := app.cluster.Get(host)
@@ -1433,10 +1434,10 @@ func (app *App) performSwitchover(clusterState map[string]*nodestate.NodeState, 
 		err := node.StopSlaveIOThread()
 		if err != nil || app.emulateError("freeze_stop_slave_io") {
 			errMessage := fmt.Sprintf("failed to stop slave on host %s: %s", host, err)
-			app.logger.Warn(errMessage)
+			app.logger.Warn().Msg(errMessage)
 			return fmt.Errorf("%s", errMessage)
 		}
-		app.logger.Infof("switchover: host %s replication IO thread stopped", host)
+		app.logger.Info().Msgf("switchover: host %s replication IO thread stopped", host)
 		ns := app.getNodeState(host)
 		if broken, _ := ns.IsReplicationPermanentlyBroken(); broken {
 			return fmt.Errorf("switchover: host %s replication is permanently broken", host)
@@ -1462,7 +1463,7 @@ func (app *App) performSwitchover(clusterState map[string]*nodestate.NodeState, 
 	}
 
 	// collect active host positions
-	app.logger.Info("switchover: phase 3: find most up-to-date host")
+	app.logger.Info().Msg("switchover: phase 3: find most up-to-date host")
 	positions, err := app.getNodePositions(frozenActiveNodes)
 	if err != nil {
 		return err
@@ -1478,13 +1479,13 @@ func (app *App) performSwitchover(clusterState map[string]*nodestate.NodeState, 
 	mostRecent, mostRecentGtidSet, splitbrain := findMostRecentNodeAndDetectSplitbrain(positions)
 	if splitbrain {
 		app.writeEmergeFile("splitbrain detected")
-		app.logger.Errorf("SPLITBRAIN")
+		app.logger.Error().Msgf("SPLITBRAIN")
 		for _, pos := range positions {
-			app.logger.Errorf("splitbrain: %s: %s", pos.host, pos.gtidset)
+			app.logger.Error().Msgf("splitbrain: %s: %s", pos.host, pos.gtidset)
 		}
 		return fmt.Errorf("splitbrain detected")
 	}
-	app.logger.Infof("switchover: most up-to-date node is %s with gtidset %s", mostRecent, mostRecentGtidSet)
+	app.logger.Info().Msgf("switchover: most up-to-date node is %s with gtidset %s", mostRecent, mostRecentGtidSet)
 
 	// choose new master
 	var newMaster string
@@ -1500,14 +1501,14 @@ func (app *App) performSwitchover(clusterState map[string]*nodestate.NodeState, 
 	} else {
 		newMaster = mostRecent
 	}
-	app.logger.Infof("switchover: newMaster is %s", newMaster)
+	app.logger.Info().Msgf("switchover: newMaster is %s", newMaster)
 
 	newMasterNode := app.cluster.Get(newMaster)
 
 	// catch up
-	app.logger.Info("switchover: phase 4: catch up if needed")
+	app.logger.Info().Msg("switchover: phase 4: catch up if needed")
 	if newMaster != mostRecent {
-		app.logger.Infof("switchover: new master %s differs from most recent host %s, need to catch up", newMaster, mostRecent)
+		app.logger.Info().Msgf("switchover: new master %s differs from most recent host %s, need to catch up", newMaster, mostRecent)
 		err := app.cluster.Get(mostRecent).SetOnline()
 		if err != nil || app.emulateError("catchup_set_most_recent_online") {
 			return err
@@ -1517,7 +1518,7 @@ func (app *App) performSwitchover(clusterState map[string]*nodestate.NodeState, 
 			return err
 		}
 	} else {
-		app.logger.Infof("switchover: new master %s is the most recent host, waiting for all binlogs to be applied", newMaster)
+		app.logger.Info().Msgf("switchover: new master %s is the most recent host, waiting for all binlogs to be applied", newMaster)
 	}
 	caught, err := app.waitForCatchUp(newMasterNode, mostRecentGtidSet, app.config.SlaveCatchUpTimeout, time.Second)
 	if err != nil || app.emulateError("catchup_master_status") {
@@ -1531,7 +1532,7 @@ func (app *App) performSwitchover(clusterState map[string]*nodestate.NodeState, 
 	if !app.AcquireLock(pathManagerLock) || app.emulateError("catchup_lost_lock") {
 		return errors.New("manger lock lost during switchover, new manager should finish the process, leaving")
 	}
-	app.logger.Infof("switchover: new master %s caught up", newMaster)
+	app.logger.Info().Msgf("switchover: new master %s caught up", newMaster)
 
 	// update lost servers list, it may change during catchup
 	clusterState = app.getClusterStateFromDB()
@@ -1543,7 +1544,7 @@ func (app *App) performSwitchover(clusterState map[string]*nodestate.NodeState, 
 	}
 
 	// turn slaves to the new master
-	app.logger.Info("switchover: phase 5: turn to the new master")
+	app.logger.Info().Msg("switchover: phase 5: turn to the new master")
 	err = app.cluster.Get(newMaster).SetOnline()
 	if err != nil {
 		return fmt.Errorf("got error on setting new master %s online %v", newMaster, err)
@@ -1566,14 +1567,14 @@ func (app *App) performSwitchover(clusterState map[string]*nodestate.NodeState, 
 
 	// check if need recover old master
 	oldMasterSlaveStatus, err := oldMasterNode.GetReplicaStatus()
-	app.logger.Infof("switchover: old master slave status: %#v", oldMasterSlaveStatus)
+	app.logger.Info().Msgf("switchover: old master slave status: %#v", oldMasterSlaveStatus)
 	if err != nil || oldMasterSlaveStatus == nil || isSlavePermanentlyLost(oldMasterSlaveStatus, mostRecentGtidSet) {
 		err = app.SetRecovery(oldMaster)
 		if err != nil {
 			return fmt.Errorf("failed to set old master %s to recovery: %v", oldMaster, err)
 		}
 	} else {
-		app.logger.Infof("switchover: old master %s does not need recovery", oldMaster)
+		app.logger.Info().Msgf("switchover: old master %s does not need recovery", oldMaster)
 		err = app.externalReplication.Reset(oldMasterNode)
 		if err != nil {
 			return fmt.Errorf("got error: %s while resetting external replication on old master: %s", err, oldMaster)
@@ -1581,7 +1582,7 @@ func (app *App) performSwitchover(clusterState map[string]*nodestate.NodeState, 
 	}
 
 	// promote new master
-	app.logger.Info("switchover: phase 6: promote new master")
+	app.logger.Info().Msg("switchover: phase 6: promote new master")
 	err = newMasterNode.StopSlave()
 	if err != nil || app.emulateError("promote_stop_slave") {
 		return fmt.Errorf("failed to stop slave on new master %s: %s", newMaster, err)
@@ -1590,13 +1591,13 @@ func (app *App) performSwitchover(clusterState map[string]*nodestate.NodeState, 
 	if err != nil || app.emulateError("promote_reset_slave") {
 		return fmt.Errorf("failed to promote new master %s: %s", newMaster, err)
 	}
-	app.logger.Infof("switchover: new master %s promoted", newMaster)
+	app.logger.Info().Msgf("switchover: new master %s promoted", newMaster)
 
 	// adjust semi-sync before finishing switchover
 	clusterState = app.getClusterStateFromDB()
 	err = app.updateActiveNodes(clusterState, clusterState, activeNodesWithOldMaster, newMaster)
 	if err != nil || app.emulateError("update_active_nodes") {
-		app.logger.Warnf("switchover: failed to update active nodes after switchover: %v", err)
+		app.logger.Warn().Msgf("switchover: failed to update active nodes after switchover: %v", err)
 	}
 
 	// set new master writable
@@ -1604,7 +1605,7 @@ func (app *App) performSwitchover(clusterState map[string]*nodestate.NodeState, 
 	if err != nil || app.emulateError("promote_set_writable") {
 		return fmt.Errorf("failed to set new master %s writable: %s", newMaster, err)
 	}
-	app.logger.Infof("switchover: new master %s set writable", newMaster)
+	app.logger.Info().Msgf("switchover: new master %s set writable", newMaster)
 
 	// reenable events
 	events, err := newMasterNode.ReenableEventsRetry()
@@ -1612,13 +1613,13 @@ func (app *App) performSwitchover(clusterState map[string]*nodestate.NodeState, 
 		return fmt.Errorf("failed to reenable slaveside disabled events on %s: %s", newMaster, err)
 	}
 	if len(events) > 0 {
-		app.logger.Infof("switchover: events reenabled on %s: %v", newMaster, events)
+		app.logger.Info().Msgf("switchover: events reenabled on %s: %v", newMaster, events)
 	}
 
 	// enable external replication
 	err = app.externalReplication.Set(newMasterNode)
 	if err != nil {
-		app.logger.Errorf("failed to set external replication on new master")
+		app.logger.Error().Msgf("failed to set external replication on new master")
 	}
 
 	// set new master in dcs
@@ -1698,9 +1699,9 @@ func (app *App) repairMasterOfflineMode(host string, state *nodestate.NodeState)
 		node := app.cluster.Get(host)
 		err := node.SetOnline()
 		if err != nil {
-			app.logger.Errorf("repair: failed to set master %s online: %s", host, err)
+			app.logger.Error().Err(err).Msgf("repair: failed to set master %s online", host)
 		} else {
-			app.logger.Infof("repair: master %s set online", host)
+			app.logger.Info().Msgf("repair: master %s set online", host)
 		}
 	}
 }
@@ -1716,32 +1717,32 @@ func (app *App) repairSlaveOfflineMode(host string, state *nodestate.NodeState, 
 	// offline => online, if lag has decreased
 	if state.IsOffline && *state.SlaveState.ReplicationLag <= app.config.OfflineModeDisableLag.Seconds() {
 		if replPermBroken {
-			app.logger.Infof("repair: replica %s is permanently broken, won't set online", host)
+			app.logger.Info().Msgf("repair: replica %s is permanently broken, won't set online", host)
 			return
 		}
 		resetupStatus, err := app.GetResetupStatus(host)
 		if err != nil {
-			app.logger.Errorf("repair: failed to get resetup status from host %s: %v", host, err)
+			app.logger.Error().Err(err).Msgf("repair: failed to get resetup status from host %s", host)
 			return
 		}
 		startupTime, err := node.GetStartupTime()
 		if err != nil {
-			app.logger.Errorf("repair: failed to get mysql startup time from host %s: %v", host, err)
+			app.logger.Error().Err(err).Msgf("repair: failed to get mysql startup time from host %s", host)
 			return
 		}
 		if resetupStatus.Status || resetupStatus.UpdateTime.Before(startupTime) {
-			app.logger.Errorf("repair: should not turn slave to online until get actual resetup status")
+			app.logger.Error().Msgf("repair: should not turn slave to online until get actual resetup status")
 			return
 		}
 		err = node.SetDefaultReplicationSettings(masterNode)
 		if err != nil {
-			app.logger.Errorf("repair: failed to set default replication settings on slave %s: %s", host, err)
+			app.logger.Error().Err(err).Msgf("repair: failed to set default replication settings on slave %s", host)
 		}
 		err = node.SetOnline()
 		if err != nil {
-			app.logger.Errorf("repair: failed to set slave %s online: %s", host, err)
+			app.logger.Error().Err(err).Msgf("repair: failed to set slave %s online", host)
 		} else {
-			app.logger.Infof("repair: slave %s set online, because ReplicationLag (%f s) <= OfflineModeDisableLag (%v)",
+			app.logger.Info().Msgf("repair: slave %s set online, because ReplicationLag (%f s) <= OfflineModeDisableLag (%v)",
 				host, *state.SlaveState.ReplicationLag, app.config.OfflineModeDisableLag)
 		}
 		return
@@ -1751,9 +1752,9 @@ func (app *App) repairSlaveOfflineMode(host string, state *nodestate.NodeState, 
 		if app.offlineModeFilter.CanSetOffline(host, clusterState, pendingOfflineByAZ) {
 			err := node.SetOffline()
 			if err != nil {
-				app.logger.Errorf("repair: failed to set slave %s offline: %s", host, err)
+				app.logger.Error().Err(err).Msgf("repair: failed to set slave %s offline", host)
 			} else {
-				app.logger.Infof("repair: slave %s set offline, because ReplicationLag (%f s) >= OfflineModeEnableLag (%v)",
+				app.logger.Info().Msgf("repair: slave %s set offline, because ReplicationLag (%f s) >= OfflineModeEnableLag (%v)",
 					host, *state.SlaveState.ReplicationLag, app.config.OfflineModeEnableLag)
 
 				// Track all replicas which were set offline on current step
@@ -1762,11 +1763,11 @@ func (app *App) repairSlaveOfflineMode(host string, state *nodestate.NodeState, 
 
 				err = app.optController.Enable(node)
 				if err != nil {
-					app.logger.Errorf("repair: failed to set optimize replication settings on slave %s: %s", host, err)
+					app.logger.Error().Err(err).Msgf("repair: failed to set optimize replication settings on slave %s", host)
 				}
 			}
 		} else {
-			app.logger.Warnf("repair: skip setting slave %s offline: AZ offline limit reached (offline_mode_max_offline_pct=%d)",
+			app.logger.Warn().Msgf("repair: skip setting slave %s offline: AZ offline limit reached (offline_mode_max_offline_pct=%d)",
 				host, app.config.OfflineModeMaxOfflinePct)
 		}
 	}
@@ -1779,20 +1780,20 @@ func (app *App) repairSlaveOfflineMode(host string, state *nodestate.NodeState, 
 	// gradual transfer of permanently broken nodes to offline
 	lastShutdownNodeTime, err := app.GetLastShutdownNodeTime()
 	if err != nil {
-		app.logger.Errorf("repair: failed to get last shutdown node time: %s", err)
+		app.logger.Error().Err(err).Msg("repair: failed to get last shutdown node time")
 		return
 	}
 	setOfflineIsPossible := time.Since(lastShutdownNodeTime) > app.config.OfflineModeEnableInterval
 	if !state.IsOffline && replPermBroken && setOfflineIsPossible {
 		err = app.UpdateLastShutdownNodeTime()
 		if err != nil {
-			app.logger.Errorf("repair: failed to update last shutdown node time: %s", err)
+			app.logger.Error().Err(err).Msg("repair: failed to update last shutdown node time")
 		}
 		err = node.SetOffline()
 		if err != nil {
-			app.logger.Errorf("repair: failed to set slave %s offline: %s", host, err)
+			app.logger.Error().Err(err).Msgf("repair: failed to set slave %s offline", host)
 		} else {
-			app.logger.Infof("repair: slave %s set offline, because replication permanently broken", host)
+			app.logger.Info().Msgf("repair: slave %s set offline, because replication permanently broken", host)
 		}
 	}
 }
@@ -1812,10 +1813,10 @@ func (app *App) repairReadOnlyOnMaster(masterNode *mysql.Node, masterState *node
 		}
 		if node.IsMaster && masterNode.Host() == host {
 			if node.DiskState.Usage() >= app.config.CriticalDiskUsage {
-				app.logger.Errorf("diskusage: master %s has critical disk usage %0.2f%%", host, node.DiskState.Usage())
+				app.logger.Error().Msgf("diskusage: master %s has critical disk usage %0.2f%%", host, node.DiskState.Usage())
 				needRo = true
 			} else if node.DiskState.Usage() > app.config.NotCriticalDiskUsage {
-				app.logger.Warnf("diskusage: master %s has grey-zone disk usage %0.2f%%", host, node.DiskState.Usage())
+				app.logger.Warn().Msgf("diskusage: master %s has grey-zone disk usage %0.2f%%", host, node.DiskState.Usage())
 				mayWrite = false
 			}
 		} else {
@@ -1823,10 +1824,10 @@ func (app *App) repairReadOnlyOnMaster(masterNode *mysql.Node, masterState *node
 				node.SlaveState != nil && node.SlaveState.ReplicationState == mysql.ReplicationRunning {
 				replicasRunning += 1
 				if node.DiskState.Usage() >= app.config.CriticalDiskUsage {
-					app.logger.Warnf("diskusage: semisync replica %s has critical disk usage %0.2f%%", host, node.DiskState.Usage())
+					app.logger.Warn().Msgf("diskusage: semisync replica %s has critical disk usage %0.2f%%", host, node.DiskState.Usage())
 					replicasLow += 1
 				} else if node.DiskState.Usage() > app.config.NotCriticalDiskUsage {
-					app.logger.Warnf("diskusage: semisync replica %s has grey-zone disk usage %0.2f%%", host, node.DiskState.Usage())
+					app.logger.Warn().Msgf("diskusage: semisync replica %s has grey-zone disk usage %0.2f%%", host, node.DiskState.Usage())
 				} else {
 					replicasNormal += 1
 				}
@@ -1835,27 +1836,27 @@ func (app *App) repairReadOnlyOnMaster(masterNode *mysql.Node, masterState *node
 	}
 	if replicasRunning > 0 {
 		if masterState.SemiSyncState != nil && replicasLow > replicasRunning-masterState.SemiSyncState.WaitSlaveCount {
-			app.logger.Error("diskusage: all semisync replicas have critical disk usage")
+			app.logger.Error().Msg("diskusage: all semisync replicas have critical disk usage")
 			needRo = true
 		} else if replicasNormal == 0 {
-			app.logger.Warnf("diskusage: there is no semisync replicas with not-critical disk usage")
+			app.logger.Warn().Msgf("diskusage: there is no semisync replicas with not-critical disk usage")
 			mayWrite = false
 		}
 	}
 	if needRo {
 		keepSuperWritable := app.config.KeepSuperWritableOnCriticalDiskUsage
 		if masterState.IsReadOnly && (keepSuperWritable != masterState.IsSuperReadOnly) {
-			app.logger.Infof("diskusage: master is already read-only")
+			app.logger.Info().Msgf("diskusage: master is already read-only")
 			return
 		}
 		err := masterNode.SetReadOnlyWithForce(app.config.ExcludeUsers, !keepSuperWritable)
 		if err != nil {
-			app.logger.Errorf("diskusage: failed to set master read-only: %v", err)
+			app.logger.Error().Err(err).Msg("diskusage: failed to set master read-only")
 		} else {
-			app.logger.Infof("diskusage: master set read-only")
+			app.logger.Info().Msgf("diskusage: master set read-only")
 			err := app.SetLowSpace(true)
 			if err != nil {
-				app.logger.Errorf("diskusage: failed to set read-only path in dcs: %v", err)
+				app.logger.Error().Err(err).Msg("diskusage: failed to set read-only path in dcs")
 			}
 		}
 		return
@@ -1866,17 +1867,17 @@ func (app *App) repairReadOnlyOnMaster(masterNode *mysql.Node, masterState *node
 		}
 		err := masterNode.SetWritable()
 		if err != nil {
-			app.logger.Errorf("diskusage: failed to set master writable: %v", err)
+			app.logger.Error().Err(err).Msg("diskusage: failed to set master writable")
 		} else {
-			app.logger.Info("diskusage: master set writable")
+			app.logger.Info().Msg("diskusage: master set writable")
 			err := app.SetLowSpace(false)
 			if err != nil {
-				app.logger.Errorf("diskusage: failed to set read-only path in dcs: %v", err)
+				app.logger.Error().Err(err).Msg("diskusage: failed to set read-only path in dcs")
 			}
 		}
 		return
 	}
-	app.logger.Warnf("diskusage: cluster in grey-zone, do not change read_only")
+	app.logger.Warn().Msgf("diskusage: cluster in grey-zone, do not change read_only")
 }
 
 func (app *App) repairCluster(clusterState, clusterStateDcs map[string]*nodestate.NodeState, master string) {
@@ -1904,10 +1905,10 @@ func (app *App) repairMasterNode(masterNode *mysql.Node, clusterState, clusterSt
 
 	events, err := masterNode.ReenableEvents()
 	if err != nil {
-		app.logger.Errorf("repair: failed to reenable slaveside disabled events on %s: %s", host, err)
+		app.logger.Error().Err(err).Msgf("repair: failed to reenable slaveside disabled events on %s", host)
 	}
 	if len(events) > 0 {
-		app.logger.Infof("repair: events reenabled on %s: %v", host, events)
+		app.logger.Info().Msgf("repair: events reenabled on %s: %v", host, events)
 	}
 }
 
@@ -1919,37 +1920,37 @@ func (app *App) repairSlaveNode(node *mysql.Node, clusterState map[string]*nodes
 	if !state.IsReadOnly {
 		err := node.SetReadOnly(true)
 		if err != nil {
-			app.logger.Errorf("repair: failed to set host %s read-only: %s", host, err)
+			app.logger.Error().Err(err).Msgf("repair: failed to set host %s read-only", host)
 		} else {
-			app.logger.Infof("repair: slave %s set read-only", host)
+			app.logger.Info().Msgf("repair: slave %s set read-only", host)
 		}
 	}
 
 	if state.IsMaster {
 		// if we found stale master, we should set it offline and resetup
-		app.logger.Infof("repair: found stale master %s", host)
-		app.logger.Infof("repair: setting stale master %s offline", host)
+		app.logger.Info().Msgf("repair: found stale master %s", host)
+		app.logger.Info().Msgf("repair: setting stale master %s offline", host)
 		err := app.stopReplicationOnMaster(node)
 		if err != nil {
-			app.logger.Errorf("repair: %s", err)
+			app.logger.Error().Err(err).Msg("repair")
 		}
 		err = app.externalReplication.Stop(node)
 		if err != nil {
-			app.logger.Errorf("repair: %s", err)
+			app.logger.Error().Err(err).Msg("repair")
 		}
 		err = app.externalReplication.Reset(node)
 		if err != nil {
-			app.logger.Errorf("repair: %s", err)
+			app.logger.Error().Err(err).Msg("repair")
 		}
-		app.logger.Infof("repair: turning stale master %s to new master %s", host, master)
+		app.logger.Info().Msgf("repair: turning stale master %s to new master %s", host, master)
 		err = app.performChangeMaster(host, master)
 		if err != nil {
-			app.logger.Errorf("repair: error turning stale master %s to new master: %s", host, err)
+			app.logger.Error().Err(err).Msgf("repair: error turning stale master %s to new master", host)
 		}
-		app.logger.Infof("repair: mark stale master %s for recovery", host)
+		app.logger.Info().Msgf("repair: mark stale master %s for recovery", host)
 		err = app.SetRecovery(host)
 		if err != nil {
-			app.logger.Errorf("repair: error setting stale master %s for recovery: %s", host, err)
+			app.logger.Error().Err(err).Msgf("repair: error setting stale master %s for recovery", host)
 		}
 		return
 	}
@@ -1957,10 +1958,10 @@ func (app *App) repairSlaveNode(node *mysql.Node, clusterState map[string]*nodes
 	if state.IsCascade {
 		cascadeTopology, err := app.fetchCascadeNodeConfigurations()
 		if err != nil {
-			app.logger.Warnf("repair: Failed to fetch CascadeNodeConfigurations")
+			app.logger.Warn().Msgf("repair: Failed to fetch CascadeNodeConfigurations")
 			return
 		}
-		app.logger.Infof("cascadeTopology=%v", cascadeTopology)
+		app.logger.Info().Msgf("cascadeTopology=%v", cascadeTopology)
 		app.repairCascadeNode(node, clusterState, master, cascadeTopology)
 	} else {
 		app.t.Clean(StreamFromFailedAt, host)
@@ -1968,18 +1969,18 @@ func (app *App) repairSlaveNode(node *mysql.Node, clusterState map[string]*nodes
 
 	if !state.IsCascade {
 		if state.SlaveState != nil && state.SlaveState.MasterHost != master {
-			app.logger.Infof("repair: found stale slave %s, trying to turn it to new replication source %s", host, master)
+			app.logger.Info().Msgf("repair: found stale slave %s, trying to turn it to new replication source %s", host, master)
 			err := app.performChangeMaster(host, master)
 			if err != nil {
-				app.logger.Errorf("repair: %s", err)
+				app.logger.Error().Err(err).Msg("repair")
 			}
 		} else if state.SlaveState != nil && state.SlaveState.ReplicationState == mysql.ReplicationStopped {
 			// cascade nodes' replication may be stopped during period of changing stream_from host
 			err := node.StartSlave()
 			if err != nil {
-				app.logger.Errorf("repair: failed to start replication on %s: %v", host, err)
+				app.logger.Error().Err(err).Msgf("repair: failed to start replication on %s", host)
 			} else {
-				app.logger.Infof("repair: replication started on %s", host)
+				app.logger.Info().Msgf("repair: replication started on %s", host)
 			}
 		}
 	}
@@ -1987,7 +1988,7 @@ func (app *App) repairSlaveNode(node *mysql.Node, clusterState map[string]*nodes
 	if state.SlaveState != nil {
 		if state.SlaveState.ReplicationState == mysql.ReplicationError {
 			if result, code := state.IsReplicationPermanentlyBroken(); result {
-				app.logger.Warnf("repair: replication on host %v is permanently broken, error code: %d", host, code)
+				app.logger.Warn().Msgf("repair: replication on host %v is permanently broken, error code: %d", host, code)
 			} else {
 				app.TryRepairReplication(node, master, app.config.ReplicationChannel)
 			}
@@ -2004,61 +2005,61 @@ func (app *App) repairCascadeNode(node *mysql.Node, clusterState map[string]*nod
 	cnc := cascadeTopology[host]
 
 	if state.SlaveState == nil {
-		app.logger.Warnf("repair: current Slave/Replica Status is unknown. Blindly change master on %s to '%s'", host, cnc.StreamFrom)
+		app.logger.Warn().Msgf("repair: current Slave/Replica Status is unknown. Blindly change master on %s to '%s'", host, cnc.StreamFrom)
 		err := app.performChangeMaster(host, cnc.StreamFrom)
 		if err != nil {
-			app.logger.Warnf("repair: failed to change master on host %s to new value %s", host, cnc.StreamFrom)
+			app.logger.Warn().Msgf("repair: failed to change master on host %s to new value %s", host, cnc.StreamFrom)
 			return
 		}
 		err = node.StartSlave()
 		if err != nil {
-			app.logger.Warnf("repair: failed to start slave %s", host)
+			app.logger.Warn().Msgf("repair: failed to start slave %s", host)
 			return
 		}
 		return
 	}
 
 	isReplicationRunning := state.SlaveState.ReplicationState == mysql.ReplicationRunning
-	app.logger.Infof("repair: checking cascade node %s. Replication=%v, cnc=%+v, slaveState=%+v", host, isReplicationRunning, cnc, state.String())
+	app.logger.Info().Msgf("repair: checking cascade node %s. Replication=%v, cnc=%+v, slaveState=%+v", host, isReplicationRunning, cnc, state.String())
 
 	upstreamMaster := state.SlaveState.MasterHost
 	upstreamCandidate := app.findBestStreamFrom(node, clusterState, master, cascadeTopology)
-	app.logger.Debugf("repair: best stream_from candidate for %s is %s, current upstream is %s", host, upstreamCandidate, upstreamMaster)
+	app.logger.Debug().Msgf("repair: best stream_from candidate for %s is %s, current upstream is %s", host, upstreamCandidate, upstreamMaster)
 
 	// scenario - all ok
 	if isReplicationRunning && upstreamCandidate == upstreamMaster {
-		app.logger.Infof("repair: replication from desired stream_from is running. Do nothing.")
+		app.logger.Info().Msgf("repair: replication from desired stream_from is running. Do nothing.")
 		app.t.Clean(StreamFromFailedAt, host)
 		return
 	}
 
 	if !isReplicationRunning && upstreamCandidate == upstreamMaster {
-		app.logger.Warnf("repair: replication from stream_from host `%s` stopped. Trying to start it...", upstreamMaster)
+		app.logger.Warn().Msgf("repair: replication from stream_from host `%s` stopped. Trying to start it...", upstreamMaster)
 		if result, code := state.IsReplicationPermanentlyBroken(); result {
-			app.logger.Warnf("repair: replication on host %v is permanently broken, error code: %d", host, code)
+			app.logger.Warn().Msgf("repair: replication on host %v is permanently broken, error code: %d", host, code)
 			return
 		}
 		err := node.StartSlave()
 		if err != nil {
-			app.logger.Warnf("repair: failed to start slave")
+			app.logger.Warn().Msgf("repair: failed to start slave")
 			return
 		}
 		return
 	}
 
 	if !isReplicationRunning && upstreamLostAt.IsZero() {
-		app.logger.Warnf("repair: replication from stream_from host `%s` stopped. Schedule switch to new stream_from", upstreamMaster)
+		app.logger.Warn().Msgf("repair: replication from stream_from host `%s` stopped. Schedule switch to new stream_from", upstreamMaster)
 		upstreamLostAt = time.Now()
 		app.t.Set(StreamFromFailedAt, host, upstreamLostAt)
 	}
 
 	if upstreamCandidate != upstreamMaster {
 		if isReplicationRunning {
-			app.logger.Infof("repair: new stream_from candidate found. Stopping replication.")
+			app.logger.Info().Msgf("repair: new stream_from candidate found. Stopping replication.")
 			// Stop Slave in order to allow new `stream_from` to catch-up (if needed)
 			err := node.StopSlave()
 			if err != nil {
-				app.logger.Warnf("repair: failed to stop slave")
+				app.logger.Warn().Msgf("repair: failed to stop slave")
 				return
 			}
 		}
@@ -2071,7 +2072,7 @@ func (app *App) repairCascadeNode(node *mysql.Node, clusterState map[string]*nod
 		// We should wait until myGTIDs (fetched later) are lower or equal to candidateGTIDs (fetched earlier)
 		mySlaveStatus, err := node.GetReplicaStatus() // retrieve fresh GTIDs
 		if err != nil {
-			app.logger.Warnf("repair: cannot obtain own SLAVE/REPLICA STATUS")
+			app.logger.Warn().Msgf("repair: cannot obtain own SLAVE/REPLICA STATUS")
 			return
 		}
 		myGTIDs := gtids.ParseGtidSet(mySlaveStatus.GetExecutedGtidSet())
@@ -2084,38 +2085,38 @@ func (app *App) repairCascadeNode(node *mysql.Node, clusterState map[string]*nod
 		} else {
 			candidateGTIDs = gtids.ParseGtidSet(candidateState.SlaveState.ExecutedGtidSet)
 		}
-		app.logger.Debugf("repair: %s GTID set = %v, new stream_from GTID set is %v", host, myGTIDs, candidateGTIDs)
+		app.logger.Debug().Msgf("repair: %s GTID set = %v, new stream_from GTID set is %v", host, myGTIDs, candidateGTIDs)
 
 		candidateUUID, err := candidateNode.UUID()
 		if err != nil {
-			app.logger.Errorf("repair: failed to get UUID from new upstream candidate: %s", upstreamCandidate)
+			app.logger.Error().Msgf("repair: failed to get UUID from new upstream candidate: %s", upstreamCandidate)
 			return
 		}
 
 		// There might be a case where the original source replica is returned after downtime
 		// In that case, we have to wait for its convergence before starting cascade replica
 		if gtids.IsSlaveAhead(myGTIDs, candidateGTIDs) {
-			app.logger.Infof("repair: %s is awaiting %s convergence", host, upstreamCandidate)
+			app.logger.Info().Msgf("repair: %s is awaiting %s convergence", host, upstreamCandidate)
 			return
 		}
 		if gtids.IsSplitBrained(myGTIDs, candidateGTIDs, candidateUUID) {
-			app.logger.Errorf("repair: %s and %s are splitbrained...", host, upstreamCandidate)
+			app.logger.Error().Msgf("repair: %s and %s are splitbrained...", host, upstreamCandidate)
 			app.writeEmergeFile(fmt.Sprintf("cascade replica splitbrain detected\nCascade replica gtids:%s\nCandidate gtids:%s\n", myGTIDs, candidateGTIDs))
 			return
 		}
 		if gtids.IsSlaveBehindOrEqual(myGTIDs, candidateGTIDs) {
-			app.logger.Infof("repair: new stream_from host GTID set is superset of our GTID set. Switching Master_Host, Starting replication")
+			app.logger.Info().Msgf("repair: new stream_from host GTID set is superset of our GTID set. Switching Master_Host, Starting replication")
 			err = app.performChangeMaster(host, upstreamCandidate)
 			if err != nil {
-				app.logger.Warnf("repair: failed to change master on host %s to new value %s", host, upstreamCandidate)
+				app.logger.Warn().Msgf("repair: failed to change master on host %s to new value %s", host, upstreamCandidate)
 				return
 			}
 			err = node.StartSlave()
 			if err != nil {
-				app.logger.Warnf("repair: failed to start slave %s", host)
+				app.logger.Warn().Msgf("repair: failed to start slave %s", host)
 				return
 			}
-			app.logger.Infof("repair: Success. New stream_from host is: %s", upstreamCandidate)
+			app.logger.Info().Msgf("repair: Success. New stream_from host is: %s", upstreamCandidate)
 		}
 	}
 }
@@ -2124,7 +2125,7 @@ func (app *App) repairExternalReplication(masterNode *mysql.Node) {
 	extReplStatus, err := app.externalReplication.GetReplicaStatus(masterNode)
 	if err != nil {
 		if !mysql.IsErrorChannelDoesNotExists(err) {
-			app.logger.Errorf("repair (external): host %s failed to get external replica status %v", masterNode.Host(), err)
+			app.logger.Error().Err(err).Msgf("repair (external): host %s failed to get external replica status", masterNode.Host())
 		}
 		return
 	}
@@ -2134,7 +2135,7 @@ func (app *App) repairExternalReplication(masterNode *mysql.Node) {
 	}
 
 	if app.externalReplication.IsRunningByUser(masterNode) && !extReplStatus.ReplicationRunning() {
-		app.logger.Info("repair (external): calling TryRepairReplication")
+		app.logger.Info().Msg("repair (external): calling TryRepairReplication")
 		// TODO: remove "". Master is not needed for external replication now
 		app.TryRepairReplication(masterNode, "", app.config.ExternalReplicationChannel)
 	}
@@ -2152,7 +2153,7 @@ func (app *App) findBestStreamFrom(node *mysql.Node, clusterState map[string]*no
 		}
 		if slices.Contains(loopDetector, streamFrom) {
 			loopDetector = append(loopDetector, streamFrom)
-			app.logger.Errorf("repair: found loop in stream_from references. Fallback to master. Loop: %s", strings.Join(loopDetector, " -> "))
+			app.logger.Error().Msgf("repair: found loop in stream_from references. Fallback to master. Loop: %s", strings.Join(loopDetector, " -> "))
 			return master
 		}
 
@@ -2240,13 +2241,13 @@ func (app *App) performChangeMaster(host, master string) error {
 	if err != nil {
 		return fmt.Errorf("failed to stop slave on host %s: %s", host, err)
 	}
-	app.logger.Infof("changemaster: host %s replication stopped", host)
+	app.logger.Info().Msgf("changemaster: host %s replication stopped", host)
 
 	err = node.ChangeMaster(master)
 	if err != nil {
 		return fmt.Errorf("failed to change master on host %s: %s", host, err)
 	}
-	app.logger.Infof("changemaster: host %s turned to the new master %s", host, master)
+	app.logger.Info().Msgf("changemaster: host %s turned to the new master %s", host, master)
 
 	err = node.StartSlave()
 	if err != nil {
@@ -2258,19 +2259,19 @@ func (app *App) performChangeMaster(host, master string) error {
 	for time.Now().Before(deadline) {
 		sstatus, err = node.GetReplicaStatus()
 		if err != nil {
-			app.logger.Warnf("changemaster: failed to get slave status on host %s: %v", host, err)
+			app.logger.Warn().Msgf("changemaster: failed to get slave status on host %s: %v", host, err)
 			continue
 		}
 		if sstatus.ReplicationRunning() {
 			break
 		}
-		app.logger.Warnf("changemaster: replication on host %s is not running yet, waiting...", host)
+		app.logger.Warn().Msgf("changemaster: replication on host %s is not running yet, waiting...", host)
 		time.Sleep(time.Second)
 	}
 	if sstatus != nil && sstatus.ReplicationRunning() {
-		app.logger.Infof("changemaster: host %s replication started", host)
+		app.logger.Info().Msgf("changemaster: host %s replication started", host)
 	} else {
-		app.logger.Warnf("changemaster: host %s replication failed to start", host)
+		app.logger.Warn().Msgf("changemaster: host %s replication failed to start", host)
 	}
 	return nil
 }
@@ -2342,7 +2343,7 @@ func (app *App) getNodeState(host string) *nodestate.NodeState {
 		return nil
 	}()
 	if err != nil {
-		app.logger.Errorf("node %s: error during getNodeState: %v", node.Host(), err)
+		app.logger.Error().Err(err).Msgf("node %s: error during getNodeState", node.Host())
 		nodeState.Error = err.Error()
 		// in case ping was ok but later we encountered error
 		if nodeState.PingOk {
@@ -2369,19 +2370,19 @@ func (app *App) getLocalNodeState() *nodestate.NodeState {
 		nodeState.DiskState.Total = diskTotal
 		nodeState.DiskState.Used = diskUsed
 	} else {
-		app.logger.Errorf("Failed to get disk usage: %v", err)
+		app.logger.Error().Err(err).Msg("Failed to get disk usage")
 	}
 	daemonState, err := app.getLocalDaemonState()
 	if err == nil {
 		nodeState.DaemonState = daemonState
 	} else {
-		app.logger.Errorf("Failed to get daemon state: %v", err)
+		app.logger.Error().Err(err).Msg("Failed to get daemon state")
 	}
 	isFSReadonly, err := node.IsFileSystemReadonly()
 	if err == nil {
 		nodeState.IsFileSystemReadonly = isFSReadonly
 	} else {
-		app.logger.Errorf("Failed to check file system on readonly: %v", err)
+		app.logger.Error().Err(err).Msg("Failed to check file system on readonly")
 	}
 
 	return nodeState
@@ -2451,7 +2452,7 @@ func (app *App) waitForCatchUp(node *mysql.Node, gtidset gtids.GTIDSet, timeout 
 		if err != nil {
 			return false, err
 		}
-		app.logger.Infof("catch up: node %s has gtid %s, waiting for %s", node.Host(), gtidExecuted.String(), gtidset.String())
+		app.logger.Info().Msgf("catch up: node %s has gtid %s, waiting for %s", node.Host(), gtidExecuted.String(), gtidset.String())
 		if gtidExecuted.Contain(gtidset) {
 			return true, nil
 		}
@@ -2487,12 +2488,12 @@ func (app *App) stopActiveNodeOptimization(oldMaster string, activeNodes []strin
 // Set master offline and disable semi-sync replication
 func (app *App) stopReplicationOnMaster(masterNode *mysql.Node) error {
 	host := masterNode.Host()
-	app.logger.Infof("setting master %s offline", host)
+	app.logger.Info().Msgf("setting master %s offline", host)
 	err := masterNode.SetOffline()
 	if err != nil {
 		return fmt.Errorf("cannot set master %s offline: %s", host, err)
 	}
-	app.logger.Infof("disable semi-sync on master %s", host)
+	app.logger.Info().Msgf("disable semi-sync on master %s", host)
 	err = masterNode.SemiSyncDisable()
 	if err != nil {
 		return fmt.Errorf("failed to disable semi-sync on master %s: %v", host, err)
@@ -2506,14 +2507,14 @@ func (app *App) fetchCascadeNodeConfigurations() (map[string]mysql.CascadeNodeCo
 
 	hosts, err := app.dcs.GetChildren(dcs.PathCascadeNodesPrefix)
 	if err != nil {
-		app.logger.Warnf("repair: Failed to fetch CascadeNodeConfigurations")
+		app.logger.Warn().Msgf("repair: Failed to fetch CascadeNodeConfigurations")
 		return cascadeTopology, err
 	}
 	for _, host := range hosts {
 		var cnc mysql.CascadeNodeConfiguration
 		err := app.dcs.Get(dcs.JoinPath(dcs.PathCascadeNodesPrefix, host), &cnc)
 		if err != nil {
-			app.logger.Warnf("repair: Failed to fetch CascadeNodeConfiguration for %s", host)
+			app.logger.Warn().Msgf("repair: Failed to fetch CascadeNodeConfiguration for %s", host)
 			return cascadeTopology, err
 		}
 		cascadeTopology[host] = cnc
@@ -2544,7 +2545,7 @@ func (app *App) getNodePositions(activeNodes []string) ([]nodePosition, error) {
 
 		var gtidset gtids.GTIDSet
 		if sstatus == nil {
-			app.logger.Infof("switchover: current master found: %s", host)
+			app.logger.Info().Msgf("switchover: current master found: %s", host)
 			gtidset, err = node.GTIDExecutedParsed()
 			if err != nil || app.emulateError("freeze_master_status") {
 				return fmt.Errorf("failed to get master status on host %s: %s", host, err)
@@ -2579,33 +2580,37 @@ func (app *App) getNodePositions(activeNodes []string) ([]nodePosition, error) {
 	return positions, util.CombineErrors(errs)
 }
 
-/*
-Run enters the main application loop
-When Run exits mysync process is over
-*/
+// CloseLogger drains the async logger queue.
+func (app *App) CloseLogger() {
+	app.loggerCloser.Close()
+}
+
+// Run enters the main application loop
+// When Run exits mysync process is over
 func (app *App) Run() int {
-	app.logger.Info("MYSYNC START")
+	app.logger.Info().Msg("MYSYNC START")
 	ctx := app.baseContext()
 
 	err := app.lockFile()
 	if err != nil {
-		app.logger.Error(err.Error())
+		app.logger.Error().Err(err).Msg("")
 		return 1
 	}
+	defer app.loggerCloser.Close()
 	defer app.unlockFile()
 
-	app.logger.Infof("config failover: %v semisync: %v", app.config.Failover, app.config.SemiSync)
+	app.logger.Info().Msgf("config failover: %v semisync: %v", app.config.Failover, app.config.SemiSync)
 
 	err = app.connectDCS()
 	if err != nil {
-		app.logger.Error(err.Error())
+		app.logger.Error().Err(err).Msg("")
 		return 1
 	}
 	defer app.dcs.Close()
 
 	err = app.newDBCluster()
 	if err != nil {
-		app.logger.Error(err.Error())
+		app.logger.Error().Err(err).Msg("")
 		return 1
 	}
 	defer app.cluster.Close()
@@ -2635,7 +2640,7 @@ func (app *App) Run() int {
 		case <-ticker.C:
 			// run states without sleep while app.state changes
 			for {
-				app.logger.Infof("mysync state: %s", app.state)
+				app.logger.Info().Msgf("mysync state: %s", app.state)
 				stateHandler := handlers[app.state]
 				if stateHandler == nil {
 					panic(fmt.Sprintf("unknown state: %s", app.state))

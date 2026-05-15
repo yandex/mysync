@@ -140,7 +140,7 @@ func (app *App) FinishSwitchover(switchover *Switchover, switchErr error) error 
 		path = pathLastRejectedSwitch
 	}
 
-	app.logger.Infof("switchover: %s => %s %s", switchover.From, switchover.To, action)
+	app.logger.Info().Msgf("switchover: %s => %s %s", switchover.From, switchover.To, action)
 	switchover.Result = new(SwitchoverResult)
 	switchover.Result.Ok = result
 	switchover.Result.FinishedAt = time.Now()
@@ -158,7 +158,7 @@ func (app *App) FinishSwitchover(switchover *Switchover, switchErr error) error 
 
 // Fail current switchover, it will be repeated next cycle
 func (app *App) FailSwitchover(switchover *Switchover, err error) error {
-	app.logger.Errorf("switchover: %s => %s failed: %s", switchover.From, switchover.To, err)
+	app.logger.Error().Err(err).Msgf("switchover: %s => %s failed", switchover.From, switchover.To)
 	switchover.RunCount++
 	switchover.Result = new(SwitchoverResult)
 	switchover.Result.Ok = false
@@ -168,7 +168,7 @@ func (app *App) FailSwitchover(switchover *Switchover, err error) error {
 }
 
 func (app *App) StartSwitchover(switchover *Switchover) error {
-	app.logger.Infof("switchover: %s => %s starting...", switchover.From, switchover.To)
+	app.logger.Info().Msgf("switchover: %s => %s starting...", switchover.From, switchover.To)
 	switchover.StartedAt = time.Now()
 	switchover.StartedBy = app.config.Hostname
 	return app.dcs.Set(pathCurrentSwitch, switchover)
@@ -178,11 +178,11 @@ func (app *App) GetLastSwitchover() Switchover {
 	var lastSwitch, lastRejectedSwitch Switchover
 	err := app.dcs.Get(pathLastSwitch, &lastSwitch)
 	if err != nil && err != dcs.ErrNotFound {
-		app.logger.Errorf("%s: %s", pathLastSwitch, err.Error())
+		app.logger.Error().Err(err).Msg(pathLastSwitch)
 	}
 	errRejected := app.dcs.Get(pathLastRejectedSwitch, &lastRejectedSwitch)
 	if errRejected != nil && errRejected != dcs.ErrNotFound {
-		app.logger.Errorf("%s: %s", pathLastRejectedSwitch, errRejected.Error())
+		app.logger.Error().Err(errRejected).Msg(pathLastRejectedSwitch)
 	}
 
 	if lastRejectedSwitch.InitiatedAt.After(lastSwitch.InitiatedAt) {

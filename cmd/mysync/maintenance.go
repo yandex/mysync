@@ -42,7 +42,9 @@ var maintOnCmd = &cobra.Command{
 			fmt.Println(err)
 			os.Exit(1)
 		}
-		os.Exit(app.CliEnableMaintenance(maintWait, maintReason, mode))
+		code := app.CliEnableMaintenance(maintWait, maintReason, mode)
+		app.CloseLogger()
+		os.Exit(code)
 	},
 }
 
@@ -57,7 +59,9 @@ var maintOffCmd = &cobra.Command{
 			fmt.Println(err)
 			os.Exit(1)
 		}
-		os.Exit(app.CliDisableMaintenance(maintWait))
+		code := app.CliDisableMaintenance(maintWait)
+		app.CloseLogger()
+		os.Exit(code)
 	},
 }
 
@@ -71,7 +75,9 @@ var maintGetCmd = &cobra.Command{
 			fmt.Println(err)
 			os.Exit(1)
 		}
-		os.Exit(app.CliGetMaintenance())
+		code := app.CliGetMaintenance()
+		app.CloseLogger()
+		os.Exit(code)
 	},
 }
 

@@ -166,7 +166,7 @@ func (n *Node) runCommand(name string) (int, error) {
 	cmd := exec.Command(shell, "-c", command)
 	err := cmd.Run()
 	ret := cmd.ProcessState.Sys().(syscall.WaitStatus).ExitStatus()
-	n.logger.Debugf("running command '%s', retcode: %d, error %s", command, ret, err)
+	n.logger.Debug().Msgf("running command '%s', retcode: %d, error %s", command, ret, err)
 	return ret, err
 }
 
@@ -184,13 +184,13 @@ func (n *Node) getQuery(name string) string {
 func (n *Node) traceQuery(query string, arg any, result any, err error) {
 	query = queryOnliner.ReplaceAllString(query, " ")
 	if n.config.ShowOnlyGTIDDiff && IsGtidQuery(query) {
-		n.logger.Debug("<gtid query was ignored>")
+		n.logger.Debug().Msg("<gtid query was ignored>")
 		return
 	}
 	msg := fmt.Sprintf("node %s running query '%s' with args %#v, result: %#v, error: %v", n.host, query, arg, result, err)
 	msg = strings.ReplaceAll(msg, n.config.MySQL.Password, "********")
 	msg = strings.ReplaceAll(msg, n.config.MySQL.ReplicationPassword, "********")
-	n.logger.Debug(msg)
+	n.logger.Debug().Msg(msg)
 }
 
 func IsGtidQuery(query string) bool {
@@ -785,14 +785,14 @@ func (n *Node) SetReadOnlyWithForce(excludeUsers []string, superReadOnly bool) e
 	// first, we will try to gracefully set host read_only
 	timeouts := []int{2, 4, 8}
 	for i, t := range timeouts {
-		n.logger.Infof("trying set host %s read-only, attempt %d", n.host, i+1)
+		n.logger.Info().Msgf("trying set host %s read-only, attempt %d", n.host, i+1)
 		err := n.setReadonlyWithTimeout(superReadOnly, time.Duration(t)*time.Second)
 		if err == nil {
 			return nil
 		}
 	}
 
-	n.logger.Infof("host %s was not set read-only gracefully, so now we'll kill all user processes", n.host)
+	n.logger.Info().Msgf("host %s was not set read-only gracefully, so now we'll kill all user processes", n.host)
 
 	quit := make(chan bool)
 	ticker := time.NewTicker(time.Second)
@@ -1015,7 +1015,7 @@ func (n *Node) ReenableEventsRetry() ([]Event, error) {
 		if err == nil {
 			return events, nil
 		}
-		n.logger.Errorf("failed to enable events: %s", err)
+		n.logger.Error().Err(err).Msg("failed to enable events")
 	}
 	return nil, err
 }
@@ -1106,7 +1106,7 @@ func (n *Node) UpdateExternalCAFile() error {
 			return err
 		}
 		if data != string(oldDataByte) {
-			n.logger.Infof("saving new CA file to %s", fileName)
+			n.logger.Info().Msgf("saving new CA file to %s", fileName)
 			err := SaveCAFile(data, fileName)
 			if err != nil {
 				return err
@@ -1118,7 +1118,7 @@ func (n *Node) UpdateExternalCAFile() error {
 		if os.IsNotExist(err) {
 			return nil
 		}
-		n.logger.Infof("deleting CA file %s", fileName)
+		n.logger.Info().Msgf("deleting CA file %s", fileName)
 		err = os.Remove(fileName)
 		if err != nil {
 			return err

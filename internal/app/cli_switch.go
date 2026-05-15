@@ -18,23 +18,23 @@ import (
 func (app *App) CliSwitch(switchFrom, switchTo string, waitTimeout time.Duration, failover bool) int {
 	ctx := app.baseContext()
 	if switchFrom == "" && switchTo == "" {
-		app.logger.Errorf("Either --from or --to should be set")
+		app.logger.Error().Msg("Either --from or --to should be set")
 		return 1
 	}
 	if switchFrom != "" && switchTo != "" {
-		app.logger.Errorf("Option --from and --to can't be used in the same time")
+		app.logger.Error().Msg("Option --from and --to can't be used in the same time")
 		return 1
 	}
 
 	cancel, err := app.cliInitApp()
 	if err != nil {
-		app.logger.Error(err.Error())
+		app.logger.Error().Err(err).Msg("")
 		return 1
 	}
 	defer cancel()
 
 	if len(app.cluster.HANodeHosts()) == 1 {
-		app.logger.Info("switchover has not sense on single HA-node cluster")
+		app.logger.Info().Msg("switchover has not sense on single HA-node cluster")
 		fmt.Println("switchover done")
 		return 0
 	}
@@ -43,12 +43,12 @@ func (app *App) CliSwitch(switchFrom, switchTo string, waitTimeout time.Duration
 
 	var currentMaster string
 	if err := app.dcs.Get(pathMasterNode, &currentMaster); err != nil {
-		app.logger.Errorf("failed to get current master: %v", err)
+		app.logger.Error().Err(err).Msg("failed to get current master")
 		return 1
 	}
 	activeNodes, err := app.GetActiveNodes()
 	if err != nil {
-		app.logger.Error(err.Error())
+		app.logger.Error().Err(err).Msg("")
 		return 1
 	}
 
@@ -56,32 +56,32 @@ func (app *App) CliSwitch(switchFrom, switchTo string, waitTimeout time.Duration
 		// switch to particular host
 		desired := util.SelectNodes(app.cluster.HANodeHosts(), switchTo)
 		if len(desired) == 0 {
-			app.logger.Errorf("no HA-nodes matching '%s'", switchTo)
+			app.logger.Error().Msgf("no HA-nodes matching '%s'", switchTo)
 			return 1
 		}
 		if len(desired) > 1 {
-			app.logger.Errorf("two or more nodes matching '%s'", switchTo)
+			app.logger.Error().Msgf("two or more nodes matching '%s'", switchTo)
 			return 1
 		}
 		toHost = desired[0]
 		if toHost == currentMaster {
-			app.logger.Infof("master is already on %s, skipping...", toHost)
+			app.logger.Info().Msgf("master is already on %s, skipping...", toHost)
 			fmt.Println("switchover done")
 			return 0
 		}
 		if !slices.Contains(activeNodes, toHost) {
-			app.logger.Errorf("%s is not active, can't switch to it", toHost)
+			app.logger.Error().Msgf("%s is not active, can't switch to it", toHost)
 			return 1
 		}
 	} else {
 		// switch away from specified host(s)
 		notDesired := util.SelectNodes(app.cluster.HANodeHosts(), switchFrom)
 		if len(notDesired) == 0 {
-			app.logger.Errorf("no HA-nodes matches '%s', check --from param", switchFrom)
+			app.logger.Error().Msgf("no HA-nodes matches '%s', check --from param", switchFrom)
 			return 1
 		}
 		if !slices.Contains(notDesired, currentMaster) {
-			app.logger.Infof("master is already not on %v, skipping...", notDesired)
+			app.logger.Info().Msgf("master is already not on %v, skipping...", notDesired)
 			fmt.Println("switchover done")
 			return 0
 		}
@@ -92,7 +92,7 @@ func (app *App) CliSwitch(switchFrom, switchTo string, waitTimeout time.Duration
 			}
 		}
 		if len(candidates) == 0 {
-			app.logger.Errorf("there are no active nodes, not matching '%s'", switchFrom)
+			app.logger.Error().Msgf("there are no active nodes, not matching '%s'", switchFrom)
 			return 1
 		}
 		if len(notDesired) == 1 {
@@ -102,12 +102,12 @@ func (app *App) CliSwitch(switchFrom, switchTo string, waitTimeout time.Duration
 			// to avoid switching from one to another, use switch to behavior
 			positions, err := app.getNodePositions(candidates)
 			if err != nil {
-				app.logger.Error(err.Error())
+				app.logger.Error().Err(err).Msg("")
 				return 1
 			}
 			toHost, err = getMostDesirableNode(app.logger, positions, app.switchHelper.GetPriorityChoiceMaxLag())
 			if err != nil {
-				app.logger.Error(err.Error())
+				app.logger.Error().Err(err).Msg("")
 				return 1
 			}
 		}
@@ -116,11 +116,11 @@ func (app *App) CliSwitch(switchFrom, switchTo string, waitTimeout time.Duration
 	var switchover Switchover
 	err = app.dcs.Get(pathCurrentSwitch, &switchover)
 	if err == nil {
-		app.logger.Errorf("Another switchover in progress %v", switchover)
+		app.logger.Error().Msgf("Another switchover in progress %v", switchover)
 		return 2
 	}
 	if err != dcs.ErrNotFound {
-		app.logger.Error(err.Error())
+		app.logger.Error().Err(err).Msg("")
 		return 2
 	}
 
@@ -137,11 +137,11 @@ func (app *App) CliSwitch(switchFrom, switchTo string, waitTimeout time.Duration
 
 	err = app.dcs.Create(pathCurrentSwitch, switchover)
 	if err == dcs.ErrExists {
-		app.logger.Error("Another switchover in progress")
+		app.logger.Error().Msg("Another switchover in progress")
 		return 2
 	}
 	if err != nil {
-		app.logger.Error(err.Error())
+		app.logger.Error().Err(err).Msg("")
 		return 1
 	}
 	// wait for switchover to complete
@@ -165,10 +165,10 @@ func (app *App) CliSwitch(switchFrom, switchTo string, waitTimeout time.Duration
 			}
 		}
 		if lastSwitchover.Result == nil {
-			app.logger.Error("could not wait for switchover to complete")
+			app.logger.Error().Msg("could not wait for switchover to complete")
 			return 1
 		} else if !lastSwitchover.Result.Ok {
-			app.logger.Error("could not wait for switchover to complete because of errors")
+			app.logger.Error().Msg("could not wait for switchover to complete because of errors")
 			return 1
 		}
 		fmt.Println("switchover done")
@@ -182,7 +182,7 @@ func (app *App) CliSwitch(switchFrom, switchTo string, waitTimeout time.Duration
 func (app *App) CliAbort() int {
 	err := app.connectDCS()
 	if err != nil {
-		app.logger.Error(err.Error())
+		app.logger.Error().Err(err).Msg("")
 		return 1
 	}
 	defer app.dcs.Close()
@@ -194,7 +194,7 @@ func (app *App) CliAbort() int {
 		return 0
 	}
 	if err != nil {
-		app.logger.Error(err.Error())
+		app.logger.Error().Err(err).Msg("")
 		return 1
 	}
 
@@ -203,7 +203,7 @@ func (app *App) CliAbort() int {
 	reader := bufio.NewReader(os.Stdin)
 	response, err := reader.ReadString('\n')
 	if err != nil {
-		app.logger.Error(err.Error())
+		app.logger.Error().Err(err).Msg("")
 		return 1
 	}
 	if strings.TrimSpace(response) != phrase {
@@ -213,7 +213,7 @@ func (app *App) CliAbort() int {
 
 	err = app.dcs.Delete(pathCurrentSwitch)
 	if err != nil {
-		app.logger.Error(err.Error())
+		app.logger.Error().Err(err).Msg("")
 		return 1
 	}
 

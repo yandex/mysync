@@ -38,7 +38,7 @@ func (app *App) replicationLagChecker(ctx context.Context) {
 		select {
 		case <-ticker.C:
 			if app.doesResetupFileExist() {
-				app.logger.Infof("lag check: resetup file exists, waiting for resetup to complete")
+				app.logger.Info().Msgf("lag check: resetup file exists, waiting for resetup to complete")
 			} else if app.lagResetupper.CheckNeedResetup(app.cluster) {
 				app.writeResetupFile()
 			}
@@ -75,7 +75,7 @@ func (app *App) MarkReplicationRunning(node *mysql.Node, channel string) {
 func (app *App) TryRepairReplication(node *mysql.Node, master string, channel string) {
 	replState, err := app.getOrCreateHostRepairState(app.makeReplStateKey(node, channel), node.Host(), channel)
 	if err != nil {
-		app.logger.Errorf("repair error on channel %s: host %s, %v", channel, node.Host(), err)
+		app.logger.Error().Err(err).Msgf("repair error on channel %s: host %s", channel, node.Host())
 		return
 	}
 
@@ -85,14 +85,14 @@ func (app *App) TryRepairReplication(node *mysql.Node, master string, channel st
 
 	algorithmType, count, err := app.getSuitableAlgorithmType(replState, channel)
 	if err != nil {
-		app.logger.Errorf("repair error on channel %s: host %s, %v", channel, node.Host(), err)
+		app.logger.Error().Err(err).Msgf("repair error on channel %s: host %s", channel, node.Host())
 		return
 	}
 
 	algorithm := getRepairAlgorithm(algorithmType)
 	err = algorithm(app, node, master, channel)
 	if err != nil {
-		app.logger.Errorf("repair error on channel %s: host %s, %v", channel, node.Host(), err)
+		app.logger.Error().Err(err).Msgf("repair error on channel %s: host %s", channel, node.Host())
 	}
 
 	if algorithmType != ChangeSource {
@@ -109,7 +109,7 @@ func (app *App) makeReplStateKey(node *mysql.Node, channel string) string {
 }
 
 func StartSlaveAlgorithm(app *App, node *mysql.Node, _ string, channel string) error {
-	app.logger.Infof("repair %s: trying to repair replication using StartSlaveAlgorithm...", channel)
+	app.logger.Info().Msgf("repair %s: trying to repair replication using StartSlaveAlgorithm...", channel)
 	if channel == app.config.ExternalReplicationChannel {
 		return app.externalReplication.Start(node)
 	}
@@ -120,41 +120,41 @@ func ResetSlaveAlgorithm(app *App, node *mysql.Node, master string, channel stri
 	// TODO we don't want reset slave on external replication
 	// May be we should split algorithms by channel type (ext/int)
 	if channel == app.config.ExternalReplicationChannel {
-		app.logger.Infof("external repair: don't want to use ResetSlaveAlgorithm, leaving")
+		app.logger.Info().Msgf("external repair: don't want to use ResetSlaveAlgorithm, leaving")
 		return nil
 	}
-	app.logger.Infof("repair %s: trying to repair replication using ResetSlaveAlgorithm...", channel)
-	app.logger.Infof("repair: executing set slave offline")
+	app.logger.Info().Msgf("repair %s: trying to repair replication using ResetSlaveAlgorithm...", channel)
+	app.logger.Info().Msg("repair: executing set slave offline")
 	err := node.SetOffline()
 	if err != nil {
 		return err
 	}
 
-	app.logger.Infof("repair: executing set slave readonly")
+	app.logger.Info().Msg("repair: executing set slave readonly")
 	err = node.SetReadOnly(true)
 	if err != nil {
 		return err
 	}
 
-	app.logger.Infof("repair: executing stop slave")
+	app.logger.Info().Msg("repair: executing stop slave")
 	err = node.StopSlave()
 	if err != nil {
 		return err
 	}
 
-	app.logger.Infof("repair: executing reset slave all")
+	app.logger.Info().Msg("repair: executing reset slave all")
 	err = node.ResetSlaveAll()
 	if err != nil {
 		return err
 	}
 
-	app.logger.Infof("repair: executing change master on slave")
+	app.logger.Info().Msg("repair: executing change master on slave")
 	err = node.ChangeMaster(master)
 	if err != nil {
 		return err
 	}
 
-	app.logger.Infof("repair: executing start slave")
+	app.logger.Info().Msg("repair: executing start slave")
 	err = node.StartSlave()
 	if err != nil {
 		return err
@@ -164,9 +164,9 @@ func ResetSlaveAlgorithm(app *App, node *mysql.Node, master string, channel stri
 }
 
 func ChangeSourceAlgorithm(app *App, node *mysql.Node, _ string, channel string) error {
-	app.logger.Infof("repair %s: trying to repair replication using ChangeSourceAlgorithm...", channel)
+	app.logger.Info().Msgf("repair %s: trying to repair replication using ChangeSourceAlgorithm...", channel)
 	if channel != app.config.ExternalReplicationChannel {
-		app.logger.Infof("ChangeSourceAlgorithm works only for external replication")
+		app.logger.Info().Msg("ChangeSourceAlgorithm works only for external replication")
 		return nil
 	}
 	replicationSources, err := node.GetExternalReplicationSources()
@@ -174,7 +174,7 @@ func ChangeSourceAlgorithm(app *App, node *mysql.Node, _ string, channel string)
 		return err
 	}
 	if replicationSources == nil {
-		app.logger.Infof("No available sources in external replication sources table found for channel %s", channel)
+		app.logger.Info().Msgf("No available sources in external replication sources table found for channel %s", channel)
 		return nil
 	}
 	replicaStatus, err := app.externalReplication.GetReplicaStatus(node)
@@ -186,10 +186,10 @@ func ChangeSourceAlgorithm(app *App, node *mysql.Node, _ string, channel string)
 	for _, source := range *replicationSources {
 		value := app.externalReplication.GetExtSourcesStatus(source.SourceHost)
 		if value == mysql.ErrorStatus {
-			app.logger.Infof("repair (external): ignoring source host %s due to error status in the past", source.SourceHost)
+			app.logger.Info().Msgf("repair (external): ignoring source host %s due to error status in the past", source.SourceHost)
 			continue
 		}
-		app.logger.Infof("repair (external): trying change source to %s", source.SourceHost)
+		app.logger.Info().Msgf("repair (external): trying change source to %s", source.SourceHost)
 		err := app.externalReplication.Stop(node)
 		if err != nil {
 			return err
@@ -202,7 +202,7 @@ func ChangeSourceAlgorithm(app *App, node *mysql.Node, _ string, channel string)
 		if err != nil {
 			return err
 		}
-		app.logger.Infof("repair (external): source changed to %s", source.SourceHost)
+		app.logger.Info().Msgf("repair (external): source changed to %s", source.SourceHost)
 		return nil
 	}
 	// if there was no return from the loop above then we assume that all hosts are now marked as error
@@ -346,7 +346,7 @@ func (app *App) startSyncerGoroutine(
 			case <-ticker.C:
 				err := app.optSyncer.Sync(cluster)
 				if err != nil {
-					app.logger.Errorf("sync error: %s", err)
+					app.logger.Error().Err(err).Msg("sync error")
 				}
 			}
 		}
@@ -370,7 +370,7 @@ func (app *App) chooseReplicaToOptimize(
 	if err != nil {
 		return "", err
 	}
-	app.logger.Infof("replica optimization: the replica is '%s'", hostnameToOptimize)
+	app.logger.Info().Msgf("replica optimization: the replica is '%s'", hostnameToOptimize)
 
 	return hostnameToOptimize, nil
 }
@@ -387,14 +387,14 @@ func (app *App) optimizationPhase(
 	clusterState map[string]*nodestate.NodeState,
 ) error {
 	if !app.switchHelper.IsOptimizationPhaseAllowed() {
-		app.logger.Info("switchover: phase 0: turbo mode is skipped")
+		app.logger.Info().Msg("switchover: phase 0: turbo mode is skipped")
 		return nil
 	}
 
 	appropriateReplicas := filterOut(activeNodes, []string{oldMaster, switchover.From})
 	desirableReplica := switchover.To
 
-	app.logger.Infof(
+	app.logger.Info().Msgf(
 		"switchover: phase 0: enter turbo mode; replicas: %v, oldMaster: '%s', desirable replica: '%s'",
 		appropriateReplicas,
 		oldMaster,
@@ -412,12 +412,12 @@ func (app *App) optimizationPhase(
 		clusterAdapter,
 	)
 	if err != nil && errors.Is(err, ErrOptimizationPhaseDeadlineExceeded) {
-		app.logger.Infof("switchover: phase 0: turbo mode failed: %v", err)
+		app.logger.Info().Msgf("switchover: phase 0: turbo mode failed: %v", err)
 		switchErr := app.FinishSwitchover(switchover, fmt.Errorf("turbo mode exceeded deadline"))
 		if switchErr != nil {
 			return fmt.Errorf("switchover: failed to reject switchover %s", switchErr)
 		}
-		app.logger.Info("switchover: rejected")
+		app.logger.Info().Msg("switchover: rejected")
 		return err
 	}
 
@@ -425,6 +425,6 @@ func (app *App) optimizationPhase(
 	// This indicates that the replica with the freshest data is too far from convergence,
 	// and we can't optimize it within a limited time frame.
 	// Other cases can be handled in subsequent steps, so no special action is needed here.
-	app.logger.Info("switchover: phase 0: turbo mode is complete")
+	app.logger.Info().Msg("switchover: phase 0: turbo mode is complete")
 	return nil
 }

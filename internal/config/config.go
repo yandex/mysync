@@ -45,6 +45,8 @@ type Config struct {
 	NotCriticalDiskUsage                    float64                      `config:"not_critical_disk_usage" yaml:"not_critical_disk_usage"`
 	LogLevel                                string                       `config:"loglevel"`
 	Log                                     string                       `config:"log"`
+	LogBufferSize                           int                          `config:"log_buffer_size" yaml:"log_buffer_size"`
+	LogPollInterval                         time.Duration                `config:"log_poll_interval" yaml:"log_poll_interval"`
 	Hostname                                string                       `config:"hostname"`
 	Lockfile                                string                       `config:"lockfile"`
 	InfoFile                                string                       `config:"info_file" yaml:"info_file"`
@@ -136,6 +138,8 @@ func DefaultConfig() (Config, error) {
 		CriticalDiskUsage: 95.0,
 		LogLevel:          "Info",
 		Log:               "/var/log/mysync/mysync.log",
+		LogBufferSize:     10000,
+		LogPollInterval:   50 * time.Millisecond,
 		Lockfile:          "/var/run/mysync/mysync.lock",
 		InfoFile:          "/var/run/mysync/mysync.info",
 		Emergefile:        "/var/run/mysync/mysync.emerge",
