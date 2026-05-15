@@ -3,6 +3,7 @@ package dcs
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net"
 	"os"
@@ -288,7 +289,7 @@ func (z *zkDCS) retryRequest(code func() error) {
 	}
 
 	err := retry(z.config, operation)
-	if err != nil {
+	if err != nil && !errors.Is(err, zk.ErrNoNode) {
 		z.logger.Error().Err(err).Msg("retryRequest failed")
 	}
 }
