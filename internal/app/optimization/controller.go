@@ -134,7 +134,7 @@ func (m *Controller) DisableAll(master Node, nodes []Node) error {
 
 		err := m.disable(rs, node)
 		if err != nil {
-			errors = append(errors, fmt.Errorf("%s:%s", hostname, err))
+			errors = append(errors, fmt.Errorf("%s:%w", hostname, err))
 		}
 	}
 

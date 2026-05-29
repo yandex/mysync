@@ -563,7 +563,7 @@ func isTestFileSystemReadonly(f string) (bool, error) {
 	}
 	value, err := strconv.ParseBool(strings.TrimSpace(string(data)))
 	if err != nil {
-		return false, fmt.Errorf("error while parce test file: %s", err)
+		return false, fmt.Errorf("error while parce test file: %w", err)
 	}
 	return value, nil
 }
@@ -642,7 +642,7 @@ func (n *Node) ReplicaStatusWithTimeout(timeout time.Duration, channel string) (
 	err = n.queryRowMogrifyWithTimeout(query, map[string]any{
 		"channel": channel,
 	}, status, timeout)
-	if err == sql.ErrNoRows {
+	if errors.Is(err, sql.ErrNoRows) {
 		return nil, nil
 	}
 	return status, err
@@ -668,7 +668,7 @@ func (n *Node) ReplicationLag(sstatus ReplicaStatus) (*float64, error) {
 	if n.getQuery(queryReplicationLag) != "" {
 		lag := new(replicationLag)
 		err = n.queryRow(queryReplicationLag, nil, lag)
-		if err == sql.ErrNoRows {
+		if errors.Is(err, sql.ErrNoRows) {
 			// looks like master
 			return new(float64), nil
 		}
@@ -689,7 +689,7 @@ func (n *Node) ReplicationLag(sstatus ReplicaStatus) (*float64, error) {
 func (n *Node) GTIDExecuted() (*GTIDExecuted, error) {
 	status := new(GTIDExecuted)
 	err := n.queryRow(queryGTIDExecuted, nil, status)
-	if err == sql.ErrNoRows {
+	if errors.Is(err, sql.ErrNoRows) {
 		return nil, nil
 	}
 	return status, err
@@ -925,7 +925,8 @@ func (n *Node) SemiSyncStatus() (*SemiSyncStatus, error) {
 	status := new(SemiSyncStatus)
 	err := n.queryRow(querySemiSyncStatus, nil, status)
 	if err != nil {
-		if err2, ok := err.(*mysql.MySQLError); ok && err2.Number == 1193 {
+		var err2 *mysql.MySQLError
+		if errors.As(err, &err2) && err2.Number == 1193 {
 			// Error: Unknown system variable
 			// means semisync plugin is not loaded
 			return status, nil
@@ -1135,7 +1136,7 @@ func SaveCAFile(data string, path string) error {
 	}
 	err := os.WriteFile(path, byteData, 0o644)
 	if err != nil {
-		err2 := fmt.Errorf("got error while writing CA file: %s", err)
+		err2 := fmt.Errorf("got error while writing CA file: %w", err)
 		return err2
 	}
 	return nil
@@ -1404,7 +1405,7 @@ func (n *Node) GetExternalReplicationSources() (*[]ReplicationSource, error) {
 		*replicationSources = append(*replicationSources, source)
 		return nil
 	})
-	if IsErrorTableDoesNotExists(err) || err == sql.ErrNoRows {
+	if IsErrorTableDoesNotExists(err) || errors.Is(err, sql.ErrNoRows) {
 		return nil, nil
 	}
 	return replicationSources, err

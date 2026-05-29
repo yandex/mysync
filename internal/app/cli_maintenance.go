@@ -2,6 +2,7 @@ package app
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"time"
 
@@ -27,7 +28,7 @@ func (app *App) CliEnableMaintenance(waitTimeout time.Duration, reason string, m
 		Mode:        mode,
 	}
 	err = app.dcs.Create(pathMaintenance, maintenance)
-	if err != nil && err != dcs.ErrExists {
+	if err != nil && !errors.Is(err, dcs.ErrExists) {
 		app.logger.Error().Err(err).Msg("")
 		return 1
 	}
@@ -75,7 +76,7 @@ func (app *App) CliDisableMaintenance(waitTimeout time.Duration) int {
 
 	maintenance := &Maintenance{}
 	err = app.dcs.Get(pathMaintenance, maintenance)
-	if err == dcs.ErrNotFound {
+	if errors.Is(err, dcs.ErrNotFound) {
 		fmt.Println("maintenance disabled")
 		return 0
 	} else if err != nil {
@@ -97,7 +98,7 @@ func (app *App) CliDisableMaintenance(waitTimeout time.Duration) int {
 			select {
 			case <-ticker.C:
 				err = app.dcs.Get(pathMaintenance, maintenance)
-				if err == dcs.ErrNotFound {
+				if errors.Is(err, dcs.ErrNotFound) {
 					maintenance = nil
 					break Out
 				}
@@ -130,15 +131,14 @@ func (app *App) CliGetMaintenance() int {
 	app.dcs.Initialize()
 
 	err = app.dcs.Get(pathMaintenance, new(Maintenance))
-	switch err {
-	case nil:
+	if err == nil {
 		fmt.Println("on")
 		return 0
-	case dcs.ErrNotFound:
+	}
+	if errors.Is(err, dcs.ErrNotFound) {
 		fmt.Println("off")
 		return 0
-	default:
-		app.logger.Error().Err(err).Msg("")
-		return 1
 	}
+	app.logger.Error().Err(err).Msg("")
+	return 1
 }

@@ -228,7 +228,7 @@ func ReadFromFile(configFile string) (*Config, error) {
 	}
 	loader := confita.NewLoader(file.NewBackend(configFile))
 	if err = loader.Load(context.Background(), &config); err != nil {
-		err = fmt.Errorf("failed to load config from %s: %s", configFile, err.Error())
+		err = fmt.Errorf("failed to load config from %s: %w", configFile, err)
 		return nil, err
 	}
 	if config.DevMode {

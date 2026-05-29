@@ -240,7 +240,7 @@ func (tctx *testContext) connectZookeeper(addrs []string, timeout time.Duration)
 		return err == nil
 	}, timeout, time.Second)
 	if err != nil {
-		return nil, fmt.Errorf("failed to ping zookeeper within %s: %s", timeout, err)
+		return nil, fmt.Errorf("failed to ping zookeeper within %s: %w", timeout, err)
 	}
 	return conn, nil
 }
@@ -284,11 +284,11 @@ func (tctx *testContext) getMysqlConnection(host string) (*sqlx.DB, error) {
 	}
 	addr, err := tctx.composer.GetAddr(host, mysqlPort)
 	if err != nil {
-		return nil, fmt.Errorf("failed to get mysql addr %s: %s", host, err)
+		return nil, fmt.Errorf("failed to get mysql addr %s: %w", host, err)
 	}
 	db, err = tctx.connectMysql(addr, mysqlConnectTimeout)
 	if err != nil {
-		return nil, fmt.Errorf("failed to connect to mysql %s: %s", host, err)
+		return nil, fmt.Errorf("failed to connect to mysql %s: %w", host, err)
 	}
 	tctx.dbs[host] = db
 	return db, nil
@@ -443,7 +443,7 @@ func (tctx *testContext) stepClusterEnvironmentIs(body *godog.DocString) error {
 func (tctx *testContext) stepClusterIsUpAndRunning(createHaNodes bool) error {
 	err := tctx.composer.Up(tctx.composerEnv)
 	if err != nil {
-		return fmt.Errorf("failed to setup compose cluster: %s", err)
+		return fmt.Errorf("failed to setup compose cluster: %w", err)
 	}
 
 	// check zookeepers
@@ -454,7 +454,7 @@ func (tctx *testContext) stepClusterIsUpAndRunning(createHaNodes bool) error {
 			if strings.HasPrefix(service, zkName) {
 				addr, err2 := tctx.composer.GetAddr(service, zkPort)
 				if err2 != nil {
-					err = fmt.Errorf("failed to get zookeeper addr %s: %s", service, err2)
+					err = fmt.Errorf("failed to get zookeeper addr %s: %w", service, err2)
 					return false
 				}
 				zkAddrs = append(zkAddrs, addr)
@@ -466,22 +466,22 @@ func (tctx *testContext) stepClusterIsUpAndRunning(createHaNodes bool) error {
 	}, time.Minute, time.Second)
 
 	if err != nil {
-		return fmt.Errorf("failed to connect to zookeeper %s: %s", zkAddrs, err)
+		return fmt.Errorf("failed to connect to zookeeper %s: %w", zkAddrs, err)
 	}
 
 	err = tctx.composer.RunCommandAtHosts("/var/lib/dist/base/generate_certs.sh && supervisorctl restart mysync",
 		"mysql",
 		time.Minute)
 	if err != nil {
-		return fmt.Errorf("failed to generate certs in mysql hosts: %s", err)
+		return fmt.Errorf("failed to generate certs in mysql hosts: %w", err)
 	}
 
 	if err = tctx.createZookeeperNode("/test"); err != nil {
-		return fmt.Errorf("failed to create namespace zk node due %s", err)
+		return fmt.Errorf("failed to create namespace zk node due %w", err)
 	}
 	if createHaNodes {
 		if err = tctx.createZookeeperNode(dcs.JoinPath("/test", dcs.PathHANodesPrefix)); err != nil {
-			return fmt.Errorf("failed to create path prefix zk node due %s", err)
+			return fmt.Errorf("failed to create path prefix zk node due %w", err)
 		}
 	}
 
@@ -490,16 +490,16 @@ func (tctx *testContext) stepClusterIsUpAndRunning(createHaNodes bool) error {
 		if strings.HasPrefix(service, mysqlName) {
 			if createHaNodes {
 				if err = tctx.createZookeeperNode(dcs.JoinPath("/test", dcs.PathHANodesPrefix, service)); err != nil {
-					return fmt.Errorf("failed to create %s zk node due %s", service, err)
+					return fmt.Errorf("failed to create %s zk node due %w", service, err)
 				}
 			}
 			addr, err2 := tctx.composer.GetAddr(service, mysqlPort)
 			if err2 != nil {
-				return fmt.Errorf("failed to get mysql addr %s: %s", service, err2)
+				return fmt.Errorf("failed to get mysql addr %s: %w", service, err2)
 			}
 			db, err2 := tctx.connectMysql(addr, mysqlInitialConnectTimeout)
 			if err2 != nil {
-				return fmt.Errorf("failed to connect to mysql %s: %s", service, err2)
+				return fmt.Errorf("failed to connect to mysql %s: %w", service, err2)
 			}
 			tctx.dbs[service] = db
 		}
@@ -512,7 +512,7 @@ func (tctx *testContext) stepClusterIsUpAndRunning(createHaNodes bool) error {
 			if strings.HasPrefix(service, mysqlName) {
 				err3 := tctx.stepMysqlHostShouldHaveVariableSetWithin(service, "offline_mode", "0", mysqlWaitOnlineTimeout)
 				if err3 != nil {
-					return fmt.Errorf("failed to set up mysql for host  %s: %s", service, err)
+					return fmt.Errorf("failed to set up mysql for host  %s: %w", service, err)
 				}
 			}
 		}
@@ -593,11 +593,11 @@ func (tctx *testContext) stepRunHeavyUserRequests(host string, sleepTime int) er
 	// don't use cached connections:
 	addr, err := tctx.composer.GetAddr(host, mysqlPort)
 	if err != nil {
-		return fmt.Errorf("failed to get mysql addr %s: %s", host, err)
+		return fmt.Errorf("failed to get mysql addr %s: %w", host, err)
 	}
 	db, err := tctx.connectMysqlWithCredentials(mysqlOrdinaryUser, mysqlOrdinaryPassword, addr, mysqlConnectTimeout)
 	if err != nil {
-		return fmt.Errorf("failed to connect to mysql %s: %s", host, err)
+		return fmt.Errorf("failed to connect to mysql %s: %w", host, err)
 	}
 
 	if _, err := tctx.queryMysqlViaConnection(db, host, "CREATE TABLE IF NOT EXISTS t1(i INT)", nil, mysqlQueryTimeout); err != nil {
@@ -628,11 +628,11 @@ func (tctx *testContext) stepRunHeavyReadUserRequests(host string, sleepTime int
 	// don't use cached connections:
 	addr, err := tctx.composer.GetAddr(host, mysqlPort)
 	if err != nil {
-		return fmt.Errorf("failed to get mysql addr %s: %s", host, err)
+		return fmt.Errorf("failed to get mysql addr %s: %w", host, err)
 	}
 	db, err := tctx.connectMysqlWithCredentials(mysqlOrdinaryUser, mysqlOrdinaryPassword, addr, mysqlConnectTimeout)
 	if err != nil {
-		return fmt.Errorf("failed to connect to mysql %s: %s", host, err)
+		return fmt.Errorf("failed to connect to mysql %s: %w", host, err)
 	}
 
 	go func() {
@@ -930,13 +930,12 @@ func (tctx *testContext) stepIRunSQLOnHost(host string, body *godog.DocString) e
 func (tctx *testContext) stepIRunSQLOnHostExpectingErrorOfNumber(host string, errorNumber int, body *godog.DocString) error {
 	query := strings.TrimSpace(body.Content)
 	_, err := tctx.queryMysql(host, query, struct{}{})
-	mysqlErr, ok := err.(*mysql.MySQLError)
-	if mysqlErr == nil {
-		err = fmt.Errorf("there is no expected sql error")
-		return err
-	}
-	if !ok {
-		return err
+	var mysqlErr *mysql.MySQLError
+	if !errors.As(err, &mysqlErr) {
+		if err != nil {
+			return err
+		}
+		return fmt.Errorf("there is no expected sql error")
 	}
 	num := uint16(errorNumber)
 	if mysqlErr.Number == num {
@@ -1073,10 +1072,10 @@ func (tctx *testContext) createZookeeperNode(node string) error {
 
 func (tctx *testContext) setZookeeperNode(node string, data []byte) error {
 	_, stat, err := tctx.zk.Get(node)
-	if err != nil && err != zk.ErrNoNode {
+	if err != nil && !errors.Is(err, zk.ErrNoNode) {
 		return err
 	}
-	if err == zk.ErrNoNode {
+	if errors.Is(err, zk.ErrNoNode) {
 		_, err = tctx.zk.Create(node, data, 0, tctx.acl)
 	} else {
 		_, err = tctx.zk.Set(node, data, stat.Version)
@@ -1170,7 +1169,7 @@ func (tctx *testContext) stepZookeeperNodeShouldExistWithin(node string, timeout
 
 func (tctx *testContext) stepZookeeperNodeShouldNotExist(node string) error {
 	err := tctx.stepIGetZookeeperNode(node)
-	if err == zk.ErrNoNode {
+	if errors.Is(err, zk.ErrNoNode) {
 		return nil
 	}
 	if err != nil {
@@ -1353,7 +1352,7 @@ func (tctx *testContext) stepMysqlReplicationOnHostShouldNotRunFineWithin(host s
 func (tctx *testContext) stepMysqlHostShouldBecomeUnavailableWithin(host string, timeout int) error {
 	addr, err := tctx.composer.GetAddr(host, mysqlPort)
 	if err != nil {
-		return fmt.Errorf("failed to get mysql addr %s: %s", host, err)
+		return fmt.Errorf("failed to get mysql addr %s: %w", host, err)
 	}
 	testutil.Retry(func() bool {
 		var db *sqlx.DB
@@ -1373,7 +1372,7 @@ func (tctx *testContext) stepMysqlHostShouldBecomeUnavailableWithin(host string,
 func (tctx *testContext) stepMysqlHostShouldBecomeAvailableWithin(host string, timeout int) error {
 	addr, err := tctx.composer.GetAddr(host, mysqlPort)
 	if err != nil {
-		return fmt.Errorf("failed to get mysql addr %s: %s", host, err)
+		return fmt.Errorf("failed to get mysql addr %s: %w", host, err)
 	}
 	testutil.Retry(func() bool {
 		var db *sqlx.DB

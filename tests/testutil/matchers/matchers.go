@@ -144,10 +144,10 @@ func jsonContains(a, e any, path []string) []string {
 func JSONMatcher(actual string, expected string) error {
 	var a, e any
 	if err := json.Unmarshal([]byte(actual), &a); err != nil {
-		return fmt.Errorf("actual value is not valid json: %s", err)
+		return fmt.Errorf("actual value is not valid json: %w", err)
 	}
 	if err := json.Unmarshal([]byte(expected), &e); err != nil {
-		panic(fmt.Errorf("expected value is not valid json: %s", err))
+		panic(fmt.Errorf("expected value is not valid json: %w", err))
 	}
 	res := jsonContains(a, e, []string{""})
 	if len(res) > 0 {
@@ -161,10 +161,10 @@ func JSONMatcher(actual string, expected string) error {
 func JSONExactlyMatcher(actual string, expected string) error {
 	var a, e any
 	if err := json.Unmarshal([]byte(actual), &a); err != nil {
-		return fmt.Errorf("actual value is not valid json: %s", err)
+		return fmt.Errorf("actual value is not valid json: %w", err)
 	}
 	if err := json.Unmarshal([]byte(expected), &e); err != nil {
-		panic(fmt.Errorf("expected value is not valid json: %s", err))
+		panic(fmt.Errorf("expected value is not valid json: %w", err))
 	}
 	if !reflect.DeepEqual(a, e) {
 		return &MatcherError{actual, expected}

@@ -2,6 +2,7 @@ package mysql
 
 import (
 	"database/sql"
+	"errors"
 
 	"github.com/yandex/mysync/internal/log"
 	"github.com/yandex/mysync/internal/util"
@@ -116,7 +117,7 @@ func (er *ExternalReplication) Set(n *Node) error {
 			return nil
 		}
 		// If there is no rows in table for external replication - do nothing
-		if err == sql.ErrNoRows {
+		if errors.Is(err, sql.ErrNoRows) {
 			n.logger.Info().Msgf("no external replication records found in replication table on host %s", n.host)
 			return nil
 		}

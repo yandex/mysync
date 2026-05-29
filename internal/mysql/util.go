@@ -1,6 +1,7 @@
 package mysql
 
 import (
+	"errors"
 	"slices"
 
 	"github.com/go-sql-driver/mysql"
@@ -28,8 +29,8 @@ func IsErrorDubious(err error) bool {
 	if err == nil {
 		return false
 	}
-	mysqlErr, ok := err.(*mysql.MySQLError)
-	if !ok {
+	var mysqlErr *mysql.MySQLError
+	if !errors.As(err, &mysqlErr) {
 		return false
 	}
 	return slices.Contains(dubiousErrorNumbers, mysqlErr.Number)
@@ -39,8 +40,8 @@ func IsErrorChannelDoesNotExists(err error) bool {
 	if err == nil {
 		return false
 	}
-	mysqlErr, ok := err.(*mysql.MySQLError)
-	if !ok {
+	var mysqlErr *mysql.MySQLError
+	if !errors.As(err, &mysqlErr) {
 		return false
 	}
 	if mysqlErr.Number == channelDoesNotExists {
@@ -53,8 +54,8 @@ func IsErrorTableDoesNotExists(err error) bool {
 	if err == nil {
 		return false
 	}
-	mysqlErr, ok := err.(*mysql.MySQLError)
-	if !ok {
+	var mysqlErr *mysql.MySQLError
+	if !errors.As(err, &mysqlErr) {
 		return false
 	}
 	if mysqlErr.Number == tableDoesNotExists {
