@@ -9,6 +9,7 @@ linters:
     - copyloopvar
     - dupl
     - errcheck
+    - errorlint
     - funlen
     - gocritic
     - gocyclo
@@ -25,6 +26,10 @@ linters:
   settings:
     dupl:
       threshold: 400
+    errorlint:
+      errorf: true
+      asserts: true
+      comparison: true
     funlen:
       lines: 150
       statements: 100

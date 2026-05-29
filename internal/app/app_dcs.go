@@ -15,17 +15,17 @@ func (app *App) GetActiveNodes() ([]string, error) {
 	var activeNodes []string
 	err := app.dcs.Get(pathActiveNodes, &activeNodes)
 	if err != nil {
-		if err == dcs.ErrNotFound || err == dcs.ErrMalformed {
+		if errors.Is(err, dcs.ErrNotFound) || errors.Is(err, dcs.ErrMalformed) {
 			return nil, nil
 		}
-		return nil, fmt.Errorf("failed to get active nodes from zk %v", err)
+		return nil, fmt.Errorf("failed to get active nodes from zk %w", err)
 	}
 	return activeNodes, nil
 }
 
 func (app *App) GetClusterCascadeFqdnsFromDcs() ([]string, error) {
 	fqdns, err := app.dcs.GetChildren(dcs.PathCascadeNodesPrefix)
-	if err == dcs.ErrNotFound {
+	if errors.Is(err, dcs.ErrNotFound) {
 		return make([]string, 0), nil
 	}
 	if err != nil {
@@ -46,7 +46,7 @@ func (app *App) GetMaintenance() (*Maintenance, error) {
 
 func (app *App) GetHostsOnRecovery() ([]string, error) {
 	hosts, err := app.dcs.GetChildren(pathRecovery)
-	if err == dcs.ErrNotFound {
+	if errors.Is(err, dcs.ErrNotFound) {
 		return nil, nil
 	}
 	return hosts, err
@@ -69,11 +69,11 @@ func (app *App) SetRecovery(host string) error {
 		return err
 	}
 	err = app.dcs.Create(pathRecovery, nil)
-	if err != nil && err != dcs.ErrExists {
+	if err != nil && !errors.Is(err, dcs.ErrExists) {
 		return err
 	}
 	err = app.dcs.Create(dcs.JoinPath(pathRecovery, host), nil)
-	if err != nil && err != dcs.ErrExists {
+	if err != nil && !errors.Is(err, dcs.ErrExists) {
 		return err
 	}
 	return nil
@@ -88,7 +88,7 @@ func (app *App) IsRecoveryNeeded(host string) bool {
 
 func (app *App) setResetupStatus(host string, status bool) error {
 	err := app.dcs.Create(pathResetupStatus, nil)
-	if err != nil && err != dcs.ErrExists {
+	if err != nil && !errors.Is(err, dcs.ErrExists) {
 		return err
 	}
 	resetupStatus := &mysql.ResetupStatus{
@@ -177,11 +177,11 @@ func (app *App) StartSwitchover(switchover *Switchover) error {
 func (app *App) GetLastSwitchover() Switchover {
 	var lastSwitch, lastRejectedSwitch Switchover
 	err := app.dcs.Get(pathLastSwitch, &lastSwitch)
-	if err != nil && err != dcs.ErrNotFound {
+	if err != nil && !errors.Is(err, dcs.ErrNotFound) {
 		app.logger.Error().Err(err).Msg(pathLastSwitch)
 	}
 	errRejected := app.dcs.Get(pathLastRejectedSwitch, &lastRejectedSwitch)
-	if errRejected != nil && errRejected != dcs.ErrNotFound {
+	if errRejected != nil && !errors.Is(errRejected, dcs.ErrNotFound) {
 		app.logger.Error().Err(errRejected).Msg(pathLastRejectedSwitch)
 	}
 
@@ -205,7 +205,7 @@ func (app *App) IssueFailover(master string) error {
 func (app *App) SetMasterHost(master string) (string, error) {
 	err := app.dcs.Set(pathMasterNode, master)
 	if err != nil {
-		return "", fmt.Errorf("failed to set current master to dcs: %s", err)
+		return "", fmt.Errorf("failed to set current master to dcs: %w", err)
 	}
 	return master, nil
 }
@@ -213,8 +213,8 @@ func (app *App) SetMasterHost(master string) (string, error) {
 func (app *App) GetMasterHostFromDcs() (string, error) {
 	var master string
 	err := app.dcs.Get(pathMasterNode, &master)
-	if err != nil && err != dcs.ErrNotFound {
-		return "", fmt.Errorf("failed to get current master from dcs: %s", err)
+	if err != nil && !errors.Is(err, dcs.ErrNotFound) {
+		return "", fmt.Errorf("failed to get current master from dcs: %w", err)
 	}
 	if master != "" {
 		return master, nil
@@ -224,7 +224,7 @@ func (app *App) GetMasterHostFromDcs() (string, error) {
 
 func (app *App) SetReplMonTS(ts string) error {
 	err := app.dcs.Create(pathMasterReplMonTS, ts)
-	if err != nil && err != dcs.ErrExists {
+	if err != nil && !errors.Is(err, dcs.ErrExists) {
 		return err
 	}
 	err = app.dcs.Set(pathMasterReplMonTS, ts)

@@ -1,6 +1,7 @@
 package dcs
 
 import (
+	"errors"
 	"sync"
 
 	nodestate "github.com/yandex/mysync/internal/app/node_state"
@@ -67,7 +68,7 @@ func (oda *OptimizationDCSAdapter) initDcs() error {
 	oda.dcsInitiator.Do(func() {
 		err = oda.dcs.Create(pathOptimizationNodes, "")
 	})
-	if err != nil && err != dcs.ErrExists {
+	if err != nil && !errors.Is(err, dcs.ErrExists) {
 		oda.dcsInitiator = sync.Once{}
 		return err
 	}
@@ -104,10 +105,10 @@ func (oda *OptimizationDCSAdapter) GetState(hostname string) (*optimization.DCSS
 	path := dcs.JoinPath(pathOptimizationNodes, hostname)
 
 	err = oda.dcs.Get(path, state)
-	if err != nil && err != dcs.ErrNotFound {
+	if err != nil && !errors.Is(err, dcs.ErrNotFound) {
 		return nil, err
 	}
-	if err == dcs.ErrNotFound {
+	if errors.Is(err, dcs.ErrNotFound) {
 		return nil, nil
 	}
 	return state, nil
@@ -122,7 +123,7 @@ func (oda *OptimizationDCSAdapter) DeleteHosts(hostnames ...string) error {
 	for _, hostname := range hostnames {
 		path := dcs.JoinPath(pathOptimizationNodes, hostname)
 		err := oda.dcs.Delete(path)
-		if err != nil && err != dcs.ErrNotFound {
+		if err != nil && !errors.Is(err, dcs.ErrNotFound) {
 			return err
 		}
 	}
@@ -139,7 +140,7 @@ func (oda *OptimizationDCSAdapter) CreateHosts(hostnames ...string) error {
 	for _, hostname := range hostnames {
 		path := dcs.JoinPath(pathOptimizationNodes, hostname)
 		err := oda.dcs.Create(path, state)
-		if err != nil && err != dcs.ErrExists {
+		if err != nil && !errors.Is(err, dcs.ErrExists) {
 			return err
 		}
 	}

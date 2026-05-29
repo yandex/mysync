@@ -1,6 +1,7 @@
 package app
 
 import (
+	"errors"
 	"fmt"
 	"sort"
 
@@ -79,11 +80,11 @@ func (app *App) CliHostAdd(host string, streamFrom *string, priority *int64, dry
 
 	// root paths may not exist
 	err = app.dcs.Create(dcs.JoinPath(pathHANodes), nil)
-	if err != nil && err != dcs.ErrExists {
+	if err != nil && !errors.Is(err, dcs.ErrExists) {
 		return 1
 	}
 	err = app.dcs.Create(dcs.JoinPath(pathCascadeNodesPrefix), nil)
-	if err != nil && err != dcs.ErrExists {
+	if err != nil && !errors.Is(err, dcs.ErrExists) {
 		return 1
 	}
 
@@ -116,7 +117,7 @@ func (app *App) CliHostAdd(host string, streamFrom *string, priority *int64, dry
 		// node may not exist, we should add it to HA hosts
 		if !app.cluster.IsHAHost(host) && !app.cluster.IsCascadeHost(host) {
 			err = app.dcs.Set(dcs.JoinPath(pathHANodes, host), mysql.NodeConfiguration{Priority: 0})
-			if err != nil && err != dcs.ErrExists {
+			if err != nil && !errors.Is(err, dcs.ErrExists) {
 				return 1
 			}
 		}
@@ -170,15 +171,15 @@ func (app *App) CliHostRemove(host string) int {
 		return 1
 	}
 	err = app.dcs.Delete(dcs.JoinPath(pathHANodes, host))
-	if err != nil && err != dcs.ErrNotFound {
+	if err != nil && !errors.Is(err, dcs.ErrNotFound) {
 		return 1
 	}
 	err = app.dcs.Delete(dcs.JoinPath(pathCascadeNodesPrefix, host))
-	if err != nil && err != dcs.ErrNotFound {
+	if err != nil && !errors.Is(err, dcs.ErrNotFound) {
 		return 1
 	}
 	err = app.dcs.Delete(dcs.JoinPath(pathResetupStatus, host))
-	if err != nil && err != dcs.ErrNotFound {
+	if err != nil && !errors.Is(err, dcs.ErrNotFound) {
 		return 1
 	}
 	fmt.Println("host has been removed")
@@ -204,11 +205,11 @@ func (app *App) processReplicationSource(streamFrom string, dryRun bool, host st
 			return true, nil
 		}
 		err := app.dcs.Delete(dcs.JoinPath(pathCascadeNodesPrefix, host))
-		if err != nil && err != dcs.ErrNotFound {
+		if err != nil && !errors.Is(err, dcs.ErrNotFound) {
 			return false, err
 		}
 		err = app.dcs.Set(dcs.JoinPath(pathHANodes, host), mysql.NodeConfiguration{Priority: 0})
-		if err != nil && err != dcs.ErrExists {
+		if err != nil && !errors.Is(err, dcs.ErrExists) {
 			return false, err
 		}
 	} else {
@@ -240,7 +241,7 @@ func (app *App) processReplicationSource(streamFrom string, dryRun bool, host st
 		if dryRun {
 			var cns mysql.CascadeNodeConfiguration
 			err = app.dcs.Get(dcs.JoinPath(pathCascadeNodesPrefix, host), &cns)
-			if err != nil && err != dcs.ErrNotFound {
+			if err != nil && !errors.Is(err, dcs.ErrNotFound) {
 				return false, err
 			}
 			if cns.StreamFrom == streamFrom {
@@ -252,11 +253,11 @@ func (app *App) processReplicationSource(streamFrom string, dryRun bool, host st
 		}
 
 		err = app.dcs.Delete(dcs.JoinPath(pathHANodes, host))
-		if err != nil && err != dcs.ErrNotFound {
+		if err != nil && !errors.Is(err, dcs.ErrNotFound) {
 			return false, err
 		}
 		err = app.dcs.Set(dcs.JoinPath(pathCascadeNodesPrefix, host), mysql.CascadeNodeConfiguration{StreamFrom: streamFrom})
-		if err != nil && err != dcs.ErrExists {
+		if err != nil && !errors.Is(err, dcs.ErrExists) {
 			return false, err
 		}
 	}
@@ -269,7 +270,7 @@ func (app *App) processPriority(priority int64, dryRun bool, host string) (chang
 		var nc mysql.NodeConfiguration
 		err = app.dcs.Get(dcs.JoinPath(pathHANodes, host), &nc)
 		if err != nil {
-			if err != dcs.ErrNotFound {
+			if !errors.Is(err, dcs.ErrNotFound) {
 				return false, err
 			}
 			fmt.Printf("dry run: node %s is not HA node, priority cannot be set", host)
@@ -289,7 +290,7 @@ func (app *App) processPriority(priority int64, dryRun bool, host string) (chang
 	}
 
 	err = app.dcs.Set(dcs.JoinPath(pathHANodes, host), mysql.NodeConfiguration{Priority: priority})
-	if err != nil && err != dcs.ErrExists {
+	if err != nil && !errors.Is(err, dcs.ErrExists) {
 		return false, err
 	}
 

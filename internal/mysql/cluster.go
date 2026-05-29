@@ -1,6 +1,7 @@
 package mysql
 
 import (
+	"errors"
 	"fmt"
 	"sort"
 	"sync"
@@ -41,7 +42,7 @@ func (c *Cluster) IsCascadeHost(hostname string) bool {
 
 func (c *Cluster) GetClusterHAFqdnsFromDcs() ([]string, error) {
 	fqdns, err := c.dcs.GetChildren(dcs.PathHANodesPrefix)
-	if err == dcs.ErrNotFound {
+	if errors.Is(err, dcs.ErrNotFound) {
 		return make([]string, 0), nil
 	}
 	if err != nil {
@@ -69,7 +70,7 @@ func (c *Cluster) GetClusterHAHostsFromDcs() (map[string]NodeConfiguration, erro
 
 func (c *Cluster) GetClusterCascadeFqdnsFromDcs() ([]string, error) {
 	fqdns, err := c.dcs.GetChildren(dcs.PathCascadeNodesPrefix)
-	if err == dcs.ErrNotFound {
+	if errors.Is(err, dcs.ErrNotFound) {
 		return make([]string, 0), nil
 	}
 	if err != nil {
@@ -109,7 +110,7 @@ func (c *Cluster) registerLocalNode() error {
 		node, err := NewNode(c.config, c.logger, c.config.Hostname)
 		if err != nil {
 			c.Close()
-			return fmt.Errorf("failed to configure local node due (%v)", err)
+			return fmt.Errorf("failed to configure local node due (%w)", err)
 		}
 		// just configure local node, but do not register it in cluster
 		c.local = node
@@ -312,8 +313,8 @@ func (c *Cluster) GetNodeConfiguration(host string) (*NodeConfiguration, error) 
 	var nc NodeConfiguration
 	err := c.dcs.Get(dcs.JoinPath(dcs.PathHANodesPrefix, host), &nc)
 	if err != nil {
-		if err != dcs.ErrNotFound && err != dcs.ErrMalformed {
-			return nil, fmt.Errorf("failed to get Priority for host %s: %s", host, err)
+		if !errors.Is(err, dcs.ErrNotFound) && !errors.Is(err, dcs.ErrMalformed) {
+			return nil, fmt.Errorf("failed to get Priority for host %s: %w", host, err)
 		}
 		return defaultNodeConfiguration(), nil
 	}

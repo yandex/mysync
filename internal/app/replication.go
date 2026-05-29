@@ -415,7 +415,7 @@ func (app *App) optimizationPhase(
 		app.logger.Info().Msgf("switchover: phase 0: turbo mode failed: %v", err)
 		switchErr := app.FinishSwitchover(switchover, fmt.Errorf("turbo mode exceeded deadline"))
 		if switchErr != nil {
-			return fmt.Errorf("switchover: failed to reject switchover %s", switchErr)
+			return fmt.Errorf("switchover: failed to reject switchover %w", switchErr)
 		}
 		app.logger.Info().Msg("switchover: rejected")
 		return err

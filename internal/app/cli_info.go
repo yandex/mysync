@@ -1,6 +1,7 @@
 package app
 
 import (
+	"errors"
 	"fmt"
 	"sort"
 	"strconv"
@@ -60,13 +61,13 @@ func (app *App) buildShortInfo(zone string, hostFilter string, parsedLag *lagFil
 
 	haNodes, err := app.cluster.GetClusterHAHostsFromDcs()
 	if err != nil {
-		return nil, fmt.Errorf("failed to get ha nodes: %v", err)
+		return nil, fmt.Errorf("failed to get ha nodes: %w", err)
 	}
 	data[pathHANodes] = filterHostsMap(haNodes, zone, hostFilter, app.config.OfflineModeAZSeparator)
 
 	cascadeNodes, err := app.cluster.GetClusterCascadeHostsFromDcs()
 	if err != nil {
-		return nil, fmt.Errorf("failed to get cascade nodes: %v", err)
+		return nil, fmt.Errorf("failed to get cascade nodes: %w", err)
 	}
 	data[pathCascadeNodesPrefix] = filterHostsMap(cascadeNodes, zone, hostFilter, app.config.OfflineModeAZSeparator)
 
@@ -80,7 +81,7 @@ func (app *App) buildShortInfo(zone string, hostFilter string, parsedLag *lagFil
 
 	nodesOnRecovery, err := app.GetHostsOnRecovery()
 	if err != nil {
-		return nil, fmt.Errorf("failed to get nodes on recovery: %v", err)
+		return nil, fmt.Errorf("failed to get nodes on recovery: %w", err)
 	}
 	if nodesOnRecovery != nil {
 		nodesOnRecovery = filterHostsByFilters(nodesOnRecovery, zone, hostFilter, app.config.OfflineModeAZSeparator)
@@ -92,13 +93,13 @@ func (app *App) buildShortInfo(zone string, hostFilter string, parsedLag *lagFil
 
 	clusterState, err := app.getClusterStateFromDcs()
 	if err != nil {
-		return nil, fmt.Errorf("failed to get cluster state: %v", err)
+		return nil, fmt.Errorf("failed to get cluster state: %w", err)
 	}
 
 	var master string
 	err = app.dcs.Get(pathMasterNode, &master)
-	if err != nil && err != dcs.ErrNotFound {
-		return nil, fmt.Errorf("failed to get %s: %v", pathMasterNode, err)
+	if err != nil && !errors.Is(err, dcs.ErrNotFound) {
+		return nil, fmt.Errorf("failed to get %s: %w", pathMasterNode, err)
 	}
 
 	health := make([]string, 0, len(clusterState))
@@ -129,8 +130,8 @@ func (app *App) buildShortInfo(zone string, hostFilter string, parsedLag *lagFil
 		err = app.dcs.Get(path, &switchover)
 		if err == nil {
 			data[path] = switchover.String()
-		} else if err != dcs.ErrNotFound {
-			return nil, fmt.Errorf("failed to get %s: %v", path, err)
+		} else if !errors.Is(err, dcs.ErrNotFound) {
+			return nil, fmt.Errorf("failed to get %s: %w", path, err)
 		}
 	}
 
@@ -138,14 +139,14 @@ func (app *App) buildShortInfo(zone string, hostFilter string, parsedLag *lagFil
 	err = app.dcs.Get(pathMaintenance, &maintenance)
 	if err == nil {
 		data[pathMaintenance] = maintenance.String()
-	} else if err != dcs.ErrNotFound {
-		return nil, fmt.Errorf("failed to get %s: %v", pathMaintenance, err)
+	} else if !errors.Is(err, dcs.ErrNotFound) {
+		return nil, fmt.Errorf("failed to get %s: %w", pathMaintenance, err)
 	}
 
 	var manager dcs.LockOwner
 	err = app.dcs.Get(pathManagerLock, &manager)
-	if err != nil && err != dcs.ErrNotFound {
-		return nil, fmt.Errorf("failed to get %s: %v", pathManagerLock, err)
+	if err != nil && !errors.Is(err, dcs.ErrNotFound) {
+		return nil, fmt.Errorf("failed to get %s: %w", pathManagerLock, err)
 	}
 	data[pathManagerLock] = manager.Hostname
 	data[pathMasterNode] = master
@@ -204,7 +205,7 @@ func parseLagFilter(raw string) (*lagFilter, error) {
 	}
 	value, err := strconv.ParseFloat(strings.TrimSpace(raw[1:]), 64)
 	if err != nil {
-		return nil, fmt.Errorf("invalid lag filter %q: %v", raw, err)
+		return nil, fmt.Errorf("invalid lag filter %q: %w", raw, err)
 	}
 	return &lagFilter{op: op, value: value}, nil
 }

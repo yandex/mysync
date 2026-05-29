@@ -33,7 +33,7 @@ func (app *App) updateReplMonTS(master string) error {
 	masterNode := app.cluster.Get(master)
 	ts, err := masterNode.GetReplMonTS(app.config.ReplMonSchemeName, app.config.ReplMonTableName)
 	if err != nil {
-		return fmt.Errorf("failed to get master repl_mon timestamp: %v", err)
+		return fmt.Errorf("failed to get master repl_mon timestamp: %w", err)
 	}
 	return app.SetReplMonTS(ts)
 }
