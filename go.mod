@@ -8,7 +8,7 @@ require (
 	github.com/cenkalti/backoff/v4 v4.3.0
 	github.com/containerd/errdefs v1.0.0
 	github.com/cucumber/godog v0.15.1
-	github.com/go-mysql-org/go-mysql v1.14.0
+	github.com/go-mysql-org/go-mysql v1.15.0
 	github.com/go-sql-driver/mysql v1.10.0
 	github.com/go-zookeeper/zk v1.0.4
 	github.com/gofrs/flock v0.13.0
@@ -57,7 +57,7 @@ require (
 	github.com/moby/moby/client v0.4.1
 	github.com/opencontainers/go-digest v1.0.0 // indirect
 	github.com/opencontainers/image-spec v1.1.1 // indirect
-	github.com/pingcap/errors v0.11.5-0.20250523034308-74f78ae071ee // indirect
+	github.com/pingcap/errors v0.11.5-0.20260310054046-9c8b3586e4b2 // indirect
 	github.com/pkg/errors v0.9.1 // indirect
 	github.com/pmezard/go-difflib v1.0.0 // indirect
 	github.com/power-devops/perfstat v0.0.0-20240221224432-82ca36839d55 // indirect

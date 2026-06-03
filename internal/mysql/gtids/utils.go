@@ -16,21 +16,29 @@ func IsSlaveAhead(slaveGtidSet, masterGtidSet GTIDSet) bool {
 func IsSplitBrained(slaveGtidSet, masterGtidSet GTIDSet, masterUUID uuid.UUID) bool {
 	mysqlSlaveGtidSet := slaveGtidSet.(*gomysql.MysqlGTIDSet)
 	mysqlMasterGtidSet := masterGtidSet.(*gomysql.MysqlGTIDSet)
-	for _, slaveSet := range mysqlSlaveGtidSet.Sets {
-		masterSet, ok := mysqlMasterGtidSet.Sets[slaveSet.SID.String()]
+	for slaveUUID := range *mysqlSlaveGtidSet {
+		masterTagMap, ok := (*mysqlMasterGtidSet)[slaveUUID]
 		if !ok {
 			return true
 		}
 
-		if masterSet.Contain(slaveSet) {
-			continue
-		}
+		slaveTagMap := (*mysqlSlaveGtidSet)[slaveUUID]
+		for tag, slaveIntervals := range slaveTagMap {
+			masterIntervals, ok := masterTagMap[tag]
+			if !ok {
+				return true
+			}
 
-		if masterSet.SID == masterUUID {
-			continue
-		}
+			if masterIntervals.Contain(slaveIntervals) {
+				continue
+			}
 
-		return true
+			if slaveUUID == masterUUID {
+				continue
+			}
+
+			return true
+		}
 	}
 
 	return false
