@@ -635,53 +635,50 @@ func (app *App) stateManager() appState {
 	// check if switchover required or in progress
 	switchover := new(Switchover)
 	if err := app.dcs.Get(pathCurrentSwitch, switchover); err == nil {
-		if lightMaintenance {
-			app.logger.Debug().Msgf("cannot perform switchover: blocked by light maintenance mode, skipping iteration")
-		} else {
-			if !switchover.InitiatedAt.IsZero() && time.Since(switchover.InitiatedAt) > app.config.SwitchoverTimeout {
-				app.logger.Error().Msgf("switchover %s => %s timed out after %s", switchover.From, switchover.To, time.Since(switchover.InitiatedAt))
-				err = app.FailSwitchover(switchover, fmt.Errorf("switchover timed out after %s", time.Since(switchover.InitiatedAt)))
-				if err != nil {
-					app.logger.Error().Err(err).Msg("failed to report switchover timeout")
-				}
-				return stateManager
-			}
-			err = app.approveSwitchover(switchover, activeNodes, clusterState)
+		// switchover is allowed during light maintenance
+		if !switchover.InitiatedAt.IsZero() && time.Since(switchover.InitiatedAt) > app.config.SwitchoverTimeout {
+			app.logger.Error().Msgf("switchover %s => %s timed out after %s", switchover.From, switchover.To, time.Since(switchover.InitiatedAt))
+			err = app.FailSwitchover(switchover, fmt.Errorf("switchover timed out after %s", time.Since(switchover.InitiatedAt)))
 			if err != nil {
-				app.logger.Error().Err(err).Msg("cannot perform switchover")
-				err = app.FinishSwitchover(switchover, err)
-				if err != nil {
-					app.logger.Error().Err(err).Msg("failed to reject switchover")
-				}
-				return stateManager
-			}
-
-			err = app.StartSwitchover(switchover)
-			if err != nil {
-				app.logger.Error().Err(err).Msg("failed to start switchover")
-				return stateManager
-			}
-			err = app.performSwitchover(clusterState, activeNodes, switchover, master)
-			if errors.Is(app.dcs.Get(pathCurrentSwitch, new(Switchover)), dcs.ErrNotFound) {
-				app.logger.Error().Msgf("switchover was aborted")
-			} else {
-				if err != nil {
-					err = app.FailSwitchover(switchover, err)
-					if err != nil {
-						app.logger.Error().Err(err).Msg("failed to report switchover failure")
-					}
-				} else {
-					err = app.FinishSwitchover(switchover, nil)
-					if err != nil {
-						// we failed to update status in DCS, it's highly possible
-						// that current process lost DCS connection
-						// and another process will take managerLock
-						app.logger.Error().Err(err).Msg("failed to report switchover finish")
-					}
-				}
+				app.logger.Error().Err(err).Msg("failed to report switchover timeout")
 			}
 			return stateManager
 		}
+		err = app.approveSwitchover(switchover, activeNodes, clusterState)
+		if err != nil {
+			app.logger.Error().Err(err).Msg("cannot perform switchover")
+			err = app.FinishSwitchover(switchover, err)
+			if err != nil {
+				app.logger.Error().Err(err).Msg("failed to reject switchover")
+			}
+			return stateManager
+		}
+
+		err = app.StartSwitchover(switchover)
+		if err != nil {
+			app.logger.Error().Err(err).Msg("failed to start switchover")
+			return stateManager
+		}
+		err = app.performSwitchover(clusterState, activeNodes, switchover, master)
+		if errors.Is(app.dcs.Get(pathCurrentSwitch, new(Switchover)), dcs.ErrNotFound) {
+			app.logger.Error().Msgf("switchover was aborted")
+		} else {
+			if err != nil {
+				err = app.FailSwitchover(switchover, err)
+				if err != nil {
+					app.logger.Error().Err(err).Msg("failed to report switchover failure")
+				}
+			} else {
+				err = app.FinishSwitchover(switchover, nil)
+				if err != nil {
+					// we failed to update status in DCS, it's highly possible
+					// that current process lost DCS connection
+					// and another process will take managerLock
+					app.logger.Error().Err(err).Msg("failed to report switchover finish")
+				}
+			}
+		}
+		return stateManager
 	} else if !errors.Is(err, dcs.ErrNotFound) {
 		app.logger.Error().Err(err).Msg("")
 		return stateManager
