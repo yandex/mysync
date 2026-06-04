@@ -1133,7 +1133,11 @@ func (app *App) updateActiveNodes(clusterState, clusterStateDcs map[string]*node
 			node := app.cluster.Get(host)
 			app.disableSemiSyncIfNonNeeded(node, state)
 		}
-		// than update DCS
+		// then update DCS
+		if !app.canShrinkActiveNodes(masterNode, oldActiveNodes, activeNodes) {
+			app.logger.Error().Err(err).Msg("update active nodes: failed to update active nodes, master is dead")
+			return nil
+		}
 		err = app.dcs.Set(pathActiveNodes, activeNodes)
 		if err != nil {
 			app.logger.Error().Err(err).Msg("update active nodes: failed to update active nodes in dcs")
@@ -1208,7 +1212,11 @@ func (app *App) updateActiveNodes(clusterState, clusterStateDcs map[string]*node
 		}
 	}
 
-	// than update DCS
+	// then update DCS
+	if !app.canShrinkActiveNodes(masterNode, oldActiveNodes, activeNodes) {
+		app.logger.Error().Err(err).Msg("update active nodes: failed to update active nodes in dcs")
+		return nil
+	}
 	err = app.dcs.Set(pathActiveNodes, activeNodes)
 	if err != nil {
 		app.logger.Error().Err(err).Msg("update active nodes: failed to update active nodes in dcs")
@@ -1216,6 +1224,21 @@ func (app *App) updateActiveNodes(clusterState, clusterStateDcs map[string]*node
 	}
 
 	return nil
+}
+
+// Check that we can safely remove nodes from active nodes
+// Can't switch if master is dying, because we won't be able
+// to perform failovers
+func (app *App) canShrinkActiveNodes(masterNode *mysql.Node, oldActiveNodes, newActiveNodes []string) bool {
+	removed := filterOut(oldActiveNodes, newActiveNodes)
+	if len(removed) == 0 {
+		return true // not shrinking (adding hosts or no change) - always safe
+	}
+	if ok, err := masterNode.Ping(); !ok {
+		app.logger.Error().Err(err).Msgf("update active nodes: master %s is not alive, will not evict %v from active nodes", masterNode.Host(), removed)
+		return false
+	}
+	return true
 }
 
 func (app *App) adjustSemiSyncOnMaster(node *mysql.Node, state *nodestate.NodeState, waitSlaveCount int) error {
