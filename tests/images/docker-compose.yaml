@@ -106,6 +106,7 @@ services:
       LOW_REPLICATION_MARK:
       RESETUP_HOST_LAG:
       OFFLINE_MODE_MAX_OFFLINE_PCT:
+      MYSYNC_SWITCHOVER_MAX_ATTEMPTS:
     healthcheck:
       test: "mysql --user=admin --password=admin_pwd -e 'SELECT 1'"
       start_period: 30s
@@ -161,6 +162,7 @@ services:
       LOW_REPLICATION_MARK:
       RESETUP_HOST_LAG:
       OFFLINE_MODE_MAX_OFFLINE_PCT:
+      MYSYNC_SWITCHOVER_MAX_ATTEMPTS:
     depends_on:
       mysql1:
         condition: service_healthy
@@ -210,6 +212,7 @@ services:
       LOW_REPLICATION_MARK:
       RESETUP_HOST_LAG:
       OFFLINE_MODE_MAX_OFFLINE_PCT:
+      MYSYNC_SWITCHOVER_MAX_ATTEMPTS:
     depends_on:
       mysql1:
         condition: service_healthy

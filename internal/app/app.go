@@ -964,6 +964,12 @@ func (app *App) emulateError(pos string) bool {
 }
 
 func (app *App) approveSwitchover(switchover *Switchover, activeNodes []string, clusterState map[string]*nodestate.NodeState) error {
+	// Limit amount of switchover retries
+	if switchover.MasterTransition != FailoverTransition &&
+		app.config.SwitchoverMaxAttempts > 0 && switchover.RunCount >= app.config.SwitchoverMaxAttempts {
+		return fmt.Errorf("switchover failed %d times, giving up after reaching switchover_max_attempts (%d)",
+			switchover.RunCount, app.config.SwitchoverMaxAttempts)
+	}
 	if switchover.RunCount > 0 {
 		return nil
 	}
