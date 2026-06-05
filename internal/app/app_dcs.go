@@ -149,6 +149,12 @@ func (app *App) FinishSwitchover(switchover *Switchover, switchErr error) error 
 		switchover.Result.Error = switchErr.Error()
 	}
 
+	if switchErr != nil {
+		app.logSwitchoverFailure(switchover)
+	} else if switchover.MasterTransition == SwitchoverTransition {
+		app.stopTiming(timingSwitchover)
+	}
+
 	err := app.dcs.Delete(pathCurrentSwitch)
 	if err != nil {
 		return err
@@ -171,6 +177,9 @@ func (app *App) StartSwitchover(switchover *Switchover) error {
 	app.logger.Info().Msgf("switchover: %s => %s starting...", switchover.From, switchover.To)
 	switchover.StartedAt = time.Now()
 	switchover.StartedBy = app.config.Hostname
+	if switchover.MasterTransition == SwitchoverTransition {
+		app.startTiming(timingSwitchover, time.Time{})
+	}
 	return app.dcs.Set(pathCurrentSwitch, switchover)
 }
 
@@ -199,6 +208,10 @@ func (app *App) IssueFailover(master string) error {
 	switchover.InitiatedAt = time.Now()
 	switchover.Cause = CauseAuto
 	switchover.MasterTransition = FailoverTransition
+	// downtime/failover are measured from the moment the master was lost
+	failedAt := app.t.Get(NodeFailedAt, master)
+	app.startTiming(timingDowntime, failedAt)
+	app.startTiming(timingFailover, failedAt)
 	return app.dcs.Create(pathCurrentSwitch, switchover)
 }
 

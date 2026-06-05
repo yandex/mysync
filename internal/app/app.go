@@ -641,6 +641,7 @@ func (app *App) stateManager() appState {
 		} else {
 			if !switchover.InitiatedAt.IsZero() && time.Since(switchover.InitiatedAt) > app.config.SwitchoverTimeout {
 				app.logger.Error().Msgf("switchover %s => %s timed out after %s", switchover.From, switchover.To, time.Since(switchover.InitiatedAt))
+				app.logSwitchoverFailure(switchover)
 				err = app.FailSwitchover(switchover, fmt.Errorf("switchover timed out after %s", time.Since(switchover.InitiatedAt)))
 				if err != nil {
 					app.logger.Error().Err(err).Msg("failed to report switchover timeout")
@@ -711,6 +712,9 @@ func (app *App) stateManager() appState {
 		}
 	} else {
 		app.t.Clean(NodeFailedAt, master)
+		// flush timings left behind by an aborted failover/switchover
+		app.stopTiming(timingDowntime)
+		app.stopTiming(timingFailover)
 	}
 
 	if !clusterState[master].PingOk {
@@ -1367,6 +1371,11 @@ func (app *App) performSwitchover(clusterState map[string]*nodestate.NodeState, 
 		}
 	}
 
+	// downtime for failover starts at master loss (see IssueFailover); for switchover it starts here
+	if switchover.MasterTransition == SwitchoverTransition {
+		app.startTiming(timingDowntime, time.Time{})
+	}
+
 	// set read only everywhere (all HA-nodes) and stop replication
 	app.logger.Info().Msg("switchover: phase 1: enter read only")
 	errs := util.RunParallel(func(host string) error {
@@ -1607,6 +1616,10 @@ func (app *App) performSwitchover(clusterState map[string]*nodestate.NodeState, 
 		return fmt.Errorf("failed to set new master %s writable: %w", newMaster, err)
 	}
 	app.logger.Info().Msgf("switchover: new master %s set writable", newMaster)
+
+	// cluster is open for writes again, failover/downtime are over
+	app.stopTiming(timingDowntime)
+	app.stopTiming(timingFailover)
 
 	// reenable events
 	events, err := newMasterNode.ReenableEventsRetry()
