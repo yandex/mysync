@@ -11,7 +11,7 @@ for i in 1 2 3; do
     docker exec mysync_mysql${i}_1 cat "${logfile}" >"tests/logs/mysql${i}/${logname}"
   done
 
-  docker exec mysync_zoo${i}_1 cat /var/log/zookeeper/zookeeper--server-mysync_zookeeper${i}_1.log >tests/logs/zookeeper${i}/zk.log 2>&1
+  docker exec mysync_zoo${i}_1 cat /var/log/zookeeper/zookeeper.log >tests/logs/zookeeper${i}/zk.log 2>&1
 done
 
 tail -n 18 tests/logs/jepsen.log

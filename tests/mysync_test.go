@@ -59,7 +59,7 @@ var mysqlLogsToSave = map[string]string{
 }
 
 var zkLogsToSave = map[string]string{
-	"/var/log/zookeeper/zookeeper--server-%s.log": "zookeeper.log",
+	"/var/log/zookeeper/zookeeper.log": "zookeeper.log",
 }
 
 type noLogger struct{}
@@ -116,9 +116,6 @@ func (tctx *testContext) saveLogs(scenario string) error {
 			return err
 		}
 		for remotePath, localPath := range logsToSave {
-			if strings.Contains(remotePath, "%") {
-				remotePath = fmt.Sprintf(remotePath, service)
-			}
 			remoteFile, err := tctx.composer.GetFile(service, remotePath)
 			if err != nil {
 				errs = append(errs, err)
