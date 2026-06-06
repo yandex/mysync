@@ -635,50 +635,54 @@ func (app *App) stateManager() appState {
 	// check if switchover required or in progress
 	switchover := new(Switchover)
 	if err := app.dcs.Get(pathCurrentSwitch, switchover); err == nil {
-		// switchover is allowed during light maintenance
-		if !switchover.InitiatedAt.IsZero() && time.Since(switchover.InitiatedAt) > app.config.SwitchoverTimeout {
-			app.logger.Error().Msgf("switchover %s => %s timed out after %s", switchover.From, switchover.To, time.Since(switchover.InitiatedAt))
-			err = app.FailSwitchover(switchover, fmt.Errorf("switchover timed out after %s", time.Since(switchover.InitiatedAt)))
-			if err != nil {
-				app.logger.Error().Err(err).Msg("failed to report switchover timeout")
-			}
-			return stateManager
-		}
-		err = app.approveSwitchover(switchover, activeNodes, clusterState)
-		if err != nil {
-			app.logger.Error().Err(err).Msg("cannot perform switchover")
-			err = app.FinishSwitchover(switchover, err)
-			if err != nil {
-				app.logger.Error().Err(err).Msg("failed to reject switchover")
-			}
-			return stateManager
-		}
-
-		err = app.StartSwitchover(switchover)
-		if err != nil {
-			app.logger.Error().Err(err).Msg("failed to start switchover")
-			return stateManager
-		}
-		err = app.performSwitchover(clusterState, activeNodes, switchover, master)
-		if errors.Is(app.dcs.Get(pathCurrentSwitch, new(Switchover)), dcs.ErrNotFound) {
-			app.logger.Error().Msgf("switchover was aborted")
+		// failover via DCS is suppressed during light maintenance (only manual switchover is allowed)
+		if lightMaintenance && switchover.MasterTransition == FailoverTransition {
+			app.logger.Info().Msgf("failover suppressed by light maintenance mode")
 		} else {
-			if err != nil {
-				err = app.FailSwitchover(switchover, err)
+			if !switchover.InitiatedAt.IsZero() && time.Since(switchover.InitiatedAt) > app.config.SwitchoverTimeout {
+				app.logger.Error().Msgf("switchover %s => %s timed out after %s", switchover.From, switchover.To, time.Since(switchover.InitiatedAt))
+				err = app.FailSwitchover(switchover, fmt.Errorf("switchover timed out after %s", time.Since(switchover.InitiatedAt)))
 				if err != nil {
-					app.logger.Error().Err(err).Msg("failed to report switchover failure")
+					app.logger.Error().Err(err).Msg("failed to report switchover timeout")
 				}
-			} else {
-				err = app.FinishSwitchover(switchover, nil)
+				return stateManager
+			}
+			err = app.approveSwitchover(switchover, activeNodes, clusterState)
+			if err != nil {
+				app.logger.Error().Err(err).Msg("cannot perform switchover")
+				err = app.FinishSwitchover(switchover, err)
 				if err != nil {
-					// we failed to update status in DCS, it's highly possible
-					// that current process lost DCS connection
-					// and another process will take managerLock
-					app.logger.Error().Err(err).Msg("failed to report switchover finish")
+					app.logger.Error().Err(err).Msg("failed to reject switchover")
+				}
+				return stateManager
+			}
+
+			err = app.StartSwitchover(switchover)
+			if err != nil {
+				app.logger.Error().Err(err).Msg("failed to start switchover")
+				return stateManager
+			}
+			err = app.performSwitchover(clusterState, activeNodes, switchover, master)
+			if errors.Is(app.dcs.Get(pathCurrentSwitch, new(Switchover)), dcs.ErrNotFound) {
+				app.logger.Error().Msgf("switchover was aborted")
+			} else {
+				if err != nil {
+					err = app.FailSwitchover(switchover, err)
+					if err != nil {
+						app.logger.Error().Err(err).Msg("failed to report switchover failure")
+					}
+				} else {
+					err = app.FinishSwitchover(switchover, nil)
+					if err != nil {
+						// we failed to update status in DCS, it's highly possible
+						// that current process lost DCS connection
+						// and another process will take managerLock
+						app.logger.Error().Err(err).Msg("failed to report switchover finish")
+					}
 				}
 			}
+			return stateManager
 		}
-		return stateManager
 	} else if !errors.Is(err, dcs.ErrNotFound) {
 		app.logger.Error().Err(err).Msg("")
 		return stateManager
@@ -1131,10 +1135,6 @@ func (app *App) updateActiveNodes(clusterState, clusterStateDcs map[string]*node
 			app.disableSemiSyncIfNonNeeded(node, state)
 		}
 		// then update DCS
-		if !app.canShrinkActiveNodes(masterNode, oldActiveNodes, activeNodes) {
-			app.logger.Error().Err(err).Msg("update active nodes: failed to update active nodes, master is dead")
-			return nil
-		}
 		err = app.dcs.Set(pathActiveNodes, activeNodes)
 		if err != nil {
 			app.logger.Error().Err(err).Msg("update active nodes: failed to update active nodes in dcs")
@@ -1210,10 +1210,6 @@ func (app *App) updateActiveNodes(clusterState, clusterStateDcs map[string]*node
 	}
 
 	// then update DCS
-	if !app.canShrinkActiveNodes(masterNode, oldActiveNodes, activeNodes) {
-		app.logger.Error().Err(err).Msg("update active nodes: failed to update active nodes in dcs")
-		return nil
-	}
 	err = app.dcs.Set(pathActiveNodes, activeNodes)
 	if err != nil {
 		app.logger.Error().Err(err).Msg("update active nodes: failed to update active nodes in dcs")
@@ -1221,21 +1217,6 @@ func (app *App) updateActiveNodes(clusterState, clusterStateDcs map[string]*node
 	}
 
 	return nil
-}
-
-// Check that we can safely remove nodes from active nodes
-// Can't switch if master is dying, because we won't be able
-// to perform failovers
-func (app *App) canShrinkActiveNodes(masterNode *mysql.Node, oldActiveNodes, newActiveNodes []string) bool {
-	removed := filterOut(oldActiveNodes, newActiveNodes)
-	if len(removed) == 0 {
-		return true // not shrinking (adding hosts or no change) - always safe
-	}
-	if ok, err := masterNode.Ping(); !ok {
-		app.logger.Error().Err(err).Msgf("update active nodes: master %s is not alive, will not evict %v from active nodes", masterNode.Host(), removed)
-		return false
-	}
-	return true
 }
 
 func (app *App) adjustSemiSyncOnMaster(node *mysql.Node, state *nodestate.NodeState, waitSlaveCount int) error {
