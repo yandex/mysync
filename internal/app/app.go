@@ -635,8 +635,9 @@ func (app *App) stateManager() appState {
 	// check if switchover required or in progress
 	switchover := new(Switchover)
 	if err := app.dcs.Get(pathCurrentSwitch, switchover); err == nil {
-		if lightMaintenance {
-			app.logger.Debug().Msgf("cannot perform switchover: blocked by light maintenance mode, skipping iteration")
+		// failover via DCS is suppressed during light maintenance (only manual switchover is allowed)
+		if lightMaintenance && switchover.MasterTransition == FailoverTransition {
+			app.logger.Info().Msgf("failover suppressed by light maintenance mode")
 		} else {
 			if !switchover.InitiatedAt.IsZero() && time.Since(switchover.InitiatedAt) > app.config.SwitchoverTimeout {
 				app.logger.Error().Msgf("switchover %s => %s timed out after %s", switchover.From, switchover.To, time.Since(switchover.InitiatedAt))
@@ -1133,7 +1134,7 @@ func (app *App) updateActiveNodes(clusterState, clusterStateDcs map[string]*node
 			node := app.cluster.Get(host)
 			app.disableSemiSyncIfNonNeeded(node, state)
 		}
-		// than update DCS
+		// then update DCS
 		err = app.dcs.Set(pathActiveNodes, activeNodes)
 		if err != nil {
 			app.logger.Error().Err(err).Msg("update active nodes: failed to update active nodes in dcs")
@@ -1208,7 +1209,7 @@ func (app *App) updateActiveNodes(clusterState, clusterStateDcs map[string]*node
 		}
 	}
 
-	// than update DCS
+	// then update DCS
 	err = app.dcs.Set(pathActiveNodes, activeNodes)
 	if err != nil {
 		app.logger.Error().Err(err).Msg("update active nodes: failed to update active nodes in dcs")
