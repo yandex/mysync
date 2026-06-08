@@ -88,7 +88,7 @@ Feature: manual switchover from old master
   Scenario: switchover gives up and releases the master after reaching max attempts
     Given cluster environment is
       """
-      MYSYNC_SWITCHOVER_MAX_ATTEMPTS=3
+      MYSYNC_SWITCHOVER_MAX_ATTEMPTS=60
       """
     And cluster is up and running
     Then mysql host "mysql1" should be master
@@ -112,7 +112,7 @@ Feature: manual switchover from old master
       }
       """
     # after switchover_max_attempts unsuccessful attempts mysync stops retrying and rejects the switchover
-    Then zookeeper node "/test/last_rejected_switch" should match json within "60" seconds
+    Then zookeeper node "/test/last_rejected_switch" should match json within "250" seconds
       """
       {
           "from": "mysql1",
