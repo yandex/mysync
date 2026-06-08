@@ -68,6 +68,8 @@ func (app *App) logSwitchoverFailure(sw *Switchover) {
 		return
 	}
 	app.clearTiming(timingSwitchover)
+	// a failed switchover must not leave a downtime marker for the safety net to mislog later
+	app.clearTiming(timingDowntime)
 	since := sw.InitiatedAt
 	if since.IsZero() {
 		since = start
