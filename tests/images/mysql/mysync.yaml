@@ -16,6 +16,8 @@ resetupfile: /tmp/mysync.resetup
 resetup_crashed_hosts: ${MYSYNC_RESETUP_CRASHED_HOSTS:-false}
 zookeeper:
   session_timeout: 3s
+  random_host_provider:
+    retry_jitter: 1s
   namespace: /test
   hosts: [ $ZK_SERVERS ]
   auth: true
