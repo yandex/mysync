@@ -43,6 +43,7 @@ Feature: manual switchover from old master
     Given cluster environment is
       """
       FORCE_SWITCHOVER=<force_switchover>
+      MYSYNC_SWITCHOVER_MAX_ATTEMPTS=1000
       """
     Given cluster is up and running
     Then zookeeper node "/test/active_nodes" should match json_exactly within "20" seconds
@@ -83,6 +84,49 @@ Feature: manual switchover from old master
       | force_switchover  |
       | true              |
       | false             |
+
+  Scenario: switchover gives up and releases the master after reaching max attempts
+    Given cluster environment is
+      """
+      MYSYNC_SWITCHOVER_MAX_ATTEMPTS=60
+      """
+    And cluster is up and running
+    Then mysql host "mysql1" should be master
+    And zookeeper node "/test/active_nodes" should match json_exactly within "20" seconds
+      """
+      ["mysql1","mysql2","mysql3"]
+      """
+    When mysql on host "mysql3" is killed
+    And mysql on host "mysql2" is killed
+    # pre-set run_count so the switchover is already approved and enters the retry loop;
+    # with both replicas dead it can never reach quorum and keeps failing
+    And I set zookeeper node "/test/switch" to
+      """
+      {
+          "from": "mysql1",
+          "to": "",
+          "cause": "manual",
+          "initiated_by": "mysql1",
+          "run_count": 1,
+          "master_transition": "switchover"
+      }
+      """
+    # after switchover_max_attempts unsuccessful attempts mysync stops retrying and rejects the switchover
+    Then zookeeper node "/test/last_rejected_switch" should match json within "250" seconds
+      """
+      {
+          "from": "mysql1",
+          "master_transition": "switchover",
+          "result": {
+              "ok": false,
+              "error": "REGEXP:.*giving up after reaching switchover_max_attempts.*"
+          }
+      }
+      """
+    And zookeeper node "/test/switch" should not exist
+    # the old master must be released from read-only instead of being held there forever
+    And mysql host "mysql1" should be master
+    And mysql host "mysql1" should become writable within "30" seconds
 
   Scenario Outline: switchover from works on healthy cluster
     Given cluster environment is
