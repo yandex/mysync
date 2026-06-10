@@ -1623,9 +1623,7 @@ func (app *App) performSwitchover(clusterState map[string]*nodestate.NodeState, 
 	}
 	app.logger.Info().Msgf("switchover: new master %s set writable", newMaster)
 
-	// cluster is open for writes again, failover/downtime are over
 	app.stopTiming(timingDowntime)
-	app.stopTiming(timingFailover)
 
 	// reenable events
 	events, err := newMasterNode.ReenableEventsRetry()

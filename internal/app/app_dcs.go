@@ -153,6 +153,8 @@ func (app *App) FinishSwitchover(switchover *Switchover, switchErr error) error 
 		app.logSwitchoverFailure(switchover)
 	} else if switchover.MasterTransition == SwitchoverTransition {
 		app.stopTiming(timingSwitchover)
+	} else {
+		app.stopTiming(timingFailover)
 	}
 
 	err := app.dcs.Delete(pathCurrentSwitch)
