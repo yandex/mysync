@@ -178,7 +178,7 @@ func (app *App) StartSwitchover(switchover *Switchover) error {
 	switchover.StartedAt = time.Now()
 	switchover.StartedBy = app.config.Hostname
 	if switchover.MasterTransition == SwitchoverTransition {
-		app.startTiming(timingSwitchover, time.Time{})
+		app.startTiming(timingSwitchover, switchover.InitiatedAt)
 	}
 	return app.dcs.Set(pathCurrentSwitch, switchover)
 }
@@ -208,10 +208,6 @@ func (app *App) IssueFailover(master string) error {
 	switchover.InitiatedAt = time.Now()
 	switchover.Cause = CauseAuto
 	switchover.MasterTransition = FailoverTransition
-	// downtime/failover are measured from the moment the master was lost
-	failedAt := app.t.Get(NodeFailedAt, master)
-	app.startTiming(timingDowntime, failedAt)
-	app.startTiming(timingFailover, failedAt)
 	return app.dcs.Create(pathCurrentSwitch, switchover)
 }
 

@@ -693,7 +693,12 @@ func (app *App) stateManager() appState {
 
 	if !clusterStateDcs[master].PingOk || clusterStateDcs[master].IsFileSystemReadonly {
 		app.logger.Error().Msgf("MASTER FAILURE")
-		app.t.SetIfZero(NodeFailedAt, master, time.Now())
+		if app.t.Get(NodeFailedAt, master).IsZero() {
+			now := time.Now()
+			app.t.Set(NodeFailedAt, master, now)
+			app.startTiming(timingDowntime, now)
+			app.startTiming(timingFailover, now)
+		}
 		if lightMaintenance {
 			app.logger.Info().Msgf("failover suppressed by light maintenance mode")
 		} else {
@@ -711,10 +716,11 @@ func (app *App) stateManager() appState {
 			return stateManager
 		}
 	} else {
-		app.t.Clean(NodeFailedAt, master)
-		// flush timings left behind by an aborted failover/switchover
-		app.stopTiming(timingDowntime)
-		app.stopTiming(timingFailover)
+		if !app.t.Get(NodeFailedAt, master).IsZero() {
+			app.stopTiming(timingDowntime)
+			app.stopTiming(timingFailover)
+			app.t.Clean(NodeFailedAt, master)
+		}
 	}
 
 	if !clusterState[master].PingOk {

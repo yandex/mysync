@@ -49,17 +49,19 @@ func (app *App) clearTiming(name string) {
 
 // stopTiming logs elapsed time since start and clears it
 func (app *App) stopTiming(name string) {
+	now := time.Now()
 	start, ok := app.getTimingStart(name)
 	if !ok {
 		return
 	}
 	app.clearTiming(name)
-	app.logTiming(name, time.Since(start))
+	app.logTiming(name, now.Sub(start))
 }
 
 // logSwitchoverFailure records time spent on a failed switchover as a negative value.
 // Marker-guarded so it is logged once, and only when the switchover actually started.
 func (app *App) logSwitchoverFailure(sw *Switchover) {
+	now := time.Now()
 	if sw.MasterTransition != SwitchoverTransition {
 		return
 	}
@@ -68,13 +70,12 @@ func (app *App) logSwitchoverFailure(sw *Switchover) {
 		return
 	}
 	app.clearTiming(timingSwitchover)
-	// a failed switchover must not leave a downtime marker for the safety net to mislog later
 	app.clearTiming(timingDowntime)
 	since := sw.InitiatedAt
 	if since.IsZero() {
 		since = start
 	}
-	app.logTiming(timingSwitchover+"_failure", -time.Since(since))
+	app.logTiming(timingSwitchover+"_failure", -now.Sub(since))
 }
 
 // logTiming runs the configured log_timing command with name and elapsed seconds
