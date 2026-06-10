@@ -65,6 +65,9 @@ const (
 
 	// last known timestamp from repl_mon table
 	pathMasterReplMonTS = "master_repl_mon_ts"
+
+	// timing start timestamps, structure: pathTimings/<name> -> time.Time
+	pathTimings = "timing"
 )
 
 var (
