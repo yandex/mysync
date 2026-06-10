@@ -108,6 +108,7 @@ type Config struct {
 	ForceSwitchover                         bool                         `config:"force_switchover" yaml:"force_switchover"` // TODO: Remove when we will be sure it's right way to do switchover
 	ReplicationConvergenceTimeoutSwitchover time.Duration                `config:"replication_convergence_timeout_switchover" yaml:"replication_convergence_timeout_switchover"`
 	SwitchoverTimeout                       time.Duration                `config:"switchover_timeout" yaml:"switchover_timeout"`
+	SwitchoverMaxAttempts                   int                          `config:"switchover_max_attempts" yaml:"switchover_max_attempts"`
 	DSNSettings                             string                       `config:"dsn_settings" yaml:"dsn_settings"`
 	OptimizationConfig                      OptimizationConfig           `config:"optimization_config" yaml:"optimization_config"`
 }
@@ -210,6 +211,7 @@ func DefaultConfig() (Config, error) {
 		ManagerSwitchover:                       false,
 		ForceSwitchover:                         false,
 		SwitchoverTimeout:                       30 * time.Minute,
+		SwitchoverMaxAttempts:                   60,
 		ReplicationConvergenceTimeoutSwitchover: 300 * time.Second,
 		DSNSettings:                             "?autocommit=1&sql_log_off=1",
 		OptimizationConfig: OptimizationConfig{
