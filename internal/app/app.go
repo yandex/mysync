@@ -39,6 +39,7 @@ type App struct {
 	sysLog              *syslog.Writer
 	config              *config.Config
 	dcs                 dcs.DCS
+	appDCS              IAppDCS
 	cluster             *mysql.Cluster
 	filelock            *flock.Flock
 	t                   *Timings
@@ -148,6 +149,7 @@ func (app *App) connectDCS() error {
 	if err != nil {
 		return fmt.Errorf("failed to connect to zkDCS: %w", err)
 	}
+	app.appDCS = NewAppDCS(app.dcs, app.config, app.logger)
 	return nil
 }
 
@@ -920,15 +922,8 @@ func (app *App) approveFailover(clusterState, clusterStateDcs map[string]*nodest
 		return err
 	}
 
-	var lastSwitchover Switchover
-	err = app.dcs.Get(pathLastSwitch, &lastSwitchover)
-	if !errors.Is(err, dcs.ErrNotFound) {
-		if err != nil {
-			return err
-		}
-		if lastSwitchover.Result == nil {
-			return fmt.Errorf("another switchover in progress. this should never happen")
-		}
+	lastSwitchover := app.appDCS.GetLastSwitchover()
+	if lastSwitchover.Result != nil {
 		timeAfterLastSwitchover := time.Since(lastSwitchover.Result.FinishedAt)
 		if timeAfterLastSwitchover < app.config.FailoverCooldown && lastSwitchover.Cause == CauseAuto {
 			return fmt.Errorf("not enough time from last failover %s (cooldown %s)", lastSwitchover.Result.FinishedAt, app.config.FailoverCooldown)
