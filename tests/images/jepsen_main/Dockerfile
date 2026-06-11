@@ -1,11 +1,10 @@
 FROM mysync-jepsen-test-base:latest
 ENV LEIN_ROOT=1
 COPY . /var/lib/dist/jepsen_main
-RUN apt-get -qq update && apt-get install libjna-java \
+RUN apt-get -qq update && apt-get install -y libjna-java \
         gnuplot \
         wget \
         openjdk-21-jre-headless && \
-    update-alternatives --set java /usr/lib/jvm/java-21-openjdk-amd64/bin/java && \
     chmod 600 /root/.ssh/id_rsa && \
     wget https://raw.githubusercontent.com/technomancy/leiningen/2.12.0/bin/lein -O /usr/bin/lein && \
     chmod +x /usr/bin/lein && \

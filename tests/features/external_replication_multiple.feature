@@ -4,7 +4,8 @@ Feature: external replication switchover
         Given cluster environment is
         """
         MYSYNC_REPLICATION_REPAIR_COOLDOWN=30s
-        """    
+        MYSYNC_REPLICATION_REPAIR_MAX_ATTEMPTS=1
+        """
         Given cluster is up and running
         Then mysql host "mysql1" should be master
         And mysql host "mysql2" should be replica of "mysql1"

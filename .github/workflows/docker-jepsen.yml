@@ -8,8 +8,8 @@ env:
   GO_VERSION: 1.25.6
 
 jobs:
-  test:
-    name: jepsen
+  jepsen:
+    name: jepsen (8.0)
     runs-on: ubuntu-22.04
     steps:
       - name: Set up Go 1.x
@@ -26,10 +26,10 @@ jobs:
           go get -v -t -d ./...
 
       - name: Test
-        run: make base_img jepsen_base_img jepsen_test
+        run: make base_img_8.0 jepsen_base_img jepsen_test
 
       - uses: actions/upload-artifact@v7
         if: failure()
         with:
-          name: logs
+          name: logs-jepsen
           path: tests/logs
