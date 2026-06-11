@@ -21,16 +21,16 @@ EOF
 if [ ! -z "$MYSQL_MASTER" ]; then
 cat <<EOF > /etc/mysql/slave.sql
     SET GLOBAL server_id = $MYSQL_SERVER_ID;
-    RESET SLAVE FOR CHANNEL '';
-    CHANGE MASTER TO MASTER_HOST = '$MYSQL_MASTER', MASTER_USER = 'repl', MASTER_PASSWORD = 'repl_pwd', MASTER_AUTO_POSITION = 1, MASTER_CONNECT_RETRY = 1, MASTER_RETRY_COUNT = 100500 FOR CHANNEL '';
-    START SLAVE;
+    RESET REPLICA FOR CHANNEL '';
+    CHANGE REPLICATION SOURCE TO SOURCE_HOST = '$MYSQL_MASTER', SOURCE_USER = 'repl', SOURCE_PASSWORD = 'repl_pwd', SOURCE_AUTO_POSITION = 1, SOURCE_CONNECT_RETRY = 1, SOURCE_RETRY_COUNT = 100500 FOR CHANNEL '';
+    START REPLICA;
 EOF
 else
     touch /etc/mysql/slave.sql
 fi
 
 if [ ! -f /var/lib/mysql/auto.cnf ]; then
-    /usr/sbin/mysqld --initialize --datadir=/var/lib/mysql --init-file=/etc/mysql/init.sql --server-id=$MYSQL_SERVER_ID
+    /usr/sbin/mysqld --defaults-file=/etc/mysql/my.cnf --initialize --datadir=/var/lib/mysql --init-file=/etc/mysql/init.sql --server-id=$MYSQL_SERVER_ID
     echo "==INITIALIZED=="
 else
     # clean slave script for restarts
