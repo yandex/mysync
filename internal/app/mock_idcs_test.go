@@ -9,6 +9,7 @@ import (
 	time "time"
 
 	gomock "github.com/golang/mock/gomock"
+	node_state "github.com/yandex/mysync/internal/app/node_state"
 	mysql "github.com/yandex/mysync/internal/mysql"
 )
 
@@ -63,6 +64,20 @@ func (mr *MockIAppDCSMockRecorder) CreateCurrentSwitchover(switchover interface{
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CreateCurrentSwitchover", reflect.TypeOf((*MockIAppDCS)(nil).CreateCurrentSwitchover), switchover)
 }
 
+// DeleteActiveNodes mocks base method.
+func (m *MockIAppDCS) DeleteActiveNodes() error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "DeleteActiveNodes")
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// DeleteActiveNodes indicates an expected call of DeleteActiveNodes.
+func (mr *MockIAppDCSMockRecorder) DeleteActiveNodes() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteActiveNodes", reflect.TypeOf((*MockIAppDCS)(nil).DeleteActiveNodes))
+}
+
 // DeleteCurrentSwitchover mocks base method.
 func (m *MockIAppDCS) DeleteCurrentSwitchover() error {
 	m.ctrl.T.Helper()
@@ -75,6 +90,35 @@ func (m *MockIAppDCS) DeleteCurrentSwitchover() error {
 func (mr *MockIAppDCSMockRecorder) DeleteCurrentSwitchover() *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteCurrentSwitchover", reflect.TypeOf((*MockIAppDCS)(nil).DeleteCurrentSwitchover))
+}
+
+// DeleteMaintenance mocks base method.
+func (m *MockIAppDCS) DeleteMaintenance() error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "DeleteMaintenance")
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// DeleteMaintenance indicates an expected call of DeleteMaintenance.
+func (mr *MockIAppDCSMockRecorder) DeleteMaintenance() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteMaintenance", reflect.TypeOf((*MockIAppDCS)(nil).DeleteMaintenance))
+}
+
+// FetchCascadeNodeConfigurations mocks base method.
+func (m *MockIAppDCS) FetchCascadeNodeConfigurations() (map[string]mysql.CascadeNodeConfiguration, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "FetchCascadeNodeConfigurations")
+	ret0, _ := ret[0].(map[string]mysql.CascadeNodeConfiguration)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// FetchCascadeNodeConfigurations indicates an expected call of FetchCascadeNodeConfigurations.
+func (mr *MockIAppDCSMockRecorder) FetchCascadeNodeConfigurations() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "FetchCascadeNodeConfigurations", reflect.TypeOf((*MockIAppDCS)(nil).FetchCascadeNodeConfigurations))
 }
 
 // GetActiveNodes mocks base method.
@@ -119,6 +163,20 @@ func (m *MockIAppDCS) GetCurrentSwitchover(switchover *Switchover) error {
 func (mr *MockIAppDCSMockRecorder) GetCurrentSwitchover(switchover interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetCurrentSwitchover", reflect.TypeOf((*MockIAppDCS)(nil).GetCurrentSwitchover), switchover)
+}
+
+// GetHealthState mocks base method.
+func (m *MockIAppDCS) GetHealthState(host string, state *node_state.NodeState) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetHealthState", host, state)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// GetHealthState indicates an expected call of GetHealthState.
+func (mr *MockIAppDCSMockRecorder) GetHealthState(host, state interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetHealthState", reflect.TypeOf((*MockIAppDCS)(nil).GetHealthState), host, state)
 }
 
 // GetHostsOnRecovery mocks base method.
@@ -193,6 +251,21 @@ func (m *MockIAppDCS) GetMasterHostFromDcs() (string, error) {
 func (mr *MockIAppDCSMockRecorder) GetMasterHostFromDcs() *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetMasterHostFromDcs", reflect.TypeOf((*MockIAppDCS)(nil).GetMasterHostFromDcs))
+}
+
+// GetNodeConfiguration mocks base method.
+func (m *MockIAppDCS) GetNodeConfiguration(host string) (mysql.NodeConfiguration, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetNodeConfiguration", host)
+	ret0, _ := ret[0].(mysql.NodeConfiguration)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetNodeConfiguration indicates an expected call of GetNodeConfiguration.
+func (mr *MockIAppDCSMockRecorder) GetNodeConfiguration(host interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetNodeConfiguration", reflect.TypeOf((*MockIAppDCS)(nil).GetNodeConfiguration), host)
 }
 
 // GetReplMonTS mocks base method.
@@ -281,6 +354,20 @@ func (mr *MockIAppDCSMockRecorder) SetCurrentSwitchover(switchover interface{}) 
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetCurrentSwitchover", reflect.TypeOf((*MockIAppDCS)(nil).SetCurrentSwitchover), switchover)
 }
 
+// SetHealthState mocks base method.
+func (m *MockIAppDCS) SetHealthState(host string, state *node_state.NodeState) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "SetHealthState", host, state)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// SetHealthState indicates an expected call of SetHealthState.
+func (mr *MockIAppDCSMockRecorder) SetHealthState(host, state interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetHealthState", reflect.TypeOf((*MockIAppDCS)(nil).SetHealthState), host, state)
+}
+
 // SetLastRejectedSwitchover mocks base method.
 func (m *MockIAppDCS) SetLastRejectedSwitchover(switchover *Switchover) error {
 	m.ctrl.T.Helper()
@@ -321,6 +408,20 @@ func (m *MockIAppDCS) SetLowSpace(lowSpace bool) error {
 func (mr *MockIAppDCSMockRecorder) SetLowSpace(lowSpace interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetLowSpace", reflect.TypeOf((*MockIAppDCS)(nil).SetLowSpace), lowSpace)
+}
+
+// SetMaintenance mocks base method.
+func (m *MockIAppDCS) SetMaintenance(maintenance *Maintenance) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "SetMaintenance", maintenance)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// SetMaintenance indicates an expected call of SetMaintenance.
+func (mr *MockIAppDCSMockRecorder) SetMaintenance(maintenance interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetMaintenance", reflect.TypeOf((*MockIAppDCS)(nil).SetMaintenance), maintenance)
 }
 
 // SetMasterHost mocks base method.

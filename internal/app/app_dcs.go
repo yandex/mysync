@@ -3,6 +3,7 @@ package app
 import (
 	"time"
 
+	nodestate "github.com/yandex/mysync/internal/app/node_state"
 	"github.com/yandex/mysync/internal/mysql"
 )
 
@@ -13,6 +14,46 @@ import (
 // GetActiveNodes returns master + alive running replicas.
 func (app *App) GetActiveNodes() ([]string, error) {
 	return app.appDCS.GetActiveNodes()
+}
+
+// SetActiveNodes writes the active nodes list to ZK.
+func (app *App) SetActiveNodes(nodes []string) error {
+	return app.appDCS.SetActiveNodes(nodes)
+}
+
+// DeleteActiveNodes removes the active nodes list from ZK.
+func (app *App) DeleteActiveNodes() error {
+	return app.appDCS.DeleteActiveNodes()
+}
+
+// SetHealthState writes the ephemeral per-host health state to ZK.
+func (app *App) SetHealthState(host string, state *nodestate.NodeState) error {
+	return app.appDCS.SetHealthState(host, state)
+}
+
+// GetHealthState reads the per-host health state from ZK.
+func (app *App) GetHealthState(host string, state *nodestate.NodeState) error {
+	return app.appDCS.GetHealthState(host, state)
+}
+
+// SetMaintenance writes the maintenance record to ZK.
+func (app *App) SetMaintenance(maintenance *Maintenance) error {
+	return app.appDCS.SetMaintenance(maintenance)
+}
+
+// DeleteMaintenance removes the maintenance record from ZK.
+func (app *App) DeleteMaintenance() error {
+	return app.appDCS.DeleteMaintenance()
+}
+
+// FetchCascadeNodeConfigurations reads all cascade node configurations from ZK.
+func (app *App) FetchCascadeNodeConfigurations() (map[string]mysql.CascadeNodeConfiguration, error) {
+	return app.appDCS.FetchCascadeNodeConfigurations()
+}
+
+// GetNodeConfiguration reads the HA node configuration (priority etc.) from ZK.
+func (app *App) GetNodeConfiguration(host string) (mysql.NodeConfiguration, error) {
+	return app.appDCS.GetNodeConfiguration(host)
 }
 
 // GetClusterCascadeFqdnsFromDcs returns cascade node FQDNs stored in ZK.

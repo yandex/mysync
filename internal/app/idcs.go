@@ -4,6 +4,7 @@ package app
 import (
 	"time"
 
+	nodestate "github.com/yandex/mysync/internal/app/node_state"
 	"github.com/yandex/mysync/internal/mysql"
 )
 
@@ -16,13 +17,20 @@ type IAppDCS interface {
 	// Active nodes
 	GetActiveNodes() ([]string, error)
 	SetActiveNodes(nodes []string) error
+	DeleteActiveNodes() error
 
 	// Master
 	GetMasterHostFromDcs() (string, error)
 	SetMasterHost(master string) (string, error)
 
+	// Health state (ephemeral per-host node state written by healthChecker)
+	SetHealthState(host string, state *nodestate.NodeState) error
+	GetHealthState(host string, state *nodestate.NodeState) error
+
 	// Maintenance
 	GetMaintenance() (*Maintenance, error)
+	SetMaintenance(maintenance *Maintenance) error
+	DeleteMaintenance() error
 
 	// Recovery
 	GetHostsOnRecovery() ([]string, error)
@@ -57,4 +65,8 @@ type IAppDCS interface {
 
 	// Cascade nodes
 	GetClusterCascadeFqdnsFromDcs() ([]string, error)
+	FetchCascadeNodeConfigurations() (map[string]mysql.CascadeNodeConfiguration, error)
+
+	// HA node configuration
+	GetNodeConfiguration(host string) (mysql.NodeConfiguration, error)
 }

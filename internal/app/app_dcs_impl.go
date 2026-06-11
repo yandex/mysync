@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"time"
 
+	nodestate "github.com/yandex/mysync/internal/app/node_state"
 	"github.com/yandex/mysync/internal/config"
 	"github.com/yandex/mysync/internal/dcs"
 	"github.com/yandex/mysync/internal/log"
@@ -45,6 +46,56 @@ func (a *appDCS) GetActiveNodes() ([]string, error) {
 // SetActiveNodes writes the active nodes list to ZK.
 func (a *appDCS) SetActiveNodes(nodes []string) error {
 	return a.dcs.Set(pathActiveNodes, nodes)
+}
+
+// DeleteActiveNodes removes the active nodes list from ZK.
+func (a *appDCS) DeleteActiveNodes() error {
+	return a.dcs.Delete(pathActiveNodes)
+}
+
+// SetHealthState writes the ephemeral per-host health state to ZK.
+func (a *appDCS) SetHealthState(host string, state *nodestate.NodeState) error {
+	return a.dcs.SetEphemeral(dcs.JoinPath(pathHealthPrefix, host), state)
+}
+
+// GetHealthState reads the per-host health state from ZK.
+func (a *appDCS) GetHealthState(host string, state *nodestate.NodeState) error {
+	return a.dcs.Get(dcs.JoinPath(pathHealthPrefix, host), state)
+}
+
+// SetMaintenance writes the maintenance record to ZK.
+func (a *appDCS) SetMaintenance(maintenance *Maintenance) error {
+	return a.dcs.Set(pathMaintenance, maintenance)
+}
+
+// DeleteMaintenance removes the maintenance record from ZK.
+func (a *appDCS) DeleteMaintenance() error {
+	return a.dcs.Delete(pathMaintenance)
+}
+
+// FetchCascadeNodeConfigurations reads all cascade node configurations from ZK.
+func (a *appDCS) FetchCascadeNodeConfigurations() (map[string]mysql.CascadeNodeConfiguration, error) {
+	cascadeTopology := make(map[string]mysql.CascadeNodeConfiguration)
+	hosts, err := a.dcs.GetChildren(dcs.PathCascadeNodesPrefix)
+	if err != nil {
+		return cascadeTopology, err
+	}
+	for _, host := range hosts {
+		var cnc mysql.CascadeNodeConfiguration
+		err := a.dcs.Get(dcs.JoinPath(dcs.PathCascadeNodesPrefix, host), &cnc)
+		if err != nil {
+			return cascadeTopology, err
+		}
+		cascadeTopology[host] = cnc
+	}
+	return cascadeTopology, nil
+}
+
+// GetNodeConfiguration reads the HA node configuration (priority etc.) from ZK.
+func (a *appDCS) GetNodeConfiguration(host string) (mysql.NodeConfiguration, error) {
+	var nc mysql.NodeConfiguration
+	err := a.dcs.Get(dcs.JoinPath(pathHANodes, host), &nc)
+	return nc, err
 }
 
 // GetClusterCascadeFqdnsFromDcs returns cascade node FQDNs stored in ZK.

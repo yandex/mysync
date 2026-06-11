@@ -214,7 +214,7 @@ func (app *App) healthChecker(ctx context.Context) {
 			hc := app.getLocalNodeState()
 			logFile, maxLogPos = hc.UpdateBinlogStatus(logFile, maxLogPos)
 			app.logger.Info().Msgf("healthcheck: %v", hc)
-			err := app.dcs.SetEphemeral(dcs.JoinPath(pathHealthPrefix, app.config.Hostname), hc)
+			err := app.SetHealthState(app.config.Hostname, hc)
 			if err != nil {
 				app.logger.Error().Err(err).Msg("healthcheck: failed to set status to dcs")
 			}
@@ -611,7 +611,7 @@ func (app *App) stateManager() appState {
 		// Signal to dcs that we have set light maintenance mode
 		if !maintenance.MaintAcquired() {
 			maintenance.MySyncPaused = true
-			err := app.dcs.Set(pathMaintenance, maintenance)
+			err := app.SetMaintenance(maintenance)
 
 			if err != nil {
 				app.logger.Error().Err(err).Msg("failed to enter light maintenance mode")
@@ -1146,7 +1146,7 @@ func (app *App) updateActiveNodes(clusterState, clusterStateDcs map[string]*node
 			app.disableSemiSyncIfNonNeeded(node, state)
 		}
 		// then update DCS
-		err = app.dcs.Set(pathActiveNodes, activeNodes)
+		err = app.SetActiveNodes(activeNodes)
 		if err != nil {
 			app.logger.Error().Err(err).Msg("update active nodes: failed to update active nodes in dcs")
 			return err
@@ -1221,7 +1221,7 @@ func (app *App) updateActiveNodes(clusterState, clusterStateDcs map[string]*node
 	}
 
 	// then update DCS
-	err = app.dcs.Set(pathActiveNodes, activeNodes)
+	err = app.SetActiveNodes(activeNodes)
 	if err != nil {
 		app.logger.Error().Err(err).Msg("update active nodes: failed to update active nodes in dcs")
 		return err
@@ -1641,7 +1641,7 @@ func (app *App) performSwitchover(clusterState map[string]*nodestate.NodeState, 
 	}
 
 	// set new master in dcs
-	err = app.dcs.Set(pathMasterNode, newMaster)
+	_, err = app.SetMasterHost(newMaster)
 	if err != nil || app.emulateError("promote_set_to_dcs") {
 		return fmt.Errorf("failed to set new master to dcs: %w", err)
 	}
@@ -2207,13 +2207,13 @@ func (app *App) enterMaintenance(maintenance *Maintenance, master string) error 
 		if err != nil {
 			return err
 		}
-		err = app.dcs.Delete(pathActiveNodes)
+		err = app.DeleteActiveNodes()
 		if err != nil {
 			return err
 		}
 	}
 	maintenance.MySyncPaused = true
-	return app.dcs.Set(pathMaintenance, maintenance)
+	return app.SetMaintenance(maintenance)
 }
 
 func (app *App) leaveMaintenance() error {
@@ -2246,7 +2246,7 @@ func (app *App) leaveMaintenance() error {
 	if len(activeNodes) == 0 {
 		return ErrNoActiveNodes
 	}
-	return app.dcs.Delete(pathMaintenance)
+	return app.DeleteMaintenance()
 }
 
 func (app *App) performChangeMaster(host, master string) error {
@@ -2453,7 +2453,7 @@ func (app *App) getClusterStateFromDcs() (map[string]*nodestate.NodeState, error
 	hosts := app.cluster.AllNodeHosts()
 	getter := func(host string) (*nodestate.NodeState, error) {
 		nodeState := new(nodestate.NodeState)
-		err := app.dcs.Get(dcs.JoinPath(pathHealthPrefix, host), nodeState)
+		err := app.GetHealthState(host, nodeState)
 		if err != nil && !errors.Is(err, dcs.ErrNotFound) {
 			return nil, err
 		}
@@ -2521,24 +2521,11 @@ func (app *App) stopReplicationOnMaster(masterNode *mysql.Node) error {
 }
 
 func (app *App) fetchCascadeNodeConfigurations() (map[string]mysql.CascadeNodeConfiguration, error) {
-	cascadeTopology := make(map[string]mysql.CascadeNodeConfiguration)
-
-	hosts, err := app.dcs.GetChildren(dcs.PathCascadeNodesPrefix)
+	cascadeTopology, err := app.FetchCascadeNodeConfigurations()
 	if err != nil {
 		app.logger.Warn().Msgf("repair: Failed to fetch CascadeNodeConfigurations")
-		return cascadeTopology, err
 	}
-	for _, host := range hosts {
-		var cnc mysql.CascadeNodeConfiguration
-		err := app.dcs.Get(dcs.JoinPath(dcs.PathCascadeNodesPrefix, host), &cnc)
-		if err != nil {
-			app.logger.Warn().Msgf("repair: Failed to fetch CascadeNodeConfiguration for %s", host)
-			return cascadeTopology, err
-		}
-		cascadeTopology[host] = cnc
-	}
-
-	return cascadeTopology, nil
+	return cascadeTopology, err
 }
 
 func (app *App) getNodePositions(activeNodes []string) ([]nodePosition, error) {
@@ -2579,8 +2566,7 @@ func (app *App) getNodePositions(activeNodes []string) ([]nodePosition, error) {
 			}
 		}
 
-		var nc mysql.NodeConfiguration
-		err = app.dcs.Get(dcs.JoinPath(pathHANodes, host), &nc)
+		nc, err := app.GetNodeConfiguration(host)
 		if err != nil {
 			if !errors.Is(err, dcs.ErrNotFound) && !errors.Is(err, dcs.ErrMalformed) {
 				return fmt.Errorf("failed to get priority for host %s: %w", host, err)
