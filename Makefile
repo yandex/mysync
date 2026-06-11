@@ -48,9 +48,9 @@ jepsen_test:
 	timeout 600 docker exec mysync_zoo1_1 retriable_path_create.sh /test/ha_nodes/mysync_mysql1_1
 	timeout 600 docker exec mysync_zoo1_1 retriable_path_create.sh /test/ha_nodes/mysync_mysql2_1
 	timeout 600 docker exec mysync_zoo1_1 retriable_path_create.sh /test/ha_nodes/mysync_mysql3_1
-	timeout 600 docker exec mysync_mysql1_1 sh -c "/var/lib/dist/base/generate_certs.sh mysync_mysql1_1.mysync_mysql_net && supervisorctl restart mysync && supervisorctl start mysqld"
-	timeout 600 docker exec mysync_mysql2_1 sh -c "/var/lib/dist/base/generate_certs.sh mysync_mysql2_1.mysync_mysql_net && supervisorctl restart mysync && supervisorctl start mysqld"
-	timeout 600 docker exec mysync_mysql3_1 sh -c "/var/lib/dist/base/generate_certs.sh mysync_mysql3_1.mysync_mysql_net && supervisorctl restart mysync && supervisorctl start mysqld"
+	timeout 600 docker exec mysync_mysql1_1 sh -c "/var/lib/dist/base/generate_certs.sh mysync_mysql1_1.mysync_mysql_net && supervisorctl restart mysync && supervisorctl start mysqld || true"
+	timeout 600 docker exec mysync_mysql2_1 sh -c "/var/lib/dist/base/generate_certs.sh mysync_mysql2_1.mysync_mysql_net && supervisorctl restart mysync && supervisorctl start mysqld || true"
+	timeout 600 docker exec mysync_mysql3_1 sh -c "/var/lib/dist/base/generate_certs.sh mysync_mysql3_1.mysync_mysql_net && supervisorctl restart mysync && supervisorctl start mysqld || true"
 	timeout 600 docker exec mysync_mysql1_1 setup.sh
 	timeout 600 bash ./tests/images/copy_keys.sh
 	mkdir -p ./tests/logs
@@ -60,7 +60,7 @@ jepsen_test:
 clean:
 	docker ps | grep mysync | awk '{print $$1}' | xargs docker rm -f || true
 	docker network ls | grep mysync | awk '{print $$1}' | xargs docker network rm || true
-	docker image ls | grep mysync | awk '{print $$3}' | xargs docker image rm --force || true
+	docker image ls | grep mysync | awk '{print $$2}' | xargs docker image rm --force || true
 	rm -rf ./tests/logs
 
 local_clean:
