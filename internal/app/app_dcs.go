@@ -1,11 +1,8 @@
 package app
 
 import (
-	"errors"
-	"fmt"
 	"time"
 
-	"github.com/yandex/mysync/internal/dcs"
 	"github.com/yandex/mysync/internal/mysql"
 )
 
@@ -131,6 +128,22 @@ func (app *App) StartSwitchover(switchover *Switchover) error {
 	return app.appDCS.SetCurrentSwitchover(switchover)
 }
 
+// GetCurrentSwitchover reads the current in-progress switchover from ZK.
+// Returns dcs.ErrNotFound if no switchover is in progress.
+func (app *App) GetCurrentSwitchover(switchover *Switchover) error {
+	return app.appDCS.GetCurrentSwitchover(switchover)
+}
+
+// CreateCurrentSwitchover creates a new switchover record in ZK (fails if one already exists).
+func (app *App) CreateCurrentSwitchover(switchover *Switchover) error {
+	return app.appDCS.CreateCurrentSwitchover(switchover)
+}
+
+// DeleteCurrentSwitchover removes the current switchover node from ZK.
+func (app *App) DeleteCurrentSwitchover() error {
+	return app.appDCS.DeleteCurrentSwitchover()
+}
+
 // GetLastSwitchover returns the most recent switchover (finished or rejected).
 func (app *App) GetLastSwitchover() Switchover {
 	return app.appDCS.GetLastSwitchover()
@@ -164,18 +177,4 @@ func (app *App) GetReplMonTS() (string, error) {
 // SetLowSpace writes the low-space flag to ZK.
 func (app *App) SetLowSpace(lowSpace bool) error {
 	return app.appDCS.SetLowSpace(lowSpace)
-}
-
-// checkCurrentSwitchover reads the current in-progress switchover from ZK.
-// Used internally by stateManager/stateCandidate.
-func (app *App) checkCurrentSwitchover() (*Switchover, error) {
-	var switchover Switchover
-	err := app.dcs.Get(pathCurrentSwitch, &switchover)
-	if errors.Is(err, dcs.ErrNotFound) {
-		return nil, nil
-	}
-	if err != nil {
-		return nil, fmt.Errorf("failed to get current switchover from dcs: %w", err)
-	}
-	return &switchover, nil
 }

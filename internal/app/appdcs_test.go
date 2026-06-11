@@ -50,6 +50,8 @@ func aliveReplica() *nodestate.NodeState {
 }
 
 // clusterState builds a map[host]NodeState with the given master and HA replicas.
+//
+//nolint:unparam
 func clusterState(master string, replicas ...string) map[string]*nodestate.NodeState {
 	m := make(map[string]*nodestate.NodeState)
 	m[master] = &nodestate.NodeState{PingOk: true, IsMaster: true}
@@ -69,8 +71,8 @@ func TestApproveFailover_DisabledInConfig(t *testing.T) {
 	cfg.Failover = false
 	app := newTestApp(t, cfg, NewMockIAppDCS(ctrl))
 
-	cs := clusterState("master1", "replica1")
-	err := app.approveFailover(cs, cs, []string{"replica1"}, "master1")
+	cs := clusterState("master", "replica1")
+	err := app.approveFailover(cs, cs, []string{"replica1"}, "master")
 	require.ErrorContains(t, err, "auto_failover is disabled")
 }
 
@@ -86,8 +88,8 @@ func TestApproveFailover_NoQuorum(t *testing.T) {
 	// GetLastSwitchover is called after quorum check — but quorum fails first, so no call expected
 	app := newTestApp(t, cfg, mockDCS)
 
-	cs := clusterState("master1") // no replicas → no quorum
-	err := app.approveFailover(cs, cs, []string{}, "master1")
+	cs := clusterState("master") // no replicas → no quorum
+	err := app.approveFailover(cs, cs, []string{}, "master")
 	require.ErrorContains(t, err, "no quorum")
 }
 
@@ -111,8 +113,8 @@ func TestApproveFailover_CooldownNotElapsed(t *testing.T) {
 
 	app := newTestApp(t, cfg, mockDCS)
 
-	cs := clusterState("master1", "replica1")
-	err := app.approveFailover(cs, cs, []string{"replica1"}, "master1")
+	cs := clusterState("master", "replica1")
+	err := app.approveFailover(cs, cs, []string{"replica1"}, "master")
 	require.ErrorContains(t, err, "not enough time from last failover")
 }
 
@@ -136,8 +138,8 @@ func TestApproveFailover_CooldownElapsed(t *testing.T) {
 
 	app := newTestApp(t, cfg, mockDCS)
 
-	cs := clusterState("master1", "replica1")
-	err := app.approveFailover(cs, cs, []string{"replica1"}, "master1")
+	cs := clusterState("master", "replica1")
+	err := app.approveFailover(cs, cs, []string{"replica1"}, "master")
 	require.NoError(t, err)
 }
 
@@ -161,8 +163,8 @@ func TestApproveFailover_ManualSwitchoverDoesNotTriggerCooldown(t *testing.T) {
 
 	app := newTestApp(t, cfg, mockDCS)
 
-	cs := clusterState("master1", "replica1")
-	err := app.approveFailover(cs, cs, []string{"replica1"}, "master1")
+	cs := clusterState("master", "replica1")
+	err := app.approveFailover(cs, cs, []string{"replica1"}, "master")
 	require.NoError(t, err)
 }
 
@@ -178,8 +180,8 @@ func TestApproveFailover_NoLastSwitchover(t *testing.T) {
 
 	app := newTestApp(t, cfg, mockDCS)
 
-	cs := clusterState("master1", "replica1")
-	err := app.approveFailover(cs, cs, []string{"replica1"}, "master1")
+	cs := clusterState("master", "replica1")
+	err := app.approveFailover(cs, cs, []string{"replica1"}, "master")
 	require.NoError(t, err)
 }
 
@@ -196,9 +198,9 @@ func TestApproveFailover_AfterCrashRecovery_SkipsDelayCheck(t *testing.T) {
 
 	app := newTestApp(t, cfg, mockDCS)
 	// NodeFailedAt is zero → failingTime is huge, but crash recovery skips the check
-	cs := clusterState("master1", "replica1")
+	cs := clusterState("master", "replica1")
 	dcsState := map[string]*nodestate.NodeState{
-		"master1": {
+		"master": {
 			PingOk:   true,
 			IsMaster: true,
 			DaemonState: &nodestate.DaemonState{
@@ -208,7 +210,7 @@ func TestApproveFailover_AfterCrashRecovery_SkipsDelayCheck(t *testing.T) {
 		"replica1": {PingOk: true},
 	}
 
-	err := app.approveFailover(cs, dcsState, []string{"replica1"}, "master1")
+	err := app.approveFailover(cs, dcsState, []string{"replica1"}, "master")
 	require.NoError(t, err)
 }
 
@@ -216,10 +218,14 @@ func TestApproveFailover_AfterCrashRecovery_SkipsDelayCheck(t *testing.T) {
 
 func TestGetMasterHost_OneMaster(t *testing.T) {
 	app := newTestApp(t, minConfig(), nil)
-	cs := clusterState("master1", "replica1", "replica2")
+	cs := map[string]*nodestate.NodeState{
+		"master":   {PingOk: true, IsMaster: true},
+		"replica1": aliveReplica(),
+		"replica2": aliveReplica(),
+	}
 	host, err := app.getMasterHost(cs)
 	require.NoError(t, err)
-	require.Equal(t, "master1", host)
+	require.Equal(t, "master", host)
 }
 
 func TestGetMasterHost_NoMaster(t *testing.T) {
@@ -262,13 +268,13 @@ func TestGetCurrentMaster_FromDCS(t *testing.T) {
 	defer ctrl.Finish()
 
 	mockDCS := NewMockIAppDCS(ctrl)
-	mockDCS.EXPECT().GetMasterHostFromDcs().Return("master1", nil)
+	mockDCS.EXPECT().GetMasterHostFromDcs().Return("master", nil)
 
 	app := newTestApp(t, minConfig(), mockDCS)
-	cs := clusterState("master1", "replica1")
+	cs := clusterState("master", "replica1")
 	host, err := app.getCurrentMaster(cs)
 	require.NoError(t, err)
-	require.Equal(t, "master1", host)
+	require.Equal(t, "master", host)
 }
 
 func TestGetCurrentMaster_FallbackToClusterState(t *testing.T) {
@@ -278,13 +284,13 @@ func TestGetCurrentMaster_FallbackToClusterState(t *testing.T) {
 	mockDCS := NewMockIAppDCS(ctrl)
 	// DCS returns empty — fall back to scanning cluster state
 	mockDCS.EXPECT().GetMasterHostFromDcs().Return("", nil)
-	mockDCS.EXPECT().SetMasterHost("master1").Return("master1", nil)
+	mockDCS.EXPECT().SetMasterHost("master").Return("master", nil)
 
 	app := newTestApp(t, minConfig(), mockDCS)
-	cs := clusterState("master1", "replica1")
+	cs := clusterState("master", "replica1")
 	host, err := app.getCurrentMaster(cs)
 	require.NoError(t, err)
-	require.Equal(t, "master1", host)
+	require.Equal(t, "master", host)
 }
 
 func TestGetCurrentMaster_NoMasterAnywhere(t *testing.T) {
