@@ -49,6 +49,20 @@ func (mr *MockIAppDCSMockRecorder) ClearRecovery(host interface{}) *gomock.Call 
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ClearRecovery", reflect.TypeOf((*MockIAppDCS)(nil).ClearRecovery), host)
 }
 
+// CreateCurrentSwitchover mocks base method.
+func (m *MockIAppDCS) CreateCurrentSwitchover(switchover *Switchover) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "CreateCurrentSwitchover", switchover)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// CreateCurrentSwitchover indicates an expected call of CreateCurrentSwitchover.
+func (mr *MockIAppDCSMockRecorder) CreateCurrentSwitchover(switchover interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CreateCurrentSwitchover", reflect.TypeOf((*MockIAppDCS)(nil).CreateCurrentSwitchover), switchover)
+}
+
 // DeleteCurrentSwitchover mocks base method.
 func (m *MockIAppDCS) DeleteCurrentSwitchover() error {
 	m.ctrl.T.Helper()
@@ -91,6 +105,20 @@ func (m *MockIAppDCS) GetClusterCascadeFqdnsFromDcs() ([]string, error) {
 func (mr *MockIAppDCSMockRecorder) GetClusterCascadeFqdnsFromDcs() *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetClusterCascadeFqdnsFromDcs", reflect.TypeOf((*MockIAppDCS)(nil).GetClusterCascadeFqdnsFromDcs))
+}
+
+// GetCurrentSwitchover mocks base method.
+func (m *MockIAppDCS) GetCurrentSwitchover(switchover *Switchover) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetCurrentSwitchover", switchover)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// GetCurrentSwitchover indicates an expected call of GetCurrentSwitchover.
+func (mr *MockIAppDCSMockRecorder) GetCurrentSwitchover(switchover interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetCurrentSwitchover", reflect.TypeOf((*MockIAppDCS)(nil).GetCurrentSwitchover), switchover)
 }
 
 // GetHostsOnRecovery mocks base method.

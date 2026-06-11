@@ -12,24 +12,25 @@ import (
 	"github.com/yandex/mysync/internal/util"
 )
 
-// AppDCS implements IAppDCS by wrapping a low-level dcs.DCS.
+// appDCS implements IAppDCS by wrapping a low-level dcs.DCS.
 // It owns all ZK path knowledge and serialization for mysync business logic.
-type AppDCS struct {
+// The struct is unexported; callers depend on the IAppDCS interface.
+type appDCS struct {
 	dcs    dcs.DCS
 	config *config.Config
 	logger *log.Logger
 }
 
-// NewAppDCS creates a new AppDCS. Returns IAppDCS so callers depend on the interface.
+// NewAppDCS creates a new appDCS. Returns IAppDCS so callers depend on the interface.
 func NewAppDCS(d dcs.DCS, cfg *config.Config, logger *log.Logger) IAppDCS {
-	return &AppDCS{dcs: d, config: cfg, logger: logger}
+	return &appDCS{dcs: d, config: cfg, logger: logger}
 }
 
 // compile-time assertion
-var _ IAppDCS = (*AppDCS)(nil)
+var _ IAppDCS = (*appDCS)(nil)
 
 // GetActiveNodes returns master + alive running replicas.
-func (a *AppDCS) GetActiveNodes() ([]string, error) {
+func (a *appDCS) GetActiveNodes() ([]string, error) {
 	var activeNodes []string
 	err := a.dcs.Get(pathActiveNodes, &activeNodes)
 	if err != nil {
@@ -42,12 +43,12 @@ func (a *AppDCS) GetActiveNodes() ([]string, error) {
 }
 
 // SetActiveNodes writes the active nodes list to ZK.
-func (a *AppDCS) SetActiveNodes(nodes []string) error {
+func (a *appDCS) SetActiveNodes(nodes []string) error {
 	return a.dcs.Set(pathActiveNodes, nodes)
 }
 
 // GetClusterCascadeFqdnsFromDcs returns cascade node FQDNs stored in ZK.
-func (a *AppDCS) GetClusterCascadeFqdnsFromDcs() ([]string, error) {
+func (a *appDCS) GetClusterCascadeFqdnsFromDcs() ([]string, error) {
 	fqdns, err := a.dcs.GetChildren(dcs.PathCascadeNodesPrefix)
 	if errors.Is(err, dcs.ErrNotFound) {
 		return make([]string, 0), nil
@@ -59,7 +60,7 @@ func (a *AppDCS) GetClusterCascadeFqdnsFromDcs() ([]string, error) {
 }
 
 // GetMaintenance returns the current maintenance record from ZK.
-func (a *AppDCS) GetMaintenance() (*Maintenance, error) {
+func (a *appDCS) GetMaintenance() (*Maintenance, error) {
 	maintenance := new(Maintenance)
 	err := a.dcs.Get(pathMaintenance, maintenance)
 	if err != nil {
@@ -69,7 +70,7 @@ func (a *AppDCS) GetMaintenance() (*Maintenance, error) {
 }
 
 // GetHostsOnRecovery returns hosts currently marked for recovery.
-func (a *AppDCS) GetHostsOnRecovery() ([]string, error) {
+func (a *appDCS) GetHostsOnRecovery() ([]string, error) {
 	hosts, err := a.dcs.GetChildren(pathRecovery)
 	if errors.Is(err, dcs.ErrNotFound) {
 		return nil, nil
@@ -78,12 +79,12 @@ func (a *AppDCS) GetHostsOnRecovery() ([]string, error) {
 }
 
 // ClearRecovery removes the recovery marker for a host.
-func (a *AppDCS) ClearRecovery(host string) error {
+func (a *appDCS) ClearRecovery(host string) error {
 	return a.dcs.Delete(dcs.JoinPath(pathRecovery, host))
 }
 
 // SetRecovery marks a host for recovery and removes it from active nodes.
-func (a *AppDCS) SetRecovery(host string) error {
+func (a *appDCS) SetRecovery(host string) error {
 	activeNodes, err := a.GetActiveNodes()
 	if err != nil {
 		return err
@@ -107,7 +108,7 @@ func (a *AppDCS) SetRecovery(host string) error {
 }
 
 // IsRecoveryNeeded returns true if the host has a recovery marker in ZK.
-func (a *AppDCS) IsRecoveryNeeded(host string) bool {
+func (a *appDCS) IsRecoveryNeeded(host string) bool {
 	err := a.dcs.Get(dcs.JoinPath(pathRecovery, host), &struct{}{})
 	// we ignore any zk errors here, as it will appear on next iteration
 	// and lead to lost state followed by recovery
@@ -115,7 +116,7 @@ func (a *AppDCS) IsRecoveryNeeded(host string) bool {
 }
 
 // SetResetupStatus writes the resetup status for a host.
-func (a *AppDCS) SetResetupStatus(host string, status bool) error {
+func (a *appDCS) SetResetupStatus(host string, status bool) error {
 	err := a.dcs.Create(pathResetupStatus, nil)
 	if err != nil && !errors.Is(err, dcs.ErrExists) {
 		return err
@@ -128,19 +129,19 @@ func (a *AppDCS) SetResetupStatus(host string, status bool) error {
 }
 
 // GetResetupStatus reads the resetup status for a host.
-func (a *AppDCS) GetResetupStatus(host string) (mysql.ResetupStatus, error) {
+func (a *appDCS) GetResetupStatus(host string) (mysql.ResetupStatus, error) {
 	resetupStatus := mysql.ResetupStatus{}
 	err := a.dcs.Get(dcs.JoinPath(pathResetupStatus, host), &resetupStatus)
 	return resetupStatus, err
 }
 
 // UpdateLastShutdownNodeTime records the current time as the last shutdown time.
-func (a *AppDCS) UpdateLastShutdownNodeTime() error {
+func (a *appDCS) UpdateLastShutdownNodeTime() error {
 	return a.dcs.Set(pathLastShutdownNodeTime, time.Now())
 }
 
 // GetLastShutdownNodeTime returns the last recorded shutdown time, creating it if absent.
-func (a *AppDCS) GetLastShutdownNodeTime() (time.Time, error) {
+func (a *appDCS) GetLastShutdownNodeTime() (time.Time, error) {
 	var t time.Time
 	err := a.dcs.Get(pathLastShutdownNodeTime, &t)
 	if errors.Is(err, dcs.ErrNotFound) {
@@ -154,7 +155,7 @@ func (a *AppDCS) GetLastShutdownNodeTime() (time.Time, error) {
 }
 
 // GetLastSwitchover returns the most recent switchover (finished or rejected).
-func (a *AppDCS) GetLastSwitchover() Switchover {
+func (a *appDCS) GetLastSwitchover() Switchover {
 	var lastSwitch, lastRejectedSwitch Switchover
 	err := a.dcs.Get(pathLastSwitch, &lastSwitch)
 	if err != nil && !errors.Is(err, dcs.ErrNotFound) {
@@ -170,28 +171,39 @@ func (a *AppDCS) GetLastSwitchover() Switchover {
 	return lastSwitch
 }
 
+// GetCurrentSwitchover reads the current in-progress switchover from ZK.
+// Returns dcs.ErrNotFound if no switchover is in progress.
+func (a *appDCS) GetCurrentSwitchover(switchover *Switchover) error {
+	return a.dcs.Get(pathCurrentSwitch, switchover)
+}
+
+// CreateCurrentSwitchover creates a new switchover record in ZK (fails if one already exists).
+func (a *appDCS) CreateCurrentSwitchover(switchover *Switchover) error {
+	return a.dcs.Create(pathCurrentSwitch, switchover)
+}
+
 // SetCurrentSwitchover writes the current in-progress switchover to ZK.
-func (a *AppDCS) SetCurrentSwitchover(switchover *Switchover) error {
+func (a *appDCS) SetCurrentSwitchover(switchover *Switchover) error {
 	return a.dcs.Set(pathCurrentSwitch, switchover)
 }
 
 // DeleteCurrentSwitchover removes the current switchover node from ZK.
-func (a *AppDCS) DeleteCurrentSwitchover() error {
+func (a *appDCS) DeleteCurrentSwitchover() error {
 	return a.dcs.Delete(pathCurrentSwitch)
 }
 
 // SetLastSwitchover writes the completed switchover result to ZK.
-func (a *AppDCS) SetLastSwitchover(switchover *Switchover) error {
+func (a *appDCS) SetLastSwitchover(switchover *Switchover) error {
 	return a.dcs.Set(pathLastSwitch, switchover)
 }
 
 // SetLastRejectedSwitchover writes the rejected switchover result to ZK.
-func (a *AppDCS) SetLastRejectedSwitchover(switchover *Switchover) error {
+func (a *appDCS) SetLastRejectedSwitchover(switchover *Switchover) error {
 	return a.dcs.Set(pathLastRejectedSwitch, switchover)
 }
 
 // IssueFailover creates a new failover switchover record in ZK.
-func (a *AppDCS) IssueFailover(master string) error {
+func (a *appDCS) IssueFailover(master string) error {
 	var switchover Switchover
 	switchover.From = master
 	switchover.InitiatedBy = a.config.Hostname
@@ -202,7 +214,7 @@ func (a *AppDCS) IssueFailover(master string) error {
 }
 
 // SetMasterHost writes the current master hostname to ZK.
-func (a *AppDCS) SetMasterHost(master string) (string, error) {
+func (a *appDCS) SetMasterHost(master string) (string, error) {
 	err := a.dcs.Set(pathMasterNode, master)
 	if err != nil {
 		return "", fmt.Errorf("failed to set current master to dcs: %w", err)
@@ -211,7 +223,7 @@ func (a *AppDCS) SetMasterHost(master string) (string, error) {
 }
 
 // GetMasterHostFromDcs reads the current master hostname from ZK.
-func (a *AppDCS) GetMasterHostFromDcs() (string, error) {
+func (a *appDCS) GetMasterHostFromDcs() (string, error) {
 	var master string
 	err := a.dcs.Get(pathMasterNode, &master)
 	if err != nil && !errors.Is(err, dcs.ErrNotFound) {
@@ -221,7 +233,7 @@ func (a *AppDCS) GetMasterHostFromDcs() (string, error) {
 }
 
 // SetReplMonTS writes the replication monitor timestamp to ZK.
-func (a *AppDCS) SetReplMonTS(ts string) error {
+func (a *appDCS) SetReplMonTS(ts string) error {
 	err := a.dcs.Create(pathMasterReplMonTS, ts)
 	if err != nil && !errors.Is(err, dcs.ErrExists) {
 		return err
@@ -230,7 +242,7 @@ func (a *AppDCS) SetReplMonTS(ts string) error {
 }
 
 // GetReplMonTS reads the replication monitor timestamp from ZK.
-func (a *AppDCS) GetReplMonTS() (string, error) {
+func (a *appDCS) GetReplMonTS() (string, error) {
 	var ts string
 	err := a.dcs.Get(pathMasterReplMonTS, &ts)
 	if errors.Is(err, dcs.ErrNotFound) {
@@ -240,6 +252,6 @@ func (a *AppDCS) GetReplMonTS() (string, error) {
 }
 
 // SetLowSpace writes the low-space flag to ZK.
-func (a *AppDCS) SetLowSpace(lowSpace bool) error {
+func (a *appDCS) SetLowSpace(lowSpace bool) error {
 	return a.dcs.Set(pathLowSpace, lowSpace)
 }

@@ -115,7 +115,7 @@ func (app *App) CliSwitch(switchFrom, switchTo string, waitTimeout time.Duration
 	}
 
 	var switchover Switchover
-	err = app.dcs.Get(pathCurrentSwitch, &switchover)
+	err = app.GetCurrentSwitchover(&switchover)
 	if err == nil {
 		app.logger.Error().Msgf("Another switchover in progress %v", switchover)
 		return 2
@@ -136,7 +136,7 @@ func (app *App) CliSwitch(switchFrom, switchTo string, waitTimeout time.Duration
 		switchover.MasterTransition = SwitchoverTransition
 	}
 
-	err = app.dcs.Create(pathCurrentSwitch, switchover)
+	err = app.CreateCurrentSwitchover(&switchover)
 	if errors.Is(err, dcs.ErrExists) {
 		app.logger.Error().Msg("Another switchover in progress")
 		return 2
@@ -189,7 +189,7 @@ func (app *App) CliAbort() int {
 	defer app.dcs.Close()
 	app.dcs.Initialize()
 
-	err = app.dcs.Get(pathCurrentSwitch, new(Switchover))
+	err = app.GetCurrentSwitchover(new(Switchover))
 	if errors.Is(err, dcs.ErrNotFound) {
 		fmt.Println("no active switchover")
 		return 0
@@ -212,7 +212,7 @@ func (app *App) CliAbort() int {
 		return 1
 	}
 
-	err = app.dcs.Delete(pathCurrentSwitch)
+	err = app.DeleteCurrentSwitchover()
 	if err != nil {
 		app.logger.Error().Err(err).Msg("")
 		return 1

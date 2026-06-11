@@ -35,6 +35,8 @@ type IAppDCS interface {
 	SetResetupStatus(host string, status bool) error
 
 	// Switchover state (pure ZK ops, no timing side-effects)
+	GetCurrentSwitchover(switchover *Switchover) error
+	CreateCurrentSwitchover(switchover *Switchover) error
 	GetLastSwitchover() Switchover
 	SetCurrentSwitchover(switchover *Switchover) error
 	DeleteCurrentSwitchover() error

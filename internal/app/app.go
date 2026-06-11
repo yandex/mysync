@@ -636,7 +636,7 @@ func (app *App) stateManager() appState {
 
 	// check if switchover required or in progress
 	switchover := new(Switchover)
-	if err := app.dcs.Get(pathCurrentSwitch, switchover); err == nil {
+	if err := app.GetCurrentSwitchover(switchover); err == nil {
 		// failover via DCS is suppressed during light maintenance (only manual switchover is allowed)
 		if lightMaintenance && switchover.MasterTransition == FailoverTransition {
 			app.logger.Info().Msgf("failover suppressed by light maintenance mode")
@@ -666,7 +666,7 @@ func (app *App) stateManager() appState {
 				return stateManager
 			}
 			err = app.performSwitchover(clusterState, activeNodes, switchover, master)
-			if errors.Is(app.dcs.Get(pathCurrentSwitch, new(Switchover)), dcs.ErrNotFound) {
+			if errors.Is(app.GetCurrentSwitchover(new(Switchover)), dcs.ErrNotFound) {
 				app.logger.Error().Msgf("switchover was aborted")
 			} else {
 				if err != nil {
@@ -2475,7 +2475,7 @@ func (app *App) waitForCatchUp(node *mysql.Node, gtidset gtids.GTIDSet, timeout 
 			return true, nil
 		}
 		switchover := new(Switchover)
-		if errors.Is(app.dcs.Get(pathCurrentSwitch, switchover), dcs.ErrNotFound) {
+		if errors.Is(app.GetCurrentSwitchover(switchover), dcs.ErrNotFound) {
 			return false, nil
 		}
 		if app.CheckAsyncSwitchAllowed(node, switchover) {
