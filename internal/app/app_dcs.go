@@ -1,135 +1,113 @@
 package app
 
 import (
-	"errors"
-	"fmt"
 	"time"
 
-	"github.com/yandex/mysync/internal/dcs"
+	nodestate "github.com/yandex/mysync/internal/app/node_state"
 	"github.com/yandex/mysync/internal/mysql"
-	"github.com/yandex/mysync/internal/util"
 )
 
-// GetActiveNodes returns master + alive running replicas
+// The methods below are thin wrappers on *App that delegate to app.appDCS.
+// They exist so that existing callers (cli_*.go, recovery.go, async.go, etc.)
+// continue to work without modification. New code should call app.appDCS directly.
+
+// GetActiveNodes returns master + alive running replicas.
 func (app *App) GetActiveNodes() ([]string, error) {
-	var activeNodes []string
-	err := app.dcs.Get(pathActiveNodes, &activeNodes)
-	if err != nil {
-		if errors.Is(err, dcs.ErrNotFound) || errors.Is(err, dcs.ErrMalformed) {
-			return nil, nil
-		}
-		return nil, fmt.Errorf("failed to get active nodes from zk %w", err)
-	}
-	return activeNodes, nil
+	return app.appDCS.GetActiveNodes()
 }
 
+// SetActiveNodes writes the active nodes list to ZK.
+func (app *App) SetActiveNodes(nodes []string) error {
+	return app.appDCS.SetActiveNodes(nodes)
+}
+
+// DeleteActiveNodes removes the active nodes list from ZK.
+func (app *App) DeleteActiveNodes() error {
+	return app.appDCS.DeleteActiveNodes()
+}
+
+// SetHealthState writes the ephemeral per-host health state to ZK.
+func (app *App) SetHealthState(host string, state *nodestate.NodeState) error {
+	return app.appDCS.SetHealthState(host, state)
+}
+
+// GetHealthState reads the per-host health state from ZK.
+func (app *App) GetHealthState(host string, state *nodestate.NodeState) error {
+	return app.appDCS.GetHealthState(host, state)
+}
+
+// SetMaintenance writes the maintenance record to ZK.
+func (app *App) SetMaintenance(maintenance *Maintenance) error {
+	return app.appDCS.SetMaintenance(maintenance)
+}
+
+// DeleteMaintenance removes the maintenance record from ZK.
+func (app *App) DeleteMaintenance() error {
+	return app.appDCS.DeleteMaintenance()
+}
+
+// FetchCascadeNodeConfigurations reads all cascade node configurations from ZK.
+func (app *App) FetchCascadeNodeConfigurations() (map[string]mysql.CascadeNodeConfiguration, error) {
+	return app.appDCS.FetchCascadeNodeConfigurations()
+}
+
+// GetNodeConfiguration reads the HA node configuration (priority etc.) from ZK.
+func (app *App) GetNodeConfiguration(host string) (mysql.NodeConfiguration, error) {
+	return app.appDCS.GetNodeConfiguration(host)
+}
+
+// GetClusterCascadeFqdnsFromDcs returns cascade node FQDNs stored in ZK.
 func (app *App) GetClusterCascadeFqdnsFromDcs() ([]string, error) {
-	fqdns, err := app.dcs.GetChildren(dcs.PathCascadeNodesPrefix)
-	if errors.Is(err, dcs.ErrNotFound) {
-		return make([]string, 0), nil
-	}
-	if err != nil {
-		return nil, err
-	}
-
-	return fqdns, nil
+	return app.appDCS.GetClusterCascadeFqdnsFromDcs()
 }
 
+// GetMaintenance returns the current maintenance record from ZK.
 func (app *App) GetMaintenance() (*Maintenance, error) {
-	maintenance := new(Maintenance)
-	err := app.dcs.Get(pathMaintenance, maintenance)
-	if err != nil {
-		return nil, err
-	}
-	return maintenance, err
+	return app.appDCS.GetMaintenance()
 }
 
+// GetHostsOnRecovery returns hosts currently marked for recovery.
 func (app *App) GetHostsOnRecovery() ([]string, error) {
-	hosts, err := app.dcs.GetChildren(pathRecovery)
-	if errors.Is(err, dcs.ErrNotFound) {
-		return nil, nil
-	}
-	return hosts, err
+	return app.appDCS.GetHostsOnRecovery()
 }
 
+// ClearRecovery removes the recovery marker for a host.
 func (app *App) ClearRecovery(host string) error {
-	return app.dcs.Delete(dcs.JoinPath(pathRecovery, host))
+	return app.appDCS.ClearRecovery(host)
 }
 
+// SetRecovery marks a host for recovery and removes it from active nodes.
 func (app *App) SetRecovery(host string) error {
-	activeNodes, err := app.GetActiveNodes()
-	if err != nil {
-		return err
-	}
-	activeNodes = util.FilterStrings(activeNodes, func(n string) bool {
-		return n != host
-	})
-	err = app.dcs.Set(pathActiveNodes, activeNodes)
-	if err != nil {
-		return err
-	}
-	err = app.dcs.Create(pathRecovery, nil)
-	if err != nil && !errors.Is(err, dcs.ErrExists) {
-		return err
-	}
-	err = app.dcs.Create(dcs.JoinPath(pathRecovery, host), nil)
-	if err != nil && !errors.Is(err, dcs.ErrExists) {
-		return err
-	}
-	return nil
+	return app.appDCS.SetRecovery(host)
 }
 
+// IsRecoveryNeeded returns true if the host has a recovery marker in ZK.
 func (app *App) IsRecoveryNeeded(host string) bool {
-	err := app.dcs.Get(dcs.JoinPath(pathRecovery, host), &struct{}{})
-	// we ignore any zk errors here, as it will appear on next iteration
-	// and lead to lost state followed by recovery
-	return err == nil
+	return app.appDCS.IsRecoveryNeeded(host)
 }
 
+// setResetupStatus is an unexported wrapper kept for internal callers (recovery.go).
 func (app *App) setResetupStatus(host string, status bool) error {
-	err := app.dcs.Create(pathResetupStatus, nil)
-	if err != nil && !errors.Is(err, dcs.ErrExists) {
-		return err
-	}
-	resetupStatus := &mysql.ResetupStatus{
-		Status:     status,
-		UpdateTime: time.Now(),
-	}
-	err = app.dcs.Set(dcs.JoinPath(pathResetupStatus, host), resetupStatus)
-	if err != nil {
-		return err
-	}
-	return nil
+	return app.appDCS.SetResetupStatus(host, status)
 }
 
+// GetResetupStatus reads the resetup status for a host.
 func (app *App) GetResetupStatus(host string) (mysql.ResetupStatus, error) {
-	resetupStatus := mysql.ResetupStatus{}
-	err := app.dcs.Get(dcs.JoinPath(pathResetupStatus, host), &resetupStatus)
-	return resetupStatus, err
+	return app.appDCS.GetResetupStatus(host)
 }
 
+// UpdateLastShutdownNodeTime records the current time as the last shutdown time.
 func (app *App) UpdateLastShutdownNodeTime() error {
-	err := app.dcs.Set(pathLastShutdownNodeTime, time.Now())
-	if err != nil {
-		return err
-	}
-	return nil
+	return app.appDCS.UpdateLastShutdownNodeTime()
 }
 
+// GetLastShutdownNodeTime returns the last recorded shutdown time.
 func (app *App) GetLastShutdownNodeTime() (time.Time, error) {
-	var t time.Time
-	err := app.dcs.Get(pathLastShutdownNodeTime, &t)
-	if errors.Is(err, dcs.ErrNotFound) {
-		err = app.dcs.Create(pathLastShutdownNodeTime, time.Now())
-		if err != nil {
-			return time.Now(), err
-		}
-		return time.Now(), nil
-	}
-	return t, err
+	return app.appDCS.GetLastShutdownNodeTime()
 }
 
-// FinishSwitchover finish current switchover and write the result
+// FinishSwitchover finishes the current switchover and writes the result.
+// Kept on *App because it calls timing methods (stopTiming, logSwitchoverFailure).
 func (app *App) FinishSwitchover(switchover *Switchover, switchErr error) error {
 	result := true
 	action := "finished"
@@ -157,14 +135,18 @@ func (app *App) FinishSwitchover(switchover *Switchover, switchErr error) error 
 		app.stopTiming(timingFailover)
 	}
 
-	err := app.dcs.Delete(pathCurrentSwitch)
+	err := app.appDCS.DeleteCurrentSwitchover()
 	if err != nil {
 		return err
 	}
-	return app.dcs.Set(path, switchover)
+	if path == pathLastSwitch {
+		return app.appDCS.SetLastSwitchover(switchover)
+	}
+	return app.appDCS.SetLastRejectedSwitchover(switchover)
 }
 
-// Fail current switchover, it will be repeated next cycle
+// FailSwitchover marks the current switchover as failed (will be retried next cycle).
+// Kept on *App for symmetry with FinishSwitchover and StartSwitchover.
 func (app *App) FailSwitchover(switchover *Switchover, err error) error {
 	app.logger.Error().Err(err).Msgf("switchover: %s => %s failed", switchover.From, switchover.To)
 	switchover.RunCount++
@@ -172,9 +154,11 @@ func (app *App) FailSwitchover(switchover *Switchover, err error) error {
 	switchover.Result.Ok = false
 	switchover.Result.Error = err.Error()
 	switchover.Result.FinishedAt = time.Now()
-	return app.dcs.Set(pathCurrentSwitch, switchover)
+	return app.appDCS.SetCurrentSwitchover(switchover)
 }
 
+// StartSwitchover records that a switchover has started.
+// Kept on *App because it calls startTiming.
 func (app *App) StartSwitchover(switchover *Switchover) error {
 	app.logger.Info().Msgf("switchover: %s => %s starting...", switchover.From, switchover.To)
 	switchover.StartedAt = time.Now()
@@ -182,78 +166,56 @@ func (app *App) StartSwitchover(switchover *Switchover) error {
 	if switchover.MasterTransition == SwitchoverTransition {
 		app.startTiming(timingSwitchover, switchover.InitiatedAt)
 	}
-	return app.dcs.Set(pathCurrentSwitch, switchover)
+	return app.appDCS.SetCurrentSwitchover(switchover)
 }
 
+// GetCurrentSwitchover reads the current in-progress switchover from ZK.
+// Returns dcs.ErrNotFound if no switchover is in progress.
+func (app *App) GetCurrentSwitchover(switchover *Switchover) error {
+	return app.appDCS.GetCurrentSwitchover(switchover)
+}
+
+// CreateCurrentSwitchover creates a new switchover record in ZK (fails if one already exists).
+func (app *App) CreateCurrentSwitchover(switchover *Switchover) error {
+	return app.appDCS.CreateCurrentSwitchover(switchover)
+}
+
+// DeleteCurrentSwitchover removes the current switchover node from ZK.
+func (app *App) DeleteCurrentSwitchover() error {
+	return app.appDCS.DeleteCurrentSwitchover()
+}
+
+// GetLastSwitchover returns the most recent switchover (finished or rejected).
 func (app *App) GetLastSwitchover() Switchover {
-	var lastSwitch, lastRejectedSwitch Switchover
-	err := app.dcs.Get(pathLastSwitch, &lastSwitch)
-	if err != nil && !errors.Is(err, dcs.ErrNotFound) {
-		app.logger.Error().Err(err).Msg(pathLastSwitch)
-	}
-	errRejected := app.dcs.Get(pathLastRejectedSwitch, &lastRejectedSwitch)
-	if errRejected != nil && !errors.Is(errRejected, dcs.ErrNotFound) {
-		app.logger.Error().Err(errRejected).Msg(pathLastRejectedSwitch)
-	}
-
-	if lastRejectedSwitch.InitiatedAt.After(lastSwitch.InitiatedAt) {
-		return lastRejectedSwitch
-	}
-
-	return lastSwitch
+	return app.appDCS.GetLastSwitchover()
 }
 
+// IssueFailover creates a new failover switchover record in ZK.
 func (app *App) IssueFailover(master string) error {
-	var switchover Switchover
-	switchover.From = master
-	switchover.InitiatedBy = app.config.Hostname
-	switchover.InitiatedAt = time.Now()
-	switchover.Cause = CauseAuto
-	switchover.MasterTransition = FailoverTransition
-	return app.dcs.Create(pathCurrentSwitch, switchover)
+	return app.appDCS.IssueFailover(master)
 }
 
+// SetMasterHost writes the current master hostname to ZK.
 func (app *App) SetMasterHost(master string) (string, error) {
-	err := app.dcs.Set(pathMasterNode, master)
-	if err != nil {
-		return "", fmt.Errorf("failed to set current master to dcs: %w", err)
-	}
-	return master, nil
+	return app.appDCS.SetMasterHost(master)
 }
 
+// GetMasterHostFromDcs reads the current master hostname from ZK.
 func (app *App) GetMasterHostFromDcs() (string, error) {
-	var master string
-	err := app.dcs.Get(pathMasterNode, &master)
-	if err != nil && !errors.Is(err, dcs.ErrNotFound) {
-		return "", fmt.Errorf("failed to get current master from dcs: %w", err)
-	}
-	if master != "" {
-		return master, nil
-	}
-	return "", nil
+	return app.appDCS.GetMasterHostFromDcs()
 }
 
+// SetReplMonTS writes the replication monitor timestamp to ZK.
 func (app *App) SetReplMonTS(ts string) error {
-	err := app.dcs.Create(pathMasterReplMonTS, ts)
-	if err != nil && !errors.Is(err, dcs.ErrExists) {
-		return err
-	}
-	err = app.dcs.Set(pathMasterReplMonTS, ts)
-	if err != nil {
-		return err
-	}
-	return nil
+	return app.appDCS.SetReplMonTS(ts)
 }
 
+// GetReplMonTS reads the replication monitor timestamp from ZK.
 func (app *App) GetReplMonTS() (string, error) {
-	var ts string
-	err := app.dcs.Get(pathMasterReplMonTS, &ts)
-	if errors.Is(err, dcs.ErrNotFound) {
-		return "", nil
-	}
-	return ts, err
+	return app.appDCS.GetReplMonTS()
 }
 
+// SetLowSpace writes the low-space flag to ZK.
 func (app *App) SetLowSpace(lowSpace bool) error {
-	return app.dcs.Set(pathLowSpace, lowSpace)
+	return app.appDCS.SetLowSpace(lowSpace)
 }
