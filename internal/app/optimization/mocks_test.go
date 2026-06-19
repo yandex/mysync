@@ -12,92 +12,30 @@ import (
 	mysql "github.com/yandex/mysync/internal/mysql"
 )
 
-// MockDCS is a mock of DCS interface
+// MockDCS is a mock of DCS interface.
 type MockDCS struct {
 	ctrl     *gomock.Controller
 	recorder *MockDCSMockRecorder
 }
 
-// MockDCSMockRecorder is the mock recorder for MockDCS
+// MockDCSMockRecorder is the mock recorder for MockDCS.
 type MockDCSMockRecorder struct {
 	mock *MockDCS
 }
 
-// NewMockDCS creates a new mock instance
+// NewMockDCS creates a new mock instance.
 func NewMockDCS(ctrl *gomock.Controller) *MockDCS {
 	mock := &MockDCS{ctrl: ctrl}
 	mock.recorder = &MockDCSMockRecorder{mock}
 	return mock
 }
 
-// EXPECT returns an object that allows the caller to indicate expected use
+// EXPECT returns an object that allows the caller to indicate expected use.
 func (m *MockDCS) EXPECT() *MockDCSMockRecorder {
 	return m.recorder
 }
 
-// GetHosts mocks base method
-func (m *MockDCS) GetHosts() ([]string, error) {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "GetHosts")
-	ret0, _ := ret[0].([]string)
-	ret1, _ := ret[1].(error)
-	return ret0, ret1
-}
-
-// GetHosts indicates an expected call of GetHosts
-func (mr *MockDCSMockRecorder) GetHosts() *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetHosts", reflect.TypeOf((*MockDCS)(nil).GetHosts))
-}
-
-// SetState mocks base method
-func (m *MockDCS) SetState(hostname string, value *DCSState) error {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "SetState", hostname, value)
-	ret0, _ := ret[0].(error)
-	return ret0
-}
-
-// SetState indicates an expected call of SetState
-func (mr *MockDCSMockRecorder) SetState(hostname, value interface{}) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetState", reflect.TypeOf((*MockDCS)(nil).SetState), hostname, value)
-}
-
-// GetState mocks base method
-func (m *MockDCS) GetState(hostname string) (*DCSState, error) {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "GetState", hostname)
-	ret0, _ := ret[0].(*DCSState)
-	ret1, _ := ret[1].(error)
-	return ret0, ret1
-}
-
-// GetState indicates an expected call of GetState
-func (mr *MockDCSMockRecorder) GetState(hostname interface{}) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetState", reflect.TypeOf((*MockDCS)(nil).GetState), hostname)
-}
-
-// DeleteHosts mocks base method
-func (m *MockDCS) DeleteHosts(hostname ...string) error {
-	m.ctrl.T.Helper()
-	varargs := []interface{}{}
-	for _, a := range hostname {
-		varargs = append(varargs, a)
-	}
-	ret := m.ctrl.Call(m, "DeleteHosts", varargs...)
-	ret0, _ := ret[0].(error)
-	return ret0
-}
-
-// DeleteHosts indicates an expected call of DeleteHosts
-func (mr *MockDCSMockRecorder) DeleteHosts(hostname ...interface{}) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteHosts", reflect.TypeOf((*MockDCS)(nil).DeleteHosts), hostname...)
-}
-
-// CreateHosts mocks base method
+// CreateHosts mocks base method.
 func (m *MockDCS) CreateHosts(hostname ...string) error {
 	m.ctrl.T.Helper()
 	varargs := []interface{}{}
@@ -109,79 +47,98 @@ func (m *MockDCS) CreateHosts(hostname ...string) error {
 	return ret0
 }
 
-// CreateHosts indicates an expected call of CreateHosts
+// CreateHosts indicates an expected call of CreateHosts.
 func (mr *MockDCSMockRecorder) CreateHosts(hostname ...interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CreateHosts", reflect.TypeOf((*MockDCS)(nil).CreateHosts), hostname...)
 }
 
-// MockNode is a mock of Node interface
+// DeleteHosts mocks base method.
+func (m *MockDCS) DeleteHosts(hostname ...string) error {
+	m.ctrl.T.Helper()
+	varargs := []interface{}{}
+	for _, a := range hostname {
+		varargs = append(varargs, a)
+	}
+	ret := m.ctrl.Call(m, "DeleteHosts", varargs...)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// DeleteHosts indicates an expected call of DeleteHosts.
+func (mr *MockDCSMockRecorder) DeleteHosts(hostname ...interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteHosts", reflect.TypeOf((*MockDCS)(nil).DeleteHosts), hostname...)
+}
+
+// GetHosts mocks base method.
+func (m *MockDCS) GetHosts() ([]string, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetHosts")
+	ret0, _ := ret[0].([]string)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetHosts indicates an expected call of GetHosts.
+func (mr *MockDCSMockRecorder) GetHosts() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetHosts", reflect.TypeOf((*MockDCS)(nil).GetHosts))
+}
+
+// GetState mocks base method.
+func (m *MockDCS) GetState(hostname string) (*DCSState, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetState", hostname)
+	ret0, _ := ret[0].(*DCSState)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetState indicates an expected call of GetState.
+func (mr *MockDCSMockRecorder) GetState(hostname interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetState", reflect.TypeOf((*MockDCS)(nil).GetState), hostname)
+}
+
+// SetState mocks base method.
+func (m *MockDCS) SetState(hostname string, value *DCSState) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "SetState", hostname, value)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// SetState indicates an expected call of SetState.
+func (mr *MockDCSMockRecorder) SetState(hostname, value interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetState", reflect.TypeOf((*MockDCS)(nil).SetState), hostname, value)
+}
+
+// MockNode is a mock of Node interface.
 type MockNode struct {
 	ctrl     *gomock.Controller
 	recorder *MockNodeMockRecorder
 }
 
-// MockNodeMockRecorder is the mock recorder for MockNode
+// MockNodeMockRecorder is the mock recorder for MockNode.
 type MockNodeMockRecorder struct {
 	mock *MockNode
 }
 
-// NewMockNode creates a new mock instance
+// NewMockNode creates a new mock instance.
 func NewMockNode(ctrl *gomock.Controller) *MockNode {
 	mock := &MockNode{ctrl: ctrl}
 	mock.recorder = &MockNodeMockRecorder{mock}
 	return mock
 }
 
-// EXPECT returns an object that allows the caller to indicate expected use
+// EXPECT returns an object that allows the caller to indicate expected use.
 func (m *MockNode) EXPECT() *MockNodeMockRecorder {
 	return m.recorder
 }
 
-// SetReplicationSettings mocks base method
-func (m *MockNode) SetReplicationSettings(rs mysql.ReplicationSettings) error {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "SetReplicationSettings", rs)
-	ret0, _ := ret[0].(error)
-	return ret0
-}
-
-// SetReplicationSettings indicates an expected call of SetReplicationSettings
-func (mr *MockNodeMockRecorder) SetReplicationSettings(rs interface{}) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetReplicationSettings", reflect.TypeOf((*MockNode)(nil).SetReplicationSettings), rs)
-}
-
-// GetReplicationSettings mocks base method
-func (m *MockNode) GetReplicationSettings() (mysql.ReplicationSettings, error) {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "GetReplicationSettings")
-	ret0, _ := ret[0].(mysql.ReplicationSettings)
-	ret1, _ := ret[1].(error)
-	return ret0, ret1
-}
-
-// GetReplicationSettings indicates an expected call of GetReplicationSettings
-func (mr *MockNodeMockRecorder) GetReplicationSettings() *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetReplicationSettings", reflect.TypeOf((*MockNode)(nil).GetReplicationSettings))
-}
-
-// OptimizeReplication mocks base method
-func (m *MockNode) OptimizeReplication() error {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "OptimizeReplication")
-	ret0, _ := ret[0].(error)
-	return ret0
-}
-
-// OptimizeReplication indicates an expected call of OptimizeReplication
-func (mr *MockNodeMockRecorder) OptimizeReplication() *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "OptimizeReplication", reflect.TypeOf((*MockNode)(nil).OptimizeReplication))
-}
-
-// GetReplicaStatus mocks base method
+// GetReplicaStatus mocks base method.
 func (m *MockNode) GetReplicaStatus() (mysql.ReplicaStatus, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "GetReplicaStatus")
@@ -190,13 +147,28 @@ func (m *MockNode) GetReplicaStatus() (mysql.ReplicaStatus, error) {
 	return ret0, ret1
 }
 
-// GetReplicaStatus indicates an expected call of GetReplicaStatus
+// GetReplicaStatus indicates an expected call of GetReplicaStatus.
 func (mr *MockNodeMockRecorder) GetReplicaStatus() *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetReplicaStatus", reflect.TypeOf((*MockNode)(nil).GetReplicaStatus))
 }
 
-// Host mocks base method
+// GetReplicationSettings mocks base method.
+func (m *MockNode) GetReplicationSettings() (mysql.ReplicationSettings, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetReplicationSettings")
+	ret0, _ := ret[0].(mysql.ReplicationSettings)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetReplicationSettings indicates an expected call of GetReplicationSettings.
+func (mr *MockNodeMockRecorder) GetReplicationSettings() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetReplicationSettings", reflect.TypeOf((*MockNode)(nil).GetReplicationSettings))
+}
+
+// Host mocks base method.
 func (m *MockNode) Host() string {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Host")
@@ -204,64 +176,64 @@ func (m *MockNode) Host() string {
 	return ret0
 }
 
-// Host indicates an expected call of Host
+// Host indicates an expected call of Host.
 func (mr *MockNodeMockRecorder) Host() *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Host", reflect.TypeOf((*MockNode)(nil).Host))
 }
 
-// MockCluster is a mock of Cluster interface
+// OptimizeReplication mocks base method.
+func (m *MockNode) OptimizeReplication() error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "OptimizeReplication")
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// OptimizeReplication indicates an expected call of OptimizeReplication.
+func (mr *MockNodeMockRecorder) OptimizeReplication() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "OptimizeReplication", reflect.TypeOf((*MockNode)(nil).OptimizeReplication))
+}
+
+// SetReplicationSettings mocks base method.
+func (m *MockNode) SetReplicationSettings(rs mysql.ReplicationSettings) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "SetReplicationSettings", rs)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// SetReplicationSettings indicates an expected call of SetReplicationSettings.
+func (mr *MockNodeMockRecorder) SetReplicationSettings(rs interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetReplicationSettings", reflect.TypeOf((*MockNode)(nil).SetReplicationSettings), rs)
+}
+
+// MockCluster is a mock of Cluster interface.
 type MockCluster struct {
 	ctrl     *gomock.Controller
 	recorder *MockClusterMockRecorder
 }
 
-// MockClusterMockRecorder is the mock recorder for MockCluster
+// MockClusterMockRecorder is the mock recorder for MockCluster.
 type MockClusterMockRecorder struct {
 	mock *MockCluster
 }
 
-// NewMockCluster creates a new mock instance
+// NewMockCluster creates a new mock instance.
 func NewMockCluster(ctrl *gomock.Controller) *MockCluster {
 	mock := &MockCluster{ctrl: ctrl}
 	mock.recorder = &MockClusterMockRecorder{mock}
 	return mock
 }
 
-// EXPECT returns an object that allows the caller to indicate expected use
+// EXPECT returns an object that allows the caller to indicate expected use.
 func (m *MockCluster) EXPECT() *MockClusterMockRecorder {
 	return m.recorder
 }
 
-// GetNode mocks base method
-func (m *MockCluster) GetNode(hostname string) Node {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "GetNode", hostname)
-	ret0, _ := ret[0].(Node)
-	return ret0
-}
-
-// GetNode indicates an expected call of GetNode
-func (mr *MockClusterMockRecorder) GetNode(hostname interface{}) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetNode", reflect.TypeOf((*MockCluster)(nil).GetNode), hostname)
-}
-
-// GetState mocks base method
-func (m *MockCluster) GetState(hostname string) node_state.NodeState {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "GetState", hostname)
-	ret0, _ := ret[0].(node_state.NodeState)
-	return ret0
-}
-
-// GetState indicates an expected call of GetState
-func (mr *MockClusterMockRecorder) GetState(hostname interface{}) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetState", reflect.TypeOf((*MockCluster)(nil).GetState), hostname)
-}
-
-// GetMaster mocks base method
+// GetMaster mocks base method.
 func (m *MockCluster) GetMaster() string {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "GetMaster")
@@ -269,8 +241,36 @@ func (m *MockCluster) GetMaster() string {
 	return ret0
 }
 
-// GetMaster indicates an expected call of GetMaster
+// GetMaster indicates an expected call of GetMaster.
 func (mr *MockClusterMockRecorder) GetMaster() *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetMaster", reflect.TypeOf((*MockCluster)(nil).GetMaster))
+}
+
+// GetNode mocks base method.
+func (m *MockCluster) GetNode(hostname string) Node {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetNode", hostname)
+	ret0, _ := ret[0].(Node)
+	return ret0
+}
+
+// GetNode indicates an expected call of GetNode.
+func (mr *MockClusterMockRecorder) GetNode(hostname interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetNode", reflect.TypeOf((*MockCluster)(nil).GetNode), hostname)
+}
+
+// GetState mocks base method.
+func (m *MockCluster) GetState(hostname string) node_state.NodeState {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetState", hostname)
+	ret0, _ := ret[0].(node_state.NodeState)
+	return ret0
+}
+
+// GetState indicates an expected call of GetState.
+func (mr *MockClusterMockRecorder) GetState(hostname interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetState", reflect.TypeOf((*MockCluster)(nil).GetState), hostname)
 }

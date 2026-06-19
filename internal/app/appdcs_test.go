@@ -9,6 +9,7 @@ import (
 
 	nodestate "github.com/yandex/mysync/internal/app/node_state"
 	"github.com/yandex/mysync/internal/config"
+	"github.com/yandex/mysync/internal/dcs"
 	"github.com/yandex/mysync/internal/log"
 	"github.com/yandex/mysync/internal/mysql"
 )
@@ -109,7 +110,10 @@ func TestApproveFailover_CooldownNotElapsed(t *testing.T) {
 			FinishedAt: time.Now().Add(-10 * time.Second),
 		},
 	}
-	mockDCS.EXPECT().GetLastSwitchover().Return(lastSwitch)
+	mockDCS.EXPECT().GetLastSwitchover(gomock.Any()).DoAndReturn(func(s *Switchover) error {
+		*s = lastSwitch
+		return nil
+	})
 
 	app := newTestApp(t, cfg, mockDCS)
 
@@ -134,7 +138,10 @@ func TestApproveFailover_CooldownElapsed(t *testing.T) {
 			FinishedAt: time.Now().Add(-60 * time.Second),
 		},
 	}
-	mockDCS.EXPECT().GetLastSwitchover().Return(lastSwitch)
+	mockDCS.EXPECT().GetLastSwitchover(gomock.Any()).DoAndReturn(func(s *Switchover) error {
+		*s = lastSwitch
+		return nil
+	})
 
 	app := newTestApp(t, cfg, mockDCS)
 
@@ -159,7 +166,10 @@ func TestApproveFailover_ManualSwitchoverDoesNotTriggerCooldown(t *testing.T) {
 			FinishedAt: time.Now().Add(-5 * time.Second),
 		},
 	}
-	mockDCS.EXPECT().GetLastSwitchover().Return(lastSwitch)
+	mockDCS.EXPECT().GetLastSwitchover(gomock.Any()).DoAndReturn(func(s *Switchover) error {
+		*s = lastSwitch
+		return nil
+	})
 
 	app := newTestApp(t, cfg, mockDCS)
 
@@ -176,7 +186,7 @@ func TestApproveFailover_NoLastSwitchover(t *testing.T) {
 
 	mockDCS := NewMockIAppDCS(ctrl)
 	// No previous switchover — zero-value Switchover has nil Result
-	mockDCS.EXPECT().GetLastSwitchover().Return(Switchover{})
+	mockDCS.EXPECT().GetLastSwitchover(gomock.Any()).Return(dcs.ErrNotFound)
 
 	app := newTestApp(t, cfg, mockDCS)
 
@@ -194,7 +204,7 @@ func TestApproveFailover_AfterCrashRecovery_SkipsDelayCheck(t *testing.T) {
 	cfg.ResetupCrashedHosts = true
 
 	mockDCS := NewMockIAppDCS(ctrl)
-	mockDCS.EXPECT().GetLastSwitchover().Return(Switchover{})
+	mockDCS.EXPECT().GetLastSwitchover(gomock.Any()).Return(dcs.ErrNotFound)
 
 	app := newTestApp(t, cfg, mockDCS)
 	// NodeFailedAt is zero → failingTime is huge, but crash recovery skips the check

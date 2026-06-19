@@ -1,6 +1,10 @@
 hooks:
 	@cp .github/hooks/* .git/hooks/
 
+generate:
+	go install github.com/golang/mock/mockgen@v1.6.0
+	PATH="$(shell go env GOPATH)/bin:$$PATH" go generate ./internal/...
+
 build:
 	GOOS=linux GOARCH=amd64 go build -o ./cmd/mysync/mysync ./cmd/mysync/...
 

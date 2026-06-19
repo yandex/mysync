@@ -186,8 +186,13 @@ func (app *App) DeleteCurrentSwitchover() error {
 }
 
 // GetLastSwitchover returns the most recent switchover (finished or rejected).
-func (app *App) GetLastSwitchover() Switchover {
-	return app.appDCS.GetLastSwitchover()
+func (app *App) GetLastSwitchover(switchover *Switchover) error {
+	return app.appDCS.GetLastSwitchover(switchover)
+}
+
+// GetLastRejectedSwitchover returns the most recent rejected switchover.
+func (app *App) GetLastRejectedSwitchover(switchover *Switchover) error {
+	return app.appDCS.GetLastRejectedSwitchover(switchover)
 }
 
 // IssueFailover creates a new failover switchover record in ZK.

@@ -922,8 +922,15 @@ func (app *App) approveFailover(clusterState, clusterStateDcs map[string]*nodest
 		return err
 	}
 
-	lastSwitchover := app.appDCS.GetLastSwitchover()
-	if lastSwitchover.Result != nil {
+	lastSwitchover := new(Switchover)
+	err = app.appDCS.GetLastSwitchover(lastSwitchover)
+	if !errors.Is(err, dcs.ErrNotFound) {
+		if err != nil {
+			return err
+		}
+		if lastSwitchover.Result == nil {
+			return fmt.Errorf("another switchover in progress. this should never happen")
+		}
 		timeAfterLastSwitchover := time.Since(lastSwitchover.Result.FinishedAt)
 		if timeAfterLastSwitchover < app.config.FailoverCooldown && lastSwitchover.Cause == CauseAuto {
 			return fmt.Errorf("not enough time from last failover %s (cooldown %s)", lastSwitchover.Result.FinishedAt, app.config.FailoverCooldown)

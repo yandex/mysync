@@ -14,6 +14,24 @@ import (
 	"github.com/yandex/mysync/internal/util"
 )
 
+func (app *App) GetLastOrRejectedSwitchover() Switchover {
+	var lastSwitch, lastRejectedSwitch Switchover
+	err := app.GetLastSwitchover(&lastSwitch)
+	if err != nil && !errors.Is(err, dcs.ErrNotFound) {
+		app.logger.Error().Err(err).Msg(pathLastSwitch)
+	}
+	errRejected := app.dcs.Get(pathLastRejectedSwitch, &lastRejectedSwitch)
+	if errRejected != nil && !errors.Is(errRejected, dcs.ErrNotFound) {
+		app.logger.Error().Err(errRejected).Msg(pathLastRejectedSwitch)
+	}
+
+	if lastRejectedSwitch.InitiatedAt.After(lastSwitch.InitiatedAt) {
+		return lastRejectedSwitch
+	}
+
+	return lastSwitch
+}
+
 // CliSwitch performs manual switch-over of the master node
 // nolint: gocyclo, funlen
 func (app *App) CliSwitch(switchFrom, switchTo string, waitTimeout time.Duration, failover bool) int {
@@ -155,7 +173,7 @@ func (app *App) CliSwitch(switchFrom, switchTo string, waitTimeout time.Duration
 		for {
 			select {
 			case <-ticker.C:
-				lastSwitchover = app.GetLastSwitchover()
+				lastSwitchover = app.GetLastOrRejectedSwitchover()
 				if lastSwitchover.InitiatedBy == switchover.InitiatedBy && lastSwitchover.InitiatedAt.Unix() == switchover.InitiatedAt.Unix() {
 					break Out
 				} else {

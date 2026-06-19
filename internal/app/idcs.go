@@ -45,11 +45,12 @@ type IAppDCS interface {
 	// Switchover state (pure ZK ops, no timing side-effects)
 	GetCurrentSwitchover(switchover *Switchover) error
 	CreateCurrentSwitchover(switchover *Switchover) error
-	GetLastSwitchover() Switchover
+	GetLastSwitchover(switchover *Switchover) error
 	SetCurrentSwitchover(switchover *Switchover) error
 	DeleteCurrentSwitchover() error
 	SetLastSwitchover(switchover *Switchover) error
 	SetLastRejectedSwitchover(switchover *Switchover) error
+	GetLastRejectedSwitchover(switchover *Switchover) error
 	IssueFailover(master string) error
 
 	// Shutdown tracking

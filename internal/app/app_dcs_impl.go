@@ -192,6 +192,7 @@ func (a *appDCS) UpdateLastShutdownNodeTime() error {
 }
 
 // GetLastShutdownNodeTime returns the last recorded shutdown time, creating it if absent.
+// TODO wtf
 func (a *appDCS) GetLastShutdownNodeTime() (time.Time, error) {
 	var t time.Time
 	err := a.dcs.Get(pathLastShutdownNodeTime, &t)
@@ -206,20 +207,8 @@ func (a *appDCS) GetLastShutdownNodeTime() (time.Time, error) {
 }
 
 // GetLastSwitchover returns the most recent switchover (finished or rejected).
-func (a *appDCS) GetLastSwitchover() Switchover {
-	var lastSwitch, lastRejectedSwitch Switchover
-	err := a.dcs.Get(pathLastSwitch, &lastSwitch)
-	if err != nil && !errors.Is(err, dcs.ErrNotFound) {
-		a.logger.Error().Err(err).Msg(pathLastSwitch)
-	}
-	errRejected := a.dcs.Get(pathLastRejectedSwitch, &lastRejectedSwitch)
-	if errRejected != nil && !errors.Is(errRejected, dcs.ErrNotFound) {
-		a.logger.Error().Err(errRejected).Msg(pathLastRejectedSwitch)
-	}
-	if lastRejectedSwitch.InitiatedAt.After(lastSwitch.InitiatedAt) {
-		return lastRejectedSwitch
-	}
-	return lastSwitch
+func (a *appDCS) GetLastSwitchover(switchover *Switchover) error {
+	return a.dcs.Get(pathLastSwitch, switchover)
 }
 
 // GetCurrentSwitchover reads the current in-progress switchover from ZK.
@@ -251,6 +240,11 @@ func (a *appDCS) SetLastSwitchover(switchover *Switchover) error {
 // SetLastRejectedSwitchover writes the rejected switchover result to ZK.
 func (a *appDCS) SetLastRejectedSwitchover(switchover *Switchover) error {
 	return a.dcs.Set(pathLastRejectedSwitch, switchover)
+}
+
+// GetLastRejectedSwitchover returns the most recent rejected switchover.
+func (a *appDCS) GetLastRejectedSwitchover(switchover *Switchover) error {
+	return a.dcs.Get(pathLastRejectedSwitch, switchover)
 }
 
 // IssueFailover creates a new failover switchover record in ZK.
