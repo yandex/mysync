@@ -208,21 +208,6 @@ func (mr *MockIAppDCSMockRecorder) GetLastRejectedSwitchover(switchover interfac
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetLastRejectedSwitchover", reflect.TypeOf((*MockIAppDCS)(nil).GetLastRejectedSwitchover), switchover)
 }
 
-// GetLastShutdownNodeTime mocks base method.
-func (m *MockIAppDCS) GetLastShutdownNodeTime() (time.Time, error) {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "GetLastShutdownNodeTime")
-	ret0, _ := ret[0].(time.Time)
-	ret1, _ := ret[1].(error)
-	return ret0, ret1
-}
-
-// GetLastShutdownNodeTime indicates an expected call of GetLastShutdownNodeTime.
-func (mr *MockIAppDCSMockRecorder) GetLastShutdownNodeTime() *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetLastShutdownNodeTime", reflect.TypeOf((*MockIAppDCS)(nil).GetLastShutdownNodeTime))
-}
-
 // GetLastSwitchover mocks base method.
 func (m *MockIAppDCS) GetLastSwitchover(switchover *Switchover) error {
 	m.ctrl.T.Helper()
@@ -282,6 +267,21 @@ func (mr *MockIAppDCSMockRecorder) GetNodeConfiguration(host interface{}) *gomoc
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetNodeConfiguration", reflect.TypeOf((*MockIAppDCS)(nil).GetNodeConfiguration), host)
 }
 
+// GetOrCreateLastShutdownNodeTime mocks base method.
+func (m *MockIAppDCS) GetOrCreateLastShutdownNodeTime() (time.Time, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetOrCreateLastShutdownNodeTime")
+	ret0, _ := ret[0].(time.Time)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetOrCreateLastShutdownNodeTime indicates an expected call of GetOrCreateLastShutdownNodeTime.
+func (mr *MockIAppDCSMockRecorder) GetOrCreateLastShutdownNodeTime() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetOrCreateLastShutdownNodeTime", reflect.TypeOf((*MockIAppDCS)(nil).GetOrCreateLastShutdownNodeTime))
+}
+
 // GetReplMonTS mocks base method.
 func (m *MockIAppDCS) GetReplMonTS() (string, error) {
 	m.ctrl.T.Helper()
@@ -324,20 +324,6 @@ func (m *MockIAppDCS) IsRecoveryNeeded(host string) bool {
 func (mr *MockIAppDCSMockRecorder) IsRecoveryNeeded(host interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "IsRecoveryNeeded", reflect.TypeOf((*MockIAppDCS)(nil).IsRecoveryNeeded), host)
-}
-
-// IssueFailover mocks base method.
-func (m *MockIAppDCS) IssueFailover(master string) error {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "IssueFailover", master)
-	ret0, _ := ret[0].(error)
-	return ret0
-}
-
-// IssueFailover indicates an expected call of IssueFailover.
-func (mr *MockIAppDCSMockRecorder) IssueFailover(master interface{}) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "IssueFailover", reflect.TypeOf((*MockIAppDCS)(nil).IssueFailover), master)
 }
 
 // SetActiveNodes mocks base method.
@@ -482,7 +468,7 @@ func (mr *MockIAppDCSMockRecorder) SetReplMonTS(ts interface{}) *gomock.Call {
 }
 
 // SetResetupStatus mocks base method.
-func (m *MockIAppDCS) SetResetupStatus(host string, status bool) error {
+func (m *MockIAppDCS) SetResetupStatus(host string, status *mysql.ResetupStatus) error {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "SetResetupStatus", host, status)
 	ret0, _ := ret[0].(error)

@@ -40,7 +40,7 @@ type IAppDCS interface {
 
 	// Resetup
 	GetResetupStatus(host string) (mysql.ResetupStatus, error)
-	SetResetupStatus(host string, status bool) error
+	SetResetupStatus(host string, status *mysql.ResetupStatus) error
 
 	// Switchover state (pure ZK ops, no timing side-effects)
 	GetCurrentSwitchover(switchover *Switchover) error
@@ -51,10 +51,9 @@ type IAppDCS interface {
 	SetLastSwitchover(switchover *Switchover) error
 	SetLastRejectedSwitchover(switchover *Switchover) error
 	GetLastRejectedSwitchover(switchover *Switchover) error
-	IssueFailover(master string) error
 
 	// Shutdown tracking
-	GetLastShutdownNodeTime() (time.Time, error)
+	GetOrCreateLastShutdownNodeTime() (time.Time, error)
 	UpdateLastShutdownNodeTime() error
 
 	// Misc

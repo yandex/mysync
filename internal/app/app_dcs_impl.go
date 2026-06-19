@@ -10,7 +10,6 @@ import (
 	"github.com/yandex/mysync/internal/dcs"
 	"github.com/yandex/mysync/internal/log"
 	"github.com/yandex/mysync/internal/mysql"
-	"github.com/yandex/mysync/internal/util"
 )
 
 // appDCS implements IAppDCS by wrapping a low-level dcs.DCS.
@@ -134,20 +133,9 @@ func (a *appDCS) ClearRecovery(host string) error {
 	return a.dcs.Delete(dcs.JoinPath(pathRecovery, host))
 }
 
-// SetRecovery marks a host for recovery and removes it from active nodes.
+// SetRecovery marks a host for recovery in ZK.
 func (a *appDCS) SetRecovery(host string) error {
-	activeNodes, err := a.GetActiveNodes()
-	if err != nil {
-		return err
-	}
-	activeNodes = util.FilterStrings(activeNodes, func(n string) bool {
-		return n != host
-	})
-	err = a.dcs.Set(pathActiveNodes, activeNodes)
-	if err != nil {
-		return err
-	}
-	err = a.dcs.Create(pathRecovery, nil)
+	err := a.dcs.Create(pathRecovery, nil)
 	if err != nil && !errors.Is(err, dcs.ErrExists) {
 		return err
 	}
@@ -167,14 +155,10 @@ func (a *appDCS) IsRecoveryNeeded(host string) bool {
 }
 
 // SetResetupStatus writes the resetup status for a host.
-func (a *appDCS) SetResetupStatus(host string, status bool) error {
+func (a *appDCS) SetResetupStatus(host string, resetupStatus *mysql.ResetupStatus) error {
 	err := a.dcs.Create(pathResetupStatus, nil)
 	if err != nil && !errors.Is(err, dcs.ErrExists) {
 		return err
-	}
-	resetupStatus := &mysql.ResetupStatus{
-		Status:     status,
-		UpdateTime: time.Now(),
 	}
 	return a.dcs.Set(dcs.JoinPath(pathResetupStatus, host), resetupStatus)
 }
@@ -191,9 +175,8 @@ func (a *appDCS) UpdateLastShutdownNodeTime() error {
 	return a.dcs.Set(pathLastShutdownNodeTime, time.Now())
 }
 
-// GetLastShutdownNodeTime returns the last recorded shutdown time, creating it if absent.
-// TODO wtf
-func (a *appDCS) GetLastShutdownNodeTime() (time.Time, error) {
+// GetOrCreateLastShutdownNodeTime returns the last recorded shutdown time, creating it if absent.
+func (a *appDCS) GetOrCreateLastShutdownNodeTime() (time.Time, error) {
 	var t time.Time
 	err := a.dcs.Get(pathLastShutdownNodeTime, &t)
 	if errors.Is(err, dcs.ErrNotFound) {
@@ -245,17 +228,6 @@ func (a *appDCS) SetLastRejectedSwitchover(switchover *Switchover) error {
 // GetLastRejectedSwitchover returns the most recent rejected switchover.
 func (a *appDCS) GetLastRejectedSwitchover(switchover *Switchover) error {
 	return a.dcs.Get(pathLastRejectedSwitch, switchover)
-}
-
-// IssueFailover creates a new failover switchover record in ZK.
-func (a *appDCS) IssueFailover(master string) error {
-	var switchover Switchover
-	switchover.From = master
-	switchover.InitiatedBy = a.config.Hostname
-	switchover.InitiatedAt = time.Now()
-	switchover.Cause = CauseAuto
-	switchover.MasterTransition = FailoverTransition
-	return a.dcs.Create(pathCurrentSwitch, switchover)
 }
 
 // SetMasterHost writes the current master hostname to ZK.

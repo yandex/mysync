@@ -1803,7 +1803,7 @@ func (app *App) repairSlaveOfflineMode(host string, state *nodestate.NodeState, 
 	}
 
 	// gradual transfer of permanently broken nodes to offline
-	lastShutdownNodeTime, err := app.GetLastShutdownNodeTime()
+	lastShutdownNodeTime, err := app.GetOrCreateLastShutdownNodeTime()
 	if err != nil {
 		app.logger.Error().Err(err).Msg("repair: failed to get last shutdown node time")
 		return

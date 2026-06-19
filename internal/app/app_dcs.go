@@ -5,6 +5,7 @@ import (
 
 	nodestate "github.com/yandex/mysync/internal/app/node_state"
 	"github.com/yandex/mysync/internal/mysql"
+	"github.com/yandex/mysync/internal/util"
 )
 
 // The methods below are thin wrappers on *App that delegate to app.appDCS.
@@ -78,6 +79,16 @@ func (app *App) ClearRecovery(host string) error {
 
 // SetRecovery marks a host for recovery and removes it from active nodes.
 func (app *App) SetRecovery(host string) error {
+	activeNodes, err := app.appDCS.GetActiveNodes()
+	if err != nil {
+		return err
+	}
+	activeNodes = util.FilterStrings(activeNodes, func(n string) bool {
+		return n != host
+	})
+	if err = app.appDCS.SetActiveNodes(activeNodes); err != nil {
+		return err
+	}
 	return app.appDCS.SetRecovery(host)
 }
 
@@ -88,7 +99,10 @@ func (app *App) IsRecoveryNeeded(host string) bool {
 
 // setResetupStatus is an unexported wrapper kept for internal callers (recovery.go).
 func (app *App) setResetupStatus(host string, status bool) error {
-	return app.appDCS.SetResetupStatus(host, status)
+	return app.appDCS.SetResetupStatus(host, &mysql.ResetupStatus{
+		Status:     status,
+		UpdateTime: time.Now(),
+	})
 }
 
 // GetResetupStatus reads the resetup status for a host.
@@ -101,9 +115,9 @@ func (app *App) UpdateLastShutdownNodeTime() error {
 	return app.appDCS.UpdateLastShutdownNodeTime()
 }
 
-// GetLastShutdownNodeTime returns the last recorded shutdown time.
-func (app *App) GetLastShutdownNodeTime() (time.Time, error) {
-	return app.appDCS.GetLastShutdownNodeTime()
+// GetOrCreateLastShutdownNodeTime returns the last recorded shutdown time.
+func (app *App) GetOrCreateLastShutdownNodeTime() (time.Time, error) {
+	return app.appDCS.GetOrCreateLastShutdownNodeTime()
 }
 
 // FinishSwitchover finishes the current switchover and writes the result.
@@ -197,7 +211,14 @@ func (app *App) GetLastRejectedSwitchover(switchover *Switchover) error {
 
 // IssueFailover creates a new failover switchover record in ZK.
 func (app *App) IssueFailover(master string) error {
-	return app.appDCS.IssueFailover(master)
+	switchover := Switchover{
+		From:             master,
+		InitiatedBy:      app.config.Hostname,
+		InitiatedAt:      time.Now(),
+		Cause:            CauseAuto,
+		MasterTransition: FailoverTransition,
+	}
+	return app.appDCS.CreateCurrentSwitchover(&switchover)
 }
 
 // SetMasterHost writes the current master hostname to ZK.
