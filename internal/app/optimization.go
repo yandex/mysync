@@ -1,4 +1,3 @@
-//go:generate mockgen -source=deps.go -destination=optimization_mocks_test.go -package=app_test . Syncer,Controller
 package app
 
 import (
