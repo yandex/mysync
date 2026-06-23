@@ -62,7 +62,7 @@ func (app *App) stopTiming(name string) {
 // Marker-guarded so it is logged once, and only when the switchover actually started.
 func (app *App) logSwitchoverFailure(sw *Switchover) {
 	now := time.Now()
-	if sw.MasterTransition != SwitchoverTransition {
+	if sw.MasterTransition == FailoverTransition {
 		return
 	}
 	start, ok := app.getTimingStart(timingSwitchover)
