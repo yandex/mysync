@@ -1383,8 +1383,7 @@ func (app *App) performSwitchover(clusterState map[string]*nodestate.NodeState, 
 		}
 	}
 
-	// downtime for failover starts at master loss (see IssueFailover); for switchover it starts here
-	if switchover.MasterTransition == SwitchoverTransition {
+	if switchover.MasterTransition != FailoverTransition {
 		app.startTiming(timingDowntime, time.Time{})
 	}
 
