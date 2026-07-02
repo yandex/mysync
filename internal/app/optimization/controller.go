@@ -82,6 +82,10 @@ func (m *Controller) isOptimizedDuringWaiting(node Node) (bool, error) {
 		m.logger.Info().Msg("optimization: waiting; optimization not yet started")
 		return false, nil
 	}
+	// Only the syncer can finish a relay-log request: a low lag alone is not enough.
+	if dcsState.Reason == ReasonRelayLog {
+		return false, nil
+	}
 
 	m.logger.Info().Msg("optimization: waiting; node is optimizing")
 
@@ -106,6 +110,20 @@ func (m *Controller) isOptimizedDuringWaiting(node Node) (bool, error) {
 // Returns an error if enabling fails (e.g., due to existing optimizations or channel closures).
 func (m *Controller) Enable(node Node) error {
 	return m.dcs.CreateHosts(node.Host())
+}
+
+// EnableForRelayLog requests optimization until relay-log size and lag converge.
+// Preserve the status of an existing request when adding the relay-log reason.
+func (m *Controller) EnableForRelayLog(node Node) error {
+	state, err := m.dcs.GetState(node.Host())
+	if err != nil {
+		return err
+	}
+	if state == nil {
+		state = new(DCSState)
+	}
+	state.Reason = ReasonRelayLog
+	return m.dcs.SetState(node.Host(), state)
 }
 
 // Disable deactivates optimization mode for the specified node,

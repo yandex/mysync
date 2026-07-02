@@ -558,3 +558,65 @@ Feature: optimization mode works on replicas
     """
     [{"InnodbFlushLogAtTrxCommit":1,"SyncBinlog":1}]
     """
+
+  Scenario: relay log size enables turbo mode with low replication lag
+    Given cluster environment is
+    """
+    RELAY_LOG_OPTIMIZATION_ENABLED=true
+    RELAY_LOG_OPTIMIZATION_INTERVAL=2s
+    RELAY_LOG_MAX_BYTES=2097152
+    HIGH_REPLICATION_MARK=120s
+    LOW_REPLICATION_MARK=60s
+    MYSYNC_REPLICATION_LAG_QUERY="SELECT 30 AS Seconds_Behind_Master"
+    MYSYNC_SEMISYNC=false
+    MYSYNC_ASYNC=true
+    ASYNC_ALLOWED_LAG=6000s
+    REPL_MON=true
+    OFFLINE_MODE_ENABLE_LAG=6000s
+    MYSYNC_STREAM_FROM_REASONABLE_LAG=6000s
+    """
+    Given cluster is up and running
+    And mysql host "mysql1" should be master
+    And zookeeper node "/test/active_nodes" should match json_exactly within "30" seconds
+    """
+    ["mysql1","mysql2","mysql3"]
+    """
+
+    # Keep each relay file smaller than the optimization threshold.
+    When I run SQL on mysql host "mysql3"
+    """
+    SET GLOBAL max_relay_log_size = 1048576;
+    """
+    And I run SQL on mysql host "mysql2"
+    """
+    SET GLOBAL max_relay_log_size = 1048576;
+    STOP REPLICA FOR CHANNEL '';
+    CHANGE REPLICATION SOURCE TO SOURCE_DELAY = 6000;
+    START REPLICA FOR CHANNEL '';
+    """
+    Then zookeeper node "/test/optimization_nodes/mysql2" should not exist within "15" seconds
+
+    When I run SQL on mysql host "mysql1"
+    """
+    CREATE TABLE mysql.relay_filler (id INT AUTO_INCREMENT PRIMARY KEY, payload LONGBLOB);
+    INSERT INTO mysql.relay_filler (payload) VALUES (REPEAT('x', 1048576));
+    INSERT INTO mysql.relay_filler (payload) SELECT payload FROM mysql.relay_filler;
+    INSERT INTO mysql.relay_filler (payload) SELECT payload FROM mysql.relay_filler;
+    INSERT INTO mysql.relay_filler (payload) SELECT payload FROM mysql.relay_filler;
+    """
+    Then zookeeper node "/test/optimization_nodes/mysql2" should match json within "60" seconds
+    """
+    {"reason":"relay_log"}
+    """
+    And mysql host "mysql2" should have variable "innodb_flush_log_at_trx_commit" set to "2" within "30" seconds
+    And mysql host "mysql2" should have variable "sync_binlog" set to "1000" within "30" seconds
+
+    When I run SQL on mysql host "mysql2"
+    """
+    STOP REPLICA FOR CHANNEL '';
+    CHANGE REPLICATION SOURCE TO SOURCE_DELAY = 0;
+    START REPLICA FOR CHANNEL '';
+    """
+    Then zookeeper node "/test/optimization_nodes/mysql2" should not exist within "60" seconds
+    And mysql host "mysql2" should have variable "innodb_flush_log_at_trx_commit" set to "1" within "30" seconds
+    And mysql host "mysql2" should have variable "sync_binlog" set to "1" within "30" seconds

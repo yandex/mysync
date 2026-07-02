@@ -13,6 +13,7 @@ type OptimizationSyncer interface {
 type OptimizationController interface {
 	Wait(ctx context.Context, node optimization.Node) error
 	Enable(node optimization.Node) error
+	EnableForRelayLog(node optimization.Node) error
 	Disable(master, node optimization.Node) error
 	DisableAll(master optimization.Node, nodes []optimization.Node) error
 }

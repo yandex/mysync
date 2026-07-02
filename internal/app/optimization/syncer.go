@@ -1,6 +1,7 @@
 package optimization
 
 import (
+	"errors"
 	"fmt"
 
 	"github.com/yandex/mysync/internal/config"
@@ -12,21 +13,26 @@ import (
 func NewSyncer(
 	logger *log.Logger,
 	config config.OptimizationConfig,
+	relayLogMaxBytes int64,
 	Dcs DCS,
 ) *Syncer {
 	return &Syncer{
-		logger: logger,
-		config: config,
-		dcs:    Dcs,
+		logger:           logger,
+		config:           config,
+		relayLogMaxBytes: relayLogMaxBytes,
+		dcs:              Dcs,
 	}
 }
 
 type Syncer struct {
-	logger *log.Logger
-	config config.OptimizationConfig
-	dcs    DCS
+	logger           *log.Logger
+	config           config.OptimizationConfig
+	relayLogMaxBytes int64
+	dcs              DCS
 }
 
+// Replica read errors leave a partial result so Sync can still disable completed
+// optimizations. DCS errors invalidate the result and prevent all changes.
 func (s *Syncer) getClusterHostsState(
 	c Cluster,
 	masterRs mysql.ReplicationSettings,
@@ -37,6 +43,7 @@ func (s *Syncer) getClusterHostsState(
 	}
 
 	hostsState := new(hostsState)
+	var errs []error
 	lowReplMark := s.config.LowReplicationMark.Seconds()
 	highReplMark := s.config.HighReplicationMark.Seconds()
 
@@ -55,13 +62,31 @@ func (s *Syncer) getClusterHostsState(
 		isSlaveLost := nodeState.SlaveState == nil || nodeState.SlaveState.ReplicationLag == nil
 		isNearConverged := !isSlaveLost && *nodeState.SlaveState.ReplicationLag < highReplMark
 		isCompletelyConverged := !isSlaveLost && *nodeState.SlaveState.ReplicationLag < lowReplMark
+		isRelayLogLarge := false
+		if !isMaster && !isSlaveLost && dcsState.Reason == ReasonRelayLog {
+			node := c.GetNode(hostname)
+			if node == nil {
+				hostsState.MalfunctioningHosts = append(hostsState.MalfunctioningHosts, hostname)
+				continue
+			}
+			status, err := node.GetReplicaStatus()
+			if err != nil {
+				errs = append(errs, fmt.Errorf("get relay log space for %s: %w", hostname, err))
+				continue
+			}
+			if status == nil {
+				isSlaveLost = true
+			} else {
+				isRelayLogLarge = status.GetRelayLogSpace() > s.relayLogMaxBytes
+			}
+		}
 
 		switch {
 		case isMaster || isSlaveLost:
 			hostsState.MalfunctioningHosts = append(hostsState.MalfunctioningHosts, hostname)
 
-		case isNearConverged && !isEnabled ||
-			isCompletelyConverged && isEnabled:
+		case !isRelayLogLarge && (isNearConverged && !isEnabled ||
+			isCompletelyConverged && isEnabled):
 			hostsState.OptimizedHosts = append(hostsState.OptimizedHosts, hostname)
 
 		case isEnabled || !nodeState.ReplicationSettings.Equal(&masterRs):
@@ -72,7 +97,7 @@ func (s *Syncer) getClusterHostsState(
 		}
 	}
 
-	return hostsState, nil
+	return hostsState, errors.Join(errs...)
 }
 
 type hostsState struct {
@@ -80,7 +105,7 @@ type hostsState struct {
 	DisabledHosts []string
 	// OptimizingHosts are optimizing hosts
 	OptimizingHosts []string
-	// OptimizedHosts are hosts with lag lower than LowReplicationMark
+	// OptimizedHosts are hosts whose lag and, when requested, relay-log size have converged.
 	OptimizedHosts []string
 	// MalfunctioningHosts are hosts that shouldn't have been optimized
 	MalfunctioningHosts []string
@@ -99,9 +124,9 @@ func (s *Syncer) Sync(c Cluster) error {
 		return err
 	}
 
-	hostsState, err := s.getClusterHostsState(c, masterRs)
-	if err != nil {
-		return err
+	hostsState, stateErr := s.getClusterHostsState(c, masterRs)
+	if hostsState == nil {
+		return stateErr
 	}
 	s.logger.Info().Msgf(
 		"optimization: %s",
@@ -112,7 +137,9 @@ func (s *Syncer) Sync(c Cluster) error {
 		hostsState.OptimizedHosts,
 		hostsState.MalfunctioningHosts,
 	)
-	err = s.disableNodes(c, hostsToDisable, masterRs)
+	// Restore known completed replicas even if another replica could not be read.
+	// Do not start or restart turbo while its state on any host is uncertain.
+	err = errors.Join(stateErr, s.disableNodes(c, hostsToDisable, masterRs))
 	if err != nil {
 		return err
 	}
@@ -162,12 +189,20 @@ func (s *Syncer) startNodes(
 	hosts []string,
 ) error {
 	for _, host := range hosts {
-		err := c.GetNode(host).OptimizeReplication()
+		state, err := s.dcs.GetState(host)
+		if err != nil {
+			return err
+		}
+		if state == nil {
+			continue
+		}
+		err = c.GetNode(host).OptimizeReplication()
 		if err != nil {
 			return err
 		}
 		// Mark as actively optimizing so Wait() knows to start checking replication lag
-		err = s.dcs.SetState(host, &DCSState{Status: StatusEnabled})
+		state.Status = StatusEnabled
+		err = s.dcs.SetState(host, state)
 		if err != nil {
 			return err
 		}
@@ -204,15 +239,18 @@ func (s *Syncer) disableNodes(
 	hosts []string,
 	rs mysql.ReplicationSettings,
 ) error {
-	if len(hosts) == 0 {
-		return nil
+	var errs []error
+	for _, host := range hosts {
+		if err := s.stopNodes(c, []string{host}, rs); err != nil {
+			errs = append(errs, fmt.Errorf("stop optimization on %s: %w", host, err))
+			continue
+		}
+		// Only delete requests after their settings have been restored.
+		if err := s.dcs.DeleteHosts(host); err != nil {
+			errs = append(errs, fmt.Errorf("delete optimization request for %s: %w", host, err))
+		}
 	}
-
-	err := s.stopNodes(c, hosts, rs)
-	if err != nil {
-		return err
-	}
-	return s.dcs.DeleteHosts(hosts...)
+	return errors.Join(errs...)
 }
 
 func (s *Syncer) syncNodeOptions(

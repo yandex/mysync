@@ -46,7 +46,7 @@ func TestBasicOptimization(t *testing.T) {
 		Dcs.EXPECT().GetHosts().
 			Return([]string{}, nil)
 
-		opt := NewSyncer(&logger, config, Dcs)
+		opt := NewSyncer(&logger, config, 1<<30, Dcs)
 		err := opt.Sync(cluster)
 		require.NoError(t, err)
 	})
@@ -90,7 +90,7 @@ func TestBasicOptimization(t *testing.T) {
 			Return(&DCSState{Status: "enabled"}, nil)
 		Dcs.EXPECT().DeleteHosts("master")
 
-		opt := NewSyncer(&logger, config, Dcs)
+		opt := NewSyncer(&logger, config, 1<<30, Dcs)
 		err := opt.Sync(cluster)
 		require.NoError(t, err)
 	})
@@ -133,7 +133,7 @@ func TestHAClusterOptimization(t *testing.T) {
 		Dcs.EXPECT().GetHosts().
 			Return([]string{}, nil)
 
-		opt := NewSyncer(&logger, config, Dcs)
+		opt := NewSyncer(&logger, config, 1<<30, Dcs)
 		err := opt.Sync(cluster)
 		require.NoError(t, err)
 	})
@@ -195,7 +195,7 @@ func TestHAClusterOptimization(t *testing.T) {
 			Return(&DCSState{Status: "enabled"}, nil)
 		Dcs.EXPECT().DeleteHosts("replica1")
 
-		opt := NewSyncer(&logger, config, Dcs)
+		opt := NewSyncer(&logger, config, 1<<30, Dcs)
 		err := opt.Sync(cluster)
 		require.NoError(t, err)
 	})
@@ -250,7 +250,7 @@ func TestHAClusterOptimization(t *testing.T) {
 		Dcs.EXPECT().GetState("replica1").
 			Return(&DCSState{Status: "enabled"}, nil)
 
-		opt := NewSyncer(&logger, config, Dcs)
+		opt := NewSyncer(&logger, config, 1<<30, Dcs)
 		err := opt.Sync(cluster)
 		require.NoError(t, err)
 	})
@@ -307,11 +307,11 @@ func TestStartNodesSetStatusEnabled(t *testing.T) {
 			Return([]string{"replica1"}, nil)
 		// Status="" (StatusNew) → DisabledHosts branch in getClusterHostsState
 		Dcs.EXPECT().GetState("replica1").
-			Return(&DCSState{Status: StatusNew}, nil)
+			Return(&DCSState{Status: StatusNew}, nil).Times(2)
 		// startNodes must set StatusEnabled after OptimizeReplication
 		Dcs.EXPECT().SetState("replica1", &DCSState{Status: StatusEnabled})
 
-		opt := NewSyncer(&logger, config, Dcs)
+		opt := NewSyncer(&logger, config, 1<<30, Dcs)
 		err := opt.Sync(cluster)
 		require.NoError(t, err)
 	})
@@ -394,7 +394,7 @@ func TestOneHostOptimizationPolicy(t *testing.T) {
 		Dcs.EXPECT().GetState("replica2").
 			Return(&DCSState{Status: "enabled"}, nil)
 
-		opt := NewSyncer(&logger, config, Dcs)
+		opt := NewSyncer(&logger, config, 1<<30, Dcs)
 		err := opt.Sync(cluster)
 		require.NoError(t, err)
 	})
@@ -454,7 +454,7 @@ func TestTurnBackOnOptimization(t *testing.T) {
 		Dcs.EXPECT().GetState("replica1").
 			Return(&DCSState{Status: "enabled"}, nil)
 
-		opt := NewSyncer(&logger, config, Dcs)
+		opt := NewSyncer(&logger, config, 1<<30, Dcs)
 		err := opt.Sync(cluster)
 		require.NoError(t, err)
 	})
@@ -510,7 +510,7 @@ func TestNetworkErrors(t *testing.T) {
 		Dcs.EXPECT().GetHosts().
 			Return([]string{}, fmt.Errorf("network-error"))
 
-		opt := NewSyncer(&logger, config, Dcs)
+		opt := NewSyncer(&logger, config, 1<<30, Dcs)
 		err := opt.Sync(cluster)
 		require.EqualError(t, err, "network-error")
 	})
@@ -567,9 +567,9 @@ func TestNetworkErrors(t *testing.T) {
 		Dcs.EXPECT().GetState("replica1").
 			Return(&DCSState{Status: "enabled"}, nil)
 
-		opt := NewSyncer(&logger, config, Dcs)
+		opt := NewSyncer(&logger, config, 1<<30, Dcs)
 		err := opt.Sync(cluster)
-		require.EqualError(t, err, "network-error")
+		require.EqualError(t, err, "stop optimization on replica1: network-error")
 	})
 }
 
@@ -625,7 +625,7 @@ func TestDeadReplica(t *testing.T) {
 			Return(&DCSState{Status: "enabled"}, nil)
 		Dcs.EXPECT().DeleteHosts("replica1")
 
-		opt := NewSyncer(&logger, config, Dcs)
+		opt := NewSyncer(&logger, config, 1<<30, Dcs)
 		err := opt.Sync(cluster)
 		require.NoError(t, err)
 	})
@@ -674,7 +674,7 @@ func TestDeadReplica(t *testing.T) {
 			Return(&DCSState{Status: "enabled"}, nil)
 		Dcs.EXPECT().DeleteHosts("replica1")
 
-		opt := NewSyncer(&logger, config, Dcs)
+		opt := NewSyncer(&logger, config, 1<<30, Dcs)
 		err := opt.Sync(cluster)
 		require.NoError(t, err)
 	})
