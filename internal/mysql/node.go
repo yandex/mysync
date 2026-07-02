@@ -720,6 +720,19 @@ func (n *Node) GetBinlogs() ([]Binlog, error) {
 	return binlogs, err
 }
 
+// GetRelayLogSpace returns the total combined size (bytes) of all relay log files on the node,
+// i.e. the Relay_Log_Space field of SHOW REPLICA STATUS. Returns 0 for a master.
+func (n *Node) GetRelayLogSpace() (int64, error) {
+	status, err := n.GetReplicaStatus()
+	if err != nil {
+		return 0, err
+	}
+	if status == nil {
+		return 0, nil
+	}
+	return status.GetRelayLogSpace(), nil
+}
+
 // UUID returns server_uuid
 func (n *Node) UUID() (uuid.UUID, error) {
 	if n.uuid.ID() != 0 {

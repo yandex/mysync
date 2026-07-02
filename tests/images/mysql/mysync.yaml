@@ -78,3 +78,7 @@ manager_lock_acquire_delay_after_quorum_loss: ${MANAGER_LOCK_ACQUIRE_DELAY_AFTER
 optimization_config:
   high_replication_mark: ${HIGH_REPLICATION_MARK:-60s}
   low_replication_mark: ${LOW_REPLICATION_MARK:-60s}
+relay_log_optimization_enabled: ${RELAY_LOG_OPTIMIZATION_ENABLED:-false}
+relay_log_optimization_interval: ${RELAY_LOG_OPTIMIZATION_INTERVAL:-5m}
+relay_log_state_file: /tmp/mysync.relaylog
+relay_log_max_bytes: ${RELAY_LOG_MAX_BYTES:-1073741824}

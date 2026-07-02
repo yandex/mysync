@@ -81,6 +81,7 @@ type SlaveStatusStruct struct {
 	LastIOError      string          `db:"Last_IO_Error"`
 	LastSQLErrno     int             `db:"Last_SQL_Errno"`
 	Lag              sql.NullFloat64 `db:"Seconds_Behind_Master"`
+	RelayLogSpace    int64           `db:"Relay_Log_Space"`
 }
 
 // ReplicaStatusStruct contains SHOW REPLICA STATUS response
@@ -98,6 +99,7 @@ type ReplicaStatusStruct struct {
 	LastIOError       string          `db:"Last_IO_Error"`
 	LastSQLErrno      int             `db:"Last_SQL_Errno"`
 	Lag               sql.NullFloat64 `db:"Seconds_Behind_Source"`
+	RelayLogSpace     int64           `db:"Relay_Log_Space"`
 }
 
 type ReplicaStatus interface {
@@ -115,6 +117,7 @@ type ReplicaStatus interface {
 	GetLastIOError() string
 	GetLastSQLErrno() int
 	GetReplicationLag() sql.NullFloat64
+	GetRelayLogSpace() int64
 }
 
 // SemiSyncStatus contains semi sync host settings
@@ -229,6 +232,14 @@ func (ss *SlaveStatusStruct) GetReplicationLag() sql.NullFloat64 {
 
 func (ss *ReplicaStatusStruct) GetReplicationLag() sql.NullFloat64 {
 	return ss.Lag
+}
+
+func (ss *SlaveStatusStruct) GetRelayLogSpace() int64 {
+	return ss.RelayLogSpace
+}
+
+func (ss *ReplicaStatusStruct) GetRelayLogSpace() int64 {
+	return ss.RelayLogSpace
 }
 
 func (ss *ReplicaStatusStruct) GetLastError() string {

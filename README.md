@@ -119,6 +119,11 @@ replication_repair_max_attempts: 3
 external_replication_type: off
 show_only_gtid_diff: False
 force_switchover: False
+
+relay_log_optimization_enabled: True
+relay_log_optimization_interval: 5m
+relay_log_state_file: /var/run/mysync/mysync.relaylog
+relay_log_max_bytes: 1073741824
 ```
 
 ### Usage

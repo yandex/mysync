@@ -601,6 +601,9 @@ func (app *App) stateManager() appState {
 		}
 	}
 
+	// enable turbo mode on replicas whose relay logs are too large
+	app.optimizeReplicasByRelayLog(activeNodes, master)
+
 	clusterAdapter := app_dcs.NewOptimizationClusterAdapter(
 		app.cluster,
 		clusterStateDcs,
