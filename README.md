@@ -119,7 +119,17 @@ replication_repair_max_attempts: 3
 external_replication_type: off
 show_only_gtid_diff: False
 force_switchover: False
+
+relay_log_optimization_enabled: True
+relay_log_optimization_interval: 5m
+relay_log_max_bytes: 1073741824
 ```
+
+Relay-log optimization requests turbo mode when a replica exceeds `relay_log_max_bytes`,
+even if its replication lag is below `high_replication_mark`. Such requests remain active
+while relay logs exceed the size limit; normal lag convergence checks also apply before
+turbo is disabled. At most one replica is optimized at a time. The check interval is tracked
+in memory, so restarting mysync triggers a fresh check.
 
 ### Usage
 
@@ -134,5 +144,4 @@ mysync switch --from fqdn2
 mysync maint on
 mysync maint off
 ```
-
 
