@@ -22,11 +22,11 @@ jobs:
     needs: [ lint, all_unittests ]
     steps:
       - name: Check out code into the Go module directory
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
 
       - name: Docker images caching
         id: cache-images
-        uses: actions/cache@v5
+        uses: actions/cache@v6
         with:
           path: ~/mysync-base-img8.0.tgz
           key: mysync-base-img8.0-${{ hashFiles('tests/images/base/*') }}
@@ -83,7 +83,7 @@ jobs:
         id: go
 
       - name: Check out code into the Go module directory
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
 
       - name: Get dependencies
         run: |
@@ -91,7 +91,7 @@ jobs:
 
       - name: Load docker images
         id: cache-images
-        uses: actions/cache@v5
+        uses: actions/cache@v6
         with:
           path: ~/mysync-base-img8.0.tgz
           key: mysync-base-img8.0-${{ hashFiles('tests/images/base/*') }}
