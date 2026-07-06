@@ -985,6 +985,9 @@ func (app *App) updateActiveNodes(clusterState, clusterStateDcs map[string]*node
 			app.disableSemiSyncIfNonNeeded(node, state)
 		}
 		// then update DCS
+		if !app.canShrinkActiveNodes(masterNode, oldActiveNodes, activeNodes) {
+			return nil
+		}
 		err = app.SetActiveNodes(activeNodes)
 		if err != nil {
 			app.logger.Error().Err(err).Msg("update active nodes: failed to update active nodes in dcs")
@@ -1060,6 +1063,9 @@ func (app *App) updateActiveNodes(clusterState, clusterStateDcs map[string]*node
 	}
 
 	// then update DCS
+	if !app.canShrinkActiveNodes(masterNode, oldActiveNodes, activeNodes) {
+		return nil
+	}
 	err = app.SetActiveNodes(activeNodes)
 	if err != nil {
 		app.logger.Error().Err(err).Msg("update active nodes: failed to update active nodes in dcs")
