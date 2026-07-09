@@ -1026,8 +1026,22 @@ func (app *App) updateActiveNodes(clusterState, clusterStateDcs map[string]*node
 		return err
 	}
 
-	// first, shrink HA-group, if needed
-	if waitSlaveCount > oldWaitSlaveCount {
+	// When ReversedAdjustSSOrder is true (recommended):
+	//   before replicas: shrink (waitSlaveCount < oldWaitSlaveCount) — lower the ack requirement first
+	//   after replicas:  enlarge (waitSlaveCount > oldWaitSlaveCount) — raise it only after replicas are ready
+	// This avoids deadlocks where the master blocks waiting for acks from replicas
+	// that haven't switched to semi-sync mode yet.
+	//
+	// When ReversedAdjustSSOrder is false (legacy default):
+	//   before replicas: enlarge (waitSlaveCount > oldWaitSlaveCount)
+	//   after replicas:  shrink (waitSlaveCount < oldWaitSlaveCount)
+	adjustBefore := waitSlaveCount < oldWaitSlaveCount
+	adjustAfter := waitSlaveCount > oldWaitSlaveCount
+	if !app.config.ReversedAdjustSSOrder {
+		adjustBefore, adjustAfter = adjustAfter, adjustBefore
+	}
+
+	if adjustBefore {
 		err := app.adjustSemiSyncOnMaster(masterNode, masterState, waitSlaveCount)
 		if err != nil {
 			app.logger.Error().Err(err).Msgf("failed to adjust semi-sync on master %s to %d", masterNode.Host(), waitSlaveCount)
@@ -1040,7 +1054,6 @@ func (app *App) updateActiveNodes(clusterState, clusterStateDcs map[string]*node
 		app.logger.Warn().Msgf("cannot disable semisync on inactive hosts: %s", err)
 	}
 
-	// enlarge HA-group, if needed (and if possible)
 	for _, hostname := range becomeActive {
 		err := app.enableSemiSyncOnSlave(hostname, clusterState[hostname], masterState)
 		if err != nil {
@@ -1055,7 +1068,7 @@ func (app *App) updateActiveNodes(clusterState, clusterStateDcs map[string]*node
 			app.logger.Error().Err(err).Msgf("failed to set default replication settings %s", hostname)
 		}
 	}
-	if waitSlaveCount < oldWaitSlaveCount {
+	if adjustAfter {
 		err := app.adjustSemiSyncOnMaster(masterNode, masterState, waitSlaveCount)
 		if err != nil {
 			app.logger.Error().Err(err).Msgf("failed to adjust semi-sync on master %s to %d", masterNode.Host(), waitSlaveCount)
