@@ -30,6 +30,7 @@ mysql:
   port: $MYSQL_PORT
   pid_file: /tmp/mysqld.pid
 disable_semi_sync_replication_on_maintenance: ${MYSYNC_DISABLE_REPLICATION_ON_MAINT:-false}
+master_first_adjust_ss_order: ${MYSYNC_MASTER_FIRST_ADJUST_SS_ORDER:-true}
 replication_channel: ''
 test_filesystem_readonly_file: /tmp/readonly
 test_disk_usage_file: /tmp/usedspace

@@ -43,6 +43,7 @@ commands:
   log_timing: 'echo "%s: %s" >> /tmp/timing.log'
 disable_semi_sync_replication_on_maintenance: ${MYSYNC_DISABLE_REPLICATION_ON_MAINT:-false}
 rpl_semi_sync_master_wait_for_slave_count: ${MYSYNC_WAIT_FOR_SLAVE_COUNT:-1}
+master_first_adjust_ss_order: ${MYSYNC_MASTER_FIRST_ADJUST_SS_ORDER:-true}
 critical_disk_usage: ${MYSYNC_CRITICAL_DISK_USAGE:-100}
 keep_super_writable_on_critical_disk_usage: ${MYSYNC_KEEP_SUPER_WRITABLE_ON_CRITICAL_DISK_USAGE:-false}
 test_disk_usage_file: /tmp/usedspace
