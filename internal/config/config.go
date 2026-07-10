@@ -13,6 +13,11 @@ import (
 	"github.com/yandex/mysync/internal/util"
 )
 
+const (
+	// DefaultRelayLogMaxBytes is the default relay-log size above which turbo mode is enabled.
+	DefaultRelayLogMaxBytes int64 = 1 << 30 // 1 GiB
+)
+
 // MySQLConfig contains MySQL cluster connection info
 type MySQLConfig struct {
 	User                       string `config:"user,required"`
@@ -112,6 +117,14 @@ type Config struct {
 	SwitchoverMaxAttempts                   int                          `config:"switchover_max_attempts" yaml:"switchover_max_attempts"`
 	DSNSettings                             string                       `config:"dsn_settings" yaml:"dsn_settings"`
 	OptimizationConfig                      OptimizationConfig           `config:"optimization_config" yaml:"optimization_config"`
+	// RelayLogOptimizationEnabled enables turbo mode on replicas whose relay logs are too large.
+	RelayLogOptimizationEnabled bool `config:"relay_log_optimization_enabled" yaml:"relay_log_optimization_enabled"`
+	// RelayLogOptimizationInterval is how often the manager checks relay-log sizes.
+	RelayLogOptimizationInterval time.Duration `config:"relay_log_optimization_interval" yaml:"relay_log_optimization_interval"`
+	// RelayLogStateFile is where the manager writes relay-log status (its mtime is the throttle marker).
+	RelayLogStateFile string `config:"relay_log_state_file" yaml:"relay_log_state_file"`
+	// RelayLogMaxBytes is the relay-log size (bytes) above which turbo mode is enabled.
+	RelayLogMaxBytes int64 `config:"relay_log_max_bytes" yaml:"relay_log_max_bytes"`
 }
 
 type OptimizationConfig struct {
@@ -220,6 +233,10 @@ func DefaultConfig() (Config, error) {
 			HighReplicationMark: 120 * time.Second,
 			LowReplicationMark:  60 * time.Second,
 		},
+		RelayLogOptimizationEnabled:  false,
+		RelayLogOptimizationInterval: 5 * time.Minute,
+		RelayLogStateFile:            "/var/run/mysync/mysync.relaylog",
+		RelayLogMaxBytes:             DefaultRelayLogMaxBytes,
 	}
 	return config, nil
 }
