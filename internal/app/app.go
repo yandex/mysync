@@ -1026,18 +1026,18 @@ func (app *App) updateActiveNodes(clusterState, clusterStateDcs map[string]*node
 		return err
 	}
 
-	// When ReversedAdjustSSOrder is true (recommended):
-	//   before replicas: shrink (waitSlaveCount < oldWaitSlaveCount) — lower the ack requirement first
+	// When MasterFirstAdjustSSOrder is true (recommended):
+	//   before replicas: shrink (waitSlaveCount < oldWaitSlaveCount) — lower the ack requirement on master first
 	//   after replicas:  enlarge (waitSlaveCount > oldWaitSlaveCount) — raise it only after replicas are ready
 	// This avoids deadlocks where the master blocks waiting for acks from replicas
 	// that haven't switched to semi-sync mode yet.
 	//
-	// When ReversedAdjustSSOrder is false (legacy default):
+	// When MasterFirstAdjustSSOrder is false (legacy default):
 	//   before replicas: enlarge (waitSlaveCount > oldWaitSlaveCount)
 	//   after replicas:  shrink (waitSlaveCount < oldWaitSlaveCount)
 	adjustBefore := waitSlaveCount < oldWaitSlaveCount
 	adjustAfter := waitSlaveCount > oldWaitSlaveCount
-	if !app.config.ReversedAdjustSSOrder {
+	if !app.config.MasterFirstAdjustSSOrder {
 		adjustBefore, adjustAfter = adjustAfter, adjustBefore
 	}
 

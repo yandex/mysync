@@ -87,7 +87,7 @@ type Config struct {
 	PriorityChoiceMaxLag                    time.Duration                `config:"priority_choice_max_lag" yaml:"priority_choice_max_lag"`
 	TestDiskUsageFile                       string                       `config:"test_disk_usage_file" yaml:"test_disk_usage_file"`
 	RplSemiSyncMasterWaitForSlaveCount      int                          `config:"rpl_semi_sync_master_wait_for_slave_count" yaml:"rpl_semi_sync_master_wait_for_slave_count"`
-	ReversedAdjustSSOrder                   bool                         `config:"reversed_adjust_ss_order" yaml:"reversed_adjust_ss_order"`
+	MasterFirstAdjustSSOrder                bool                         `config:"master_first_adjust_ss_order" yaml:"master_first_adjust_ss_order"`
 	WaitReplicationStartTimeout             time.Duration                `config:"wait_start_replication_timeout" yaml:"wait_start_replication_timeout"`
 	ReplicationRepairAggressiveMode         bool                         `config:"replication_repair_aggressive_mode" yaml:"replication_repair_aggressive_mode"`
 	ReplicationRepairCooldown               time.Duration                `config:"replication_repair_cooldown" yaml:"replication_repair_cooldown"`
@@ -192,7 +192,7 @@ func DefaultConfig() (Config, error) {
 		PriorityChoiceMaxLag:                    60 * time.Second,
 		TestDiskUsageFile:                       "", // fake disk usage, only for docker tests
 		RplSemiSyncMasterWaitForSlaveCount:      1,
-		ReversedAdjustSSOrder:                   false,
+		MasterFirstAdjustSSOrder:                false,
 		WaitReplicationStartTimeout:             10 * time.Second,
 		ReplicationRepairAggressiveMode:         false,
 		ReplicationRepairCooldown:               1 * time.Minute,
