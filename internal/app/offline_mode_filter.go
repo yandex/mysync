@@ -104,8 +104,8 @@ func getAvailabilityZone(fqdn, separator string) string {
 	if separator == "" {
 		return ""
 	}
-	if idx := strings.Index(fqdn, separator); idx != -1 {
-		return fqdn[:idx]
+	if before, _, ok := strings.Cut(fqdn, separator); ok {
+		return before
 	}
 	return ""
 }
