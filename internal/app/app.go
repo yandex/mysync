@@ -1068,6 +1068,18 @@ func (app *App) updateActiveNodes(clusterState, clusterStateDcs map[string]*node
 			app.logger.Error().Err(err).Msgf("failed to set default replication settings %s", hostname)
 		}
 	}
+
+	// When MasterFirstAdjustSSOrder is true, wait_slave_count will be raised in adjustAfter.
+	// Wait until newly-activated replicas have registered as semi-sync clients so that the master
+	// does not block on "Waiting for semi-sync ACK from slave" the moment write load arrives.
+	// This protects both the switchover path (where updateActiveNodes is called before SetWritable)
+	// and the regular manager loop (where the master is already writable under load).
+	if adjustAfter && app.config.SemiSync && app.config.MasterFirstAdjustSSOrder && len(becomeActive) > 0 {
+		if waitErr := app.waitForSemiSyncClients(masterNode, waitSlaveCount, app.config.SemiSyncClientsWaitTimeout); waitErr != nil {
+			app.logger.Warn().Msgf("update_active_nodes: %v", waitErr)
+		}
+	}
+
 	if adjustAfter {
 		err := app.adjustSemiSyncOnMaster(masterNode, masterState, waitSlaveCount)
 		if err != nil {
@@ -1207,6 +1219,32 @@ func (app *App) disableSemiSyncOnSlave(host string, restartIOThread bool) error 
 	}
 
 	return nil
+}
+
+// waitForSemiSyncClients waits until the master reports at least expectedCount connected semi-sync
+// replicas. It is called after updateActiveNodes and before SetWritable to prevent the new master
+// from blocking on "Waiting for semi-sync ACK from slave" when replicas haven't reconnected yet.
+// Returns nil when the expected number of clients is reached, or an error on timeout.
+func (app *App) waitForSemiSyncClients(masterNode *mysql.Node, expectedCount int, timeout time.Duration) error {
+	if expectedCount <= 0 {
+		return nil
+	}
+	deadline := time.Now().Add(timeout)
+	for time.Now().Before(deadline) {
+		clients, err := masterNode.SemiSyncMasterClients()
+		if err != nil {
+			app.logger.Warn().Err(err).Msgf("switchover: failed to get semi-sync master clients count on %s", masterNode.Host())
+			time.Sleep(time.Second)
+			continue
+		}
+		if clients >= expectedCount {
+			app.logger.Info().Msgf("switchover: semi-sync clients ready on %s: %d/%d", masterNode.Host(), clients, expectedCount)
+			return nil
+		}
+		app.logger.Info().Msgf("switchover: waiting for semi-sync clients on %s: %d/%d", masterNode.Host(), clients, expectedCount)
+		time.Sleep(time.Second)
+	}
+	return fmt.Errorf("timed out waiting for %d semi-sync clients on %s after %s", expectedCount, masterNode.Host(), timeout)
 }
 
 func (app *App) disableSemiSyncIfNonNeeded(node *mysql.Node, state *nodestate.NodeState) {
@@ -1490,6 +1528,8 @@ func (app *App) performSwitchover(clusterState map[string]*nodestate.NodeState, 
 	}
 
 	// set new master writable
+	// Note: waitForSemiSyncClients is called inside updateActiveNodes (above) so that by the time
+	// we reach SetWritable the semi-sync replicas are already connected.
 	err = newMasterNode.SetWritable()
 	if err != nil || app.emulateError("promote_set_writable") {
 		return fmt.Errorf("failed to set new master %s writable: %w", newMaster, err)

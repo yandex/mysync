@@ -123,6 +123,22 @@ Feature: manual switchover to new master
     And mysql host "mysql3" should have variable "rpl_semi_sync_master_enabled" set to "0"
     And mysql replication on host "mysql3" should run fine within "3" seconds
     And mysql host "mysql3" should be read only
+    # Regression: new master must not be stuck on "Waiting for semi-sync ACK from slave" after switchover.
+    # Checks: both replicas connected (clients=2), master not degraded (status=ON), no stuck processes.
+    When I run SQL on mysql host "mysql2"
+      """
+      SELECT
+        MAX(CASE WHEN VARIABLE_NAME = 'Rpl_semi_sync_master_clients' THEN VARIABLE_VALUE END) AS clients,
+        MAX(CASE WHEN VARIABLE_NAME = 'Rpl_semi_sync_master_status'  THEN VARIABLE_VALUE END) AS status,
+        (SELECT count(*) FROM information_schema.PROCESSLIST WHERE state LIKE 'Waiting for semi-sync ACK from%') AS stuck
+      FROM performance_schema.global_status
+      WHERE VARIABLE_NAME IN ('Rpl_semi_sync_master_clients', 'Rpl_semi_sync_master_status')
+      """
+    Then SQL result should match json
+      """
+      [{"clients": "2", "status": "ON", "stuck": 0}]
+      """
+    And I have no SQL execution error at mysql host "mysql2" within "5" seconds
 
     Examples:
       | failover |

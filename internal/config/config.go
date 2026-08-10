@@ -88,6 +88,7 @@ type Config struct {
 	TestDiskUsageFile                       string                       `config:"test_disk_usage_file" yaml:"test_disk_usage_file"`
 	RplSemiSyncMasterWaitForSlaveCount      int                          `config:"rpl_semi_sync_master_wait_for_slave_count" yaml:"rpl_semi_sync_master_wait_for_slave_count"`
 	MasterFirstAdjustSSOrder                bool                         `config:"master_first_adjust_ss_order" yaml:"master_first_adjust_ss_order"`
+	SemiSyncClientsWaitTimeout              time.Duration                `config:"semi_sync_clients_wait_timeout" yaml:"semi_sync_clients_wait_timeout"`
 	WaitReplicationStartTimeout             time.Duration                `config:"wait_start_replication_timeout" yaml:"wait_start_replication_timeout"`
 	ReplicationRepairAggressiveMode         bool                         `config:"replication_repair_aggressive_mode" yaml:"replication_repair_aggressive_mode"`
 	ReplicationRepairCooldown               time.Duration                `config:"replication_repair_cooldown" yaml:"replication_repair_cooldown"`
@@ -193,6 +194,7 @@ func DefaultConfig() (Config, error) {
 		TestDiskUsageFile:                       "", // fake disk usage, only for docker tests
 		RplSemiSyncMasterWaitForSlaveCount:      1,
 		MasterFirstAdjustSSOrder:                false,
+		SemiSyncClientsWaitTimeout:              10 * time.Second,
 		WaitReplicationStartTimeout:             10 * time.Second,
 		ReplicationRepairAggressiveMode:         false,
 		ReplicationRepairCooldown:               1 * time.Minute,
