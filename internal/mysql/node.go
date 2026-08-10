@@ -31,15 +31,17 @@ import (
 
 // Node represents API to query/manipulate single MySQL node
 type Node struct {
-	config  *config.Config
-	logger  *log.Logger
-	db      *sqlx.DB
-	version *Version
-	host    string
-	uuid    uuid.UUID
+	config               *config.Config
+	logger               *log.Logger
+	db                   *sqlx.DB
+	version              *Version
+	host                 string
+	uuid                 uuid.UUID
+	semiSyncDialectCache *semiSyncDialect
 
-	done atomic.Uint32
-	mu   sync.Mutex
+	done       atomic.Uint32
+	mu         sync.Mutex
+	semiSyncMu sync.Mutex
 }
 
 var (
@@ -922,37 +924,27 @@ func (n *Node) ResetSlaveAll() error {
 
 // SemiSyncStatus returns semi sync status
 func (n *Node) SemiSyncStatus() (*SemiSyncStatus, error) {
-	status := new(SemiSyncStatus)
-	err := n.queryRow(querySemiSyncStatus, nil, status)
-	if err != nil {
-		var err2 *mysql.MySQLError
-		if errors.As(err, &err2) && err2.Number == 1193 {
-			// Error: Unknown system variable
-			// means semisync plugin is not loaded
-			return status, nil
-		}
-	}
-	return status, err
+	return n.semiSyncStatus()
 }
 
 // SemiSyncSetMaster set host as semisync master
 func (n *Node) SemiSyncSetMaster() error {
-	return n.exec(querySemiSyncSetMaster, nil)
+	return n.execSemiSync(semiSyncOperationSetMaster, nil)
 }
 
 // SemiSyncSetSlave set host as semisync master
 func (n *Node) SemiSyncSetSlave() error {
-	return n.exec(querySemiSyncSetSlave, nil)
+	return n.execSemiSync(semiSyncOperationSetSlave, nil)
 }
 
 // SemiSyncDisable disables semi_sync_master and semi_sync_slave
 func (n *Node) SemiSyncDisable() error {
-	return n.exec(querySemiSyncDisable, nil)
+	return n.execSemiSync(semiSyncOperationDisable, nil)
 }
 
 // SemiSyncSetWaitSlaveCount changes rpl_semi_sync_master_wait_for_slave_count
 func (n *Node) SetSemiSyncWaitSlaveCount(c int) error {
-	return n.exec(querySetSemiSyncWaitSlaveCount, map[string]any{"wait_slave_count": c})
+	return n.execSemiSync(semiSyncOperationSetWaitCount, map[string]any{"wait_slave_count": c})
 }
 
 // SemiSyncMasterClients returns current number of connected semi-sync replicas.
