@@ -969,6 +969,7 @@ If there are alive sync replicas, that are not in active list - mysync will loos
 
 So, it's better to have dead sync replica in active list, than alive sync replica outside of it.
 */
+// nolint: gocyclo
 func (app *App) updateActiveNodes(clusterState, clusterStateDcs map[string]*nodestate.NodeState, oldActiveNodes []string, master string) error {
 	masterNode := app.cluster.Get(master)
 	masterState := clusterState[master]
