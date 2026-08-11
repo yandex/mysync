@@ -955,6 +955,24 @@ func (n *Node) SetSemiSyncWaitSlaveCount(c int) error {
 	return n.exec(querySetSemiSyncWaitSlaveCount, map[string]any{"wait_slave_count": c})
 }
 
+// SemiSyncMasterClients returns current number of connected semi-sync replicas.
+// The value is read from performance_schema.global_status as a string and parsed to int.
+func (n *Node) SemiSyncMasterClients() (int, error) {
+	type result struct {
+		Clients string `db:"Clients"`
+	}
+	var r result
+	err := n.queryRow(querySemiSyncMasterClients, nil, &r)
+	if err != nil {
+		return 0, err
+	}
+	clients, err := strconv.Atoi(r.Clients)
+	if err != nil {
+		return 0, fmt.Errorf("failed to parse Rpl_semi_sync_master_clients value %q: %w", r.Clients, err)
+	}
+	return clients, nil
+}
+
 // IsOffline returns current 'offline_mode' variable value
 func (n *Node) IsOffline() (bool, error) {
 	status := new(offlineModeStatus)

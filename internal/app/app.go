@@ -969,6 +969,7 @@ If there are alive sync replicas, that are not in active list - mysync will loos
 
 So, it's better to have dead sync replica in active list, than alive sync replica outside of it.
 */
+// nolint: gocyclo
 func (app *App) updateActiveNodes(clusterState, clusterStateDcs map[string]*nodestate.NodeState, oldActiveNodes []string, master string) error {
 	masterNode := app.cluster.Get(master)
 	masterState := clusterState[master]
@@ -1068,6 +1069,16 @@ func (app *App) updateActiveNodes(clusterState, clusterStateDcs map[string]*node
 			app.logger.Error().Err(err).Msgf("failed to set default replication settings %s", hostname)
 		}
 	}
+
+	// Wait until newly-activated replicas have registered as semi-sync clients so that the master
+	// does not block on "Waiting for semi-sync ACK from slave".
+	// We will wait only if we increase waitSlaveCount
+	if adjustAfter && app.config.MasterFirstAdjustSSOrder {
+		if waitErr := app.waitForSemiSyncClients(masterNode, waitSlaveCount, app.config.SemiSyncClientsWaitTimeout); waitErr != nil {
+			app.logger.Warn().Msgf("update_active_nodes: %v", waitErr)
+		}
+	}
+
 	if adjustAfter {
 		err := app.adjustSemiSyncOnMaster(masterNode, masterState, waitSlaveCount)
 		if err != nil {
@@ -1207,6 +1218,30 @@ func (app *App) disableSemiSyncOnSlave(host string, restartIOThread bool) error 
 	}
 
 	return nil
+}
+
+// Waits until the master reports at least expectedCount connected semi-sync replicas
+// Returns nil when the expected number of clients is reached, or an error on timeout.
+func (app *App) waitForSemiSyncClients(masterNode *mysql.Node, expectedCount int, timeout time.Duration) error {
+	if expectedCount <= 0 {
+		return nil
+	}
+	deadline := time.Now().Add(timeout)
+	for time.Now().Before(deadline) {
+		clients, err := masterNode.SemiSyncMasterClients()
+		if err != nil {
+			app.logger.Warn().Err(err).Msgf("switchover: failed to get semi-sync master clients count on %s", masterNode.Host())
+			time.Sleep(time.Second)
+			continue
+		}
+		if clients >= expectedCount {
+			app.logger.Info().Msgf("switchover: semi-sync clients ready on %s: %d/%d", masterNode.Host(), clients, expectedCount)
+			return nil
+		}
+		app.logger.Info().Msgf("switchover: waiting for semi-sync clients on %s: %d/%d", masterNode.Host(), clients, expectedCount)
+		time.Sleep(time.Second)
+	}
+	return fmt.Errorf("timed out waiting for %d semi-sync clients on %s after %s", expectedCount, masterNode.Host(), timeout)
 }
 
 func (app *App) disableSemiSyncIfNonNeeded(node *mysql.Node, state *nodestate.NodeState) {

@@ -55,6 +55,22 @@ Feature: mysync saves quorum hosts in zk
     """
     ["mysql1","mysql2","mysql3"]
     """
+    # Regression: after replicas rejoin HA group, updateActiveNodes raises wait_slave_count.
+    # With MasterFirstAdjustSSOrder=true it must wait for replicas to connect first.
+    When I run SQL on mysql host "mysql2"
+      """
+      SELECT
+        MAX(CASE WHEN VARIABLE_NAME = 'Rpl_semi_sync_master_clients' THEN VARIABLE_VALUE END) AS clients,
+        MAX(CASE WHEN VARIABLE_NAME = 'Rpl_semi_sync_master_status'  THEN VARIABLE_VALUE END) AS status,
+        (SELECT count(*) FROM information_schema.PROCESSLIST WHERE state LIKE 'Waiting for semi-sync ACK from%') AS stuck
+      FROM performance_schema.global_status
+      WHERE VARIABLE_NAME IN ('Rpl_semi_sync_master_clients', 'Rpl_semi_sync_master_status')
+      """
+    Then SQL result should match json
+      """
+      [{"clients": "2", "status": "ON", "stuck": 0}]
+      """
+    And I have no SQL execution error at mysql host "mysql2" within "5" seconds
 
   Scenario: active nodes works with splitbrain
     Given cluster environment is

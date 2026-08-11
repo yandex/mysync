@@ -31,6 +31,7 @@ const (
 	querySemiSyncSetMaster              = "semisync_set_master"
 	querySemiSyncSetSlave               = "semisync_set_slave"
 	querySemiSyncDisable                = "semisync_disable"
+	querySemiSyncMasterClients          = "semisync_master_clients"
 	querySetSemiSyncWaitSlaveCount      = "set_semisync_wait_slave_count"
 	queryListReplicaSideDisabledEvents  = "list_replicaside_disabled_events"
 	queryListSlavesideDisabledEvents    = "list_slaveside_disabled_events"
@@ -110,6 +111,7 @@ var DefaultQueries = map[string]string{
 	querySemiSyncSetMaster:         `SET GLOBAL rpl_semi_sync_master_enabled = 1, rpl_semi_sync_slave_enabled = 0`,
 	querySemiSyncSetSlave:          `SET GLOBAL rpl_semi_sync_slave_enabled = 1, rpl_semi_sync_master_enabled = 0`,
 	querySemiSyncDisable:           `SET GLOBAL rpl_semi_sync_slave_enabled = 0, rpl_semi_sync_master_enabled = 0`,
+	querySemiSyncMasterClients:     `SELECT VARIABLE_VALUE AS Clients FROM performance_schema.global_status WHERE VARIABLE_NAME = 'Rpl_semi_sync_master_clients'`,
 	querySetSemiSyncWaitSlaveCount: `SET GLOBAL rpl_semi_sync_master_wait_for_slave_count = :wait_slave_count`,
 	queryListSlavesideDisabledEvents: `SELECT EVENT_SCHEMA, EVENT_NAME, DEFINER
 										FROM information_schema.EVENTS
