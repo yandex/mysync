@@ -924,27 +924,112 @@ func (n *Node) ResetSlaveAll() error {
 
 // SemiSyncStatus returns semi sync status
 func (n *Node) SemiSyncStatus() (*SemiSyncStatus, error) {
-	return n.semiSyncStatus()
+	status := new(SemiSyncStatus)
+	query, err := n.GetSemiSyncStatusQuery()
+	if errors.Is(err, errSemiSyncDisabled) {
+		return status, nil
+	}
+	if err != nil {
+		return status, err
+	}
+	err = n.queryRow(query, nil, status)
+	if !isUnknownSystemVariable(err) {
+		return status, err
+	}
+
+	n.resetSemiSyncDialect()
+	status = new(SemiSyncStatus)
+	query, err = n.GetSemiSyncStatusQuery()
+	if errors.Is(err, errSemiSyncDisabled) {
+		return status, nil
+	}
+	if err != nil {
+		return status, err
+	}
+	return status, n.queryRow(query, nil, status)
 }
 
 // SemiSyncSetMaster set host as semisync master
 func (n *Node) SemiSyncSetMaster() error {
-	return n.execSemiSync(semiSyncOperationSetMaster, nil)
+	query, err := n.GetSemiSyncSetMasterQuery()
+	if err != nil {
+		return err
+	}
+	err = n.exec(query, nil)
+	if !isUnknownSystemVariable(err) {
+		return err
+	}
+
+	n.resetSemiSyncDialect()
+	query, err = n.GetSemiSyncSetMasterQuery()
+	if err != nil {
+		return err
+	}
+	return n.exec(query, nil)
 }
 
 // SemiSyncSetSlave set host as semisync master
 func (n *Node) SemiSyncSetSlave() error {
-	return n.execSemiSync(semiSyncOperationSetSlave, nil)
+	query, err := n.GetSemiSyncSetSlaveQuery()
+	if err != nil {
+		return err
+	}
+	err = n.exec(query, nil)
+	if !isUnknownSystemVariable(err) {
+		return err
+	}
+
+	n.resetSemiSyncDialect()
+	query, err = n.GetSemiSyncSetSlaveQuery()
+	if err != nil {
+		return err
+	}
+	return n.exec(query, nil)
 }
 
 // SemiSyncDisable disables semi_sync_master and semi_sync_slave
 func (n *Node) SemiSyncDisable() error {
-	return n.execSemiSync(semiSyncOperationDisable, nil)
+	query, err := n.GetSemiSyncDisableQuery()
+	if errors.Is(err, errSemiSyncDisabled) {
+		return nil
+	}
+	if err != nil {
+		return err
+	}
+	err = n.exec(query, nil)
+	if !isUnknownSystemVariable(err) {
+		return err
+	}
+
+	n.resetSemiSyncDialect()
+	query, err = n.GetSemiSyncDisableQuery()
+	if errors.Is(err, errSemiSyncDisabled) {
+		return nil
+	}
+	if err != nil {
+		return err
+	}
+	return n.exec(query, nil)
 }
 
 // SemiSyncSetWaitSlaveCount changes rpl_semi_sync_master_wait_for_slave_count
 func (n *Node) SetSemiSyncWaitSlaveCount(c int) error {
-	return n.execSemiSync(semiSyncOperationSetWaitCount, map[string]any{"wait_slave_count": c})
+	query, err := n.GetSemiSyncSetWaitSlaveCountQuery()
+	if err != nil {
+		return err
+	}
+	arg := map[string]any{"wait_slave_count": c}
+	err = n.exec(query, arg)
+	if !isUnknownSystemVariable(err) {
+		return err
+	}
+
+	n.resetSemiSyncDialect()
+	query, err = n.GetSemiSyncSetWaitSlaveCountQuery()
+	if err != nil {
+		return err
+	}
+	return n.exec(query, arg)
 }
 
 // SemiSyncMasterClients returns current number of connected semi-sync replicas.

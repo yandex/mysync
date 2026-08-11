@@ -2,6 +2,7 @@ package mysql
 
 import (
 	"errors"
+	"fmt"
 
 	mysqldriver "github.com/go-sql-driver/mysql"
 	"github.com/jmoiron/sqlx"
@@ -13,16 +14,6 @@ const (
 	semiSyncDialectDisabled      semiSyncDialect = "disabled"
 	semiSyncDialectSourceSlave   semiSyncDialect = "sourceslave"
 	semiSyncDialectSourceReplica semiSyncDialect = "sourceReplica"
-)
-
-type semiSyncOperation uint8
-
-const (
-	semiSyncOperationStatus semiSyncOperation = iota
-	semiSyncOperationSetMaster
-	semiSyncOperationSetSlave
-	semiSyncOperationDisable
-	semiSyncOperationSetWaitCount
 )
 
 const (
@@ -66,43 +57,6 @@ func detectSemiSyncDialect(plugins []string) (semiSyncDialect, error) {
 	return semiSyncDialectDisabled, nil
 }
 
-func semiSyncQueryName(dialect semiSyncDialect, operation semiSyncOperation) (string, bool) {
-	if dialect == semiSyncDialectDisabled {
-		return "", false
-	}
-
-	switch dialect {
-	case semiSyncDialectSourceSlave:
-		switch operation {
-		case semiSyncOperationStatus:
-			return querySemiSyncStatus, true
-		case semiSyncOperationSetMaster:
-			return querySemiSyncSetMaster, true
-		case semiSyncOperationSetSlave:
-			return querySemiSyncSetSlave, true
-		case semiSyncOperationDisable:
-			return querySemiSyncMasterSlaveDisable, true
-		case semiSyncOperationSetWaitCount:
-			return querySetSemiSyncWaitSlaveCount, true
-		}
-	case semiSyncDialectSourceReplica:
-		switch operation {
-		case semiSyncOperationStatus:
-			return querySemiSyncSourceReplicaStatus, true
-		case semiSyncOperationSetMaster:
-			return querySemiSyncSetSource, true
-		case semiSyncOperationSetSlave:
-			return querySemiSyncSetReplica, true
-		case semiSyncOperationDisable:
-			return querySemiSyncSourceReplicaDisable, true
-		case semiSyncOperationSetWaitCount:
-			return querySetSemiSyncWaitReplicaCount, true
-		}
-	}
-
-	return "", false
-}
-
 func (n *Node) getSemiSyncDialect() (semiSyncDialect, error) {
 	n.semiSyncMu.Lock()
 	defer n.semiSyncMu.Unlock()
@@ -143,61 +97,40 @@ func isUnknownSystemVariable(err error) bool {
 	return errors.As(err, &mysqlErr) && mysqlErr.Number == 1193
 }
 
-func (n *Node) semiSyncStatus() (*SemiSyncStatus, error) {
-	status := new(SemiSyncStatus)
-	for attempt := 0; attempt < 2; attempt++ {
-		dialect, err := n.getSemiSyncDialect()
-		if err != nil {
-			return status, err
-		}
-
-		queryName, ok := semiSyncQueryName(dialect, semiSyncOperationStatus)
-		if !ok {
-			return status, nil
-		}
-
-		err = n.queryRow(queryName, nil, status)
-		if err == nil {
-			return status, nil
-		}
-		if !isUnknownSystemVariable(err) {
-			return status, err
-		}
-		n.resetSemiSyncDialect()
-		if attempt == 0 {
-			status = new(SemiSyncStatus)
-			continue
-		}
-		return status, err
+func (n *Node) getSemiSyncQuery(sourceSlaveQuery string, sourceReplicaQuery string) (string, error) {
+	dialect, err := n.getSemiSyncDialect()
+	if err != nil {
+		return "", err
 	}
 
-	return status, nil
+	switch dialect {
+	case semiSyncDialectDisabled:
+		return "", errSemiSyncDisabled
+	case semiSyncDialectSourceSlave:
+		return sourceSlaveQuery, nil
+	case semiSyncDialectSourceReplica:
+		return sourceReplicaQuery, nil
+	default:
+		return "", fmt.Errorf("unsupported semisync dialect: %s", dialect)
+	}
 }
 
-func (n *Node) execSemiSync(operation semiSyncOperation, arg map[string]any) error {
-	for attempt := 0; attempt < 2; attempt++ {
-		dialect, err := n.getSemiSyncDialect()
-		if err != nil {
-			return err
-		}
+func (n *Node) GetSemiSyncStatusQuery() (string, error) {
+	return n.getSemiSyncQuery(querySemiSyncStatus, querySemiSyncSourceReplicaStatus)
+}
 
-		queryName, ok := semiSyncQueryName(dialect, operation)
-		if !ok {
-			if operation == semiSyncOperationDisable {
-				return nil
-			}
-			return errSemiSyncDisabled
-		}
+func (n *Node) GetSemiSyncSetMasterQuery() (string, error) {
+	return n.getSemiSyncQuery(querySemiSyncSetMaster, querySemiSyncSetSource)
+}
 
-		err = n.exec(queryName, arg)
-		if !isUnknownSystemVariable(err) {
-			return err
-		}
-		n.resetSemiSyncDialect()
-		if attempt == 1 {
-			return err
-		}
-	}
+func (n *Node) GetSemiSyncSetSlaveQuery() (string, error) {
+	return n.getSemiSyncQuery(querySemiSyncSetSlave, querySemiSyncSetReplica)
+}
 
-	return nil
+func (n *Node) GetSemiSyncDisableQuery() (string, error) {
+	return n.getSemiSyncQuery(querySemiSyncMasterSlaveDisable, querySemiSyncSourceReplicaDisable)
+}
+
+func (n *Node) GetSemiSyncSetWaitSlaveCountQuery() (string, error) {
+	return n.getSemiSyncQuery(querySetSemiSyncWaitSlaveCount, querySetSemiSyncWaitReplicaCount)
 }

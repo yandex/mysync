@@ -50,36 +50,46 @@ func TestDetectSemiSyncDialect(t *testing.T) {
 	}
 }
 
-func TestSemiSyncQueryName(t *testing.T) {
+func TestSemiSyncQueryGetters(t *testing.T) {
+	type queryGetter func(*Node) (string, error)
+
 	testCases := []struct {
-		name      string
-		dialect   semiSyncDialect
-		operation semiSyncOperation
-		expected  string
-		ok        bool
+		name                  string
+		getter                queryGetter
+		sourceSlaveExpected   string
+		sourceReplicaExpected string
 	}{
-		{name: "disabled status", dialect: semiSyncDialectDisabled, operation: semiSyncOperationStatus},
-		{name: "disabled set master", dialect: semiSyncDialectDisabled, operation: semiSyncOperationSetMaster},
-		{name: "disabled set slave", dialect: semiSyncDialectDisabled, operation: semiSyncOperationSetSlave},
-		{name: "disabled disable", dialect: semiSyncDialectDisabled, operation: semiSyncOperationDisable},
-		{name: "disabled wait count", dialect: semiSyncDialectDisabled, operation: semiSyncOperationSetWaitCount},
-		{name: "source-slave status", dialect: semiSyncDialectSourceSlave, operation: semiSyncOperationStatus, expected: querySemiSyncStatus, ok: true},
-		{name: "source-slave set master", dialect: semiSyncDialectSourceSlave, operation: semiSyncOperationSetMaster, expected: querySemiSyncSetMaster, ok: true},
-		{name: "source-slave set slave", dialect: semiSyncDialectSourceSlave, operation: semiSyncOperationSetSlave, expected: querySemiSyncSetSlave, ok: true},
-		{name: "source-slave disable", dialect: semiSyncDialectSourceSlave, operation: semiSyncOperationDisable, expected: querySemiSyncMasterSlaveDisable, ok: true},
-		{name: "source-slave wait count", dialect: semiSyncDialectSourceSlave, operation: semiSyncOperationSetWaitCount, expected: querySetSemiSyncWaitSlaveCount, ok: true},
-		{name: "source-replica status", dialect: semiSyncDialectSourceReplica, operation: semiSyncOperationStatus, expected: querySemiSyncSourceReplicaStatus, ok: true},
-		{name: "source-replica set source", dialect: semiSyncDialectSourceReplica, operation: semiSyncOperationSetMaster, expected: querySemiSyncSetSource, ok: true},
-		{name: "source-replica set replica", dialect: semiSyncDialectSourceReplica, operation: semiSyncOperationSetSlave, expected: querySemiSyncSetReplica, ok: true},
-		{name: "source-replica disable", dialect: semiSyncDialectSourceReplica, operation: semiSyncOperationDisable, expected: querySemiSyncSourceReplicaDisable, ok: true},
-		{name: "source-replica wait count", dialect: semiSyncDialectSourceReplica, operation: semiSyncOperationSetWaitCount, expected: querySetSemiSyncWaitReplicaCount, ok: true},
+		{name: "status", getter: (*Node).GetSemiSyncStatusQuery, sourceSlaveExpected: querySemiSyncStatus, sourceReplicaExpected: querySemiSyncSourceReplicaStatus},
+		{name: "set master", getter: (*Node).GetSemiSyncSetMasterQuery, sourceSlaveExpected: querySemiSyncSetMaster, sourceReplicaExpected: querySemiSyncSetSource},
+		{name: "set slave", getter: (*Node).GetSemiSyncSetSlaveQuery, sourceSlaveExpected: querySemiSyncSetSlave, sourceReplicaExpected: querySemiSyncSetReplica},
+		{name: "disable", getter: (*Node).GetSemiSyncDisableQuery, sourceSlaveExpected: querySemiSyncMasterSlaveDisable, sourceReplicaExpected: querySemiSyncSourceReplicaDisable},
+		{name: "wait count", getter: (*Node).GetSemiSyncSetWaitSlaveCountQuery, sourceSlaveExpected: querySetSemiSyncWaitSlaveCount, sourceReplicaExpected: querySetSemiSyncWaitReplicaCount},
 	}
 
 	for _, testCase := range testCases {
 		t.Run(testCase.name, func(t *testing.T) {
-			actual, ok := semiSyncQueryName(testCase.dialect, testCase.operation)
-			require.Equal(t, testCase.ok, ok)
-			require.Equal(t, testCase.expected, actual)
+			for _, dialectCase := range []struct {
+				name      string
+				dialect   semiSyncDialect
+				expected  string
+				expectErr bool
+			}{
+				{name: "disabled", dialect: semiSyncDialectDisabled, expectErr: true},
+				{name: "source-slave", dialect: semiSyncDialectSourceSlave, expected: testCase.sourceSlaveExpected},
+				{name: "source-replica", dialect: semiSyncDialectSourceReplica, expected: testCase.sourceReplicaExpected},
+			} {
+				t.Run(dialectCase.name, func(t *testing.T) {
+					dialect := dialectCase.dialect
+					node := &Node{semiSyncDialectCache: &dialect}
+					actual, err := testCase.getter(node)
+					if dialectCase.expectErr {
+						require.ErrorIs(t, err, errSemiSyncDisabled)
+						return
+					}
+					require.NoError(t, err)
+					require.Equal(t, dialectCase.expected, actual)
+				})
+			}
 		})
 	}
 }
