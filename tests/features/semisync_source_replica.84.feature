@@ -312,6 +312,7 @@ Feature: source/replica semisync dialect
       MYSYNC_FAILOVER_DELAY=30s
       MYSYNC_FAILOVER_COOLDOWN=0s
       MYSYNC_MASTER_FIRST_ADJUST_SS_ORDER=true
+      MYSYNC_WAIT_FOR_SLAVE_COUNT=1
       """
     And cluster is up and running
     And zookeeper node "/test/active_nodes" should match json_exactly within "30" seconds
@@ -321,21 +322,62 @@ Feature: source/replica semisync dialect
 
     When host "mysql3" is deleted
     Then mysql host "mysql3" should become unavailable within "10" seconds
+    Then zookeeper node "/test/manager" should match regexp
+      """
+      .*mysql[12].*
+      """
     And zookeeper node "/test/active_nodes" should match json_exactly within "30" seconds
       """
       ["mysql1","mysql2"]
       """
+    And zookeeper node "/test/master" should match regexp
+      """
+      .*mysql1.*
+      """
+
+    When host "mysql1" is stopped
+    Then mysql host "mysql1" should become unavailable within "10" seconds
+    When I wait for "10" seconds
+    Then zookeeper node "/test/active_nodes" should match json_exactly
+      """
+      ["mysql1","mysql2"]
+      """
+    Then zookeeper node "/test/master" should match regexp within "30" seconds
+      """
+      .*mysql2.*
+      """
+    Then mysql host "mysql2" should be master
+    And mysql host "mysql2" should be writable
+    And mysql host "mysql2" should have variable "rpl_semi_sync_source_enabled" set to "0" within "20" seconds
+    And mysql host "mysql2" should have variable "rpl_semi_sync_replica_enabled" set to "0"
+    And zookeeper node "/test/active_nodes" should match json_exactly within "10" seconds
+      """
+      ["mysql2"]
+      """
 
     When host "mysql3" is added
     Then mysql host "mysql3" should become available within "10" seconds
-    And mysql host "mysql3" should become replica of "mysql1" within "20" seconds
+    And mysql host "mysql3" should become replica of "mysql2" within "20" seconds
     And mysql host "mysql3" should have variable "rpl_semi_sync_replica_enabled" set to "1" within "20" seconds
+    And mysql host "mysql2" should have variable "rpl_semi_sync_source_enabled" set to "1" within "20" seconds
+    And mysql host "mysql2" should have variable "rpl_semi_sync_source_wait_for_replica_count" set to "1" within "20" seconds
+    And zookeeper node "/test/active_nodes" should match json_exactly within "30" seconds
+      """
+      ["mysql2","mysql3"]
+      """
+
+    When host "mysql1" is started
+    Then mysql host "mysql1" should become available within "10" seconds
+    And mysql host "mysql1" should become replica of "mysql2" within "20" seconds
+    And mysql host "mysql1" should have variable "rpl_semi_sync_replica_enabled" set to "1" within "20" seconds
     And zookeeper node "/test/active_nodes" should match json_exactly within "30" seconds
       """
       ["mysql1","mysql2","mysql3"]
       """
 
-    When I run SQL on mysql host "mysql1"
+    # Regression: raising wait_slave_count from 0 to 1 must happen only after
+    # source/replica semi-sync clients have connected to the new source.
+    When I run SQL on mysql host "mysql2"
       """
       SELECT
         MAX(CASE WHEN VARIABLE_NAME = 'Rpl_semi_sync_source_clients' THEN VARIABLE_VALUE END) AS clients,
@@ -348,4 +390,4 @@ Feature: source/replica semisync dialect
       """
       [{"clients": "2", "status": "ON", "stuck": 0}]
       """
-    And I have no SQL execution error at mysql host "mysql1" within "5" seconds
+    And I have no SQL execution error at mysql host "mysql2" within "5" seconds
