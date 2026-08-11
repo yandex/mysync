@@ -81,7 +81,7 @@ func semiSyncQueryName(dialect semiSyncDialect, operation semiSyncOperation) (st
 		case semiSyncOperationSetSlave:
 			return querySemiSyncSetSlave, true
 		case semiSyncOperationDisable:
-			return querySemiSyncDisable, true
+			return querySemiSyncMasterSlaveDisable, true
 		case semiSyncOperationSetWaitCount:
 			return querySetSemiSyncWaitSlaveCount, true
 		}
@@ -138,12 +138,6 @@ func (n *Node) resetSemiSyncDialect() {
 	n.semiSyncDialectCache = nil
 }
 
-func (n *Node) setSemiSyncDialect(dialect semiSyncDialect) {
-	n.semiSyncMu.Lock()
-	defer n.semiSyncMu.Unlock()
-	n.semiSyncDialectCache = &dialect
-}
-
 func isUnknownSystemVariable(err error) bool {
 	var mysqlErr *mysqldriver.MySQLError
 	return errors.As(err, &mysqlErr) && mysqlErr.Number == 1193
@@ -169,14 +163,12 @@ func (n *Node) semiSyncStatus() (*SemiSyncStatus, error) {
 		if !isUnknownSystemVariable(err) {
 			return status, err
 		}
+		n.resetSemiSyncDialect()
 		if attempt == 0 {
-			n.resetSemiSyncDialect()
 			status = new(SemiSyncStatus)
 			continue
 		}
-
-		n.setSemiSyncDialect(semiSyncDialectDisabled)
-		return new(SemiSyncStatus), nil
+		return status, err
 	}
 
 	return status, nil
@@ -198,10 +190,13 @@ func (n *Node) execSemiSync(operation semiSyncOperation, arg map[string]any) err
 		}
 
 		err = n.exec(queryName, arg)
-		if !isUnknownSystemVariable(err) || attempt == 1 {
+		if !isUnknownSystemVariable(err) {
 			return err
 		}
 		n.resetSemiSyncDialect()
+		if attempt == 1 {
+			return err
+		}
 	}
 
 	return nil

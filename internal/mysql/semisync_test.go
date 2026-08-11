@@ -2,6 +2,7 @@ package mysql
 
 import (
 	"errors"
+	"fmt"
 	"testing"
 
 	mysqldriver "github.com/go-sql-driver/mysql"
@@ -12,6 +13,10 @@ func TestSemiSyncDialectValues(t *testing.T) {
 	require.Equal(t, semiSyncDialect("disabled"), semiSyncDialectDisabled)
 	require.Equal(t, semiSyncDialect("sourceslave"), semiSyncDialectSourceSlave)
 	require.Equal(t, semiSyncDialect("sourceReplica"), semiSyncDialectSourceReplica)
+}
+
+func TestSemiSyncMasterSlaveDisableQueryName(t *testing.T) {
+	require.Equal(t, "semisync_disable", querySemiSyncMasterSlaveDisable)
 }
 
 func TestDetectSemiSyncDialect(t *testing.T) {
@@ -61,7 +66,7 @@ func TestSemiSyncQueryName(t *testing.T) {
 		{name: "source-slave status", dialect: semiSyncDialectSourceSlave, operation: semiSyncOperationStatus, expected: querySemiSyncStatus, ok: true},
 		{name: "source-slave set master", dialect: semiSyncDialectSourceSlave, operation: semiSyncOperationSetMaster, expected: querySemiSyncSetMaster, ok: true},
 		{name: "source-slave set slave", dialect: semiSyncDialectSourceSlave, operation: semiSyncOperationSetSlave, expected: querySemiSyncSetSlave, ok: true},
-		{name: "source-slave disable", dialect: semiSyncDialectSourceSlave, operation: semiSyncOperationDisable, expected: querySemiSyncDisable, ok: true},
+		{name: "source-slave disable", dialect: semiSyncDialectSourceSlave, operation: semiSyncOperationDisable, expected: querySemiSyncMasterSlaveDisable, ok: true},
 		{name: "source-slave wait count", dialect: semiSyncDialectSourceSlave, operation: semiSyncOperationSetWaitCount, expected: querySetSemiSyncWaitSlaveCount, ok: true},
 		{name: "source-replica status", dialect: semiSyncDialectSourceReplica, operation: semiSyncOperationStatus, expected: querySemiSyncSourceReplicaStatus, ok: true},
 		{name: "source-replica set source", dialect: semiSyncDialectSourceReplica, operation: semiSyncOperationSetMaster, expected: querySemiSyncSetSource, ok: true},
@@ -111,6 +116,7 @@ func TestSourceReplicaSemiSyncQueries(t *testing.T) {
 
 func TestIsUnknownSystemVariable(t *testing.T) {
 	require.True(t, isUnknownSystemVariable(&mysqldriver.MySQLError{Number: 1193}))
+	require.True(t, isUnknownSystemVariable(fmt.Errorf("wrapped: %w", &mysqldriver.MySQLError{Number: 1193})))
 	require.False(t, isUnknownSystemVariable(&mysqldriver.MySQLError{Number: 1146}))
 	require.False(t, isUnknownSystemVariable(errors.New("not a MySQL error")))
 }

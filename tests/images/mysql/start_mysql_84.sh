@@ -3,7 +3,9 @@
 set -x
 set -e
 
-case "${SEMISYNC_DIALECT:-sourceslave}" in
+semisync_dialect="${SEMISYNC_DIALECT_OVERRIDE:-${SEMISYNC_DIALECT:-sourceslave}}"
+
+case "$semisync_dialect" in
   sourceslave)
     cat <<EOF > /tmp/mysync-semisync.cnf
 [mysqld]
@@ -25,7 +27,7 @@ rpl_semi_sync_source_wait_point = AFTER_SYNC
 EOF
     ;;
   *)
-    echo "unsupported SEMISYNC_DIALECT: ${SEMISYNC_DIALECT}" >&2
+    echo "unsupported SEMISYNC_DIALECT: $semisync_dialect" >&2
     exit 1
     ;;
 esac

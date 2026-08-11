@@ -19,6 +19,16 @@ elif [[ "$VERSION" == "8.4" ]]; then
   chown mysql:mysql /etc/mysql/ssl
   cp /var/lib/dist/mysql/my.cnf.8.4 /etc/mysql/my.cnf
   cp /var/lib/dist/mysql/my.cnf.8.4 /etc/mysql/init.cnf
+  # Semi-sync plugins and their variables are only needed by the running server.
+  # Keep them out of init.cnf: mysqld --initialize must use the base config only.
+  if grep -qF 'mysync-semisync.cnf' /etc/mysql/init.cnf; then
+    echo "runtime semi-sync config must not be included from init.cnf" >&2
+    exit 1
+  fi
+  cat <<EOF >> /etc/mysql/my.cnf
+
+!include /tmp/mysync-semisync.cnf
+EOF
 else
   cp /var/lib/dist/mysql/my.cnf /etc/mysql/my.cnf
   cp /var/lib/dist/mysql/my.cnf /etc/mysql/init.cnf

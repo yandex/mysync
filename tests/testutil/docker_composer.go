@@ -113,16 +113,22 @@ func (dc *DockerComposer) fillContainers() error {
 	if err != nil {
 		return err
 	}
+	var unavailable []string
 	for _, c := range listResult.Items { // nolint: gocritic
 		prj := c.Labels["com.docker.compose.project"]
 		srv := c.Labels["com.docker.compose.service"]
 		if prj != dc.projectName || srv == "" {
 			continue
 		}
-		if c.State != "running" && !dc.stopped[srv] {
-			return fmt.Errorf("container %s is %s, not running", srv, c.State)
-		}
+		// Keep failed and not-yet-started containers available for log collection.
 		dc.containers[srv] = c
+		if c.State != "running" && !dc.stopped[srv] {
+			unavailable = append(unavailable, fmt.Sprintf("%s (%s)", srv, c.State))
+		}
+	}
+	if len(unavailable) != 0 {
+		sort.Strings(unavailable)
+		return fmt.Errorf("containers are not running: %s", strings.Join(unavailable, ", "))
 	}
 	return nil
 }
