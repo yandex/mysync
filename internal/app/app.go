@@ -1070,8 +1070,8 @@ func (app *App) updateActiveNodes(clusterState, clusterStateDcs map[string]*node
 		}
 	}
 
-	// Wait until newly-activated replicas have registered as semi-sync clients so that the master
-	// does not block on "Waiting for semi-sync ACK from slave".
+	// Wait until newly-activated replicas have registered as semi-sync clients so that the source
+	// does not block on "Waiting for semi-sync ACK".
 	// We will wait only if we increase waitSlaveCount
 	if adjustAfter && app.config.MasterFirstAdjustSSOrder {
 		if waitErr := app.waitForSemiSyncClients(masterNode, waitSlaveCount, app.config.SemiSyncClientsWaitTimeout); waitErr != nil {
@@ -1220,7 +1220,7 @@ func (app *App) disableSemiSyncOnSlave(host string, restartIOThread bool) error 
 	return nil
 }
 
-// Waits until the master reports at least expectedCount connected semi-sync replicas
+// Waits until the source reports at least expectedCount connected semi-sync replicas.
 // Returns nil when the expected number of clients is reached, or an error on timeout.
 func (app *App) waitForSemiSyncClients(masterNode *mysql.Node, expectedCount int, timeout time.Duration) error {
 	if expectedCount <= 0 {
@@ -1228,9 +1228,9 @@ func (app *App) waitForSemiSyncClients(masterNode *mysql.Node, expectedCount int
 	}
 	deadline := time.Now().Add(timeout)
 	for time.Now().Before(deadline) {
-		clients, err := masterNode.SemiSyncMasterClients()
+		clients, err := masterNode.SemiSyncClients()
 		if err != nil {
-			app.logger.Warn().Err(err).Msgf("switchover: failed to get semi-sync master clients count on %s", masterNode.Host())
+			app.logger.Warn().Err(err).Msgf("switchover: failed to get semi-sync clients count on %s", masterNode.Host())
 			time.Sleep(time.Second)
 			continue
 		}

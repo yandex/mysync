@@ -1032,22 +1032,35 @@ func (n *Node) SetSemiSyncWaitSlaveCount(c int) error {
 	return n.exec(query, arg)
 }
 
-// SemiSyncMasterClients returns current number of connected semi-sync replicas.
+// SemiSyncClients returns current number of connected semi-sync replicas.
 // The value is read from performance_schema.global_status as a string and parsed to int.
-func (n *Node) SemiSyncMasterClients() (int, error) {
+func (n *Node) SemiSyncClients() (int, error) {
 	type result struct {
 		Clients string `db:"Clients"`
 	}
-	var r result
-	err := n.queryRow(querySemiSyncMasterClients, nil, &r)
-	if err != nil {
-		return 0, err
+
+	for attempt := 0; attempt < 2; attempt++ {
+		query, err := n.GetSemiSyncClientsQuery()
+		if err != nil {
+			return 0, err
+		}
+
+		var r result
+		err = n.queryRow(query, nil, &r)
+		if err == nil {
+			clients, parseErr := strconv.Atoi(r.Clients)
+			if parseErr != nil {
+				return 0, fmt.Errorf("failed to parse semi-sync clients value %q: %w", r.Clients, parseErr)
+			}
+			return clients, nil
+		}
+		if !errors.Is(err, sql.ErrNoRows) || attempt == 1 {
+			return 0, err
+		}
+		n.resetSemiSyncDialect()
 	}
-	clients, err := strconv.Atoi(r.Clients)
-	if err != nil {
-		return 0, fmt.Errorf("failed to parse Rpl_semi_sync_master_clients value %q: %w", r.Clients, err)
-	}
-	return clients, nil
+
+	return 0, sql.ErrNoRows
 }
 
 // IsOffline returns current 'offline_mode' variable value
@@ -1159,7 +1172,7 @@ func (n *Node) ReenableEvents() ([]Event, error) {
 	return events, nil
 }
 
-// IsWaitingSemiSyncAck returns true when Master is stuck in 'Waiting for semi-sync ACK from slave' state
+// IsWaitingSemiSyncAck returns true when the source is stuck waiting for a semi-sync ACK.
 func (n *Node) IsWaitingSemiSyncAck() (bool, error) {
 	type waitingSemiSyncStatus struct {
 		IsWaiting bool `db:"IsWaiting"`

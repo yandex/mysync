@@ -60,6 +60,7 @@ func TestSemiSyncQueryGetters(t *testing.T) {
 		sourceReplicaExpected string
 	}{
 		{name: "status", getter: (*Node).GetSemiSyncStatusQuery, sourceSlaveExpected: querySemiSyncStatus, sourceReplicaExpected: querySemiSyncSourceReplicaStatus},
+		{name: "clients", getter: (*Node).GetSemiSyncClientsQuery, sourceSlaveExpected: querySemiSyncMasterClients, sourceReplicaExpected: querySemiSyncSourceClients},
 		{name: "set master", getter: (*Node).GetSemiSyncSetMasterQuery, sourceSlaveExpected: querySemiSyncSetMaster, sourceReplicaExpected: querySemiSyncSetSource},
 		{name: "set slave", getter: (*Node).GetSemiSyncSetSlaveQuery, sourceSlaveExpected: querySemiSyncSetSlave, sourceReplicaExpected: querySemiSyncSetReplica},
 		{name: "disable", getter: (*Node).GetSemiSyncDisableQuery, sourceSlaveExpected: querySemiSyncMasterSlaveDisable, sourceReplicaExpected: querySemiSyncSourceReplicaDisable},
@@ -107,6 +108,7 @@ func TestSourceReplicaSemiSyncQueries(t *testing.T) {
 				"@@rpl_semi_sync_source_wait_for_replica_count",
 			},
 		},
+		{queryName: querySemiSyncSourceClients, contains: []string{"Rpl_semi_sync_source_clients"}},
 		{queryName: querySemiSyncSetSource, contains: []string{"rpl_semi_sync_source_enabled = 1", "rpl_semi_sync_replica_enabled = 0"}},
 		{queryName: querySemiSyncSetReplica, contains: []string{"rpl_semi_sync_replica_enabled = 1", "rpl_semi_sync_source_enabled = 0"}},
 		{queryName: querySemiSyncSourceReplicaDisable, contains: []string{"rpl_semi_sync_replica_enabled = 0", "rpl_semi_sync_source_enabled = 0"}},

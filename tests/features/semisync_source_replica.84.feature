@@ -10,7 +10,7 @@ Feature: source/replica semisync dialect
 
     When I run SQL on mysql host "mysql1"
       """
-      SELECT PLUGIN_NAME AS PluginName
+      SELECT PLUGIN_NAME AS PluginName, PLUGIN_STATUS AS PluginStatus
       FROM information_schema.PLUGINS
       WHERE PLUGIN_NAME LIKE 'rpl_semi_sync_%'
       ORDER BY PLUGIN_NAME
@@ -18,8 +18,8 @@ Feature: source/replica semisync dialect
     Then SQL result should match json_exactly
       """
       [
-        {"PluginName":"rpl_semi_sync_replica"},
-        {"PluginName":"rpl_semi_sync_source"}
+        {"PluginName":"rpl_semi_sync_replica","PluginStatus":"ACTIVE"},
+        {"PluginName":"rpl_semi_sync_source","PluginStatus":"ACTIVE"}
       ]
       """
 
@@ -33,6 +33,20 @@ Feature: source/replica semisync dialect
     And mysql host "mysql3" should be replica of "mysql1"
     And mysql host "mysql3" should have variable "rpl_semi_sync_replica_enabled" set to "1" within "20" seconds
     And mysql host "mysql3" should have variable "rpl_semi_sync_source_enabled" set to "0"
+
+    When I run SQL on mysql host "mysql1"
+      """
+      SELECT
+        MAX(CASE WHEN VARIABLE_NAME = 'Rpl_semi_sync_source_clients' THEN VARIABLE_VALUE END) AS clients,
+        MAX(CASE WHEN VARIABLE_NAME = 'Rpl_semi_sync_source_status'  THEN VARIABLE_VALUE END) AS status,
+        (SELECT count(*) FROM information_schema.PROCESSLIST WHERE state LIKE 'Waiting for semi-sync ACK from%') AS stuck
+      FROM performance_schema.global_status
+      WHERE VARIABLE_NAME IN ('Rpl_semi_sync_source_clients', 'Rpl_semi_sync_source_status')
+      """
+    Then SQL result should match json
+      """
+      [{"clients": "2", "status": "ON", "stuck": 0}]
+      """
 
     When I run command on host "mysql1"
       """
@@ -92,6 +106,20 @@ Feature: source/replica semisync dialect
     And mysql host "mysql3" should have variable "rpl_semi_sync_replica_enabled" set to "1" within "20" seconds
     And mysql host "mysql3" should have variable "rpl_semi_sync_source_enabled" set to "0"
 
+    When I run SQL on mysql host "mysql2"
+      """
+      SELECT
+        MAX(CASE WHEN VARIABLE_NAME = 'Rpl_semi_sync_source_clients' THEN VARIABLE_VALUE END) AS clients,
+        MAX(CASE WHEN VARIABLE_NAME = 'Rpl_semi_sync_source_status'  THEN VARIABLE_VALUE END) AS status,
+        (SELECT count(*) FROM information_schema.PROCESSLIST WHERE state LIKE 'Waiting for semi-sync ACK from%') AS stuck
+      FROM performance_schema.global_status
+      WHERE VARIABLE_NAME IN ('Rpl_semi_sync_source_clients', 'Rpl_semi_sync_source_status')
+      """
+    Then SQL result should match json
+      """
+      [{"clients": "2", "status": "ON", "stuck": 0}]
+      """
+
   Scenario: mysync switches between nodes with different semisync dialects
     Given cluster environment is
       """
@@ -112,6 +140,20 @@ Feature: source/replica semisync dialect
     And mysql host "mysql3" should be replica of "mysql1"
     And mysql host "mysql3" should have variable "rpl_semi_sync_replica_enabled" set to "1" within "20" seconds
     And mysql host "mysql3" should have variable "rpl_semi_sync_source_enabled" set to "0"
+
+    When I run SQL on mysql host "mysql1"
+      """
+      SELECT
+        MAX(CASE WHEN VARIABLE_NAME = 'Rpl_semi_sync_master_clients' THEN VARIABLE_VALUE END) AS clients,
+        MAX(CASE WHEN VARIABLE_NAME = 'Rpl_semi_sync_master_status'  THEN VARIABLE_VALUE END) AS status,
+        (SELECT count(*) FROM information_schema.PROCESSLIST WHERE state LIKE 'Waiting for semi-sync ACK from%') AS stuck
+      FROM performance_schema.global_status
+      WHERE VARIABLE_NAME IN ('Rpl_semi_sync_master_clients', 'Rpl_semi_sync_master_status')
+      """
+    Then SQL result should match json
+      """
+      [{"clients": "2", "status": "ON", "stuck": 0}]
+      """
 
     When I run command on host "mysql1"
       """
@@ -143,6 +185,20 @@ Feature: source/replica semisync dialect
     And mysql host "mysql3" should have variable "rpl_semi_sync_replica_enabled" set to "1" within "20" seconds
     And mysql host "mysql3" should have variable "rpl_semi_sync_source_enabled" set to "0"
 
+    When I run SQL on mysql host "mysql2"
+      """
+      SELECT
+        MAX(CASE WHEN VARIABLE_NAME = 'Rpl_semi_sync_source_clients' THEN VARIABLE_VALUE END) AS clients,
+        MAX(CASE WHEN VARIABLE_NAME = 'Rpl_semi_sync_source_status'  THEN VARIABLE_VALUE END) AS status,
+        (SELECT count(*) FROM information_schema.PROCESSLIST WHERE state LIKE 'Waiting for semi-sync ACK from%') AS stuck
+      FROM performance_schema.global_status
+      WHERE VARIABLE_NAME IN ('Rpl_semi_sync_source_clients', 'Rpl_semi_sync_source_status')
+      """
+    Then SQL result should match json
+      """
+      [{"clients": "2", "status": "ON", "stuck": 0}]
+      """
+
     When I run command on host "mysql2"
       """
       mysync switch --to mysql1 --wait=0s
@@ -172,6 +228,20 @@ Feature: source/replica semisync dialect
     And mysql host "mysql3" should become replica of "mysql1" within "20" seconds
     And mysql host "mysql3" should have variable "rpl_semi_sync_replica_enabled" set to "1" within "20" seconds
     And mysql host "mysql3" should have variable "rpl_semi_sync_source_enabled" set to "0"
+
+    When I run SQL on mysql host "mysql1"
+      """
+      SELECT
+        MAX(CASE WHEN VARIABLE_NAME = 'Rpl_semi_sync_master_clients' THEN VARIABLE_VALUE END) AS clients,
+        MAX(CASE WHEN VARIABLE_NAME = 'Rpl_semi_sync_master_status'  THEN VARIABLE_VALUE END) AS status,
+        (SELECT count(*) FROM information_schema.PROCESSLIST WHERE state LIKE 'Waiting for semi-sync ACK from%') AS stuck
+      FROM performance_schema.global_status
+      WHERE VARIABLE_NAME IN ('Rpl_semi_sync_master_clients', 'Rpl_semi_sync_master_status')
+      """
+    Then SQL result should match json
+      """
+      [{"clients": "2", "status": "ON", "stuck": 0}]
+      """
 
   Scenario: mysync manages source/replica semisync after failover
     Given cluster environment is
@@ -213,9 +283,69 @@ Feature: source/replica semisync dialect
     And mysql host "{{.old_replica}}" should have variable "rpl_semi_sync_replica_enabled" set to "1"
     And mysql host "{{.old_replica}}" should have variable "rpl_semi_sync_source_enabled" set to "0"
 
+    When I run SQL on mysql host "{{.new_master}}"
+      """
+      SELECT
+        MAX(CASE WHEN VARIABLE_NAME = 'Rpl_semi_sync_source_clients' THEN VARIABLE_VALUE END) AS clients,
+        MAX(CASE WHEN VARIABLE_NAME = 'Rpl_semi_sync_source_status'  THEN VARIABLE_VALUE END) AS status,
+        (SELECT count(*) FROM information_schema.PROCESSLIST WHERE state LIKE 'Waiting for semi-sync ACK from%') AS stuck
+      FROM performance_schema.global_status
+      WHERE VARIABLE_NAME IN ('Rpl_semi_sync_source_clients', 'Rpl_semi_sync_source_status')
+      """
+    Then SQL result should match json
+      """
+      [{"clients": "1", "status": "ON", "stuck": 0}]
+      """
+
     When host "mysql1" is started
     Then mysql host "mysql1" should become available within "20" seconds
     And mysql host "mysql1" should become replica of "{{.new_master}}" within "10" seconds
     And mysql host "mysql1" should have variable "rpl_semi_sync_replica_enabled" set to "1" within "10" seconds
     And mysql host "mysql1" should have variable "rpl_semi_sync_source_enabled" set to "0"
     And mysql replication on host "mysql1" should run fine within "10" seconds
+
+  Scenario: source/replica semisync waits for clients when active nodes grow
+    Given cluster environment is
+      """
+      SEMISYNC_DIALECT=sourceReplica
+      MYSYNC_FAILOVER=true
+      MYSYNC_FAILOVER_DELAY=30s
+      MYSYNC_FAILOVER_COOLDOWN=0s
+      MYSYNC_MASTER_FIRST_ADJUST_SS_ORDER=true
+      """
+    And cluster is up and running
+    And zookeeper node "/test/active_nodes" should match json_exactly within "30" seconds
+      """
+      ["mysql1","mysql2","mysql3"]
+      """
+
+    When host "mysql3" is deleted
+    Then mysql host "mysql3" should become unavailable within "10" seconds
+    And zookeeper node "/test/active_nodes" should match json_exactly within "30" seconds
+      """
+      ["mysql1","mysql2"]
+      """
+
+    When host "mysql3" is added
+    Then mysql host "mysql3" should become available within "10" seconds
+    And mysql host "mysql3" should be replica of "mysql1" within "20" seconds
+    And mysql host "mysql3" should have variable "rpl_semi_sync_replica_enabled" set to "1" within "20" seconds
+    And zookeeper node "/test/active_nodes" should match json_exactly within "30" seconds
+      """
+      ["mysql1","mysql2","mysql3"]
+      """
+
+    When I run SQL on mysql host "mysql1"
+      """
+      SELECT
+        MAX(CASE WHEN VARIABLE_NAME = 'Rpl_semi_sync_source_clients' THEN VARIABLE_VALUE END) AS clients,
+        MAX(CASE WHEN VARIABLE_NAME = 'Rpl_semi_sync_source_status'  THEN VARIABLE_VALUE END) AS status,
+        (SELECT count(*) FROM information_schema.PROCESSLIST WHERE state LIKE 'Waiting for semi-sync ACK from%') AS stuck
+      FROM performance_schema.global_status
+      WHERE VARIABLE_NAME IN ('Rpl_semi_sync_source_clients', 'Rpl_semi_sync_source_status')
+      """
+    Then SQL result should match json
+      """
+      [{"clients": "2", "status": "ON", "stuck": 0}]
+      """
+    And I have no SQL execution error at mysql host "mysql1" within "5" seconds

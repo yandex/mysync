@@ -119,6 +119,10 @@ func (n *Node) GetSemiSyncStatusQuery() (string, error) {
 	return n.getSemiSyncQuery(querySemiSyncStatus, querySemiSyncSourceReplicaStatus)
 }
 
+func (n *Node) GetSemiSyncClientsQuery() (string, error) {
+	return n.getSemiSyncQuery(querySemiSyncMasterClients, querySemiSyncSourceClients)
+}
+
 func (n *Node) GetSemiSyncSetMasterQuery() (string, error) {
 	return n.getSemiSyncQuery(querySemiSyncSetMaster, querySemiSyncSetSource)
 }
