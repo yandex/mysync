@@ -3,6 +3,33 @@
 set -x
 set -e
 
+case "${SEMISYNC_DIALECT:-sourceslave}" in
+  sourceslave)
+    cat <<EOF > /tmp/mysync-semisync.cnf
+[mysqld]
+plugin_load_add = 'rpl_semi_sync_master=semisync_master.so;rpl_semi_sync_slave=semisync_slave.so'
+rpl_semi_sync_master_timeout = 31536000000
+rpl_semi_sync_master_wait_for_slave_count = 1
+rpl_semi_sync_master_wait_no_slave = ON
+rpl_semi_sync_master_wait_point = AFTER_SYNC
+EOF
+    ;;
+  sourceReplica)
+    cat <<EOF > /tmp/mysync-semisync.cnf
+[mysqld]
+plugin_load_add = 'rpl_semi_sync_source=semisync_source.so;rpl_semi_sync_replica=semisync_replica.so'
+rpl_semi_sync_source_timeout = 31536000000
+rpl_semi_sync_source_wait_for_replica_count = 1
+rpl_semi_sync_source_wait_no_replica = ON
+rpl_semi_sync_source_wait_point = AFTER_SYNC
+EOF
+    ;;
+  *)
+    echo "unsupported SEMISYNC_DIALECT: ${SEMISYNC_DIALECT}" >&2
+    exit 1
+    ;;
+esac
+
 cat <<EOF > /etc/mysql/init.sql
    SET GLOBAL super_read_only = 0;
    CREATE USER $MYSQL_ADMIN_USER@'%' IDENTIFIED WITH mysql_native_password BY '$MYSQL_ADMIN_PASSWORD';
