@@ -328,7 +328,7 @@ Feature: source/replica semisync dialect
 
     When host "mysql3" is added
     Then mysql host "mysql3" should become available within "10" seconds
-    And mysql host "mysql3" should be replica of "mysql1" within "20" seconds
+    And mysql host "mysql3" should become replica of "mysql1" within "20" seconds
     And mysql host "mysql3" should have variable "rpl_semi_sync_replica_enabled" set to "1" within "20" seconds
     And zookeeper node "/test/active_nodes" should match json_exactly within "30" seconds
       """
