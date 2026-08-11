@@ -1071,8 +1071,9 @@ func (app *App) updateActiveNodes(clusterState, clusterStateDcs map[string]*node
 	}
 
 	// Wait until newly-activated replicas have registered as semi-sync clients so that the master
-	// does not block on "Waiting for semi-sync ACK from slave"
-	if adjustAfter && app.config.MasterFirstAdjustSSOrder && len(becomeActive) > 0 {
+	// does not block on "Waiting for semi-sync ACK from slave".
+	// We will wait only if we increase waitSlaveCount
+	if adjustAfter && app.config.MasterFirstAdjustSSOrder {
 		if waitErr := app.waitForSemiSyncClients(masterNode, waitSlaveCount, app.config.SemiSyncClientsWaitTimeout); waitErr != nil {
 			app.logger.Warn().Msgf("update_active_nodes: %v", waitErr)
 		}
