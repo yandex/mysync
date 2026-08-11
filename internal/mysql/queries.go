@@ -124,18 +124,15 @@ var DefaultQueries = map[string]string{
 	querySemiSyncStatus: `SELECT @@rpl_semi_sync_master_enabled AS MasterEnabled,
 								 @@rpl_semi_sync_slave_enabled AS SlaveEnabled,
 								 @@rpl_semi_sync_master_wait_for_slave_count as WaitSlaveCount`,
-<<<<<<< HEAD
-	querySemiSyncSetMaster:         `SET GLOBAL rpl_semi_sync_master_enabled = 1, rpl_semi_sync_slave_enabled = 0`,
-	querySemiSyncSetSlave:          `SET GLOBAL rpl_semi_sync_slave_enabled = 1, rpl_semi_sync_master_enabled = 0`,
-	querySemiSyncDisable:           `SET GLOBAL rpl_semi_sync_slave_enabled = 0, rpl_semi_sync_master_enabled = 0`,
-	querySemiSyncMasterClients:     `SELECT VARIABLE_VALUE AS Clients FROM performance_schema.global_status WHERE VARIABLE_NAME = 'Rpl_semi_sync_master_clients'`,
-	querySetSemiSyncWaitSlaveCount: `SET GLOBAL rpl_semi_sync_master_wait_for_slave_count = :wait_slave_count`,
-=======
+	querySemiSyncSetMaster:          `SET GLOBAL rpl_semi_sync_master_enabled = 1, rpl_semi_sync_slave_enabled = 0`,
+	querySemiSyncSetSlave:           `SET GLOBAL rpl_semi_sync_slave_enabled = 1, rpl_semi_sync_master_enabled = 0`,
+	querySemiSyncDisable:            `SET GLOBAL rpl_semi_sync_slave_enabled = 0, rpl_semi_sync_master_enabled = 0`,
+	querySemiSyncMasterClients:      `SELECT VARIABLE_VALUE AS Clients FROM performance_schema.global_status WHERE VARIABLE_NAME = 'Rpl_semi_sync_master_clients'`,
+	querySetSemiSyncWaitSlaveCount:  `SET GLOBAL rpl_semi_sync_master_wait_for_slave_count = :wait_slave_count`,
 	querySemiSyncSetMaster:          `SET GLOBAL rpl_semi_sync_master_enabled = 1, rpl_semi_sync_slave_enabled = 0`,
 	querySemiSyncSetSlave:           `SET GLOBAL rpl_semi_sync_slave_enabled = 1, rpl_semi_sync_master_enabled = 0`,
 	querySemiSyncMasterSlaveDisable: `SET GLOBAL rpl_semi_sync_slave_enabled = 0, rpl_semi_sync_master_enabled = 0`,
 	querySetSemiSyncWaitSlaveCount:  `SET GLOBAL rpl_semi_sync_master_wait_for_slave_count = :wait_slave_count`,
->>>>>>> 8ecb09b (support semisync replica slave change)
 	querySemiSyncSourceReplicaStatus: `SELECT @@rpl_semi_sync_source_enabled AS MasterEnabled,
 										   @@rpl_semi_sync_replica_enabled AS SlaveEnabled,
 										   @@rpl_semi_sync_source_wait_for_replica_count as WaitSlaveCount`,
