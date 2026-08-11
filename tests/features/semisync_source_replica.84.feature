@@ -4,7 +4,7 @@ Feature: source/replica semisync dialect
     Given cluster environment is
       """
       SEMISYNC_DIALECT=sourceReplica
-      MYSYNC_WAIT_FOR_SLAVE_COUNT=2
+      MYSYNC_WAIT_FOR_SLAVE_COUNT=1
       """
     And cluster is up and running
 
@@ -26,7 +26,7 @@ Feature: source/replica semisync dialect
     And mysql host "mysql1" should be master
     And mysql host "mysql1" should have variable "rpl_semi_sync_source_enabled" set to "1" within "20" seconds
     And mysql host "mysql1" should have variable "rpl_semi_sync_replica_enabled" set to "0"
-    And mysql host "mysql1" should have variable "rpl_semi_sync_source_wait_for_replica_count" set to "2" within "20" seconds
+    And mysql host "mysql1" should have variable "rpl_semi_sync_source_wait_for_replica_count" set to "1" within "20" seconds
     And mysql host "mysql2" should be replica of "mysql1"
     And mysql host "mysql2" should have variable "rpl_semi_sync_replica_enabled" set to "1" within "20" seconds
     And mysql host "mysql2" should have variable "rpl_semi_sync_source_enabled" set to "0"
@@ -74,7 +74,7 @@ Feature: source/replica semisync dialect
       ["mysql1","mysql2","mysql3"]
       """
     And mysql host "mysql1" should have variable "rpl_semi_sync_source_enabled" set to "1" within "20" seconds
-    And mysql host "mysql1" should have variable "rpl_semi_sync_source_wait_for_replica_count" set to "2" within "20" seconds
+    And mysql host "mysql1" should have variable "rpl_semi_sync_source_wait_for_replica_count" set to "1" within "20" seconds
 
     When I run command on host "mysql1"
       """
@@ -98,7 +98,7 @@ Feature: source/replica semisync dialect
     And mysql host "mysql2" should be master
     And mysql host "mysql2" should have variable "rpl_semi_sync_source_enabled" set to "1" within "20" seconds
     And mysql host "mysql2" should have variable "rpl_semi_sync_replica_enabled" set to "0"
-    And mysql host "mysql2" should have variable "rpl_semi_sync_source_wait_for_replica_count" set to "2" within "20" seconds
+    And mysql host "mysql2" should have variable "rpl_semi_sync_source_wait_for_replica_count" set to "1" within "20" seconds
     And mysql host "mysql1" should become replica of "mysql2" within "20" seconds
     And mysql host "mysql1" should have variable "rpl_semi_sync_replica_enabled" set to "1" within "20" seconds
     And mysql host "mysql1" should have variable "rpl_semi_sync_source_enabled" set to "0"
@@ -126,14 +126,14 @@ Feature: source/replica semisync dialect
       MYSQL1_SEMISYNC_DIALECT=sourceslave
       MYSQL2_SEMISYNC_DIALECT=sourceReplica
       MYSQL3_SEMISYNC_DIALECT=sourceReplica
-      MYSYNC_WAIT_FOR_SLAVE_COUNT=2
+      MYSYNC_WAIT_FOR_SLAVE_COUNT=1
       """
     And cluster is up and running
 
     Then mysql host "mysql1" should be master
     And mysql host "mysql1" should have variable "rpl_semi_sync_master_enabled" set to "1" within "20" seconds
     And mysql host "mysql1" should have variable "rpl_semi_sync_slave_enabled" set to "0"
-    And mysql host "mysql1" should have variable "rpl_semi_sync_master_wait_for_slave_count" set to "2" within "20" seconds
+    And mysql host "mysql1" should have variable "rpl_semi_sync_master_wait_for_slave_count" set to "1" within "20" seconds
     And mysql host "mysql2" should be replica of "mysql1"
     And mysql host "mysql2" should have variable "rpl_semi_sync_replica_enabled" set to "1" within "20" seconds
     And mysql host "mysql2" should have variable "rpl_semi_sync_source_enabled" set to "0"
@@ -177,7 +177,7 @@ Feature: source/replica semisync dialect
     And mysql host "mysql2" should be master
     And mysql host "mysql2" should have variable "rpl_semi_sync_source_enabled" set to "1" within "20" seconds
     And mysql host "mysql2" should have variable "rpl_semi_sync_replica_enabled" set to "0"
-    And mysql host "mysql2" should have variable "rpl_semi_sync_source_wait_for_replica_count" set to "2" within "20" seconds
+    And mysql host "mysql2" should have variable "rpl_semi_sync_source_wait_for_replica_count" set to "1" within "20" seconds
     And mysql host "mysql1" should become replica of "mysql2" within "20" seconds
     And mysql host "mysql1" should have variable "rpl_semi_sync_slave_enabled" set to "1" within "20" seconds
     And mysql host "mysql1" should have variable "rpl_semi_sync_master_enabled" set to "0"
@@ -221,7 +221,7 @@ Feature: source/replica semisync dialect
     And mysql host "mysql1" should be master
     And mysql host "mysql1" should have variable "rpl_semi_sync_master_enabled" set to "1" within "20" seconds
     And mysql host "mysql1" should have variable "rpl_semi_sync_slave_enabled" set to "0"
-    And mysql host "mysql1" should have variable "rpl_semi_sync_master_wait_for_slave_count" set to "2" within "20" seconds
+    And mysql host "mysql1" should have variable "rpl_semi_sync_master_wait_for_slave_count" set to "1" within "20" seconds
     And mysql host "mysql2" should become replica of "mysql1" within "20" seconds
     And mysql host "mysql2" should have variable "rpl_semi_sync_replica_enabled" set to "1" within "20" seconds
     And mysql host "mysql2" should have variable "rpl_semi_sync_source_enabled" set to "0"
