@@ -132,7 +132,7 @@ func (n *Node) trySemiSync(operation func(SemiSync) error, attempts int) (SemiSy
 	var semiSync SemiSync
 	var err error
 	for attempt := 0; attempt < attempts; attempt++ {
-		semiSync, err = n.GetSemiSync()
+		semiSync, err = n.getSemiSync()
 		if err != nil {
 			return nil, err
 		}
@@ -148,7 +148,7 @@ func (n *Node) trySemiSync(operation func(SemiSync) error, attempts int) (SemiSy
 	return semiSync, err
 }
 
-func (n *Node) GetSemiSync() (SemiSync, error) {
+func (n *Node) getSemiSync() (SemiSync, error) {
 	dialect, err := n.getSemiSyncDialect()
 	if err != nil {
 		return nil, err

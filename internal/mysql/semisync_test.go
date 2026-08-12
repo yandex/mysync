@@ -92,7 +92,7 @@ func TestGetSemiSync(t *testing.T) {
 		t.Run(testCase.name, func(t *testing.T) {
 			dialect := testCase.dialect
 			node := &Node{semiSyncDialectCache: &dialect}
-			actual, err := node.GetSemiSync()
+			actual, err := node.getSemiSync()
 			if testCase.expectErr {
 				require.ErrorIs(t, err, errSemiSyncDisabled)
 				require.Nil(t, actual)
