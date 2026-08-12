@@ -192,7 +192,7 @@ func TestSemiSyncStatusRedetectsSourceReplicaImplementation(t *testing.T) {
 	connector := &semiSyncClientsTestConnector{
 		queryErrors: map[string][]error{
 			DefaultQueries[querySemiSyncStatus]: {
-				&mysqldriver.MySQLError{Number: 1193, Message: "Unknown system variable"},
+				&mysqldriver.MySQLError{Number: unknownSystemVariable, Message: "Unknown system variable"},
 			},
 		},
 		pluginResponses: [][]string{{semiSyncPluginSource, semiSyncPluginReplica}},
@@ -218,7 +218,7 @@ func TestSemiSyncStatusRedetectsMasterSlaveImplementation(t *testing.T) {
 	connector := &semiSyncClientsTestConnector{
 		queryErrors: map[string][]error{
 			DefaultQueries[querySemiSyncSourceReplicaStatus]: {
-				&mysqldriver.MySQLError{Number: 1193, Message: "Unknown system variable"},
+				&mysqldriver.MySQLError{Number: unknownSystemVariable, Message: "Unknown system variable"},
 			},
 		},
 		pluginResponses: [][]string{{semiSyncPluginMaster, semiSyncPluginSlave}},
@@ -244,8 +244,8 @@ func TestTrySemiSyncHonorsAttempts(t *testing.T) {
 	connector := &semiSyncClientsTestConnector{
 		queryErrors: map[string][]error{
 			DefaultQueries[querySemiSyncStatus]: {
-				&mysqldriver.MySQLError{Number: 1193, Message: "Unknown system variable"},
-				&mysqldriver.MySQLError{Number: 1193, Message: "Unknown system variable"},
+				&mysqldriver.MySQLError{Number: unknownSystemVariable, Message: "Unknown system variable"},
+				&mysqldriver.MySQLError{Number: unknownSystemVariable, Message: "Unknown system variable"},
 			},
 		},
 		pluginResponses: [][]string{
@@ -447,7 +447,7 @@ func TestSemiSyncMutationsRedetectDialect(t *testing.T) {
 					connector := &semiSyncClientsTestConnector{
 						execErrors: map[string][]error{
 							wrongQuery: {
-								&mysqldriver.MySQLError{Number: 1193, Message: "Unknown system variable"},
+								&mysqldriver.MySQLError{Number: unknownSystemVariable, Message: "Unknown system variable"},
 							},
 						},
 						pluginResponses: [][]string{direction.plugins},

@@ -197,8 +197,8 @@ func TestSourceReplicaSemiSyncQueries(t *testing.T) {
 }
 
 func TestIsUnknownSystemVariable(t *testing.T) {
-	require.True(t, isUnknownSystemVariable(&mysqldriver.MySQLError{Number: 1193}))
-	require.True(t, isUnknownSystemVariable(fmt.Errorf("wrapped: %w", &mysqldriver.MySQLError{Number: 1193})))
+	require.True(t, isUnknownSystemVariable(&mysqldriver.MySQLError{Number: unknownSystemVariable}))
+	require.True(t, isUnknownSystemVariable(fmt.Errorf("wrapped: %w", &mysqldriver.MySQLError{Number: unknownSystemVariable})))
 	require.False(t, isUnknownSystemVariable(&mysqldriver.MySQLError{Number: 1146}))
 	require.False(t, isUnknownSystemVariable(errors.New("not a MySQL error")))
 }

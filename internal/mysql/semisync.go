@@ -24,6 +24,8 @@ const (
 	semiSyncPluginReplica = "rpl_semi_sync_replica"
 )
 
+const unknownSystemVariable = 1193 // Symbol: ER_UNKNOWN_SYSTEM_VARIABLE; SQLSTATE: HY000
+
 var (
 	errSemiSyncDisabled          = errors.New("semisync plugins are not loaded")
 	errIncompleteSemiSyncDialect = errors.New("incomplete semisync plugin dialect")
@@ -115,7 +117,7 @@ func (n *Node) resetSemiSyncDialect() {
 
 func isUnknownSystemVariable(err error) bool {
 	var mysqlErr *mysqldriver.MySQLError
-	return errors.As(err, &mysqlErr) && mysqlErr.Number == 1193
+	return errors.As(err, &mysqlErr) && mysqlErr.Number == unknownSystemVariable
 }
 
 func isStaleSemiSyncDialectError(err error) bool {
