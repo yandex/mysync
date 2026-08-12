@@ -21,27 +21,27 @@ func TestSemiSyncMasterSlaveDisableQueryName(t *testing.T) {
 
 func TestDetectSemiSyncDialect(t *testing.T) {
 	testCases := []struct {
-		name      string
-		plugins   []string
-		expected  semiSyncDialect
-		expectErr bool
+		name        string
+		plugins     []string
+		expected    semiSyncDialect
+		expectedErr error
 	}{
 		{name: "no plugins", expected: semiSyncDialectDisabled},
 		{name: "irrelevant plugin", plugins: []string{"validate_password"}, expected: semiSyncDialectDisabled},
-		{name: "master plugin", plugins: []string{semiSyncPluginMaster}, expected: semiSyncDialectSourceSlave},
-		{name: "slave plugin", plugins: []string{semiSyncPluginSlave}, expected: semiSyncDialectSourceSlave},
+		{name: "master plugin only", plugins: []string{semiSyncPluginMaster}, expectedErr: errIncompleteSemiSyncDialect},
+		{name: "slave plugin only", plugins: []string{semiSyncPluginSlave}, expectedErr: errIncompleteSemiSyncDialect},
 		{name: "master and slave plugins", plugins: []string{semiSyncPluginMaster, semiSyncPluginSlave}, expected: semiSyncDialectSourceSlave},
-		{name: "source plugin", plugins: []string{semiSyncPluginSource}, expected: semiSyncDialectSourceReplica},
-		{name: "replica plugin", plugins: []string{semiSyncPluginReplica}, expected: semiSyncDialectSourceReplica},
+		{name: "source plugin only", plugins: []string{semiSyncPluginSource}, expectedErr: errIncompleteSemiSyncDialect},
+		{name: "replica plugin only", plugins: []string{semiSyncPluginReplica}, expectedErr: errIncompleteSemiSyncDialect},
 		{name: "source and replica plugins", plugins: []string{semiSyncPluginSource, semiSyncPluginReplica}, expected: semiSyncDialectSourceReplica},
-		{name: "mixed dialects", plugins: []string{semiSyncPluginMaster, semiSyncPluginReplica}, expectErr: true},
+		{name: "mixed dialects", plugins: []string{semiSyncPluginMaster, semiSyncPluginReplica}, expectedErr: errMixedSemiSyncDialects},
 	}
 
 	for _, testCase := range testCases {
 		t.Run(testCase.name, func(t *testing.T) {
 			actual, err := detectSemiSyncDialect(testCase.plugins)
-			if testCase.expectErr {
-				require.ErrorIs(t, err, errMixedSemiSyncDialects)
+			if testCase.expectedErr != nil {
+				require.ErrorIs(t, err, testCase.expectedErr)
 				return
 			}
 			require.NoError(t, err)

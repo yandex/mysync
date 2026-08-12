@@ -24,8 +24,9 @@ const (
 )
 
 var (
-	errSemiSyncDisabled      = errors.New("semisync plugins are not loaded")
-	errMixedSemiSyncDialects = errors.New("mixed semisync plugin dialects are not supported")
+	errSemiSyncDisabled          = errors.New("semisync plugins are not loaded")
+	errIncompleteSemiSyncDialect = errors.New("incomplete semisync plugin dialect")
+	errMixedSemiSyncDialects     = errors.New("mixed semisync plugin dialects are not supported")
 )
 
 type semiSyncPlugin struct {
@@ -33,26 +34,40 @@ type semiSyncPlugin struct {
 }
 
 func detectSemiSyncDialect(plugins []string) (semiSyncDialect, error) {
-	hasSourceSlave := false
-	hasSourceReplica := false
+	hasMaster := false
+	hasSlave := false
+	hasSource := false
+	hasReplica := false
 
 	for _, plugin := range plugins {
 		switch plugin {
-		case semiSyncPluginMaster, semiSyncPluginSlave:
-			hasSourceSlave = true
-		case semiSyncPluginSource, semiSyncPluginReplica:
-			hasSourceReplica = true
+		case semiSyncPluginMaster:
+			hasMaster = true
+		case semiSyncPluginSlave:
+			hasSlave = true
+		case semiSyncPluginSource:
+			hasSource = true
+		case semiSyncPluginReplica:
+			hasReplica = true
 		}
 	}
 
+	hasSourceSlave := hasMaster || hasSlave
+	hasSourceReplica := hasSource || hasReplica
 	if hasSourceSlave && hasSourceReplica {
 		return "", errMixedSemiSyncDialects
 	}
-	if hasSourceReplica {
-		return semiSyncDialectSourceReplica, nil
+	if hasMaster != hasSlave {
+		return "", fmt.Errorf("%w: both %s and %s must be loaded", errIncompleteSemiSyncDialect, semiSyncPluginMaster, semiSyncPluginSlave)
 	}
-	if hasSourceSlave {
+	if hasSource != hasReplica {
+		return "", fmt.Errorf("%w: both %s and %s must be loaded", errIncompleteSemiSyncDialect, semiSyncPluginSource, semiSyncPluginReplica)
+	}
+	if hasMaster {
 		return semiSyncDialectSourceSlave, nil
+	}
+	if hasSource {
+		return semiSyncDialectSourceReplica, nil
 	}
 	return semiSyncDialectDisabled, nil
 }
@@ -82,7 +97,12 @@ func (n *Node) getSemiSyncDialect() (semiSyncDialect, error) {
 	if err != nil {
 		return "", err
 	}
-	n.semiSyncDialectCache = &dialect
+	// The disabled state can change while mysync is running after plugins are
+	// installed or mysqld is restarted with a different plugin configuration.
+	// Keep probing in that state so it cannot become a permanent stale cache.
+	if dialect != semiSyncDialectDisabled {
+		n.semiSyncDialectCache = &dialect
+	}
 	return dialect, nil
 }
 
