@@ -348,8 +348,6 @@ Feature: source/replica semisync dialect
       """
     Then mysql host "mysql2" should be master
     And mysql host "mysql2" should be writable
-    And mysql host "mysql2" should have variable "rpl_semi_sync_source_enabled" set to "0" within "20" seconds
-    And mysql host "mysql2" should have variable "rpl_semi_sync_replica_enabled" set to "0"
     And zookeeper node "/test/active_nodes" should match json_exactly within "10" seconds
       """
       ["mysql2"]

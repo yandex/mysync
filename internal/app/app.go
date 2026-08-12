@@ -1041,12 +1041,6 @@ func (app *App) updateActiveNodes(clusterState, clusterStateDcs map[string]*node
 	if !app.config.MasterFirstAdjustSSOrder {
 		adjustBefore, adjustAfter = adjustAfter, adjustBefore
 	}
-	// After promotion the new master can still have only the replica side enabled.
-	// In that case oldWaitSlaveCount and waitSlaveCount are both zero, but the
-	// semi-sync role still needs to be normalized before updating active nodes.
-	if oldWaitSlaveCount == waitSlaveCount && semiSyncNeedsAdjustmentOnMaster(masterState, waitSlaveCount) {
-		adjustBefore = true
-	}
 
 	if adjustBefore {
 		err := app.adjustSemiSyncOnMaster(masterNode, masterState, waitSlaveCount)
@@ -1124,14 +1118,13 @@ func (app *App) adjustSemiSyncOnMaster(node *mysql.Node, state *nodestate.NodeSt
 	if state.SemiSyncState == nil {
 		return fmt.Errorf("semi-sync state is empty for %s", node.Host())
 	}
-	if !semiSyncNeedsAdjustmentOnMaster(state, waitSlaveCount) {
-		return nil
-	}
 	if waitSlaveCount == 0 {
 		// technically we can't set wait_slave_count to zero, so we disable master plugin instead
-		err := node.SemiSyncDisable()
-		if err != nil {
-			return err
+		if state.SemiSyncState.MasterEnabled {
+			err := node.SemiSyncDisable()
+			if err != nil {
+				return err
+			}
 		}
 	} else {
 		if state.SemiSyncState.WaitSlaveCount != waitSlaveCount {
@@ -1140,7 +1133,7 @@ func (app *App) adjustSemiSyncOnMaster(node *mysql.Node, state *nodestate.NodeSt
 				return err
 			}
 		}
-		if !state.SemiSyncState.MasterEnabled || state.SemiSyncState.SlaveEnabled {
+		if !state.SemiSyncState.MasterEnabled {
 			err := node.SemiSyncSetMaster()
 			if err != nil {
 				return err
@@ -1148,18 +1141,6 @@ func (app *App) adjustSemiSyncOnMaster(node *mysql.Node, state *nodestate.NodeSt
 		}
 	}
 	return nil
-}
-
-func semiSyncNeedsAdjustmentOnMaster(state *nodestate.NodeState, waitSlaveCount int) bool {
-	if state.SemiSyncState == nil {
-		return false
-	}
-	if waitSlaveCount == 0 {
-		return state.SemiSyncState.MasterEnabled || state.SemiSyncState.SlaveEnabled
-	}
-	return !state.SemiSyncState.MasterEnabled ||
-		state.SemiSyncState.SlaveEnabled ||
-		state.SemiSyncState.WaitSlaveCount != waitSlaveCount
 }
 
 func (app *App) disableSemiSyncOnSlaves(becomeInactive, becomeDataLag []string) []error {
