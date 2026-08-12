@@ -923,113 +923,111 @@ func (n *Node) ResetSlaveAll() error {
 }
 
 // SemiSyncStatus returns semi sync status
-func (n *Node) SemiSyncStatus() (*SemiSyncStatus, error) {
-	status := new(SemiSyncStatus)
-	query, err := n.GetSemiSyncStatusQuery()
+func (n *Node) SemiSyncStatus() (SemiSyncStatus, error) {
+	semiSync, err := n.GetSemiSync()
 	if errors.Is(err, errSemiSyncDisabled) {
-		return status, nil
+		return new(SemiSyncDisabledStatusStruct), nil
 	}
 	if err != nil {
-		return status, err
+		return nil, err
 	}
-	err = n.queryRow(query, nil, status)
+	err = n.queryRow(semiSync.GetStatusQuery(), nil, semiSync)
 	if !isUnknownSystemVariable(err) {
-		return status, err
+		return semiSync, err
 	}
 
 	n.resetSemiSyncDialect()
-	status = new(SemiSyncStatus)
-	query, err = n.GetSemiSyncStatusQuery()
+	semiSync, err = n.GetSemiSync()
 	if errors.Is(err, errSemiSyncDisabled) {
-		return status, nil
+		return new(SemiSyncDisabledStatusStruct), nil
 	}
 	if err != nil {
-		return status, err
+		return nil, err
 	}
-	return status, n.queryRow(query, nil, status)
+	return semiSync, n.queryRow(semiSync.GetStatusQuery(), nil, semiSync)
 }
 
-// SemiSyncSetMaster set host as semisync master
+// SemiSyncSetMaster sets host as semi-sync master/source.
 func (n *Node) SemiSyncSetMaster() error {
-	query, err := n.GetSemiSyncSetMasterQuery()
+	semiSync, err := n.GetSemiSync()
 	if err != nil {
 		return err
 	}
-	err = n.exec(query, nil)
+	err = n.exec(semiSync.GetSetMasterQuery(), nil)
 	if !isUnknownSystemVariable(err) {
 		return err
 	}
 
 	n.resetSemiSyncDialect()
-	query, err = n.GetSemiSyncSetMasterQuery()
+	semiSync, err = n.GetSemiSync()
 	if err != nil {
 		return err
 	}
-	return n.exec(query, nil)
+	return n.exec(semiSync.GetSetMasterQuery(), nil)
 }
 
-// SemiSyncSetSlave set host as semisync master
+// SemiSyncSetSlave sets host as semi-sync slave/replica.
 func (n *Node) SemiSyncSetSlave() error {
-	query, err := n.GetSemiSyncSetSlaveQuery()
+	semiSync, err := n.GetSemiSync()
 	if err != nil {
 		return err
 	}
-	err = n.exec(query, nil)
+	err = n.exec(semiSync.GetSetSlaveQuery(), nil)
 	if !isUnknownSystemVariable(err) {
 		return err
 	}
 
 	n.resetSemiSyncDialect()
-	query, err = n.GetSemiSyncSetSlaveQuery()
+	semiSync, err = n.GetSemiSync()
 	if err != nil {
 		return err
 	}
-	return n.exec(query, nil)
+	return n.exec(semiSync.GetSetSlaveQuery(), nil)
 }
 
-// SemiSyncDisable disables semi_sync_master and semi_sync_slave
+// SemiSyncDisable disables both sides of the active semi-sync dialect.
 func (n *Node) SemiSyncDisable() error {
-	query, err := n.GetSemiSyncDisableQuery()
+	semiSync, err := n.GetSemiSync()
 	if errors.Is(err, errSemiSyncDisabled) {
 		return nil
 	}
 	if err != nil {
 		return err
 	}
-	err = n.exec(query, nil)
+	err = n.exec(semiSync.GetDisableQuery(), nil)
 	if !isUnknownSystemVariable(err) {
 		return err
 	}
 
 	n.resetSemiSyncDialect()
-	query, err = n.GetSemiSyncDisableQuery()
+	semiSync, err = n.GetSemiSync()
 	if errors.Is(err, errSemiSyncDisabled) {
 		return nil
 	}
 	if err != nil {
 		return err
 	}
-	return n.exec(query, nil)
+	return n.exec(semiSync.GetDisableQuery(), nil)
 }
 
-// SemiSyncSetWaitSlaveCount changes rpl_semi_sync_master_wait_for_slave_count
+// SetSemiSyncWaitSlaveCount changes the master/source wait count.
 func (n *Node) SetSemiSyncWaitSlaveCount(c int) error {
-	query, err := n.GetSemiSyncSetWaitSlaveCountQuery()
+	semiSync, err := n.GetSemiSync()
 	if err != nil {
 		return err
 	}
 	arg := map[string]any{"wait_slave_count": c}
-	err = n.exec(query, arg)
+	err = n.exec(semiSync.GetSetWaitSlaveCountQuery(), arg)
 	if !isUnknownSystemVariable(err) {
 		return err
 	}
 
 	n.resetSemiSyncDialect()
-	query, err = n.GetSemiSyncSetWaitSlaveCountQuery()
+	semiSync, err = n.GetSemiSync()
 	if err != nil {
 		return err
 	}
-	return n.exec(query, arg)
+	return n.exec(semiSync.GetSetWaitSlaveCountQuery(), arg)
 }
 
 // SemiSyncClients returns current number of connected semi-sync replicas.
@@ -1040,13 +1038,13 @@ func (n *Node) SemiSyncClients() (int, error) {
 	}
 
 	for attempt := 0; attempt < 2; attempt++ {
-		query, err := n.GetSemiSyncClientsQuery()
+		semiSync, err := n.GetSemiSync()
 		if err != nil {
 			return 0, err
 		}
 
 		var r result
-		err = n.queryRow(query, nil, &r)
+		err = n.queryRow(semiSync.GetClientsQuery(), nil, &r)
 		if err == nil {
 			clients, parseErr := strconv.Atoi(r.Clients)
 			if parseErr != nil {

@@ -50,49 +50,116 @@ func TestDetectSemiSyncDialect(t *testing.T) {
 	}
 }
 
-func TestSemiSyncQueryGetters(t *testing.T) {
-	type queryGetter func(*Node) (string, error)
-
+func TestGetSemiSync(t *testing.T) {
 	testCases := []struct {
-		name                  string
-		getter                queryGetter
-		sourceSlaveExpected   string
-		sourceReplicaExpected string
+		name                   string
+		dialect                semiSyncDialect
+		expected               SemiSync
+		statusQuery            string
+		clientsQuery           string
+		setMasterQuery         string
+		setSlaveQuery          string
+		disableQuery           string
+		setWaitSlaveCountQuery string
+		expectErr              bool
 	}{
-		{name: "status", getter: (*Node).GetSemiSyncStatusQuery, sourceSlaveExpected: querySemiSyncStatus, sourceReplicaExpected: querySemiSyncSourceReplicaStatus},
-		{name: "clients", getter: (*Node).GetSemiSyncClientsQuery, sourceSlaveExpected: querySemiSyncMasterClients, sourceReplicaExpected: querySemiSyncSourceClients},
-		{name: "set master", getter: (*Node).GetSemiSyncSetMasterQuery, sourceSlaveExpected: querySemiSyncSetMaster, sourceReplicaExpected: querySemiSyncSetSource},
-		{name: "set slave", getter: (*Node).GetSemiSyncSetSlaveQuery, sourceSlaveExpected: querySemiSyncSetSlave, sourceReplicaExpected: querySemiSyncSetReplica},
-		{name: "disable", getter: (*Node).GetSemiSyncDisableQuery, sourceSlaveExpected: querySemiSyncMasterSlaveDisable, sourceReplicaExpected: querySemiSyncSourceReplicaDisable},
-		{name: "wait count", getter: (*Node).GetSemiSyncSetWaitSlaveCountQuery, sourceSlaveExpected: querySetSemiSyncWaitSlaveCount, sourceReplicaExpected: querySetSemiSyncWaitReplicaCount},
+		{name: "disabled", dialect: semiSyncDialectDisabled, expectErr: true},
+		{
+			name:                   "source-slave",
+			dialect:                semiSyncDialectSourceSlave,
+			expected:               new(SemiSyncMasterSlaveStatusStruct),
+			statusQuery:            querySemiSyncStatus,
+			clientsQuery:           querySemiSyncMasterClients,
+			setMasterQuery:         querySemiSyncSetMaster,
+			setSlaveQuery:          querySemiSyncSetSlave,
+			disableQuery:           querySemiSyncMasterSlaveDisable,
+			setWaitSlaveCountQuery: querySetSemiSyncWaitSlaveCount,
+		},
+		{
+			name:                   "source-replica",
+			dialect:                semiSyncDialectSourceReplica,
+			expected:               new(SemiSyncSourceReplicaStatusStruct),
+			statusQuery:            querySemiSyncSourceReplicaStatus,
+			clientsQuery:           querySemiSyncSourceClients,
+			setMasterQuery:         querySemiSyncSetSource,
+			setSlaveQuery:          querySemiSyncSetReplica,
+			disableQuery:           querySemiSyncSourceReplicaDisable,
+			setWaitSlaveCountQuery: querySetSemiSyncWaitReplicaCount,
+		},
 	}
 
 	for _, testCase := range testCases {
 		t.Run(testCase.name, func(t *testing.T) {
-			for _, dialectCase := range []struct {
-				name      string
-				dialect   semiSyncDialect
-				expected  string
-				expectErr bool
-			}{
-				{name: "disabled", dialect: semiSyncDialectDisabled, expectErr: true},
-				{name: "source-slave", dialect: semiSyncDialectSourceSlave, expected: testCase.sourceSlaveExpected},
-				{name: "source-replica", dialect: semiSyncDialectSourceReplica, expected: testCase.sourceReplicaExpected},
-			} {
-				t.Run(dialectCase.name, func(t *testing.T) {
-					dialect := dialectCase.dialect
-					node := &Node{semiSyncDialectCache: &dialect}
-					actual, err := testCase.getter(node)
-					if dialectCase.expectErr {
-						require.ErrorIs(t, err, errSemiSyncDisabled)
-						return
-					}
-					require.NoError(t, err)
-					require.Equal(t, dialectCase.expected, actual)
-				})
+			dialect := testCase.dialect
+			node := &Node{semiSyncDialectCache: &dialect}
+			actual, err := node.GetSemiSync()
+			if testCase.expectErr {
+				require.ErrorIs(t, err, errSemiSyncDisabled)
+				require.Nil(t, actual)
+				return
 			}
+			require.NoError(t, err)
+			require.IsType(t, testCase.expected, actual)
+			require.Equal(t, testCase.statusQuery, actual.GetStatusQuery())
+			require.Equal(t, testCase.clientsQuery, actual.GetClientsQuery())
+			require.Equal(t, testCase.setMasterQuery, actual.GetSetMasterQuery())
+			require.Equal(t, testCase.setSlaveQuery, actual.GetSetSlaveQuery())
+			require.Equal(t, testCase.disableQuery, actual.GetDisableQuery())
+			require.Equal(t, testCase.setWaitSlaveCountQuery, actual.GetSetWaitSlaveCountQuery())
 		})
 	}
+}
+
+func TestSemiSyncStatusImplementations(t *testing.T) {
+	testCases := []struct {
+		name           string
+		status         SemiSyncStatus
+		masterEnabled  bool
+		slaveEnabled   bool
+		waitSlaveCount int
+	}{
+		{name: "disabled", status: new(SemiSyncDisabledStatusStruct)},
+		{
+			name: "master-slave",
+			status: &SemiSyncMasterSlaveStatusStruct{
+				MasterEnabledValue:  1,
+				SlaveEnabledValue:   0,
+				WaitSlaveCountValue: 2,
+			},
+			masterEnabled:  true,
+			waitSlaveCount: 2,
+		},
+		{
+			name: "source-replica",
+			status: &SemiSyncSourceReplicaStatusStruct{
+				SourceEnabledValue:  0,
+				ReplicaEnabledValue: 1,
+				WaitReplicaCount:    3,
+			},
+			slaveEnabled:   true,
+			waitSlaveCount: 3,
+		},
+	}
+
+	for _, testCase := range testCases {
+		t.Run(testCase.name, func(t *testing.T) {
+			require.Equal(t, testCase.masterEnabled, testCase.status.MasterEnabled())
+			require.Equal(t, testCase.slaveEnabled, testCase.status.SlaveEnabled())
+			require.Equal(t, testCase.waitSlaveCount, testCase.status.GetWaitSlaveCount())
+		})
+	}
+}
+
+func TestSemiSyncStatusReturnsDisabledImplementation(t *testing.T) {
+	dialect := semiSyncDialectDisabled
+	node := &Node{semiSyncDialectCache: &dialect}
+
+	status, err := node.SemiSyncStatus()
+	require.NoError(t, err)
+	require.IsType(t, new(SemiSyncDisabledStatusStruct), status)
+	require.False(t, status.MasterEnabled())
+	require.False(t, status.SlaveEnabled())
+	require.Zero(t, status.GetWaitSlaveCount())
 }
 
 func TestSourceReplicaSemiSyncQueries(t *testing.T) {
@@ -106,6 +173,9 @@ func TestSourceReplicaSemiSyncQueries(t *testing.T) {
 				"@@rpl_semi_sync_source_enabled",
 				"@@rpl_semi_sync_replica_enabled",
 				"@@rpl_semi_sync_source_wait_for_replica_count",
+				"AS SourceEnabled",
+				"AS ReplicaEnabled",
+				"as WaitReplicaCount",
 			},
 		},
 		{queryName: querySemiSyncSourceClients, contains: []string{"Rpl_semi_sync_source_clients"}},

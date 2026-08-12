@@ -97,44 +97,20 @@ func isUnknownSystemVariable(err error) bool {
 	return errors.As(err, &mysqlErr) && mysqlErr.Number == 1193
 }
 
-func (n *Node) getSemiSyncQuery(sourceSlaveQuery string, sourceReplicaQuery string) (string, error) {
+func (n *Node) GetSemiSync() (SemiSync, error) {
 	dialect, err := n.getSemiSyncDialect()
 	if err != nil {
-		return "", err
+		return nil, err
 	}
 
 	switch dialect {
 	case semiSyncDialectDisabled:
-		return "", errSemiSyncDisabled
+		return nil, errSemiSyncDisabled
 	case semiSyncDialectSourceSlave:
-		return sourceSlaveQuery, nil
+		return new(SemiSyncMasterSlaveStatusStruct), nil
 	case semiSyncDialectSourceReplica:
-		return sourceReplicaQuery, nil
+		return new(SemiSyncSourceReplicaStatusStruct), nil
 	default:
-		return "", fmt.Errorf("unsupported semisync dialect: %s", dialect)
+		return nil, fmt.Errorf("unsupported semisync dialect: %s", dialect)
 	}
-}
-
-func (n *Node) GetSemiSyncStatusQuery() (string, error) {
-	return n.getSemiSyncQuery(querySemiSyncStatus, querySemiSyncSourceReplicaStatus)
-}
-
-func (n *Node) GetSemiSyncClientsQuery() (string, error) {
-	return n.getSemiSyncQuery(querySemiSyncMasterClients, querySemiSyncSourceClients)
-}
-
-func (n *Node) GetSemiSyncSetMasterQuery() (string, error) {
-	return n.getSemiSyncQuery(querySemiSyncSetMaster, querySemiSyncSetSource)
-}
-
-func (n *Node) GetSemiSyncSetSlaveQuery() (string, error) {
-	return n.getSemiSyncQuery(querySemiSyncSetSlave, querySemiSyncSetReplica)
-}
-
-func (n *Node) GetSemiSyncDisableQuery() (string, error) {
-	return n.getSemiSyncQuery(querySemiSyncMasterSlaveDisable, querySemiSyncSourceReplicaDisable)
-}
-
-func (n *Node) GetSemiSyncSetWaitSlaveCountQuery() (string, error) {
-	return n.getSemiSyncQuery(querySetSemiSyncWaitSlaveCount, querySetSemiSyncWaitReplicaCount)
 }
