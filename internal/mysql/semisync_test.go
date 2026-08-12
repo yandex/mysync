@@ -11,7 +11,7 @@ import (
 
 func TestSemiSyncDialectValues(t *testing.T) {
 	require.Equal(t, semiSyncDialect("disabled"), semiSyncDialectDisabled)
-	require.Equal(t, semiSyncDialect("sourceslave"), semiSyncDialectSourceSlave)
+	require.Equal(t, semiSyncDialect("masterSlave"), semiSyncDialectMasterSlave)
 	require.Equal(t, semiSyncDialect("sourceReplica"), semiSyncDialectSourceReplica)
 }
 
@@ -30,7 +30,7 @@ func TestDetectSemiSyncDialect(t *testing.T) {
 		{name: "irrelevant plugin", plugins: []string{"validate_password"}, expected: semiSyncDialectDisabled},
 		{name: "master plugin only", plugins: []string{semiSyncPluginMaster}, expectedErr: errIncompleteSemiSyncDialect},
 		{name: "slave plugin only", plugins: []string{semiSyncPluginSlave}, expectedErr: errIncompleteSemiSyncDialect},
-		{name: "master and slave plugins", plugins: []string{semiSyncPluginMaster, semiSyncPluginSlave}, expected: semiSyncDialectSourceSlave},
+		{name: "master and slave plugins", plugins: []string{semiSyncPluginMaster, semiSyncPluginSlave}, expected: semiSyncDialectMasterSlave},
 		{name: "source plugin only", plugins: []string{semiSyncPluginSource}, expectedErr: errIncompleteSemiSyncDialect},
 		{name: "replica plugin only", plugins: []string{semiSyncPluginReplica}, expectedErr: errIncompleteSemiSyncDialect},
 		{name: "source and replica plugins", plugins: []string{semiSyncPluginSource, semiSyncPluginReplica}, expected: semiSyncDialectSourceReplica},
@@ -65,8 +65,8 @@ func TestGetSemiSync(t *testing.T) {
 	}{
 		{name: "disabled", dialect: semiSyncDialectDisabled, expectErr: true},
 		{
-			name:                   "source-slave",
-			dialect:                semiSyncDialectSourceSlave,
+			name:                   "master-slave",
+			dialect:                semiSyncDialectMasterSlave,
 			expected:               new(SemiSyncMasterSlaveStatusStruct),
 			statusQuery:            querySemiSyncStatus,
 			clientsQuery:           querySemiSyncMasterClients,

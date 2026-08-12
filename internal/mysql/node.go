@@ -924,110 +924,52 @@ func (n *Node) ResetSlaveAll() error {
 
 // SemiSyncStatus returns semi sync status
 func (n *Node) SemiSyncStatus() (SemiSyncStatus, error) {
-	semiSync, err := n.GetSemiSync()
+	semiSync, err := n.trySemiSync(func(semiSync SemiSync) error {
+		return n.queryRow(semiSync.GetStatusQuery(), nil, semiSync)
+	}, 2)
 	if errors.Is(err, errSemiSyncDisabled) {
 		return new(SemiSyncDisabledStatusStruct), nil
 	}
 	if err != nil {
-		return nil, err
-	}
-	err = n.queryRow(semiSync.GetStatusQuery(), nil, semiSync)
-	if !isUnknownSystemVariable(err) {
 		return semiSync, err
 	}
-
-	n.resetSemiSyncDialect()
-	semiSync, err = n.GetSemiSync()
-	if errors.Is(err, errSemiSyncDisabled) {
-		return new(SemiSyncDisabledStatusStruct), nil
-	}
-	if err != nil {
-		return nil, err
-	}
-	return semiSync, n.queryRow(semiSync.GetStatusQuery(), nil, semiSync)
+	return semiSync, nil
 }
 
 // SemiSyncSetMaster sets host as semi-sync master/source.
 func (n *Node) SemiSyncSetMaster() error {
-	semiSync, err := n.GetSemiSync()
-	if err != nil {
-		return err
-	}
-	err = n.exec(semiSync.GetSetMasterQuery(), nil)
-	if !isUnknownSystemVariable(err) {
-		return err
-	}
-
-	n.resetSemiSyncDialect()
-	semiSync, err = n.GetSemiSync()
-	if err != nil {
-		return err
-	}
-	return n.exec(semiSync.GetSetMasterQuery(), nil)
+	_, err := n.trySemiSync(func(semiSync SemiSync) error {
+		return n.exec(semiSync.GetSetMasterQuery(), nil)
+	}, 2)
+	return err
 }
 
 // SemiSyncSetSlave sets host as semi-sync slave/replica.
 func (n *Node) SemiSyncSetSlave() error {
-	semiSync, err := n.GetSemiSync()
-	if err != nil {
-		return err
-	}
-	err = n.exec(semiSync.GetSetSlaveQuery(), nil)
-	if !isUnknownSystemVariable(err) {
-		return err
-	}
-
-	n.resetSemiSyncDialect()
-	semiSync, err = n.GetSemiSync()
-	if err != nil {
-		return err
-	}
-	return n.exec(semiSync.GetSetSlaveQuery(), nil)
+	_, err := n.trySemiSync(func(semiSync SemiSync) error {
+		return n.exec(semiSync.GetSetSlaveQuery(), nil)
+	}, 2)
+	return err
 }
 
 // SemiSyncDisable disables both sides of the active semi-sync dialect.
 func (n *Node) SemiSyncDisable() error {
-	semiSync, err := n.GetSemiSync()
+	_, err := n.trySemiSync(func(semiSync SemiSync) error {
+		return n.exec(semiSync.GetDisableQuery(), nil)
+	}, 2)
 	if errors.Is(err, errSemiSyncDisabled) {
 		return nil
 	}
-	if err != nil {
-		return err
-	}
-	err = n.exec(semiSync.GetDisableQuery(), nil)
-	if !isUnknownSystemVariable(err) {
-		return err
-	}
-
-	n.resetSemiSyncDialect()
-	semiSync, err = n.GetSemiSync()
-	if errors.Is(err, errSemiSyncDisabled) {
-		return nil
-	}
-	if err != nil {
-		return err
-	}
-	return n.exec(semiSync.GetDisableQuery(), nil)
+	return err
 }
 
 // SetSemiSyncWaitSlaveCount changes the master/source wait count.
 func (n *Node) SetSemiSyncWaitSlaveCount(c int) error {
-	semiSync, err := n.GetSemiSync()
-	if err != nil {
-		return err
-	}
 	arg := map[string]any{"wait_slave_count": c}
-	err = n.exec(semiSync.GetSetWaitSlaveCountQuery(), arg)
-	if !isUnknownSystemVariable(err) {
-		return err
-	}
-
-	n.resetSemiSyncDialect()
-	semiSync, err = n.GetSemiSync()
-	if err != nil {
-		return err
-	}
-	return n.exec(semiSync.GetSetWaitSlaveCountQuery(), arg)
+	_, err := n.trySemiSync(func(semiSync SemiSync) error {
+		return n.exec(semiSync.GetSetWaitSlaveCountQuery(), arg)
+	}, 2)
+	return err
 }
 
 // SemiSyncClients returns current number of connected semi-sync replicas.
@@ -1037,28 +979,20 @@ func (n *Node) SemiSyncClients() (int, error) {
 		Clients string `db:"Clients"`
 	}
 
-	for attempt := 0; attempt < 2; attempt++ {
-		semiSync, err := n.GetSemiSync()
-		if err != nil {
-			return 0, err
-		}
-
-		var r result
-		err = n.queryRow(semiSync.GetClientsQuery(), nil, &r)
-		if err == nil {
-			clients, parseErr := strconv.Atoi(r.Clients)
-			if parseErr != nil {
-				return 0, fmt.Errorf("failed to parse semi-sync clients value %q: %w", r.Clients, parseErr)
-			}
-			return clients, nil
-		}
-		if !errors.Is(err, sql.ErrNoRows) || attempt == 1 {
-			return 0, err
-		}
-		n.resetSemiSyncDialect()
+	var r result
+	_, err := n.trySemiSync(func(semiSync SemiSync) error {
+		r = result{}
+		return n.queryRow(semiSync.GetClientsQuery(), nil, &r)
+	}, 2)
+	if err != nil {
+		return 0, err
 	}
 
-	return 0, sql.ErrNoRows
+	clients, err := strconv.Atoi(r.Clients)
+	if err != nil {
+		return 0, fmt.Errorf("failed to parse semi-sync clients value %q: %w", r.Clients, err)
+	}
+	return clients, nil
 }
 
 // IsOffline returns current 'offline_mode' variable value

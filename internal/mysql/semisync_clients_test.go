@@ -175,9 +175,9 @@ func newSemiSyncTestNodeWithoutCache(t *testing.T, connector *semiSyncClientsTes
 	return node
 }
 
-func TestSemiSyncStatusScansSourceSlaveImplementation(t *testing.T) {
+func TestSemiSyncStatusScansMasterSlaveImplementation(t *testing.T) {
 	connector := new(semiSyncClientsTestConnector)
-	node := newSemiSyncTestNode(t, connector, semiSyncDialectSourceSlave)
+	node := newSemiSyncTestNode(t, connector, semiSyncDialectMasterSlave)
 
 	status, err := node.SemiSyncStatus()
 	require.NoError(t, err)
@@ -197,7 +197,7 @@ func TestSemiSyncStatusRedetectsSourceReplicaImplementation(t *testing.T) {
 		},
 		pluginResponses: [][]string{{semiSyncPluginSource, semiSyncPluginReplica}},
 	}
-	node := newSemiSyncTestNode(t, connector, semiSyncDialectSourceSlave)
+	node := newSemiSyncTestNode(t, connector, semiSyncDialectMasterSlave)
 
 	status, err := node.SemiSyncStatus()
 	require.NoError(t, err)
@@ -214,7 +214,7 @@ func TestSemiSyncStatusRedetectsSourceReplicaImplementation(t *testing.T) {
 	}, connector.queries)
 }
 
-func TestSemiSyncStatusRedetectsSourceSlaveImplementation(t *testing.T) {
+func TestSemiSyncStatusRedetectsMasterSlaveImplementation(t *testing.T) {
 	connector := &semiSyncClientsTestConnector{
 		queryErrors: map[string][]error{
 			DefaultQueries[querySemiSyncSourceReplicaStatus]: {
@@ -232,12 +232,58 @@ func TestSemiSyncStatusRedetectsSourceSlaveImplementation(t *testing.T) {
 	require.False(t, status.SlaveEnabled())
 	require.Equal(t, 1, status.GetWaitSlaveCount())
 	require.NotNil(t, node.semiSyncDialectCache)
-	require.Equal(t, semiSyncDialectSourceSlave, *node.semiSyncDialectCache)
+	require.Equal(t, semiSyncDialectMasterSlave, *node.semiSyncDialectCache)
 	require.Equal(t, []string{
 		DefaultQueries[querySemiSyncSourceReplicaStatus],
 		DefaultQueries[querySemiSyncPlugins],
 		DefaultQueries[querySemiSyncStatus],
 	}, connector.queries)
+}
+
+func TestTrySemiSyncHonorsAttempts(t *testing.T) {
+	connector := &semiSyncClientsTestConnector{
+		queryErrors: map[string][]error{
+			DefaultQueries[querySemiSyncStatus]: {
+				&mysqldriver.MySQLError{Number: 1193, Message: "Unknown system variable"},
+				&mysqldriver.MySQLError{Number: 1193, Message: "Unknown system variable"},
+			},
+		},
+		pluginResponses: [][]string{
+			{semiSyncPluginMaster, semiSyncPluginSlave},
+			{semiSyncPluginMaster, semiSyncPluginSlave},
+		},
+	}
+	node := newSemiSyncTestNode(t, connector, semiSyncDialectMasterSlave)
+
+	semiSync, err := node.trySemiSync(func(semiSync SemiSync) error {
+		return node.queryRow(semiSync.GetStatusQuery(), nil, semiSync)
+	}, 3)
+	require.NoError(t, err)
+	require.IsType(t, new(SemiSyncMasterSlaveStatusStruct), semiSync)
+	require.Equal(t, []string{
+		DefaultQueries[querySemiSyncStatus],
+		DefaultQueries[querySemiSyncPlugins],
+		DefaultQueries[querySemiSyncStatus],
+		DefaultQueries[querySemiSyncPlugins],
+		DefaultQueries[querySemiSyncStatus],
+	}, connector.queries)
+}
+
+func TestTrySemiSyncDoesNotRetryUnrelatedError(t *testing.T) {
+	queryErr := &mysqldriver.MySQLError{Number: 1146, Message: "Table does not exist"}
+	connector := &semiSyncClientsTestConnector{
+		queryErrors: map[string][]error{
+			DefaultQueries[querySemiSyncStatus]: {queryErr},
+		},
+	}
+	node := newSemiSyncTestNode(t, connector, semiSyncDialectMasterSlave)
+
+	semiSync, err := node.trySemiSync(func(semiSync SemiSync) error {
+		return node.queryRow(semiSync.GetStatusQuery(), nil, semiSync)
+	}, 3)
+	require.ErrorIs(t, err, queryErr)
+	require.IsType(t, new(SemiSyncMasterSlaveStatusStruct), semiSync)
+	require.Equal(t, []string{DefaultQueries[querySemiSyncStatus]}, connector.queries)
 }
 
 func TestSemiSyncStatusRedetectsAfterDisabled(t *testing.T) {
@@ -294,7 +340,7 @@ func TestSemiSyncClientsRedetectsDialectAfterNoRows(t *testing.T) {
 		pluginResponses: [][]string{{semiSyncPluginSource, semiSyncPluginReplica}},
 		sourceClients:   "2",
 	}
-	node := newSemiSyncTestNode(t, connector, semiSyncDialectSourceSlave)
+	node := newSemiSyncTestNode(t, connector, semiSyncDialectMasterSlave)
 
 	clients, err := node.SemiSyncClients()
 	require.NoError(t, err)
@@ -308,7 +354,7 @@ func TestSemiSyncClientsRedetectsDialectAfterNoRows(t *testing.T) {
 	}, connector.queries)
 }
 
-func TestSemiSyncClientsRedetectsSourceSlaveAfterNoRows(t *testing.T) {
+func TestSemiSyncClientsRedetectsMasterSlaveAfterNoRows(t *testing.T) {
 	connector := &semiSyncClientsTestConnector{
 		pluginResponses: [][]string{{semiSyncPluginMaster, semiSyncPluginSlave}},
 		legacyClients:   "3",
@@ -319,7 +365,7 @@ func TestSemiSyncClientsRedetectsSourceSlaveAfterNoRows(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, 3, clients)
 	require.NotNil(t, node.semiSyncDialectCache)
-	require.Equal(t, semiSyncDialectSourceSlave, *node.semiSyncDialectCache)
+	require.Equal(t, semiSyncDialectMasterSlave, *node.semiSyncDialectCache)
 	require.Equal(t, []string{
 		DefaultQueries[querySemiSyncSourceClients],
 		DefaultQueries[querySemiSyncPlugins],
@@ -331,7 +377,7 @@ func TestSemiSyncMutationsRedetectDialect(t *testing.T) {
 	type operation struct {
 		name               string
 		call               func(*Node) error
-		sourceSlaveQuery   string
+		masterSlaveQuery   string
 		sourceReplicaQuery string
 	}
 
@@ -342,19 +388,19 @@ func TestSemiSyncMutationsRedetectDialect(t *testing.T) {
 		{
 			name:               "set master",
 			call:               (*Node).SemiSyncSetMaster,
-			sourceSlaveQuery:   bindQuery(querySemiSyncSetMaster),
+			masterSlaveQuery:   bindQuery(querySemiSyncSetMaster),
 			sourceReplicaQuery: bindQuery(querySemiSyncSetSource),
 		},
 		{
 			name:               "set slave",
 			call:               (*Node).SemiSyncSetSlave,
-			sourceSlaveQuery:   bindQuery(querySemiSyncSetSlave),
+			masterSlaveQuery:   bindQuery(querySemiSyncSetSlave),
 			sourceReplicaQuery: bindQuery(querySemiSyncSetReplica),
 		},
 		{
 			name:               "disable",
 			call:               (*Node).SemiSyncDisable,
-			sourceSlaveQuery:   bindQuery(querySemiSyncMasterSlaveDisable),
+			masterSlaveQuery:   bindQuery(querySemiSyncMasterSlaveDisable),
 			sourceReplicaQuery: bindQuery(querySemiSyncSourceReplicaDisable),
 		},
 		{
@@ -362,7 +408,7 @@ func TestSemiSyncMutationsRedetectDialect(t *testing.T) {
 			call: func(node *Node) error {
 				return node.SetSemiSyncWaitSlaveCount(2)
 			},
-			sourceSlaveQuery:   bindQuery(querySetSemiSyncWaitSlaveCount),
+			masterSlaveQuery:   bindQuery(querySetSemiSyncWaitSlaveCount),
 			sourceReplicaQuery: bindQuery(querySetSemiSyncWaitReplicaCount),
 		},
 	}
@@ -375,20 +421,20 @@ func TestSemiSyncMutationsRedetectDialect(t *testing.T) {
 		expected      semiSyncDialect
 	}{
 		{
-			name:          "source-slave to source-replica",
-			cached:        semiSyncDialectSourceSlave,
+			name:          "master-slave to source-replica",
+			cached:        semiSyncDialectMasterSlave,
 			plugins:       []string{semiSyncPluginSource, semiSyncPluginReplica},
-			wrongQuery:    func(op operation) string { return op.sourceSlaveQuery },
+			wrongQuery:    func(op operation) string { return op.masterSlaveQuery },
 			expectedQuery: func(op operation) string { return op.sourceReplicaQuery },
 			expected:      semiSyncDialectSourceReplica,
 		},
 		{
-			name:          "source-replica to source-slave",
+			name:          "source-replica to master-slave",
 			cached:        semiSyncDialectSourceReplica,
 			plugins:       []string{semiSyncPluginMaster, semiSyncPluginSlave},
 			wrongQuery:    func(op operation) string { return op.sourceReplicaQuery },
-			expectedQuery: func(op operation) string { return op.sourceSlaveQuery },
-			expected:      semiSyncDialectSourceSlave,
+			expectedQuery: func(op operation) string { return op.masterSlaveQuery },
+			expected:      semiSyncDialectMasterSlave,
 		},
 	}
 

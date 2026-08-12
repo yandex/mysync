@@ -3,10 +3,10 @@
 set -x
 set -e
 
-semisync_dialect="${SEMISYNC_DIALECT_OVERRIDE:-${SEMISYNC_DIALECT:-sourceslave}}"
+semisync_dialect="${SEMISYNC_DIALECT_OVERRIDE:-${SEMISYNC_DIALECT:-masterSlave}}"
 
 case "$semisync_dialect" in
-  sourceslave)
+  masterSlave)
     cat <<EOF > /tmp/mysync-semisync.cnf
 [mysqld]
 plugin_load_add = 'rpl_semi_sync_master=semisync_master.so;rpl_semi_sync_slave=semisync_slave.so'

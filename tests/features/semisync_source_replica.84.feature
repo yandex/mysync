@@ -123,7 +123,7 @@ Feature: source/replica semisync dialect
   Scenario: mysync switches between nodes with different semisync dialects
     Given cluster environment is
       """
-      MYSQL1_SEMISYNC_DIALECT=sourceslave
+      MYSQL1_SEMISYNC_DIALECT=masterSlave
       MYSQL2_SEMISYNC_DIALECT=sourceReplica
       MYSQL3_SEMISYNC_DIALECT=sourceReplica
       MYSYNC_WAIT_FOR_SLAVE_COUNT=1

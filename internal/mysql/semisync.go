@@ -1,6 +1,7 @@
 package mysql
 
 import (
+	"database/sql"
 	"errors"
 	"fmt"
 
@@ -12,7 +13,7 @@ type semiSyncDialect string
 
 const (
 	semiSyncDialectDisabled      semiSyncDialect = "disabled"
-	semiSyncDialectSourceSlave   semiSyncDialect = "sourceslave"
+	semiSyncDialectMasterSlave   semiSyncDialect = "masterSlave"
 	semiSyncDialectSourceReplica semiSyncDialect = "sourceReplica"
 )
 
@@ -52,9 +53,9 @@ func detectSemiSyncDialect(plugins []string) (semiSyncDialect, error) {
 		}
 	}
 
-	hasSourceSlave := hasMaster || hasSlave
+	hasMasterSlave := hasMaster || hasSlave
 	hasSourceReplica := hasSource || hasReplica
-	if hasSourceSlave && hasSourceReplica {
+	if hasMasterSlave && hasSourceReplica {
 		return "", errMixedSemiSyncDialects
 	}
 	if hasMaster != hasSlave {
@@ -64,7 +65,7 @@ func detectSemiSyncDialect(plugins []string) (semiSyncDialect, error) {
 		return "", fmt.Errorf("%w: both %s and %s must be loaded", errIncompleteSemiSyncDialect, semiSyncPluginSource, semiSyncPluginReplica)
 	}
 	if hasMaster {
-		return semiSyncDialectSourceSlave, nil
+		return semiSyncDialectMasterSlave, nil
 	}
 	if hasSource {
 		return semiSyncDialectSourceReplica, nil
@@ -117,6 +118,34 @@ func isUnknownSystemVariable(err error) bool {
 	return errors.As(err, &mysqlErr) && mysqlErr.Number == 1193
 }
 
+func isStaleSemiSyncDialectError(err error) bool {
+	return isUnknownSystemVariable(err) || errors.Is(err, sql.ErrNoRows)
+}
+
+func (n *Node) trySemiSync(operation func(SemiSync) error, attempts int) (SemiSync, error) {
+	if attempts < 1 {
+		return nil, errors.New("semisync operation attempts must be positive")
+	}
+
+	var semiSync SemiSync
+	var err error
+	for attempt := 0; attempt < attempts; attempt++ {
+		semiSync, err = n.GetSemiSync()
+		if err != nil {
+			return nil, err
+		}
+
+		err = operation(semiSync)
+		if err == nil || !isStaleSemiSyncDialectError(err) || attempt == attempts-1 {
+			return semiSync, err
+		}
+
+		n.resetSemiSyncDialect()
+	}
+
+	return semiSync, err
+}
+
 func (n *Node) GetSemiSync() (SemiSync, error) {
 	dialect, err := n.getSemiSyncDialect()
 	if err != nil {
@@ -126,7 +155,7 @@ func (n *Node) GetSemiSync() (SemiSync, error) {
 	switch dialect {
 	case semiSyncDialectDisabled:
 		return nil, errSemiSyncDisabled
-	case semiSyncDialectSourceSlave:
+	case semiSyncDialectMasterSlave:
 		return new(SemiSyncMasterSlaveStatusStruct), nil
 	case semiSyncDialectSourceReplica:
 		return new(SemiSyncSourceReplicaStatusStruct), nil
