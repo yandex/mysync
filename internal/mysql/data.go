@@ -117,11 +117,126 @@ type ReplicaStatus interface {
 	GetReplicationLag() sql.NullFloat64
 }
 
-// SemiSyncStatus contains semi sync host settings
-type SemiSyncStatus struct {
-	MasterEnabled  int `db:"MasterEnabled"`
-	SlaveEnabled   int `db:"SlaveEnabled"`
-	WaitSlaveCount int `db:"WaitSlaveCount"`
+// SemiSyncStatus contains semi-sync host settings independently of the
+// master/slave or source/replica plugin dialect used by MySQL.
+type SemiSyncStatus interface {
+	MasterEnabled() bool
+	SlaveEnabled() bool
+	GetWaitSlaveCount() int
+}
+
+// SemiSync describes both the status representation and the queries used by a
+// concrete semi-sync plugin dialect.
+type SemiSync interface {
+	SemiSyncStatus
+	GetStatusQuery() string
+	GetClientsQuery() string
+	GetSetMasterQuery() string
+	GetSetSlaveQuery() string
+	GetDisableQuery() string
+	GetSetWaitSlaveCountQuery() string
+}
+
+// SemiSyncDisabledStatusStruct represents a host without active semi-sync
+// plugins.
+type SemiSyncDisabledStatusStruct struct{}
+
+// SemiSyncMasterSlaveStatusStruct contains master/slave semi-sync settings.
+type SemiSyncMasterSlaveStatusStruct struct {
+	MasterEnabledValue  int `db:"MasterEnabled"`
+	SlaveEnabledValue   int `db:"SlaveEnabled"`
+	WaitSlaveCountValue int `db:"WaitSlaveCount"`
+}
+
+// SemiSyncSourceReplicaStatusStruct contains source/replica semi-sync settings.
+type SemiSyncSourceReplicaStatusStruct struct {
+	SourceEnabledValue  int `db:"SourceEnabled"`
+	ReplicaEnabledValue int `db:"ReplicaEnabled"`
+	WaitReplicaCount    int `db:"WaitReplicaCount"`
+}
+
+func (ss *SemiSyncDisabledStatusStruct) MasterEnabled() bool {
+	return false
+}
+
+func (ss *SemiSyncDisabledStatusStruct) SlaveEnabled() bool {
+	return false
+}
+
+func (ss *SemiSyncDisabledStatusStruct) GetWaitSlaveCount() int {
+	return 0
+}
+
+func (ss *SemiSyncMasterSlaveStatusStruct) MasterEnabled() bool {
+	return ss.MasterEnabledValue > 0
+}
+
+func (ss *SemiSyncMasterSlaveStatusStruct) SlaveEnabled() bool {
+	return ss.SlaveEnabledValue > 0
+}
+
+func (ss *SemiSyncMasterSlaveStatusStruct) GetWaitSlaveCount() int {
+	return ss.WaitSlaveCountValue
+}
+
+func (ss *SemiSyncMasterSlaveStatusStruct) GetStatusQuery() string {
+	return querySemiSyncStatus
+}
+
+func (ss *SemiSyncMasterSlaveStatusStruct) GetClientsQuery() string {
+	return querySemiSyncMasterClients
+}
+
+func (ss *SemiSyncMasterSlaveStatusStruct) GetSetMasterQuery() string {
+	return querySemiSyncSetMaster
+}
+
+func (ss *SemiSyncMasterSlaveStatusStruct) GetSetSlaveQuery() string {
+	return querySemiSyncSetSlave
+}
+
+func (ss *SemiSyncMasterSlaveStatusStruct) GetDisableQuery() string {
+	return querySemiSyncMasterSlaveDisable
+}
+
+func (ss *SemiSyncMasterSlaveStatusStruct) GetSetWaitSlaveCountQuery() string {
+	return querySetSemiSyncWaitSlaveCount
+}
+
+func (ss *SemiSyncSourceReplicaStatusStruct) MasterEnabled() bool {
+	return ss.SourceEnabledValue > 0
+}
+
+func (ss *SemiSyncSourceReplicaStatusStruct) SlaveEnabled() bool {
+	return ss.ReplicaEnabledValue > 0
+}
+
+func (ss *SemiSyncSourceReplicaStatusStruct) GetWaitSlaveCount() int {
+	return ss.WaitReplicaCount
+}
+
+func (ss *SemiSyncSourceReplicaStatusStruct) GetStatusQuery() string {
+	return querySemiSyncSourceReplicaStatus
+}
+
+func (ss *SemiSyncSourceReplicaStatusStruct) GetClientsQuery() string {
+	return querySemiSyncSourceClients
+}
+
+func (ss *SemiSyncSourceReplicaStatusStruct) GetSetMasterQuery() string {
+	return querySemiSyncSetSource
+}
+
+func (ss *SemiSyncSourceReplicaStatusStruct) GetSetSlaveQuery() string {
+	return querySemiSyncSetReplica
+}
+
+func (ss *SemiSyncSourceReplicaStatusStruct) GetDisableQuery() string {
+	return querySemiSyncSourceReplicaDisable
+}
+
+func (ss *SemiSyncSourceReplicaStatusStruct) GetSetWaitSlaveCountQuery() string {
+	return querySetSemiSyncWaitReplicaCount
 }
 
 func (sett *replicationSettings) ShouldBeRunning() bool {

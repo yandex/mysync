@@ -93,7 +93,7 @@ Feature: mysync handles zookeeper lost
 
     When host "mysql1" is detached from the network
     Then mysql host "mysql1" should become unavailable within "10" seconds
-    # following request should stuck in 'Waiting for semi-sync ACK from slave' state
+    # following request should be stuck waiting for a semi-sync ACK
     When I run async command on host "mysql1"
     """
        mysql -s --skip-column-names -e "INSERT INTO mysql.test_table1 VALUES ('D'), ('E'), ('F')"

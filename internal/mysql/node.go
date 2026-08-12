@@ -31,15 +31,17 @@ import (
 
 // Node represents API to query/manipulate single MySQL node
 type Node struct {
-	config  *config.Config
-	logger  *log.Logger
-	db      *sqlx.DB
-	version *Version
-	host    string
-	uuid    uuid.UUID
+	config               *config.Config
+	logger               *log.Logger
+	db                   *sqlx.DB
+	version              *Version
+	host                 string
+	uuid                 uuid.UUID
+	semiSyncDialectCache *semiSyncDialect
 
-	done atomic.Uint32
-	mu   sync.Mutex
+	done       atomic.Uint32
+	mu         sync.Mutex
+	semiSyncMu sync.Mutex
 }
 
 var (
@@ -921,54 +923,74 @@ func (n *Node) ResetSlaveAll() error {
 }
 
 // SemiSyncStatus returns semi sync status
-func (n *Node) SemiSyncStatus() (*SemiSyncStatus, error) {
-	status := new(SemiSyncStatus)
-	err := n.queryRow(querySemiSyncStatus, nil, status)
-	if err != nil {
-		var err2 *mysql.MySQLError
-		if errors.As(err, &err2) && err2.Number == 1193 {
-			// Error: Unknown system variable
-			// means semisync plugin is not loaded
-			return status, nil
-		}
+func (n *Node) SemiSyncStatus() (SemiSyncStatus, error) {
+	semiSync, err := n.trySemiSync(func(semiSync SemiSync) error {
+		return n.queryRow(semiSync.GetStatusQuery(), nil, semiSync)
+	}, semiSyncOperationAttempts)
+	if errors.Is(err, errSemiSyncDisabled) {
+		return new(SemiSyncDisabledStatusStruct), nil
 	}
-	return status, err
+	if err != nil {
+		return semiSync, err
+	}
+	return semiSync, nil
 }
 
-// SemiSyncSetMaster set host as semisync master
+// SemiSyncSetMaster sets host as semi-sync master/source.
 func (n *Node) SemiSyncSetMaster() error {
-	return n.exec(querySemiSyncSetMaster, nil)
+	_, err := n.trySemiSync(func(semiSync SemiSync) error {
+		return n.exec(semiSync.GetSetMasterQuery(), nil)
+	}, semiSyncOperationAttempts)
+	return err
 }
 
-// SemiSyncSetSlave set host as semisync master
+// SemiSyncSetSlave sets host as semi-sync slave/replica.
 func (n *Node) SemiSyncSetSlave() error {
-	return n.exec(querySemiSyncSetSlave, nil)
+	_, err := n.trySemiSync(func(semiSync SemiSync) error {
+		return n.exec(semiSync.GetSetSlaveQuery(), nil)
+	}, semiSyncOperationAttempts)
+	return err
 }
 
-// SemiSyncDisable disables semi_sync_master and semi_sync_slave
+// SemiSyncDisable disables both sides of the active semi-sync dialect.
 func (n *Node) SemiSyncDisable() error {
-	return n.exec(querySemiSyncDisable, nil)
+	_, err := n.trySemiSync(func(semiSync SemiSync) error {
+		return n.exec(semiSync.GetDisableQuery(), nil)
+	}, semiSyncOperationAttempts)
+	if errors.Is(err, errSemiSyncDisabled) {
+		return nil
+	}
+	return err
 }
 
-// SemiSyncSetWaitSlaveCount changes rpl_semi_sync_master_wait_for_slave_count
+// SetSemiSyncWaitSlaveCount changes the master/source wait count.
 func (n *Node) SetSemiSyncWaitSlaveCount(c int) error {
-	return n.exec(querySetSemiSyncWaitSlaveCount, map[string]any{"wait_slave_count": c})
+	arg := map[string]any{"wait_slave_count": c}
+	_, err := n.trySemiSync(func(semiSync SemiSync) error {
+		return n.exec(semiSync.GetSetWaitSlaveCountQuery(), arg)
+	}, semiSyncOperationAttempts)
+	return err
 }
 
-// SemiSyncMasterClients returns current number of connected semi-sync replicas.
+// SemiSyncClients returns current number of connected semi-sync replicas.
 // The value is read from performance_schema.global_status as a string and parsed to int.
-func (n *Node) SemiSyncMasterClients() (int, error) {
+func (n *Node) SemiSyncClients() (int, error) {
 	type result struct {
 		Clients string `db:"Clients"`
 	}
+
 	var r result
-	err := n.queryRow(querySemiSyncMasterClients, nil, &r)
+	_, err := n.trySemiSync(func(semiSync SemiSync) error {
+		r = result{}
+		return n.queryRow(semiSync.GetClientsQuery(), nil, &r)
+	}, semiSyncOperationAttempts)
 	if err != nil {
 		return 0, err
 	}
+
 	clients, err := strconv.Atoi(r.Clients)
 	if err != nil {
-		return 0, fmt.Errorf("failed to parse Rpl_semi_sync_master_clients value %q: %w", r.Clients, err)
+		return 0, fmt.Errorf("failed to parse semi-sync clients value %q: %w", r.Clients, err)
 	}
 	return clients, nil
 }
@@ -1082,7 +1104,7 @@ func (n *Node) ReenableEvents() ([]Event, error) {
 	return events, nil
 }
 
-// IsWaitingSemiSyncAck returns true when Master is stuck in 'Waiting for semi-sync ACK from slave' state
+// IsWaitingSemiSyncAck returns true when the source is stuck waiting for a semi-sync ACK.
 func (n *Node) IsWaitingSemiSyncAck() (bool, error) {
 	type waitingSemiSyncStatus struct {
 		IsWaiting bool `db:"IsWaiting"`

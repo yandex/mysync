@@ -1195,17 +1195,36 @@ func (tctx *testContext) stepMysqlHostShouldBeMaster(host string) error {
 	return nil
 }
 
+func sqlValueString(value any) (string, error) {
+	switch value := value.(type) {
+	case string:
+		return value, nil
+	case []byte:
+		return string(value), nil
+	case int, int8, int16, int32, int64,
+		uint, uint8, uint16, uint32, uint64,
+		float32, float64, bool:
+		return fmt.Sprint(value), nil
+	default:
+		return "", fmt.Errorf("unsupported SQL value type %T", value)
+	}
+}
+
 func (tctx *testContext) stepMysqlHostShouldHaveVariableSet(host string, name string, value string) error {
 	res, err := tctx.queryMysql(host, fmt.Sprintf("SELECT @@%s AS actual", name), nil)
 	if err != nil {
 		return err
 	}
-	actual := ""
-	switch res[0]["actual"].(type) {
-	case int64:
-		actual = fmt.Sprint(res[0]["actual"].(int64))
-	default:
-		actual = res[0]["actual"].(string)
+	if len(res) != 1 {
+		return fmt.Errorf("querying @@%s returned %d rows, expected 1", name, len(res))
+	}
+	rawActual, ok := res[0]["actual"]
+	if !ok {
+		return fmt.Errorf("querying @@%s returned no actual column", name)
+	}
+	actual, err := sqlValueString(rawActual)
+	if err != nil {
+		return fmt.Errorf("querying @@%s: %w", name, err)
 	}
 	if actual != value {
 		return fmt.Errorf("@@%s is %s, while expected %s", name, actual, value)
@@ -1220,6 +1239,41 @@ func (tctx *testContext) stepMysqlHostShouldHaveVariableSetWithin(host string, n
 		return err == nil
 	}, time.Duration(timeout*int(time.Second)), time.Second)
 	return err
+}
+
+func TestSQLValueString(t *testing.T) {
+	testCases := []struct {
+		name      string
+		value     any
+		expected  string
+		wantError bool
+	}{
+		{name: "string", value: "ON", expected: "ON"},
+		{name: "bytes", value: []byte("OFF"), expected: "OFF"},
+		{name: "signed integer", value: int64(1), expected: "1"},
+		{name: "unsigned integer", value: uint64(2), expected: "2"},
+		{name: "float", value: float64(1.5), expected: "1.5"},
+		{name: "boolean", value: true, expected: "true"},
+		{name: "nil", value: nil, wantError: true},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			actual, err := sqlValueString(tc.value)
+			if tc.wantError {
+				if err == nil {
+					t.Fatal("expected an error")
+				}
+				return
+			}
+			if err != nil {
+				t.Fatalf("unexpected error: %v", err)
+			}
+			if actual != tc.expected {
+				t.Fatalf("got %q, expected %q", actual, tc.expected)
+			}
+		})
+	}
 }
 
 func (tctx *testContext) shouldHaveVariableSetWithinFactory(name string, value string) func(string, int) error {

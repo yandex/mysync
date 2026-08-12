@@ -164,27 +164,27 @@ func (app *App) newDBCluster() error {
 func (app *App) checkHAReplicasRunning(local *mysql.Node) (replicasRunning bool, hasUnreachReplicas bool) {
 	checker := func(host string) error {
 		node := app.cluster.Get(host)
-		status, err := node.ReplicaStatusWithTimeout(app.config.DBLostCheckTimeout, app.config.ReplicationChannel)
+		replicaStatus, err := node.ReplicaStatusWithTimeout(app.config.DBLostCheckTimeout, app.config.ReplicationChannel)
 		if err != nil {
 			return err
 		}
-		if status == nil {
+		if replicaStatus == nil {
 			return fmt.Errorf("%s is master", host)
 		}
-		if !status.ReplicationRunning() {
+		if !replicaStatus.ReplicationRunning() {
 			return fmt.Errorf("replication on host %s is not running", host)
 		}
-		if status.GetMasterHost() != local.Host() {
+		if replicaStatus.GetMasterHost() != local.Host() {
 			return fmt.Errorf("replication on host %s doesn't streaming from master %s", host, local.Host())
 		}
 		if !app.config.SemiSync {
 			return nil // count all replicas in async-only schema
 		}
-		ssstatus, err := node.SemiSyncStatus()
+		semiSyncStatus, err := node.SemiSyncStatus()
 		if err != nil {
 			return fmt.Errorf("%s %w", host, err)
 		}
-		if ssstatus.SlaveEnabled == 0 {
+		if !semiSyncStatus.SlaveEnabled() {
 			return fmt.Errorf("replica %s is not semi-sync", host)
 		}
 		return nil
@@ -212,12 +212,12 @@ func (app *App) checkHAReplicasRunning(local *mysql.Node) (replicasRunning bool,
 		availableReplicas, unreachableReplicas, len(app.cluster.HANodeHosts()))
 
 	if app.config.SemiSync {
-		status, err := local.SemiSyncStatus()
+		semiSyncStatus, err := local.SemiSyncStatus()
 		if err != nil {
 			app.logger.Error().Err(err).Msg("failed to get semisync status")
 			return false, unreachableReplicas > 0
 		}
-		return availableReplicas >= status.WaitSlaveCount, unreachableReplicas > 0
+		return availableReplicas >= semiSyncStatus.GetWaitSlaveCount(), unreachableReplicas > 0
 	} else {
 		// check connectivity to all replicas:
 		return availableReplicas >= len(app.cluster.HANodeHosts())-1, unreachableReplicas > 0
@@ -1070,8 +1070,8 @@ func (app *App) updateActiveNodes(clusterState, clusterStateDcs map[string]*node
 		}
 	}
 
-	// Wait until newly-activated replicas have registered as semi-sync clients so that the master
-	// does not block on "Waiting for semi-sync ACK from slave".
+	// Wait until newly-activated replicas have registered as semi-sync clients so that the source
+	// does not block on "Waiting for semi-sync ACK".
 	// We will wait only if we increase waitSlaveCount
 	if adjustAfter && app.config.MasterFirstAdjustSSOrder {
 		if waitErr := app.waitForSemiSyncClients(masterNode, waitSlaveCount, app.config.SemiSyncClientsWaitTimeout); waitErr != nil {
@@ -1220,7 +1220,7 @@ func (app *App) disableSemiSyncOnSlave(host string, restartIOThread bool) error 
 	return nil
 }
 
-// Waits until the master reports at least expectedCount connected semi-sync replicas
+// Waits until the source reports at least expectedCount connected semi-sync replicas.
 // Returns nil when the expected number of clients is reached, or an error on timeout.
 func (app *App) waitForSemiSyncClients(masterNode *mysql.Node, expectedCount int, timeout time.Duration) error {
 	if expectedCount <= 0 {
@@ -1228,9 +1228,9 @@ func (app *App) waitForSemiSyncClients(masterNode *mysql.Node, expectedCount int
 	}
 	deadline := time.Now().Add(timeout)
 	for time.Now().Before(deadline) {
-		clients, err := masterNode.SemiSyncMasterClients()
+		clients, err := masterNode.SemiSyncClients()
 		if err != nil {
-			app.logger.Warn().Err(err).Msgf("switchover: failed to get semi-sync master clients count on %s", masterNode.Host())
+			app.logger.Warn().Err(err).Msgf("switchover: failed to get semi-sync clients count on %s", masterNode.Host())
 			time.Sleep(time.Second)
 			continue
 		}
@@ -2214,9 +2214,9 @@ func (app *App) getNodeState(host string) *nodestate.NodeState {
 			return err
 		}
 		nodeState.SemiSyncState = new(nodestate.SemiSyncState)
-		nodeState.SemiSyncState.MasterEnabled = semiSyncStatus.MasterEnabled > 0
-		nodeState.SemiSyncState.SlaveEnabled = semiSyncStatus.SlaveEnabled > 0
-		nodeState.SemiSyncState.WaitSlaveCount = semiSyncStatus.WaitSlaveCount
+		nodeState.SemiSyncState.MasterEnabled = semiSyncStatus.MasterEnabled()
+		nodeState.SemiSyncState.SlaveEnabled = semiSyncStatus.SlaveEnabled()
+		nodeState.SemiSyncState.WaitSlaveCount = semiSyncStatus.GetWaitSlaveCount()
 		return nil
 	}()
 	if err != nil {
