@@ -926,7 +926,7 @@ func (n *Node) ResetSlaveAll() error {
 func (n *Node) SemiSyncStatus() (SemiSyncStatus, error) {
 	semiSync, err := n.trySemiSync(func(semiSync SemiSync) error {
 		return n.queryRow(semiSync.GetStatusQuery(), nil, semiSync)
-	}, 2)
+	}, semiSyncOperationAttempts)
 	if errors.Is(err, errSemiSyncDisabled) {
 		return new(SemiSyncDisabledStatusStruct), nil
 	}
@@ -940,7 +940,7 @@ func (n *Node) SemiSyncStatus() (SemiSyncStatus, error) {
 func (n *Node) SemiSyncSetMaster() error {
 	_, err := n.trySemiSync(func(semiSync SemiSync) error {
 		return n.exec(semiSync.GetSetMasterQuery(), nil)
-	}, 2)
+	}, semiSyncOperationAttempts)
 	return err
 }
 
@@ -948,7 +948,7 @@ func (n *Node) SemiSyncSetMaster() error {
 func (n *Node) SemiSyncSetSlave() error {
 	_, err := n.trySemiSync(func(semiSync SemiSync) error {
 		return n.exec(semiSync.GetSetSlaveQuery(), nil)
-	}, 2)
+	}, semiSyncOperationAttempts)
 	return err
 }
 
@@ -956,7 +956,7 @@ func (n *Node) SemiSyncSetSlave() error {
 func (n *Node) SemiSyncDisable() error {
 	_, err := n.trySemiSync(func(semiSync SemiSync) error {
 		return n.exec(semiSync.GetDisableQuery(), nil)
-	}, 2)
+	}, semiSyncOperationAttempts)
 	if errors.Is(err, errSemiSyncDisabled) {
 		return nil
 	}
@@ -968,7 +968,7 @@ func (n *Node) SetSemiSyncWaitSlaveCount(c int) error {
 	arg := map[string]any{"wait_slave_count": c}
 	_, err := n.trySemiSync(func(semiSync SemiSync) error {
 		return n.exec(semiSync.GetSetWaitSlaveCountQuery(), arg)
-	}, 2)
+	}, semiSyncOperationAttempts)
 	return err
 }
 
@@ -983,7 +983,7 @@ func (n *Node) SemiSyncClients() (int, error) {
 	_, err := n.trySemiSync(func(semiSync SemiSync) error {
 		r = result{}
 		return n.queryRow(semiSync.GetClientsQuery(), nil, &r)
-	}, 2)
+	}, semiSyncOperationAttempts)
 	if err != nil {
 		return 0, err
 	}

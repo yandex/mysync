@@ -24,7 +24,10 @@ const (
 	semiSyncPluginReplica = "rpl_semi_sync_replica"
 )
 
-const unknownSystemVariable = 1193 // Symbol: ER_UNKNOWN_SYSTEM_VARIABLE; SQLSTATE: HY000
+const (
+	semiSyncOperationAttempts = 2
+	unknownSystemVariable     = 1193 // Symbol: ER_UNKNOWN_SYSTEM_VARIABLE; SQLSTATE: HY000
+)
 
 var (
 	errSemiSyncDisabled          = errors.New("semisync plugins are not loaded")
