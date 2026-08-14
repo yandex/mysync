@@ -35,7 +35,7 @@ Feature: mysync reenables slaveside disabled events
     """
     And I run SQL on mysql host "mysql1"
     """
-        CREATE DEFINER = "user456@host789" EVENT mysql.event_test_definer_with_host
+        CREATE DEFINER = "user456"@"host789" EVENT mysql.event_test_definer_with_host
         ON SCHEDULE EVERY 1 SECOND
         DO UPDATE mysql.mdb_repl_mon SET ts = CURRENT_TIMESTAMP(3);
     """

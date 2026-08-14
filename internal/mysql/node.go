@@ -1061,6 +1061,14 @@ func (n *Node) ReenableEventsRetry() ([]Event, error) {
 	return nil, err
 }
 
+func splitEventDefiner(definer string) (user, host string) {
+	separator := strings.LastIndexByte(definer, '@')
+	if separator == -1 {
+		return definer, ""
+	}
+	return definer[:separator], definer[separator+1:]
+}
+
 func (n *Node) ReenableEvents() ([]Event, error) {
 	var events []Event
 	q, err := n.GetListSlaveSideDisabledEventsQuery()
@@ -1080,17 +1088,7 @@ func (n *Node) ReenableEvents() ([]Event, error) {
 		return nil, err
 	}
 	for _, event := range events {
-		definer := strings.Split(event.Definer, "@")
-		user := definer[0]
-		host := ""
-		/*
-			In case of incorrect Definer field in event. Though I wasn't able find the way to get it, I'm not sure
-			that there is no way to create mysql event with definer field without '@' symbol
-			At least there is possible to event with definer like definer=abc@'' (but symbol @ will still be present)
-		*/
-		if len(definer) > 1 {
-			host = definer[1]
-		}
+		user, host := splitEventDefiner(event.Definer)
 		err = n.execMogrify(queryEnableEvent, map[string]any{
 			"schema": schemaname(event.Schema),
 			"name":   schemaname(event.Name),
