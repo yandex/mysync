@@ -924,62 +924,100 @@ func (tctx *testContext) stepIRunSQLOnHost(host string, body *godog.DocString) e
 	return err
 }
 
-func (tctx *testContext) externalReplicationSource(host string) (string, error) {
+type externalReplicationState struct {
+	sourceHost        string
+	replicaIORunning  string
+	replicaSQLRunning string
+}
+
+func sqlResultString(row sqlQueryResultRow, field, host string) (string, error) {
+	value, ok := row[field]
+	if !ok {
+		return "", fmt.Errorf("external replication status on %s has no %s", host, field)
+	}
+	result, ok := value.(string)
+	if !ok {
+		return "", fmt.Errorf("external replication %s on %s has unexpected type %T", field, host, value)
+	}
+	return result, nil
+}
+
+func (tctx *testContext) externalReplicationState(host string) (externalReplicationState, error) {
 	result, err := tctx.queryMysql(host, "SHOW REPLICA STATUS FOR CHANNEL 'external'", nil)
 	if err != nil {
-		return "", err
+		return externalReplicationState{}, err
 	}
 	if len(result) != 1 {
-		return "", fmt.Errorf("expected one external replication status row on %s, got %d", host, len(result))
+		return externalReplicationState{}, fmt.Errorf("expected one external replication status row on %s, got %d", host, len(result))
 	}
 
-	source, ok := result[0]["Source_Host"]
-	if !ok {
-		return "", fmt.Errorf("external replication status on %s has no Source_Host", host)
+	sourceHost, err := sqlResultString(result[0], "Source_Host", host)
+	if err != nil {
+		return externalReplicationState{}, err
 	}
-	sourceHost, ok := source.(string)
-	if !ok {
-		return "", fmt.Errorf("external replication Source_Host on %s has unexpected type %T", host, source)
+	replicaIORunning, err := sqlResultString(result[0], "Replica_IO_Running", host)
+	if err != nil {
+		return externalReplicationState{}, err
 	}
-	return sourceHost, nil
+	replicaSQLRunning, err := sqlResultString(result[0], "Replica_SQL_Running", host)
+	if err != nil {
+		return externalReplicationState{}, err
+	}
+
+	return externalReplicationState{
+		sourceHost:        sourceHost,
+		replicaIORunning:  replicaIORunning,
+		replicaSQLRunning: replicaSQLRunning,
+	}, nil
+}
+
+func (state externalReplicationState) readyForSource(source string) bool {
+	ioStarted := state.replicaIORunning == "Connecting" || state.replicaIORunning == "Yes"
+	return state.sourceHost == source && ioStarted && state.replicaSQLRunning == "Yes"
 }
 
 func (tctx *testContext) stepExternalReplicationSourceShouldBecomeWithin(host, expectedSource string, timeout int) error {
 	var (
-		lastSource string
-		lastErr    error
+		lastState externalReplicationState
+		lastErr   error
 	)
-	testutil.Retry(func() bool {
-		lastSource, lastErr = tctx.externalReplicationSource(host)
-		return lastErr == nil && lastSource == expectedSource
+	matched := testutil.Eventually(func() bool {
+		lastState, lastErr = tctx.externalReplicationState(host)
+		return lastErr == nil && lastState.readyForSource(expectedSource)
 	}, time.Duration(timeout)*time.Second, time.Second)
 
+	if matched {
+		return nil
+	}
 	if lastErr != nil {
 		return fmt.Errorf("external replication source on %s did not become %q within %d seconds: last query failed: %w",
 			host, expectedSource, timeout, lastErr)
 	}
-	if lastSource != expectedSource {
-		return fmt.Errorf("external replication source on %s did not become %q within %d seconds: last source was %q",
-			host, expectedSource, timeout, lastSource)
-	}
-	return nil
+	return fmt.Errorf(
+		"external replication source on %s did not become ready on %q within %d seconds: last state was source=%q io=%q sql=%q",
+		host, expectedSource, timeout, lastState.sourceHost, lastState.replicaIORunning, lastState.replicaSQLRunning,
+	)
 }
 
 func (tctx *testContext) stepExternalReplicationSourceShouldRemainFor(host, expectedSource string, duration int) error {
 	var checkErr error
-	testutil.Retry(func() bool {
-		actualSource, err := tctx.externalReplicationSource(host)
+	matched := testutil.Consistently(func() bool {
+		state, err := tctx.externalReplicationState(host)
 		if err != nil {
 			checkErr = fmt.Errorf("failed to check external replication source on %s: %w", host, err)
-			return true
+			return false
 		}
-		if actualSource != expectedSource {
+		if state.sourceHost != expectedSource {
 			checkErr = fmt.Errorf("external replication source on %s changed from %q to %q before %d seconds elapsed",
-				host, expectedSource, actualSource, duration)
-			return true
+				host, expectedSource, state.sourceHost, duration)
+			return false
 		}
-		return false
+		checkErr = nil
+		return true
 	}, time.Duration(duration)*time.Second, time.Second)
+	if matched {
+		return nil
+	}
 	return checkErr
 }
 

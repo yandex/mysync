@@ -7,6 +7,11 @@ Feature: external replication switchover
         MYSYNC_REPLICATION_REPAIR_MAX_ATTEMPTS=1
         """
         Given cluster is up and running
+        When I run command on host "mysql1"
+        """
+            grep -Fx 'replication_repair_max_attempts: 1' /etc/mysync.yaml
+        """
+        Then command return code should be "0"
         Then mysql host "mysql1" should be master
         And mysql host "mysql2" should be replica of "mysql1"
         And mysql host "mysql3" should be replica of "mysql1"
