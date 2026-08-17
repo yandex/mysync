@@ -27,7 +27,7 @@ elif [[ "$MYSQL_VERSION" == "8.4" ]]; then
   add-apt-repository 'deb http://mirror.yandex.ru/mirrors/percona/psmdb-60/apt jammy main'
 elif [[ "$MYSQL_VERSION" == "9.7" ]]; then
   add-apt-repository 'deb http://mirror.yandex.ru/mirrors/percona/ps-97-lts/apt jammy main'
-  add-apt-repository 'deb http://mirror.yandex.ru/mirrors/percona/pxb-97-lts/apt jammy main'
+  add-apt-repository 'deb http://mirror.yandex.ru/mirrors/percona/telemetry/apt jammy main'
 fi
 
 # common
@@ -73,8 +73,7 @@ elif [[ "$MYSQL_VERSION" == "8.4" ]]; then
     percona-xtrabackup-84
 elif [[ "$MYSQL_VERSION" == "9.7" ]]; then
   apt-get install \
-    percona-server-server=9.7.\* \
-    percona-xtrabackup-97
+    percona-server-server=9.7.\*
 else
   apt-get install \
     percona-xtradb-cluster-server-${MYSQL_VERSION} \

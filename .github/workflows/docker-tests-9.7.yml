@@ -34,11 +34,11 @@ jobs:
       - name: Build images
         if: steps.cache-images.outputs.cache-hit != 'true'
         run: make base_img_9.7
-      
+
       - name: Export image
         if: steps.cache-images.outputs.cache-hit != 'true'
         run: docker save mysync-test-base9.7 | gzip -c > ~/mysync-base-img9.7.tgz
-    
+
   test:
     name: test
     runs-on: ubuntu-22.04
@@ -46,36 +46,36 @@ jobs:
     strategy:
       matrix:
         command:
-          - 'VERSION=9.7 GODOG_FEATURE=active_nodes.feature make test'
-          - 'VERSION=9.7 GODOG_FEATURE=async.feature make test'
-          - 'VERSION=9.7 GODOG_FEATURE=async_setting.feature make test'
-          - 'VERSION=9.7 GODOG_FEATURE=cascade_replicas.84.feature make test'
-          - 'VERSION=9.7 GODOG_FEATURE=CLI.feature make test'
+          - 'VERSION=9.7 GODOG_FEATURE=active_nodes.97.feature make test'
+          - 'VERSION=9.7 GODOG_FEATURE=async.97.feature make test'
+          - 'VERSION=9.7 GODOG_FEATURE=async_setting.97.feature make test'
+          - 'VERSION=9.7 GODOG_FEATURE=cascade_replicas.97.feature make test'
+          - 'VERSION=9.7 GODOG_FEATURE=CLI.97.feature make test'
           - 'VERSION=9.7 GODOG_FEATURE=crash_recovery.feature make test'
           - 'VERSION=9.7 GODOG_FEATURE=events_reenable.84.feature make test'
           - 'VERSION=9.7 GODOG_FEATURE=external_replication.feature make test'
           - 'VERSION=9.7 GODOG_FEATURE=external_replication_multiple.feature make test'
-          - 'VERSION=9.7 GODOG_FEATURE=failover.84.feature make test'
+          - 'VERSION=9.7 GODOG_FEATURE=failover.97.feature make test'
           - 'VERSION=9.7 GODOG_FEATURE=free_space.feature make test'
           - 'VERSION=9.7 GODOG_FEATURE=host_discovery.feature make test'
           - 'VERSION=9.7 GODOG_FEATURE=host_management.feature make test'
-          - 'VERSION=9.7 GODOG_FEATURE=maintenance.84.feature make test'
+          - 'VERSION=9.7 GODOG_FEATURE=maintenance.97.feature make test'
           - 'VERSION=9.7 GODOG_FEATURE=offline_mode.84.feature make test'
           - 'VERSION=9.7 GODOG_FEATURE=offline_mode_az_limit.feature make test'
           - 'VERSION=9.7 GODOG_FEATURE=priority.feature make test'
           - 'VERSION=9.7 GODOG_FEATURE=readonly_filesystem.feature make test'
-          - 'VERSION=9.7 GODOG_FEATURE=recovery.feature make test'
-          - 'VERSION=9.7 GODOG_FEATURE=repair.feature make test'
-          - 'VERSION=9.7 GODOG_FEATURE=semisync_source_replica.84.feature make test'
+          - 'VERSION=9.7 GODOG_FEATURE=recovery.97.feature make test'
+          - 'VERSION=9.7 GODOG_FEATURE=repair.97.feature make test'
+          - 'VERSION=9.7 GODOG_FEATURE=semisync_source_replica.97.feature make test'
           - 'VERSION=9.7 GODOG_FEATURE=repl_mon.feature make test'
           - 'VERSION=9.7 GODOG_FEATURE=statefile.feature make test'
-          - 'VERSION=9.7 GODOG_FEATURE=switchover_from.84.feature make test'
-          - 'VERSION=9.7 GODOG_FEATURE=switchover_to.feature make test'
-          - 'VERSION=9.7 GODOG_FEATURE=zk_failure.feature make test'
+          - 'VERSION=9.7 GODOG_FEATURE=switchover_from.97.feature make test'
+          - 'VERSION=9.7 GODOG_FEATURE=switchover_to.97.feature make test'
+          - 'VERSION=9.7 GODOG_FEATURE=zk_failure.97.feature make test'
           - 'VERSION=9.7 GODOG_FEATURE=zk_maintenance.feature make test'
           - 'VERSION=9.7 GODOG_FEATURE=manager_switchover.feature make test'
           - 'VERSION=9.7 GODOG_FEATURE=optimization.feature make test'
-          - 'VERSION=9.7 GODOG_FEATURE=light_maintenance_mode.feature make test'
+          - 'VERSION=9.7 GODOG_FEATURE=light_maintenance_mode.97.feature make test'
       fail-fast: false
 
     steps:
@@ -104,15 +104,15 @@ jobs:
         run: |
           echo "Failed to fetch cached docker images. Will now exit..."
           exit 1
-      
+
       - name: Import image
         run: docker load -i ~/mysync-base-img9.7.tgz
-        
+
       - name: Run test
         run: ${{ matrix.command }}
-        
+
       - uses: actions/upload-artifact@v7
         if: failure()
         with:
-          name: logs
+          name: logs-9.7-${{ strategy.job-index }}
           path: tests/logs

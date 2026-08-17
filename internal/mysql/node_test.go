@@ -6,6 +6,14 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+func TestChangeSourceQueriesRequestSourcePublicKey(t *testing.T) {
+	for _, queryName := range []string{queryChangeSource, queryChangeSourceWithDelay} {
+		t.Run(queryName, func(t *testing.T) {
+			require.Contains(t, DefaultQueries[queryName], "GET_SOURCE_PUBLIC_KEY = 1")
+		})
+	}
+}
+
 func TestSplitEventDefiner(t *testing.T) {
 	tests := []struct {
 		name         string
