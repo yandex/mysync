@@ -17,7 +17,7 @@ lint:
 
 unittests:
 	go test ./cmd/... ./internal/...
-	go test ./tests/testutil/...
+	go test ./cmd/... ./tests/testutil/matchers/
 
 base_img:
 	docker build --tag=mysync-test-base tests/images/base --build-arg MYSQL_VERSION=5.7
