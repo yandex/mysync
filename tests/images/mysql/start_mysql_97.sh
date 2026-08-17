@@ -18,6 +18,9 @@ rpl_semi_sync_source_wait_no_replica = ON
 rpl_semi_sync_source_wait_point = AFTER_SYNC
 EOF
 
+# MySQL 9.7 creates INFORMATION_SCHEMA system views after executing init_file.
+# Enabling super_read_only in init_file blocks those internal CREATE VIEW
+# statements. The normal server start enables it from my.cnf.9.7 instead.
 cat <<EOF > /etc/mysql/init.sql
    SET GLOBAL super_read_only = 0;
    CREATE USER $MYSQL_ADMIN_USER@'%' IDENTIFIED WITH caching_sha2_password BY '$MYSQL_ADMIN_PASSWORD';
@@ -28,7 +31,6 @@ cat <<EOF > /etc/mysql/init.sql
    GRANT REPLICATION SLAVE ON *.* TO repl@'%';
    CREATE DATABASE test1;
    RESET BINARY LOGS AND GTIDS;
-   SET GLOBAL super_read_only = 1;
 EOF
 
 if [ ! -f /etc/mysql/slave.sql ]; then
