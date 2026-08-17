@@ -62,40 +62,10 @@ Feature: maintenance mode
       """
       ["mysql1","mysql2","mysql3"]
       """
-    When I run SQL on mysql host "mysql2"
-      """
-      SHOW GLOBAL VARIABLES LIKE 'rpl_semi_sync_%_enabled'
-      """
-    Then SQL result should match json
-      """
-      [
-        {
-          "Value":"OFF",
-          "Variable_name":"rpl_semi_sync_source_enabled"
-        },
-        {
-          "Value":"ON",
-          "Variable_name":"rpl_semi_sync_replica_enabled"
-        }
-      ]
-      """
-    When I run SQL on mysql host "mysql1"
-      """
-      SHOW GLOBAL VARIABLES LIKE 'rpl_semi_sync_%_enabled'
-      """
-    Then SQL result should match json
-      """
-      [
-        {
-          "Value":"ON",
-          "Variable_name":"rpl_semi_sync_source_enabled"
-        },
-        {
-          "Value":"OFF",
-          "Variable_name":"rpl_semi_sync_replica_enabled"
-        }
-      ]
-      """
+    And mysql host "mysql2" should have variable "rpl_semi_sync_source_enabled" set to "0"
+    And mysql host "mysql2" should have variable "rpl_semi_sync_replica_enabled" set to "1"
+    And mysql host "mysql1" should have variable "rpl_semi_sync_source_enabled" set to "1"
+    And mysql host "mysql1" should have variable "rpl_semi_sync_replica_enabled" set to "0"
     When I run command on host "mysql1"
       """
       mysync maint on
@@ -113,40 +83,10 @@ Feature: maintenance mode
       }
       """
     And zookeeper node "/test/active_nodes" should not exist
-    When I run SQL on mysql host "mysql2"
-      """
-      SHOW GLOBAL VARIABLES LIKE 'rpl_semi_sync_%_enabled'
-      """
-    Then SQL result should match json
-      """
-      [
-        {
-          "Value":"OFF",
-          "Variable_name":"rpl_semi_sync_source_enabled"
-        },
-        {
-          "Value":"ON",
-          "Variable_name":"rpl_semi_sync_replica_enabled"
-        }
-      ]
-      """
-    When I run SQL on mysql host "mysql1"
-      """
-      SHOW GLOBAL VARIABLES LIKE 'rpl_semi_sync_%_enabled'
-      """
-    Then SQL result should match json
-      """
-      [
-        {
-          "Value":"OFF",
-          "Variable_name":"rpl_semi_sync_source_enabled"
-        },
-        {
-          "Value":"OFF",
-          "Variable_name":"rpl_semi_sync_replica_enabled"
-        }
-      ]
-      """
+    And mysql host "mysql2" should have variable "rpl_semi_sync_source_enabled" set to "0"
+    And mysql host "mysql2" should have variable "rpl_semi_sync_replica_enabled" set to "1"
+    And mysql host "mysql1" should have variable "rpl_semi_sync_source_enabled" set to "0"
+    And mysql host "mysql1" should have variable "rpl_semi_sync_replica_enabled" set to "0"
     When I run command on host "mysql1"
       """
       mysync maint off
@@ -157,40 +97,10 @@ Feature: maintenance mode
       """
       ["mysql1","mysql2","mysql3"]
       """
-    When I run SQL on mysql host "mysql2"
-      """
-      SHOW GLOBAL VARIABLES LIKE 'rpl_semi_sync_%_enabled'
-      """
-    Then SQL result should match json
-      """
-      [
-        {
-          "Value":"OFF",
-          "Variable_name":"rpl_semi_sync_source_enabled"
-        },
-        {
-          "Value":"ON",
-          "Variable_name":"rpl_semi_sync_replica_enabled"
-        }
-      ]
-      """
-    When I run SQL on mysql host "mysql1"
-      """
-      SHOW GLOBAL VARIABLES LIKE 'rpl_semi_sync_%_enabled'
-      """
-    Then SQL result should match json
-      """
-      [
-        {
-          "Value":"ON",
-          "Variable_name":"rpl_semi_sync_source_enabled"
-        },
-        {
-          "Value":"OFF",
-          "Variable_name":"rpl_semi_sync_replica_enabled"
-        }
-      ]
-      """
+    And mysql host "mysql2" should have variable "rpl_semi_sync_source_enabled" set to "0"
+    And mysql host "mysql2" should have variable "rpl_semi_sync_replica_enabled" set to "1"
+    And mysql host "mysql1" should have variable "rpl_semi_sync_source_enabled" set to "1"
+    And mysql host "mysql1" should have variable "rpl_semi_sync_replica_enabled" set to "0"
 
   Scenario: master host in DCS updated correctly after manual master change
     Given cluster is up and running
