@@ -924,6 +924,65 @@ func (tctx *testContext) stepIRunSQLOnHost(host string, body *godog.DocString) e
 	return err
 }
 
+func (tctx *testContext) externalReplicationSource(host string) (string, error) {
+	result, err := tctx.queryMysql(host, "SHOW REPLICA STATUS FOR CHANNEL 'external'", nil)
+	if err != nil {
+		return "", err
+	}
+	if len(result) != 1 {
+		return "", fmt.Errorf("expected one external replication status row on %s, got %d", host, len(result))
+	}
+
+	source, ok := result[0]["Source_Host"]
+	if !ok {
+		return "", fmt.Errorf("external replication status on %s has no Source_Host", host)
+	}
+	sourceHost, ok := source.(string)
+	if !ok {
+		return "", fmt.Errorf("external replication Source_Host on %s has unexpected type %T", host, source)
+	}
+	return sourceHost, nil
+}
+
+func (tctx *testContext) stepExternalReplicationSourceShouldBecomeWithin(host, expectedSource string, timeout int) error {
+	var (
+		lastSource string
+		lastErr    error
+	)
+	testutil.Retry(func() bool {
+		lastSource, lastErr = tctx.externalReplicationSource(host)
+		return lastErr == nil && lastSource == expectedSource
+	}, time.Duration(timeout)*time.Second, time.Second)
+
+	if lastErr != nil {
+		return fmt.Errorf("external replication source on %s did not become %q within %d seconds: last query failed: %w",
+			host, expectedSource, timeout, lastErr)
+	}
+	if lastSource != expectedSource {
+		return fmt.Errorf("external replication source on %s did not become %q within %d seconds: last source was %q",
+			host, expectedSource, timeout, lastSource)
+	}
+	return nil
+}
+
+func (tctx *testContext) stepExternalReplicationSourceShouldRemainFor(host, expectedSource string, duration int) error {
+	var checkErr error
+	testutil.Retry(func() bool {
+		actualSource, err := tctx.externalReplicationSource(host)
+		if err != nil {
+			checkErr = fmt.Errorf("failed to check external replication source on %s: %w", host, err)
+			return true
+		}
+		if actualSource != expectedSource {
+			checkErr = fmt.Errorf("external replication source on %s changed from %q to %q before %d seconds elapsed",
+				host, expectedSource, actualSource, duration)
+			return true
+		}
+		return false
+	}, time.Duration(duration)*time.Second, time.Second)
+	return checkErr
+}
+
 func (tctx *testContext) stepIRunSQLOnHostExpectingErrorOfNumber(host string, errorNumber int, body *godog.DocString) error {
 	query := strings.TrimSpace(body.Content)
 	_, err := tctx.queryMysql(host, query, struct{}{})
@@ -1741,6 +1800,8 @@ func InitializeScenario(s *godog.ScenarioContext) {
 	s.Step(`^I run SQL on mysql host "([^"]*)"$`, tctx.stepIRunSQLOnHost)
 	s.Step(`^I run SQL on mysql host "([^"]*)" expecting error on number "(\d+)"$`, tctx.stepIRunSQLOnHostExpectingErrorOfNumber)
 	s.Step(`^SQL result should match (\w+)$`, tctx.stepSQLResultShouldMatch)
+	s.Step(`^external replication source on mysql host "([^"]*)" should become "([^"]*)" within "(\d+)" seconds$`, tctx.stepExternalReplicationSourceShouldBecomeWithin)
+	s.Step(`^external replication source on mysql host "([^"]*)" should remain "([^"]*)" for "(\d+)" seconds$`, tctx.stepExternalReplicationSourceShouldRemainFor)
 	s.Step(`^I break replication on host "([^"]*)"$`, tctx.stepBreakReplicationOnHost)
 	s.Step(`^I break replication on host "([^"]*)" in repairable way$`, tctx.stepBreakReplicationOnHostInARepairableWay)
 	s.Step(`^I set used space on host "([^"]*)" to (\d+)%$`, tctx.stepSetUsedSpace)
