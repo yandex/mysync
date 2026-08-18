@@ -804,7 +804,7 @@ func (n *Node) SetReadOnlyWithForce(excludeUsers []string, superReadOnly bool) e
 			ids, err := n.getRunningQueryIDs(excludeUsers, time.Second)
 			if err == nil {
 				for _, id := range ids {
-					_ = n.execMogrify(queryKillQuery, map[string]any{"kill_id": id})
+					_ = n.exec(queryKillQuery, map[string]any{"kill_id": strconv.Itoa(id)})
 				}
 			}
 
