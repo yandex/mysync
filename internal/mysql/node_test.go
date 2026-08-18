@@ -14,6 +14,12 @@ func TestChangeSourceQueriesRequestSourcePublicKey(t *testing.T) {
 	}
 }
 
+func TestKillQueryUsesProcessIDLiteral(t *testing.T) {
+	query := Mogrify(DefaultQueries[queryKillQuery], map[string]any{"kill_id": 42})
+
+	require.Equal(t, "KILL 42", query)
+}
+
 func TestSplitEventDefiner(t *testing.T) {
 	tests := []struct {
 		name         string
