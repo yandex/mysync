@@ -175,7 +175,8 @@ var DefaultQueries = map[string]string{
 								SOURCE_AUTO_POSITION = 1,
 								SOURCE_CONNECT_RETRY = :connectRetry,
 								SOURCE_RETRY_COUNT = :retryCount,
-								SOURCE_HEARTBEAT_PERIOD = :heartbeatPeriod
+								SOURCE_HEARTBEAT_PERIOD = :heartbeatPeriod,
+								GET_SOURCE_PUBLIC_KEY = 1
 						FOR CHANNEL :channel`,
 	queryChangeSourceWithDelay: `CHANGE REPLICATION SOURCE TO
 						SOURCE_HOST = :host,
@@ -189,6 +190,7 @@ var DefaultQueries = map[string]string{
 						SOURCE_CONNECT_RETRY = :connectRetry,
 						SOURCE_RETRY_COUNT = :retryCount,
 						SOURCE_HEARTBEAT_PERIOD = :heartbeatPeriod,
+						GET_SOURCE_PUBLIC_KEY = 1,
 						SOURCE_DELAY = :delay
 				FOR CHANNEL :channel`,
 	queryIgnoreDB:                     `CHANGE REPLICATION FILTER REPLICATE_IGNORE_DB = (:ignoreList) FOR CHANNEl :channel`,
