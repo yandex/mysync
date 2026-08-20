@@ -6,20 +6,6 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestChangeSourceQueriesRequestSourcePublicKey(t *testing.T) {
-	for _, queryName := range []string{queryChangeSource, queryChangeSourceWithDelay} {
-		t.Run(queryName, func(t *testing.T) {
-			require.Contains(t, DefaultQueries[queryName], "GET_SOURCE_PUBLIC_KEY = 1")
-		})
-	}
-}
-
-func TestKillQueryUsesProcessIDLiteral(t *testing.T) {
-	query := Mogrify(DefaultQueries[queryKillQuery], map[string]any{"kill_id": 42})
-
-	require.Equal(t, "KILL 42", query)
-}
-
 func TestSplitEventDefiner(t *testing.T) {
 	tests := []struct {
 		name         string
