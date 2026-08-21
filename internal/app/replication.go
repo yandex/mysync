@@ -29,6 +29,12 @@ type ReplicationRepairState struct {
 	LastGTIDExecuted string
 }
 
+type externalReplicationSourceStatus interface {
+	GetExtSourcesStatus(string) mysql.ExternalSourceStatus
+	SetSourcesStatus(string, mysql.ExternalSourceStatus)
+	ResetSourcesStatus()
+}
+
 // separated gorutine for checking local mysql lag
 func (app *App) replicationLagChecker(ctx context.Context) {
 	// 30s
@@ -181,34 +187,53 @@ func ChangeSourceAlgorithm(app *App, node *mysql.Node, _ string, channel string)
 	if err != nil {
 		return err
 	}
-	// mark current source as error and then trying to change it
-	app.externalReplication.SetSourcesStatus(replicaStatus.GetMasterHost(), mysql.ErrorStatus)
-	for _, source := range *replicationSources {
-		value := app.externalReplication.GetExtSourcesStatus(source.SourceHost)
-		if value == mysql.ErrorStatus {
-			app.logger.Info().Msgf("repair (external): ignoring source host %s due to error status in the past", source.SourceHost)
-			continue
-		}
-		app.logger.Info().Msgf("repair (external): trying change source to %s", source.SourceHost)
-		err := app.externalReplication.Stop(node)
-		if err != nil {
-			return err
-		}
-		err = app.externalReplication.ChangeSourceHost(node, source.SourceHost)
-		if err != nil {
-			return err
-		}
-		err = app.externalReplication.Start(node)
-		if err != nil {
-			return err
-		}
-		app.logger.Info().Msgf("repair (external): source changed to %s", source.SourceHost)
+	source, ignoredSources, found := nextExternalReplicationSource(
+		replicaStatus.GetMasterHost(),
+		*replicationSources,
+		app.externalReplication,
+	)
+	for _, ignoredSource := range ignoredSources {
+		app.logger.Info().Msgf("repair (external): ignoring source host %s due to error status in the past", ignoredSource)
+	}
+	if !found {
 		return nil
 	}
-	// if there was no return from the loop above then we assume that all hosts are now marked as error
-	// so we shall reset sources status and try again on next iteration
-	app.externalReplication.ResetSourcesStatus()
+
+	app.logger.Info().Msgf("repair (external): trying change source to %s", source.SourceHost)
+	err = app.externalReplication.Stop(node)
+	if err != nil {
+		return err
+	}
+	err = app.externalReplication.ChangeSourceHost(node, source.SourceHost)
+	if err != nil {
+		return err
+	}
+	err = app.externalReplication.Start(node)
+	if err != nil {
+		return err
+	}
+	app.logger.Info().Msgf("repair (external): source changed to %s", source.SourceHost)
 	return nil
+}
+
+func nextExternalReplicationSource(
+	currentSource string,
+	replicationSources []mysql.ReplicationSource,
+	sourceStatus externalReplicationSourceStatus,
+) (mysql.ReplicationSource, []string, bool) {
+	sourceStatus.SetSourcesStatus(currentSource, mysql.ErrorStatus)
+	ignoredSources := make([]string, 0, len(replicationSources))
+	for _, source := range replicationSources {
+		if sourceStatus.GetExtSourcesStatus(source.SourceHost) == mysql.ErrorStatus {
+			ignoredSources = append(ignoredSources, source.SourceHost)
+			continue
+		}
+		return source, ignoredSources, true
+	}
+
+	// All sources have failed. Reset their status and retry on the next repair iteration.
+	sourceStatus.ResetSourcesStatus()
+	return mysql.ReplicationSource{}, ignoredSources, false
 }
 
 func (app *App) getSuitableAlgorithmType(state *ReplicationRepairState, channel string) (ReplicationRepairAlgorithmType, int, error) {
