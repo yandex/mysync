@@ -8,6 +8,8 @@ import (
 
 	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/require"
+
+	"github.com/yandex/mysync/internal/dcs"
 )
 
 func TestNewSwitchoverAbortDeadline(t *testing.T) {
@@ -23,18 +25,36 @@ func TestNewSwitchoverAbortDeadline(t *testing.T) {
 			want:       true,
 		},
 		{
-			name: "started by a previous manager",
+			name: "legacy record started by a previous manager",
 			switchover: Switchover{
 				InitiatedAt: initiatedAt,
 				StartedAt:   initiatedAt.Add(time.Minute),
 			},
 		},
 		{
-			name: "retry",
+			name: "legacy retry",
 			switchover: Switchover{
 				InitiatedAt: initiatedAt,
 				RunCount:    1,
 			},
+		},
+		{
+			name: "started by a previous manager while still abortable",
+			switchover: Switchover{
+				InitiatedAt: initiatedAt,
+				StartedAt:   initiatedAt.Add(time.Minute),
+				Abortable:   true,
+			},
+			want: true,
+		},
+		{
+			name: "retry before topology change remains abortable",
+			switchover: Switchover{
+				InitiatedAt: initiatedAt,
+				RunCount:    1,
+				Abortable:   true,
+			},
+			want: true,
 		},
 		{
 			name:       "legacy record without initiation time",
@@ -49,6 +69,9 @@ func TestNewSwitchoverAbortDeadline(t *testing.T) {
 			app := newTestApp(t, cfg, nil)
 
 			deadline := app.newSwitchoverAbortDeadline(&tt.switchover)
+			if tt.switchover.StartedAt.IsZero() && tt.switchover.RunCount == 0 && !tt.switchover.InitiatedAt.IsZero() {
+				require.True(t, tt.switchover.Abortable)
+			}
 			if !tt.want {
 				require.Nil(t, deadline)
 				return
@@ -59,6 +82,29 @@ func TestNewSwitchoverAbortDeadline(t *testing.T) {
 			err := deadline.exceeded(deadline.at)
 			require.ErrorIs(t, err, ErrSwitchoverTimeout)
 			require.EqualError(t, err, "switchover timed out after 10m0s")
+		})
+	}
+}
+
+func TestMarkSwitchoverUnabortablePersistsBoundary(t *testing.T) {
+	for _, abortable := range []bool{true, false} {
+		t.Run(fmt.Sprintf("abortable_%t", abortable), func(t *testing.T) {
+			ctrl := gomock.NewController(t)
+			defer ctrl.Finish()
+
+			mockDCS := NewMockIAppDCS(ctrl)
+			mockDCS.EXPECT().SetCurrentSwitchover(gomock.Any()).DoAndReturn(func(switchover *Switchover) error {
+				require.False(t, switchover.Abortable)
+				require.Equal(t, int32(7), switchover.DCSVersion)
+				switchover.DCSVersion = 8
+				return nil
+			})
+
+			app := newTestApp(t, minConfig(), mockDCS)
+			switchover := &Switchover{Abortable: abortable, DCSVersion: 7}
+			require.NoError(t, app.markSwitchoverUnabortable(switchover))
+			require.False(t, switchover.Abortable)
+			require.Equal(t, int32(8), switchover.DCSVersion)
 		})
 	}
 }
@@ -80,7 +126,7 @@ func TestRecordSwitchoverAttemptResultTimeoutIsTerminal(t *testing.T) {
 	defer ctrl.Finish()
 
 	mockDCS := NewMockIAppDCS(ctrl)
-	mockDCS.EXPECT().DeleteCurrentSwitchover().Return(nil)
+	mockDCS.EXPECT().DeleteCurrentSwitchoverVersion(int32(7)).Return(nil)
 	mockDCS.EXPECT().SetLastRejectedSwitchover(gomock.Any()).DoAndReturn(func(switchover *Switchover) error {
 		require.Equal(t, 0, switchover.RunCount)
 		require.NotNil(t, switchover.Result)
@@ -90,12 +136,27 @@ func TestRecordSwitchoverAttemptResultTimeoutIsTerminal(t *testing.T) {
 	})
 
 	app := newTestApp(t, minConfig(), mockDCS)
-	switchover := &Switchover{MasterTransition: FailoverTransition}
+	switchover := &Switchover{MasterTransition: FailoverTransition, DCSVersion: 7}
 	err := app.recordSwitchoverAttemptResult(
 		switchover,
 		fmt.Errorf("%w after %s", ErrSwitchoverTimeout, 10*time.Minute),
 	)
 	require.NoError(t, err)
+}
+
+func TestRecordSwitchoverAttemptResultDoesNotDeleteNewManagerState(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	mockDCS := NewMockIAppDCS(ctrl)
+	mockDCS.EXPECT().DeleteCurrentSwitchoverVersion(int32(7)).Return(dcs.ErrVersionMismatch)
+
+	app := newTestApp(t, minConfig(), mockDCS)
+	err := app.recordSwitchoverAttemptResult(
+		&Switchover{MasterTransition: FailoverTransition, DCSVersion: 7},
+		fmt.Errorf("%w after %s", ErrSwitchoverTimeout, 10*time.Minute),
+	)
+	require.ErrorIs(t, err, dcs.ErrVersionMismatch)
 }
 
 func TestRecordSwitchoverAttemptResultRegularErrorIsRetried(t *testing.T) {

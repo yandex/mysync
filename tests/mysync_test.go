@@ -1143,6 +1143,27 @@ func (tctx *testContext) stepBreakReplicationOnHostInARepairableWay(host string)
 	return nil
 }
 
+func (tctx *testContext) stepSetReplicationDelayOnHost(host string, delay int) error {
+	v, err := tctx.GetVersion(host)
+	if err != nil {
+		return err
+	}
+	stopQuery := fmt.Sprintf("STOP SLAVE FOR CHANNEL '%s'", replicationChannel)
+	changeQuery := fmt.Sprintf("CHANGE MASTER TO MASTER_DELAY = %d FOR CHANNEL '%s'", delay, replicationChannel)
+	startQuery := fmt.Sprintf("START SLAVE FOR CHANNEL '%s'", replicationChannel)
+	if v.CheckIfVersionReplicaStatus() {
+		stopQuery = fmt.Sprintf("STOP REPLICA FOR CHANNEL '%s'", replicationChannel)
+		changeQuery = fmt.Sprintf("CHANGE REPLICATION SOURCE TO SOURCE_DELAY = %d FOR CHANNEL '%s'", delay, replicationChannel)
+		startQuery = fmt.Sprintf("START REPLICA FOR CHANNEL '%s'", replicationChannel)
+	}
+	for _, query := range []string{stopQuery, changeQuery, startQuery} {
+		if _, err := tctx.queryMysql(host, query, nil); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
 func (tctx *testContext) stepIGetZookeeperNode(node string) error {
 	data, _, err := tctx.zk.Get(node)
 	if err != nil {
@@ -1842,6 +1863,7 @@ func InitializeScenario(s *godog.ScenarioContext) {
 	s.Step(`^external replication source on mysql host "([^"]*)" should remain "([^"]*)" for "(\d+)" seconds$`, tctx.stepExternalReplicationSourceShouldRemainFor)
 	s.Step(`^I break replication on host "([^"]*)"$`, tctx.stepBreakReplicationOnHost)
 	s.Step(`^I break replication on host "([^"]*)" in repairable way$`, tctx.stepBreakReplicationOnHostInARepairableWay)
+	s.Step(`^I set replication delay on host "([^"]*)" to "(\d+)" seconds$`, tctx.stepSetReplicationDelayOnHost)
 	s.Step(`^I set used space on host "([^"]*)" to (\d+)%$`, tctx.stepSetUsedSpace)
 	s.Step(`^I set readonly file system on host "([^"]*)" to "([^"]*)"$`, tctx.stepSetReadonlyStatus)
 	s.Step(`^SQL result should match (\w+) witch I will save as "(\w+)"$`, tctx.stepSQLResultShouldMatchWithTextIWillSave)

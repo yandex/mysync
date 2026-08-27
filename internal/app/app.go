@@ -476,6 +476,10 @@ func (app *App) stateManager() appState {
 			abortDeadline := app.newSwitchoverAbortDeadline(switchover)
 			if timeoutErr := abortDeadline.exceeded(time.Now()); timeoutErr != nil {
 				app.logger.Error().Err(timeoutErr).Msgf("switchover %s => %s timed out before it started", switchover.From, switchover.To)
+				if !app.AcquireLock(pathManagerLock) {
+					app.logger.Error().Msg("manager lock lost before rejecting timed out switchover")
+					return stateManager
+				}
 				err = app.FinishSwitchover(switchover, timeoutErr)
 				if err != nil {
 					app.logger.Error().Err(err).Msg("failed to reject timed out switchover")
@@ -503,6 +507,10 @@ func (app *App) stateManager() appState {
 			} else {
 				if errors.Is(err, ErrSwitchoverTimeout) {
 					app.logger.Error().Err(err).Msgf("switchover %s => %s timed out at a safe abort point", switchover.From, switchover.To)
+					if !app.AcquireLock(pathManagerLock) {
+						app.logger.Error().Msg("manager lock lost before rejecting timed out switchover")
+						return stateManager
+					}
 				}
 				err = app.recordSwitchoverAttemptResult(switchover, err)
 				if err != nil {
@@ -1448,11 +1456,6 @@ func (app *App) performSwitchover(
 	}
 	caught, err := app.waitForCatchUp(newMasterNode, mostRecentGtidSet, app.config.SlaveCatchUpTimeout, time.Second, abortDeadline)
 	if errors.Is(err, ErrSwitchoverTimeout) {
-		// Catch-up may take long enough for this process to lose the manager
-		// lock. Only the current manager is allowed to reject the switchover.
-		if !app.AcquireLock(pathManagerLock) {
-			return errors.New("manager lock lost during switchover, new manager should finish the process, leaving")
-		}
 		return err
 	}
 	if err != nil || app.emulateError("catchup_master_status") {
@@ -1477,6 +1480,12 @@ func (app *App) performSwitchover(
 		return fmt.Errorf("switchover: failed to ping hosts: %v with dubious errors", dubious)
 	}
 	if err := abortDeadline.exceeded(time.Now()); err != nil {
+		return err
+	}
+	if !app.AcquireLock(pathManagerLock) {
+		return errors.New("manager lock lost before changing replication topology, new manager should finish the process, leaving")
+	}
+	if err := app.markSwitchoverUnabortable(switchover); err != nil {
 		return err
 	}
 

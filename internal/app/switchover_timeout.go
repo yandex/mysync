@@ -6,23 +6,37 @@ import (
 	"time"
 )
 
-// switchoverAbortDeadline is created only for a switchover that has never been
-// attempted before. Without a persisted phase, a retry cannot be aborted
-// safely: an earlier attempt might have already changed the replication
-// topology in phase 5.
+// switchoverAbortDeadline exists while the persisted switchover is still at a
+// safe abort point. Abortable remains true across retries and manager restarts
+// and is cleared in DCS before phase 5 changes the replication topology.
 type switchoverAbortDeadline struct {
 	at      time.Time
 	timeout time.Duration
 }
 
 func (app *App) newSwitchoverAbortDeadline(switchover *Switchover) *switchoverAbortDeadline {
-	if switchover.InitiatedAt.IsZero() || !switchover.StartedAt.IsZero() || switchover.RunCount != 0 {
+	// Records created by an older worker have no abortable field. It is safe to
+	// initialize it only before their first attempt has started.
+	if !switchover.Abortable && switchover.StartedAt.IsZero() && switchover.RunCount == 0 {
+		switchover.Abortable = true
+	}
+	if switchover.InitiatedAt.IsZero() || !switchover.Abortable {
 		return nil
 	}
 	return &switchoverAbortDeadline{
 		at:      switchover.InitiatedAt.Add(app.config.SwitchoverTimeout),
 		timeout: app.config.SwitchoverTimeout,
 	}
+}
+
+func (app *App) markSwitchoverUnabortable(switchover *Switchover) error {
+	updated := *switchover
+	updated.Abortable = false
+	if err := app.appDCS.SetCurrentSwitchover(&updated); err != nil {
+		return fmt.Errorf("failed to persist switchover safe-abort boundary: %w", err)
+	}
+	*switchover = updated
+	return nil
 }
 
 func (deadline *switchoverAbortDeadline) exceeded(now time.Time) error {

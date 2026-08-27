@@ -51,6 +51,8 @@ type Switchover struct {
 	StartedAt        time.Time         `json:"started_at"`
 	Result           *SwitchoverResult `json:"result"`
 	RunCount         int               `json:"run_count,omitempty"`
+	Abortable        bool              `json:"abortable,omitempty"`
+	DCSVersion       int32             `json:"-"`
 }
 
 func (sw *Switchover) String() string {

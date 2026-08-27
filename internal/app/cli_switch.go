@@ -148,6 +148,7 @@ func (app *App) CliSwitch(switchFrom, switchTo string, waitTimeout time.Duration
 	switchover.InitiatedBy = util.GuessWhoRunning() + "@" + app.config.Hostname
 	switchover.InitiatedAt = time.Now()
 	switchover.Cause = CauseManual
+	switchover.Abortable = true
 	if failover {
 		switchover.MasterTransition = FailoverTransition
 	} else {

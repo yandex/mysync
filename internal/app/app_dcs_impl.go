@@ -197,22 +197,40 @@ func (a *appDCS) GetLastSwitchover(switchover *Switchover) error {
 // GetCurrentSwitchover reads the current in-progress switchover from ZK.
 // Returns dcs.ErrNotFound if no switchover is in progress.
 func (a *appDCS) GetCurrentSwitchover(switchover *Switchover) error {
-	return a.dcs.Get(pathCurrentSwitch, switchover)
+	version, err := a.dcs.GetVersion(pathCurrentSwitch, switchover)
+	if err == nil {
+		switchover.DCSVersion = version
+	}
+	return err
 }
 
 // CreateCurrentSwitchover creates a new switchover record in ZK (fails if one already exists).
 func (a *appDCS) CreateCurrentSwitchover(switchover *Switchover) error {
-	return a.dcs.Create(pathCurrentSwitch, switchover)
+	err := a.dcs.Create(pathCurrentSwitch, switchover)
+	if err == nil {
+		switchover.DCSVersion = 0
+	}
+	return err
 }
 
 // SetCurrentSwitchover writes the current in-progress switchover to ZK.
 func (a *appDCS) SetCurrentSwitchover(switchover *Switchover) error {
-	return a.dcs.Set(pathCurrentSwitch, switchover)
+	version, err := a.dcs.SetVersion(pathCurrentSwitch, switchover, switchover.DCSVersion)
+	if err == nil {
+		switchover.DCSVersion = version
+	}
+	return err
 }
 
 // DeleteCurrentSwitchover removes the current switchover node from ZK.
 func (a *appDCS) DeleteCurrentSwitchover() error {
 	return a.dcs.Delete(pathCurrentSwitch)
+}
+
+// DeleteCurrentSwitchoverVersion removes the current switchover only if it has
+// not been updated by another manager since this process read it.
+func (a *appDCS) DeleteCurrentSwitchoverVersion(version int32) error {
+	return a.dcs.DeleteVersion(pathCurrentSwitch, version)
 }
 
 // SetLastSwitchover writes the completed switchover result to ZK.
