@@ -473,12 +473,12 @@ func (app *App) stateManager() appState {
 		if lightMaintenance && switchover.MasterTransition == FailoverTransition {
 			app.logger.Info().Msgf("failover suppressed by light maintenance mode")
 		} else {
-			if !switchover.InitiatedAt.IsZero() && time.Since(switchover.InitiatedAt) > app.config.SwitchoverTimeout {
-				app.logger.Error().Msgf("switchover %s => %s timed out after %s", switchover.From, switchover.To, time.Since(switchover.InitiatedAt))
-				app.logSwitchoverFailure(switchover)
-				err = app.FailSwitchover(switchover, fmt.Errorf("switchover timed out after %s", time.Since(switchover.InitiatedAt)))
+			abortDeadline := app.newSwitchoverAbortDeadline(switchover)
+			if timeoutErr := abortDeadline.exceeded(time.Now()); timeoutErr != nil {
+				app.logger.Error().Err(timeoutErr).Msgf("switchover %s => %s timed out before it started", switchover.From, switchover.To)
+				err = app.FinishSwitchover(switchover, timeoutErr)
 				if err != nil {
-					app.logger.Error().Err(err).Msg("failed to report switchover timeout")
+					app.logger.Error().Err(err).Msg("failed to reject timed out switchover")
 				}
 				return stateManager
 			}
@@ -497,23 +497,19 @@ func (app *App) stateManager() appState {
 				app.logger.Error().Err(err).Msg("failed to start switchover")
 				return stateManager
 			}
-			err = app.performSwitchover(clusterState, activeNodes, switchover, master)
+			err = app.performSwitchover(clusterState, activeNodes, switchover, master, abortDeadline)
 			if errors.Is(app.GetCurrentSwitchover(new(Switchover)), dcs.ErrNotFound) {
 				app.logger.Error().Msgf("switchover was aborted")
 			} else {
+				if errors.Is(err, ErrSwitchoverTimeout) {
+					app.logger.Error().Err(err).Msgf("switchover %s => %s timed out at a safe abort point", switchover.From, switchover.To)
+				}
+				err = app.recordSwitchoverAttemptResult(switchover, err)
 				if err != nil {
-					err = app.FailSwitchover(switchover, err)
-					if err != nil {
-						app.logger.Error().Err(err).Msg("failed to report switchover failure")
-					}
-				} else {
-					err = app.FinishSwitchover(switchover, nil)
-					if err != nil {
-						// we failed to update status in DCS, it's highly possible
-						// that current process lost DCS connection
-						// and another process will take managerLock
-						app.logger.Error().Err(err).Msg("failed to report switchover finish")
-					}
+					// we failed to update status in DCS, it's highly possible
+					// that current process lost DCS connection
+					// and another process will take managerLock
+					app.logger.Error().Err(err).Msg("failed to report switchover result")
 				}
 			}
 			return stateManager
@@ -1256,7 +1252,13 @@ func (app *App) disableSemiSyncIfNonNeeded(node *mysql.Node, state *nodestate.No
 }
 
 // nolint: gocyclo, funlen
-func (app *App) performSwitchover(clusterState map[string]*nodestate.NodeState, activeNodes []string, switchover *Switchover, oldMaster string) error {
+func (app *App) performSwitchover(
+	clusterState map[string]*nodestate.NodeState,
+	activeNodes []string,
+	switchover *Switchover,
+	oldMaster string,
+	abortDeadline *switchoverAbortDeadline,
+) error {
 	if switchover.To != "" {
 		if !slices.Contains(activeNodes, switchover.To) {
 			return errors.New("switchover: failed: replica is not active, can't switch to it")
@@ -1444,7 +1446,15 @@ func (app *App) performSwitchover(clusterState map[string]*nodestate.NodeState, 
 	} else {
 		app.logger.Info().Msgf("switchover: new master %s is the most recent host, waiting for all binlogs to be applied", newMaster)
 	}
-	caught, err := app.waitForCatchUp(newMasterNode, mostRecentGtidSet, app.config.SlaveCatchUpTimeout, time.Second)
+	caught, err := app.waitForCatchUp(newMasterNode, mostRecentGtidSet, app.config.SlaveCatchUpTimeout, time.Second, abortDeadline)
+	if errors.Is(err, ErrSwitchoverTimeout) {
+		// Catch-up may take long enough for this process to lose the manager
+		// lock. Only the current manager is allowed to reject the switchover.
+		if !app.AcquireLock(pathManagerLock) {
+			return errors.New("manager lock lost during switchover, new manager should finish the process, leaving")
+		}
+		return err
+	}
 	if err != nil || app.emulateError("catchup_master_status") {
 		return fmt.Errorf("failed to get gtid executed from %s: %w", newMaster, err)
 	}
@@ -1465,6 +1475,9 @@ func (app *App) performSwitchover(clusterState map[string]*nodestate.NodeState, 
 	}
 	if dubious := getDubiousHAHosts(clusterState); len(dubious) > 0 {
 		return fmt.Errorf("switchover: failed to ping hosts: %v with dubious errors", dubious)
+	}
+	if err := abortDeadline.exceeded(time.Now()); err != nil {
+		return err
 	}
 
 	// turn slaves to the new master
@@ -2322,9 +2335,18 @@ func (app *App) getClusterStateFromDcs() (map[string]*nodestate.NodeState, error
 	return getNodeStatesInParallel(hosts, getter, app.logger)
 }
 
-func (app *App) waitForCatchUp(node *mysql.Node, gtidset gtids.GTIDSet, timeout time.Duration, sleep time.Duration) (bool, error) {
+func (app *App) waitForCatchUp(
+	node *mysql.Node,
+	gtidset gtids.GTIDSet,
+	timeout time.Duration,
+	sleep time.Duration,
+	abortDeadline *switchoverAbortDeadline,
+) (bool, error) {
 	deadline := time.Now().Add(timeout)
 	for {
+		if err := abortDeadline.exceeded(time.Now()); err != nil {
+			return false, err
+		}
 		gtidExecuted, err := node.GTIDExecutedParsed()
 		if err != nil {
 			return false, err
@@ -2340,9 +2362,21 @@ func (app *App) waitForCatchUp(node *mysql.Node, gtidset gtids.GTIDSet, timeout 
 		if app.CheckAsyncSwitchAllowed(node, switchover) {
 			return true, nil
 		}
-		time.Sleep(sleep)
-		if time.Now().After(deadline) {
+		now := time.Now()
+		if !now.Before(deadline) {
 			break
+		}
+		wait := sleep
+		if remaining := deadline.Sub(now); wait > remaining {
+			wait = remaining
+		}
+		if abortDeadline != nil {
+			if remaining := abortDeadline.at.Sub(now); wait > remaining {
+				wait = remaining
+			}
+		}
+		if wait > 0 {
+			time.Sleep(wait)
 		}
 	}
 	return false, nil
