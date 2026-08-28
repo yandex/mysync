@@ -148,6 +148,7 @@ func (app *App) CliSwitch(switchFrom, switchTo string, waitTimeout time.Duration
 	switchover.InitiatedBy = util.GuessWhoRunning() + "@" + app.config.Hostname
 	switchover.InitiatedAt = time.Now()
 	switchover.Cause = CauseManual
+	switchover.Abortable = true
 	if failover {
 		switchover.MasterTransition = FailoverTransition
 	} else {
@@ -237,5 +238,57 @@ func (app *App) CliAbort() int {
 	}
 
 	fmt.Printf("switchover aborted\n")
+	return 0
+}
+
+// requestSafeAbort asks the current manager to finish an abortable switchover.
+// Keeping /switch until the manager records the terminal result prevents a
+// delete/recreate race with a stale manager and lets normal cleanup run.
+func (app *App) requestSafeAbort(requestedBy string) error {
+	switchover := new(Switchover)
+	if err := app.GetCurrentSwitchover(switchover); err != nil {
+		return err
+	}
+	if !switchover.Abortable {
+		return ErrSwitchoverNotAbortable
+	}
+	if switchover.AbortRequested {
+		return nil
+	}
+	now := time.Now()
+	switchover.AbortRequested = true
+	switchover.AbortRequestedBy = requestedBy
+	switchover.AbortRequestedAt = &now
+	return app.appDCS.SetCurrentSwitchover(switchover)
+}
+
+// CliSafeAbort requests manager-owned cleanup of an abortable switchover.
+func (app *App) CliSafeAbort() int {
+	err := app.connectDCS()
+	if err != nil {
+		app.logger.Error().Err(err).Msg("")
+		return 1
+	}
+	defer app.dcs.Close()
+	app.dcs.Initialize()
+
+	requestedBy := util.GuessWhoRunning() + "@" + app.config.Hostname
+	err = app.requestSafeAbort(requestedBy)
+	switch {
+	case errors.Is(err, dcs.ErrNotFound):
+		fmt.Println("no active switchover")
+		return 0
+	case errors.Is(err, ErrSwitchoverNotAbortable):
+		fmt.Println("switchover has crossed the safe-abort boundary; nothing was aborted")
+		return 1
+	case errors.Is(err, dcs.ErrVersionMismatch):
+		fmt.Println("switchover changed while safe abort was attempted; nothing was aborted")
+		return 1
+	case err != nil:
+		app.logger.Error().Err(err).Msg("")
+		return 1
+	}
+
+	fmt.Println("safe abort requested; the current manager will finish cleanup")
 	return 0
 }

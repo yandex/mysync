@@ -438,12 +438,7 @@ func (app *App) optimizationPhase(
 	)
 	if err != nil && errors.Is(err, ErrOptimizationPhaseDeadlineExceeded) {
 		app.logger.Info().Msgf("switchover: phase 0: turbo mode failed: %v", err)
-		switchErr := app.FinishSwitchover(switchover, fmt.Errorf("turbo mode exceeded deadline"))
-		if switchErr != nil {
-			return fmt.Errorf("switchover: failed to reject switchover %w", switchErr)
-		}
-		app.logger.Info().Msg("switchover: rejected")
-		return err
+		return newTerminalSwitchoverError(fmt.Errorf("turbo mode exceeded deadline"))
 	}
 
 	// Conceptually, we should only reject the switchover if we encounter a DeadlineExceeded error.

@@ -131,8 +131,13 @@ mysync hosts add fqdn3.db.company.net
 mysync info -s
 mysync switch --to fqdn2
 mysync switch --from fqdn2
+mysync safe-abort
+mysync abort
 mysync maint on
 mysync maint off
 ```
 
-
+`mysync safe-abort` requests that the current manager reject a switchover while
+it is still marked as safely abortable. The manager records the result and runs
+normal cleanup. `mysync abort` remains a force operation and may require manual
+cluster repair.

@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/google/uuid"
+
 	nodestate "github.com/yandex/mysync/internal/app/node_state"
 	"github.com/yandex/mysync/internal/config"
 	"github.com/yandex/mysync/internal/dcs"
@@ -197,22 +199,81 @@ func (a *appDCS) GetLastSwitchover(switchover *Switchover) error {
 // GetCurrentSwitchover reads the current in-progress switchover from ZK.
 // Returns dcs.ErrNotFound if no switchover is in progress.
 func (a *appDCS) GetCurrentSwitchover(switchover *Switchover) error {
-	return a.dcs.Get(pathCurrentSwitch, switchover)
+	for attempt := 0; attempt < 3; attempt++ {
+		// json.Unmarshal leaves fields untouched when they are absent in legacy
+		// payloads, so always decode into a zeroed value.
+		*switchover = Switchover{}
+		version, err := a.dcs.GetVersion(pathCurrentSwitch, switchover)
+		if err != nil {
+			return err
+		}
+		if switchover.OperationID != "" {
+			switchover.DCSVersion = version
+			return nil
+		}
+
+		// Atomically migrate records written by older mysync/worker versions.
+		// A random ID is persisted before the record is returned, so even legacy
+		// records without initiated_at get a stable identity for later CASes.
+		switchover.OperationID = uuid.NewString()
+		newVersion, err := a.dcs.SetVersion(pathCurrentSwitch, switchover, version)
+		if errors.Is(err, dcs.ErrVersionMismatch) {
+			continue
+		}
+		if err != nil {
+			return err
+		}
+		switchover.DCSVersion = newVersion
+		return nil
+	}
+	return dcs.ErrVersionMismatch
 }
 
 // CreateCurrentSwitchover creates a new switchover record in ZK (fails if one already exists).
 func (a *appDCS) CreateCurrentSwitchover(switchover *Switchover) error {
-	return a.dcs.Create(pathCurrentSwitch, switchover)
+	switchover.OperationID = uuid.NewString()
+	err := a.dcs.Create(pathCurrentSwitch, switchover)
+	if err == nil {
+		switchover.DCSVersion = 0
+	}
+	return err
 }
 
 // SetCurrentSwitchover writes the current in-progress switchover to ZK.
 func (a *appDCS) SetCurrentSwitchover(switchover *Switchover) error {
-	return a.dcs.Set(pathCurrentSwitch, switchover)
+	if err := a.verifyCurrentSwitchover(switchover); err != nil {
+		return err
+	}
+	version, err := a.dcs.SetVersion(pathCurrentSwitch, switchover, switchover.DCSVersion)
+	if err == nil {
+		switchover.DCSVersion = version
+	}
+	return err
 }
 
 // DeleteCurrentSwitchover removes the current switchover node from ZK.
 func (a *appDCS) DeleteCurrentSwitchover() error {
 	return a.dcs.Delete(pathCurrentSwitch)
+}
+
+// DeleteCurrentSwitchoverVersion removes the current switchover only if it has
+// not been updated by another manager since this process read it.
+func (a *appDCS) DeleteCurrentSwitchoverVersion(switchover *Switchover) error {
+	if err := a.verifyCurrentSwitchover(switchover); err != nil {
+		return err
+	}
+	return a.dcs.DeleteVersion(pathCurrentSwitch, switchover.DCSVersion)
+}
+
+func (a *appDCS) verifyCurrentSwitchover(expected *Switchover) error {
+	current := new(Switchover)
+	if err := a.GetCurrentSwitchover(current); err != nil {
+		return err
+	}
+	if current.OperationID != expected.OperationID || current.DCSVersion != expected.DCSVersion {
+		return dcs.ErrVersionMismatch
+	}
+	return nil
 }
 
 // SetLastSwitchover writes the completed switchover result to ZK.

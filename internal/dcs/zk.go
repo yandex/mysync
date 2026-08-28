@@ -465,6 +465,26 @@ func (z *zkDCS) Set(path string, val any) error {
 	return z.set(path, val, 0)
 }
 
+func (z *zkDCS) SetVersion(path string, val any, version int32) (int32, error) {
+	fullPath := z.buildFullPath(path)
+	data, err := json.Marshal(val)
+	if err != nil {
+		panic(fmt.Sprintf("failed to serialize to JSON %#v", val))
+	}
+	stat, err := z.retrySet(fullPath, data, version)
+	if errors.Is(err, zk.ErrBadVersion) {
+		return 0, ErrVersionMismatch
+	}
+	if errors.Is(err, zk.ErrNoNode) {
+		return 0, ErrNotFound
+	}
+	if err != nil {
+		z.logger.Error().Err(err).Msgf("failed to set node %s at version %d to %+v", fullPath, version, val)
+		return 0, err
+	}
+	return stat.Version, nil
+}
+
 func (z *zkDCS) SetEphemeral(path string, val any) error {
 	return z.set(path, val, zk.FlagEphemeral)
 }
@@ -486,21 +506,41 @@ func (z *zkDCS) Delete(path string) error {
 	return err
 }
 
-func (z *zkDCS) Get(path string, dest any) error {
+func (z *zkDCS) DeleteVersion(path string, version int32) error {
 	fullPath := z.buildFullPath(path)
-	data, _, err := z.retryGet(fullPath)
+	err := z.retryDelete(fullPath, version)
+	if errors.Is(err, zk.ErrBadVersion) {
+		return ErrVersionMismatch
+	}
 	if errors.Is(err, zk.ErrNoNode) {
 		return ErrNotFound
 	}
 	if err != nil {
+		z.logger.Error().Err(err).Msgf("failed to delete node %s at version %d", fullPath, version)
+	}
+	return err
+}
+
+func (z *zkDCS) Get(path string, dest any) error {
+	_, err := z.GetVersion(path, dest)
+	return err
+}
+
+func (z *zkDCS) GetVersion(path string, dest any) (int32, error) {
+	fullPath := z.buildFullPath(path)
+	data, stat, err := z.retryGet(fullPath)
+	if errors.Is(err, zk.ErrNoNode) {
+		return 0, ErrNotFound
+	}
+	if err != nil {
 		z.logger.Error().Err(err).Msgf("failed to get node %s", fullPath)
-		return err
+		return 0, err
 	}
 	if err = json.Unmarshal(data, dest); err != nil {
 		z.logger.Error().Err(err).Msgf("malformed node data %s (%s)", fullPath, data)
-		return ErrMalformed
+		return 0, ErrMalformed
 	}
-	return nil
+	return stat.Version, nil
 }
 
 func (z *zkDCS) GetTree(path string) (any, error) {

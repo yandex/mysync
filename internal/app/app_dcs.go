@@ -132,7 +132,6 @@ func (app *App) FinishSwitchover(switchover *Switchover, switchErr error) error 
 		path = pathLastRejectedSwitch
 	}
 
-	app.logger.Info().Msgf("switchover: %s => %s %s", switchover.From, switchover.To, action)
 	switchover.Result = new(SwitchoverResult)
 	switchover.Result.Ok = result
 	switchover.Result.FinishedAt = time.Now()
@@ -141,6 +140,12 @@ func (app *App) FinishSwitchover(switchover *Switchover, switchErr error) error 
 		switchover.Result.Error = switchErr.Error()
 	}
 
+	err := app.appDCS.DeleteCurrentSwitchoverVersion(switchover)
+	if err != nil {
+		return err
+	}
+
+	app.logger.Info().Msgf("switchover: %s => %s %s", switchover.From, switchover.To, action)
 	if switchErr != nil {
 		app.logSwitchoverFailure(switchover)
 	} else if switchover.MasterTransition != FailoverTransition {
@@ -149,10 +154,6 @@ func (app *App) FinishSwitchover(switchover *Switchover, switchErr error) error 
 		app.stopTiming(timingFailover)
 	}
 
-	err := app.appDCS.DeleteCurrentSwitchover()
-	if err != nil {
-		return err
-	}
 	if path == pathLastSwitch {
 		return app.appDCS.SetLastSwitchover(switchover)
 	}
@@ -217,6 +218,7 @@ func (app *App) IssueFailover(master string) error {
 		InitiatedAt:      time.Now(),
 		Cause:            CauseAuto,
 		MasterTransition: FailoverTransition,
+		Abortable:        true,
 	}
 	return app.appDCS.CreateCurrentSwitchover(&switchover)
 }

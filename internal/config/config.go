@@ -214,7 +214,7 @@ func DefaultConfig() (Config, error) {
 		ShowOnlyGTIDDiff:                        false,
 		ManagerSwitchover:                       false,
 		ForceSwitchover:                         false,
-		SwitchoverTimeout:                       30 * time.Minute,
+		SwitchoverTimeout:                       10 * time.Minute,
 		SwitchoverMaxAttempts:                   60,
 		ReplicationConvergenceTimeoutSwitchover: 300 * time.Second,
 		DSNSettings:                             "?autocommit=1&sql_log_off=1",
