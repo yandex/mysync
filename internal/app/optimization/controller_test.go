@@ -2,6 +2,7 @@ package optimization
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"testing"
 	"time"
@@ -74,7 +75,7 @@ func TestWaitOptimization(t *testing.T) {
 		manager := NewController(defaultConfig, &logger, Dcs, checkInterval)
 
 		err := manager.Wait(ctx, node)
-		require.EqualError(t, err, "optimization waiting deadline exceeded")
+		require.True(t, errors.Is(err, ErrDeadlineExceeded), "expected ErrDeadlineExceeded, got: %v", err)
 	})
 
 	t.Run("StatusNew keeps waiting until Syncer transitions to StatusEnabled", func(t *testing.T) {
@@ -105,12 +106,7 @@ func TestWaitOptimization(t *testing.T) {
 
 	t.Run("Waiting works", func(t *testing.T) {
 		ctx := context.Background()
-		// Small nanosecond thresholds so the lag values (4.0, 200.0, 800.0)
-		// are compared as raw nanoseconds, forcing Wait() to iterate multiple times.
-		cfg := config.OptimizationConfig{
-			LowReplicationMark:  5,   // 5 ns
-			HighReplicationMark: 120, // 120 ns
-		}
+		// LowReplicationMark=5s: lags 800s and 200s fail the check, 4s passes → 3 iterations.
 		checkInterval := time.Nanosecond
 
 		ctrl := gomock.NewController(t)
@@ -125,7 +121,7 @@ func TestWaitOptimization(t *testing.T) {
 			Return(&DCSState{Status: "enabled"}, nil).AnyTimes()
 		Dcs.EXPECT().DeleteHosts("replica1")
 
-		manager := NewController(cfg, &logger, Dcs, checkInterval)
+		manager := NewController(defaultConfig, &logger, Dcs, checkInterval)
 
 		err := manager.Wait(ctx, node)
 		require.NoError(t, err)
