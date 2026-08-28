@@ -17,11 +17,13 @@ const (
 )
 
 var (
-	ErrNoMaster               = errors.New("no alive master found")
-	ErrManyMasters            = errors.New("more than one master found")
-	ErrNoActiveNodes          = errors.New("no active nodes found")
-	ErrSwitchoverTimeout      = errors.New("switchover timed out")
-	ErrSwitchoverNotAbortable = errors.New("switchover is not safe to abort")
+	ErrNoMaster                 = errors.New("no alive master found")
+	ErrManyMasters              = errors.New("more than one master found")
+	ErrNoActiveNodes            = errors.New("no active nodes found")
+	ErrSwitchoverTimeout        = errors.New("switchover timed out")
+	ErrSwitchoverNotAbortable   = errors.New("switchover is not safe to abort")
+	ErrSwitchoverAbortRequested = errors.New("switchover safe abort requested")
+	ErrSwitchoverTerminal       = errors.New("switchover failure is terminal")
 )
 
 const (
@@ -52,7 +54,12 @@ type Switchover struct {
 	StartedAt        time.Time         `json:"started_at"`
 	Result           *SwitchoverResult `json:"result"`
 	RunCount         int               `json:"run_count,omitempty"`
+	OperationID      string            `json:"operation_id,omitempty"`
 	Abortable        bool              `json:"abortable,omitempty"`
+	TopologyChanged  bool              `json:"topology_changed,omitempty"`
+	AbortRequested   bool              `json:"abort_requested,omitempty"`
+	AbortRequestedBy string            `json:"abort_requested_by,omitempty"`
+	AbortRequestedAt *time.Time        `json:"abort_requested_at,omitempty"`
 	DCSVersion       int32             `json:"-"`
 }
 
@@ -85,6 +92,26 @@ type SwitchoverResult struct {
 	Ok         bool      `json:"ok"`
 	Error      string    `json:"error"`
 	FinishedAt time.Time `json:"finished_at"`
+}
+
+type terminalSwitchoverError struct {
+	err error
+}
+
+func (err terminalSwitchoverError) Error() string {
+	return err.err.Error()
+}
+
+func (err terminalSwitchoverError) Unwrap() error {
+	return err.err
+}
+
+func (err terminalSwitchoverError) Is(target error) bool {
+	return target == ErrSwitchoverTerminal || errors.Is(err.err, target)
+}
+
+func newTerminalSwitchoverError(err error) error {
+	return terminalSwitchoverError{err: err}
 }
 
 // Maintenance struct presence means that cluster under manual control

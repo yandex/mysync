@@ -140,7 +140,7 @@ func (app *App) FinishSwitchover(switchover *Switchover, switchErr error) error 
 		switchover.Result.Error = switchErr.Error()
 	}
 
-	err := app.appDCS.DeleteCurrentSwitchoverVersion(switchover.DCSVersion)
+	err := app.appDCS.DeleteCurrentSwitchoverVersion(switchover)
 	if err != nil {
 		return err
 	}

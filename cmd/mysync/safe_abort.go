@@ -11,9 +11,9 @@ import (
 
 var safeAbortCmd = &cobra.Command{
 	Use:   "safe-abort",
-	Short: "Abort a switchover only before the safe-abort boundary",
-	Long: "Atomically removes the current switchover only while it is marked abortable. " +
-		"It never force-aborts a switchover that has started changing the replication topology.",
+	Short: "Request abort before the switchover safe-abort boundary",
+	Long: "Atomically marks the current switchover for abort only while it is still abortable. " +
+		"The current manager records the rejection and performs normal cleanup.",
 	Run: func(cmd *cobra.Command, args []string) {
 		app, err := app.NewApp(configFile, logLevel, true)
 		if err != nil {

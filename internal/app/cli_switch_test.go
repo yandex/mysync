@@ -9,22 +9,28 @@ import (
 	"github.com/yandex/mysync/internal/dcs"
 )
 
-func TestSafeAbortSwitchoverDeletesAbortableVersion(t *testing.T) {
+func TestRequestSafeAbortPersistsRequest(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
 	mockDCS := NewMockIAppDCS(ctrl)
 	mockDCS.EXPECT().GetCurrentSwitchover(gomock.Any()).DoAndReturn(func(switchover *Switchover) error {
-		*switchover = Switchover{Abortable: true, DCSVersion: 7}
+		*switchover = Switchover{OperationID: "op-a", Abortable: true, DCSVersion: 7}
 		return nil
 	})
-	mockDCS.EXPECT().DeleteCurrentSwitchoverVersion(int32(7)).Return(nil)
+	mockDCS.EXPECT().SetCurrentSwitchover(gomock.Any()).DoAndReturn(func(switchover *Switchover) error {
+		require.Equal(t, "op-a", switchover.OperationID)
+		require.True(t, switchover.AbortRequested)
+		require.Equal(t, "operator@test", switchover.AbortRequestedBy)
+		require.NotNil(t, switchover.AbortRequestedAt)
+		return nil
+	})
 
 	app := newTestApp(t, minConfig(), mockDCS)
-	require.NoError(t, app.safeAbortSwitchover())
+	require.NoError(t, app.requestSafeAbort("operator@test"))
 }
 
-func TestSafeAbortSwitchoverRejectsUnabortableSwitch(t *testing.T) {
+func TestRequestSafeAbortRejectsUnabortableSwitch(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
@@ -35,25 +41,25 @@ func TestSafeAbortSwitchoverRejectsUnabortableSwitch(t *testing.T) {
 	})
 
 	app := newTestApp(t, minConfig(), mockDCS)
-	require.ErrorIs(t, app.safeAbortSwitchover(), ErrSwitchoverNotAbortable)
+	require.ErrorIs(t, app.requestSafeAbort("operator@test"), ErrSwitchoverNotAbortable)
 }
 
-func TestSafeAbortSwitchoverDoesNotDeleteChangedSwitch(t *testing.T) {
+func TestRequestSafeAbortDoesNotOverwriteChangedSwitch(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
 	mockDCS := NewMockIAppDCS(ctrl)
 	mockDCS.EXPECT().GetCurrentSwitchover(gomock.Any()).DoAndReturn(func(switchover *Switchover) error {
-		*switchover = Switchover{Abortable: true, DCSVersion: 7}
+		*switchover = Switchover{OperationID: "op-a", Abortable: true, DCSVersion: 7}
 		return nil
 	})
-	mockDCS.EXPECT().DeleteCurrentSwitchoverVersion(int32(7)).Return(dcs.ErrVersionMismatch)
+	mockDCS.EXPECT().SetCurrentSwitchover(gomock.Any()).Return(dcs.ErrVersionMismatch)
 
 	app := newTestApp(t, minConfig(), mockDCS)
-	require.ErrorIs(t, app.safeAbortSwitchover(), dcs.ErrVersionMismatch)
+	require.ErrorIs(t, app.requestSafeAbort("operator@test"), dcs.ErrVersionMismatch)
 }
 
-func TestSafeAbortSwitchoverReturnsNotFound(t *testing.T) {
+func TestRequestSafeAbortReturnsNotFound(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
@@ -61,5 +67,19 @@ func TestSafeAbortSwitchoverReturnsNotFound(t *testing.T) {
 	mockDCS.EXPECT().GetCurrentSwitchover(gomock.Any()).Return(dcs.ErrNotFound)
 
 	app := newTestApp(t, minConfig(), mockDCS)
-	require.ErrorIs(t, app.safeAbortSwitchover(), dcs.ErrNotFound)
+	require.ErrorIs(t, app.requestSafeAbort("operator@test"), dcs.ErrNotFound)
+}
+
+func TestRequestSafeAbortIsIdempotent(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	mockDCS := NewMockIAppDCS(ctrl)
+	mockDCS.EXPECT().GetCurrentSwitchover(gomock.Any()).DoAndReturn(func(switchover *Switchover) error {
+		*switchover = Switchover{OperationID: "op-a", Abortable: true, AbortRequested: true, DCSVersion: 8}
+		return nil
+	})
+
+	app := newTestApp(t, minConfig(), mockDCS)
+	require.NoError(t, app.requestSafeAbort("operator@test"))
 }

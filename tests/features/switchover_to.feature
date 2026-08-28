@@ -40,6 +40,7 @@ Feature: manual switchover to new master
         "from": "",
         "to": "mysql2",
         "master_transition": "switchover",
+        "topology_changed": true,
         "result": {
           "ok": true
         }
@@ -404,6 +405,72 @@ Feature: manual switchover to new master
       "result": {
         "ok": false,
         "error": "switchover timed out after 12s"
+      }
+    }
+    """
+    And zookeeper node "/test/switch" should not exist
+    And mysql host "mysql1" should be master
+    And mysql host "mysql1" should become writable within "30" seconds
+    And mysql host "mysql2" should become replica of "mysql1" within "30" seconds
+    And mysql host "mysql3" should become replica of "mysql1" within "30" seconds
+    And mysql replication on host "mysql2" should run fine within "30" seconds
+    And mysql replication on host "mysql3" should run fine within "30" seconds
+    When I set replication delay on host "mysql2" to "0" seconds
+    Then mysql replication on host "mysql2" should run fine within "30" seconds
+
+  Scenario: safe abort is handled and audited by the current manager
+    Given cluster environment is
+    """
+    MYSYNC_SEMISYNC=false
+    MYSYNC_SWITCHOVER_TIMEOUT=2m
+    OFFLINE_MODE_ENABLE_LAG=300s
+    """
+    And cluster is up and running
+    Then mysql host "mysql1" should be master
+    And zookeeper node "/test/active_nodes" should match json_exactly within "30" seconds
+    """
+    ["mysql1","mysql2","mysql3"]
+    """
+    When I set replication delay on host "mysql2" to "60" seconds
+    And I run SQL on mysql host "mysql1"
+    """
+    CREATE TABLE IF NOT EXISTS mysql.safe_abort_test (id INT PRIMARY KEY)
+    """
+    And I run SQL on mysql host "mysql1"
+    """
+    INSERT INTO mysql.safe_abort_test VALUES (1)
+    """
+    And I run command on host "mysql1"
+    """
+    mysync switch --to mysql2 --wait=0s
+    """
+    Then command return code should be "0"
+    And zookeeper node "/test/switch" should match json within "10" seconds
+    """
+    {
+      "to": "mysql2",
+      "abortable": true,
+      "started_at": "REGEXP:^20[0-9]{2}-"
+    }
+    """
+    When I run command on host "mysql1"
+    """
+    mysync safe-abort
+    """
+    Then command return code should be "0"
+    And command output should match regexp
+    """
+    safe abort requested; the current manager will finish cleanup
+    """
+    And zookeeper node "/test/last_rejected_switch" should match json within "30" seconds
+    """
+    {
+      "to": "mysql2",
+      "abortable": true,
+      "abort_requested": true,
+      "result": {
+        "ok": false,
+        "error": "REGEXP:switchover safe abort requested by .*@mysql1"
       }
     }
     """

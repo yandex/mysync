@@ -9,6 +9,7 @@ import (
 	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/require"
 
+	nodestate "github.com/yandex/mysync/internal/app/node_state"
 	"github.com/yandex/mysync/internal/dcs"
 )
 
@@ -113,6 +114,7 @@ func TestMarkSwitchoverUnabortablePersistsBoundary(t *testing.T) {
 			mockDCS := NewMockIAppDCS(ctrl)
 			mockDCS.EXPECT().SetCurrentSwitchover(gomock.Any()).DoAndReturn(func(switchover *Switchover) error {
 				require.False(t, switchover.Abortable)
+				require.True(t, switchover.TopologyChanged)
 				require.Equal(t, int32(7), switchover.DCSVersion)
 				switchover.DCSVersion = 8
 				return nil
@@ -122,6 +124,7 @@ func TestMarkSwitchoverUnabortablePersistsBoundary(t *testing.T) {
 			switchover := &Switchover{Abortable: abortable, DCSVersion: 7}
 			require.NoError(t, app.markSwitchoverUnabortable(switchover))
 			require.False(t, switchover.Abortable)
+			require.True(t, switchover.TopologyChanged)
 			require.Equal(t, int32(8), switchover.DCSVersion)
 		})
 	}
@@ -134,9 +137,46 @@ func TestWaitForCatchUpHonorsSwitchoverDeadline(t *testing.T) {
 		timeout: 10 * time.Minute,
 	}
 
-	caught, err := app.waitForCatchUp(nil, nil, time.Hour, time.Hour, deadline)
+	caught, err := app.waitForCatchUp(nil, nil, time.Hour, time.Hour, deadline, nil)
 	require.False(t, caught)
 	require.ErrorIs(t, err, ErrSwitchoverTimeout)
+}
+
+func TestSwitchoverSourceAlreadyMatches(t *testing.T) {
+	clusterState := map[string]*nodestate.NodeState{
+		"replica": {SlaveState: &nodestate.SlaveState{MasterHost: "source"}},
+		"master":  {},
+	}
+
+	require.True(t, switchoverSourceAlreadyMatches(clusterState, "replica", "source"))
+	require.False(t, switchoverSourceAlreadyMatches(clusterState, "replica", "other"))
+	require.False(t, switchoverSourceAlreadyMatches(clusterState, "master", "source"))
+	require.False(t, switchoverSourceAlreadyMatches(clusterState, "missing", "source"))
+}
+
+func TestCheckSwitchoverAbortRefreshesPersistedRequest(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	mockDCS := NewMockIAppDCS(ctrl)
+	mockDCS.EXPECT().GetCurrentSwitchover(gomock.Any()).DoAndReturn(func(switchover *Switchover) error {
+		*switchover = Switchover{
+			OperationID:      "op-a",
+			Abortable:        true,
+			AbortRequested:   true,
+			AbortRequestedBy: "operator@test",
+			DCSVersion:       8,
+		}
+		return nil
+	})
+
+	app := newTestApp(t, minConfig(), mockDCS)
+	switchover := &Switchover{OperationID: "op-a", Abortable: true, DCSVersion: 7}
+	err := app.checkSwitchoverAbort(switchover, nil, time.Now(), true)
+	require.ErrorIs(t, err, ErrSwitchoverAbortRequested)
+	require.EqualError(t, err, "switchover safe abort requested by operator@test")
+	require.True(t, switchover.AbortRequested)
+	require.Equal(t, int32(8), switchover.DCSVersion)
 }
 
 func TestRecordSwitchoverAttemptResultTimeoutIsTerminal(t *testing.T) {
@@ -144,7 +184,11 @@ func TestRecordSwitchoverAttemptResultTimeoutIsTerminal(t *testing.T) {
 	defer ctrl.Finish()
 
 	mockDCS := NewMockIAppDCS(ctrl)
-	mockDCS.EXPECT().DeleteCurrentSwitchoverVersion(int32(7)).Return(nil)
+	mockDCS.EXPECT().DeleteCurrentSwitchoverVersion(gomock.Any()).DoAndReturn(func(switchover *Switchover) error {
+		require.Equal(t, "op-a", switchover.OperationID)
+		require.Equal(t, int32(7), switchover.DCSVersion)
+		return nil
+	})
 	mockDCS.EXPECT().SetLastRejectedSwitchover(gomock.Any()).DoAndReturn(func(switchover *Switchover) error {
 		require.Equal(t, 0, switchover.RunCount)
 		require.NotNil(t, switchover.Result)
@@ -154,7 +198,7 @@ func TestRecordSwitchoverAttemptResultTimeoutIsTerminal(t *testing.T) {
 	})
 
 	app := newTestApp(t, minConfig(), mockDCS)
-	switchover := &Switchover{MasterTransition: FailoverTransition, DCSVersion: 7}
+	switchover := &Switchover{MasterTransition: FailoverTransition, OperationID: "op-a", DCSVersion: 7}
 	err := app.recordSwitchoverAttemptResult(
 		switchover,
 		fmt.Errorf("%w after %s", ErrSwitchoverTimeout, 10*time.Minute),
@@ -162,16 +206,50 @@ func TestRecordSwitchoverAttemptResultTimeoutIsTerminal(t *testing.T) {
 	require.NoError(t, err)
 }
 
+func TestRecordSwitchoverAttemptResultSafeAbortIsTerminalAndAudited(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	mockDCS := NewMockIAppDCS(ctrl)
+	mockDCS.EXPECT().DeleteCurrentSwitchoverVersion(gomock.Any()).Return(nil)
+	mockDCS.EXPECT().SetLastRejectedSwitchover(gomock.Any()).DoAndReturn(func(switchover *Switchover) error {
+		require.True(t, switchover.AbortRequested)
+		require.Equal(t, "operator@test", switchover.AbortRequestedBy)
+		require.False(t, switchover.Result.Ok)
+		require.Equal(t, "switchover safe abort requested by operator@test", switchover.Result.Error)
+		return nil
+	})
+
+	app := newTestApp(t, minConfig(), mockDCS)
+	switchover := &Switchover{
+		OperationID:      "op-a",
+		MasterTransition: FailoverTransition,
+		Abortable:        true,
+		AbortRequested:   true,
+		AbortRequestedBy: "operator@test",
+		DCSVersion:       8,
+	}
+	err := app.recordSwitchoverAttemptResult(switchover, switchoverAbortRequestedError(switchover))
+	require.NoError(t, err)
+}
+
+func TestTerminalSwitchoverErrorPreservesOriginalMessage(t *testing.T) {
+	err := newTerminalSwitchoverError(errors.New("cannot freeze old master"))
+
+	require.ErrorIs(t, err, ErrSwitchoverTerminal)
+	require.EqualError(t, err, "cannot freeze old master")
+}
+
 func TestRecordSwitchoverAttemptResultDoesNotDeleteNewManagerState(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
 	mockDCS := NewMockIAppDCS(ctrl)
-	mockDCS.EXPECT().DeleteCurrentSwitchoverVersion(int32(7)).Return(dcs.ErrVersionMismatch)
+	mockDCS.EXPECT().DeleteCurrentSwitchoverVersion(gomock.Any()).Return(dcs.ErrVersionMismatch)
 
 	app := newTestApp(t, minConfig(), mockDCS)
 	err := app.recordSwitchoverAttemptResult(
-		&Switchover{MasterTransition: FailoverTransition, DCSVersion: 7},
+		&Switchover{MasterTransition: FailoverTransition, OperationID: "op-a", DCSVersion: 7},
 		fmt.Errorf("%w after %s", ErrSwitchoverTimeout, 10*time.Minute),
 	)
 	require.ErrorIs(t, err, dcs.ErrVersionMismatch)

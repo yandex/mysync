@@ -93,17 +93,17 @@ func (mr *MockIAppDCSMockRecorder) DeleteCurrentSwitchover() *gomock.Call {
 }
 
 // DeleteCurrentSwitchoverVersion mocks base method.
-func (m *MockIAppDCS) DeleteCurrentSwitchoverVersion(version int32) error {
+func (m *MockIAppDCS) DeleteCurrentSwitchoverVersion(switchover *Switchover) error {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "DeleteCurrentSwitchoverVersion", version)
+	ret := m.ctrl.Call(m, "DeleteCurrentSwitchoverVersion", switchover)
 	ret0, _ := ret[0].(error)
 	return ret0
 }
 
 // DeleteCurrentSwitchoverVersion indicates an expected call of DeleteCurrentSwitchoverVersion.
-func (mr *MockIAppDCSMockRecorder) DeleteCurrentSwitchoverVersion(version interface{}) *gomock.Call {
+func (mr *MockIAppDCSMockRecorder) DeleteCurrentSwitchoverVersion(switchover interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteCurrentSwitchoverVersion", reflect.TypeOf((*MockIAppDCS)(nil).DeleteCurrentSwitchoverVersion), version)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteCurrentSwitchoverVersion", reflect.TypeOf((*MockIAppDCS)(nil).DeleteCurrentSwitchoverVersion), switchover)
 }
 
 // DeleteMaintenance mocks base method.

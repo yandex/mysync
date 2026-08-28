@@ -48,7 +48,7 @@ type IAppDCS interface {
 	GetLastSwitchover(switchover *Switchover) error
 	SetCurrentSwitchover(switchover *Switchover) error
 	DeleteCurrentSwitchover() error
-	DeleteCurrentSwitchoverVersion(version int32) error
+	DeleteCurrentSwitchoverVersion(switchover *Switchover) error
 	SetLastSwitchover(switchover *Switchover) error
 	SetLastRejectedSwitchover(switchover *Switchover) error
 	GetLastRejectedSwitchover(switchover *Switchover) error

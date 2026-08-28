@@ -137,7 +137,7 @@ mysync maint on
 mysync maint off
 ```
 
-`mysync safe-abort` aborts a switchover only while it is marked as safely
-abortable. `mysync abort` remains a force operation and may require manual
+`mysync safe-abort` requests that the current manager reject a switchover while
+it is still marked as safely abortable. The manager records the result and runs
+normal cleanup. `mysync abort` remains a force operation and may require manual
 cluster repair.
-

@@ -241,10 +241,10 @@ func (app *App) CliAbort() int {
 	return 0
 }
 
-// safeAbortSwitchover removes the current switchover only while it is still
-// before the persisted safe-abort boundary. The versioned delete prevents a
-// concurrent manager from crossing that boundary between the read and delete.
-func (app *App) safeAbortSwitchover() error {
+// requestSafeAbort asks the current manager to finish an abortable switchover.
+// Keeping /switch until the manager records the terminal result prevents a
+// delete/recreate race with a stale manager and lets normal cleanup run.
+func (app *App) requestSafeAbort(requestedBy string) error {
 	switchover := new(Switchover)
 	if err := app.GetCurrentSwitchover(switchover); err != nil {
 		return err
@@ -252,10 +252,17 @@ func (app *App) safeAbortSwitchover() error {
 	if !switchover.Abortable {
 		return ErrSwitchoverNotAbortable
 	}
-	return app.appDCS.DeleteCurrentSwitchoverVersion(switchover.DCSVersion)
+	if switchover.AbortRequested {
+		return nil
+	}
+	now := time.Now()
+	switchover.AbortRequested = true
+	switchover.AbortRequestedBy = requestedBy
+	switchover.AbortRequestedAt = &now
+	return app.appDCS.SetCurrentSwitchover(switchover)
 }
 
-// CliSafeAbort safely cleans an abortable switchover node from DCS.
+// CliSafeAbort requests manager-owned cleanup of an abortable switchover.
 func (app *App) CliSafeAbort() int {
 	err := app.connectDCS()
 	if err != nil {
@@ -265,7 +272,8 @@ func (app *App) CliSafeAbort() int {
 	defer app.dcs.Close()
 	app.dcs.Initialize()
 
-	err = app.safeAbortSwitchover()
+	requestedBy := util.GuessWhoRunning() + "@" + app.config.Hostname
+	err = app.requestSafeAbort(requestedBy)
 	switch {
 	case errors.Is(err, dcs.ErrNotFound):
 		fmt.Println("no active switchover")
@@ -281,6 +289,6 @@ func (app *App) CliSafeAbort() int {
 		return 1
 	}
 
-	fmt.Println("switchover safely aborted")
+	fmt.Println("safe abort requested; the current manager will finish cleanup")
 	return 0
 }
