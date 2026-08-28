@@ -416,6 +416,17 @@ func (app *App) optimizationPhase(
 		return nil
 	}
 
+	// Turbo mode requires the Syncer to read replication settings from the master.
+	// If the master is unreachable, Sync() will fail and optimization will never start,
+	// causing Wait() to block until the deadline. Skip turbo mode in that case.
+	if masterUnreachable(clusterState, oldMaster) {
+		app.logger.Info().Msgf(
+			"switchover: phase 0: turbo mode is skipped: old master '%s' is not available",
+			oldMaster,
+		)
+		return nil
+	}
+
 	appropriateReplicas := filterOut(activeNodes, []string{oldMaster, switchover.From})
 	desirableReplica := switchover.To
 
@@ -461,6 +472,12 @@ func (app *App) optimizationPhase(
 	// Other cases can be handled in subsequent steps, so no special action is needed here.
 	app.logger.Info().Msg("switchover: phase 0: turbo mode is complete")
 	return nil
+}
+
+// masterUnreachable reports whether the old master is absent from clusterState or failed its ping.
+func masterUnreachable(clusterState map[string]*nodestate.NodeState, master string) bool {
+	state := clusterState[master]
+	return state == nil || !state.PingOk
 }
 
 // anyReplicaConverged returns the first replica whose replication lag is below lowMark seconds.
