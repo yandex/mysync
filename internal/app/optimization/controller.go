@@ -70,11 +70,13 @@ func (m *Controller) isOptimizedDuringWaiting(node Node) (bool, error) {
 	if dcsState == nil {
 		return true, nil
 	}
-	if dcsState.Status == StatusEnabled {
-		m.logger.Info().Msg("optimization: waiting; node is optimizing")
-	} else {
-		return true, nil
+	if dcsState.Status != StatusEnabled {
+		// StatusNew: Syncer has not yet applied optimization settings — keep waiting
+		m.logger.Info().Msg("optimization: waiting; optimization not yet started")
+		return false, nil
 	}
+
+	m.logger.Info().Msg("optimization: waiting; node is optimizing")
 
 	replicationStatus, err := node.GetReplicaStatus()
 	if err != nil {

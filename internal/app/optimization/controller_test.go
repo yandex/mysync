@@ -15,16 +15,17 @@ import (
 
 //nolint:funlen
 func TestWaitOptimization(t *testing.T) {
+	defaultConfig := config.OptimizationConfig{
+		LowReplicationMark:  5 * time.Second,
+		HighReplicationMark: 120 * time.Second,
+	}
+	logger := zerolog.Nop()
+	checkInterval := time.Millisecond
+
 	t.Run("Waiting for an optimized replica", func(t *testing.T) {
 		ctx := context.Background()
-		config := config.OptimizationConfig{
-			LowReplicationMark:  5 * time.Second,
-			HighReplicationMark: 120 * time.Second,
-		}
-		checkInterval := time.Millisecond
 
 		ctrl := gomock.NewController(t)
-		logger := zerolog.Nop()
 
 		node := MakeNodeMock(ctrl, "replica1")
 		node.WithGetReplicaStatus(1.0)
@@ -34,12 +35,7 @@ func TestWaitOptimization(t *testing.T) {
 			Return(&DCSState{Status: "enabled"}, nil)
 		Dcs.EXPECT().DeleteHosts("replica1")
 
-		manager := NewController(
-			config,
-			&logger,
-			Dcs,
-			checkInterval,
-		)
+		manager := NewController(defaultConfig, &logger, Dcs, checkInterval)
 
 		err := manager.Wait(ctx, node)
 		require.NoError(t, err)
@@ -47,14 +43,8 @@ func TestWaitOptimization(t *testing.T) {
 
 	t.Run("Waiting for a replica absent in DCS", func(t *testing.T) {
 		ctx := context.Background()
-		config := config.OptimizationConfig{
-			LowReplicationMark:  5 * time.Second,
-			HighReplicationMark: 120 * time.Second,
-		}
-		checkInterval := time.Millisecond
 
 		ctrl := gomock.NewController(t)
-		logger := zerolog.Nop()
 
 		node := MakeNodeMock(ctrl, "replica1")
 
@@ -62,12 +52,7 @@ func TestWaitOptimization(t *testing.T) {
 		Dcs.EXPECT().GetState("replica1").
 			Return(nil, nil)
 
-		manager := NewController(
-			config,
-			&logger,
-			Dcs,
-			checkInterval,
-		)
+		manager := NewController(defaultConfig, &logger, Dcs, checkInterval)
 
 		err := manager.Wait(ctx, node)
 		require.NoError(t, err)
@@ -77,43 +62,58 @@ func TestWaitOptimization(t *testing.T) {
 		ctx, cancel := context.WithTimeout(context.Background(), 0)
 		defer cancel()
 
-		config := config.OptimizationConfig{
-			LowReplicationMark:  5 * time.Second,
-			HighReplicationMark: 120 * time.Second,
-		}
-		checkInterval := time.Millisecond
-
 		ctrl := gomock.NewController(t)
-		logger := zerolog.Nop()
 
 		node := MakeNodeMock(ctrl, "replica1")
 		node.WithGetReplicaStatus(1024.0).AnyTimes()
 
 		Dcs := NewMockDCS(ctrl)
 		Dcs.EXPECT().GetState("replica1").
-			Return(&DCSState{Status: ""}, nil).AnyTimes()
+			Return(&DCSState{Status: StatusEnabled}, nil).AnyTimes()
 
-		manager := NewController(
-			config,
-			&logger,
-			Dcs,
-			checkInterval,
-		)
+		manager := NewController(defaultConfig, &logger, Dcs, checkInterval)
 
 		err := manager.Wait(ctx, node)
 		require.EqualError(t, err, "optimization waiting deadline exceeded")
 	})
 
+	t.Run("StatusNew keeps waiting until Syncer transitions to StatusEnabled", func(t *testing.T) {
+		ctx := context.Background()
+		checkInterval := time.Nanosecond
+
+		ctrl := gomock.NewController(t)
+
+		node := MakeNodeMock(ctrl, "replica1")
+		node.WithGetReplicaStatus(4.0)
+
+		Dcs := NewMockDCS(ctrl)
+		gomock.InOrder(
+			// First tick: Syncer hasn't started yet — Status="" → keep waiting
+			Dcs.EXPECT().GetState("replica1").
+				Return(&DCSState{Status: StatusNew}, nil),
+			// Second tick: Syncer has applied settings — Status="enabled" → check lag
+			Dcs.EXPECT().GetState("replica1").
+				Return(&DCSState{Status: StatusEnabled}, nil),
+		)
+		Dcs.EXPECT().DeleteHosts("replica1")
+
+		manager := NewController(defaultConfig, &logger, Dcs, checkInterval)
+
+		err := manager.Wait(ctx, node)
+		require.NoError(t, err)
+	})
+
 	t.Run("Waiting works", func(t *testing.T) {
 		ctx := context.Background()
-		config := config.OptimizationConfig{
-			LowReplicationMark:  5,
-			HighReplicationMark: 120,
+		// Small nanosecond thresholds so the lag values (4.0, 200.0, 800.0)
+		// are compared as raw nanoseconds, forcing Wait() to iterate multiple times.
+		cfg := config.OptimizationConfig{
+			LowReplicationMark:  5,   // 5 ns
+			HighReplicationMark: 120, // 120 ns
 		}
 		checkInterval := time.Nanosecond
 
 		ctrl := gomock.NewController(t)
-		logger := zerolog.Nop()
 
 		node := MakeNodeMock(ctrl, "replica1")
 		node.WithGetReplicaStatus(800.0)
@@ -125,12 +125,7 @@ func TestWaitOptimization(t *testing.T) {
 			Return(&DCSState{Status: "enabled"}, nil).AnyTimes()
 		Dcs.EXPECT().DeleteHosts("replica1")
 
-		manager := NewController(
-			config,
-			&logger,
-			Dcs,
-			checkInterval,
-		)
+		manager := NewController(cfg, &logger, Dcs, checkInterval)
 
 		err := manager.Wait(ctx, node)
 		require.NoError(t, err)
@@ -138,21 +133,19 @@ func TestWaitOptimization(t *testing.T) {
 }
 
 func TestEnableNodeOptimization(t *testing.T) {
+	emptyConfig := config.OptimizationConfig{}
+	checkInterval := time.Second
+	logger := zerolog.Nop()
+
 	t.Run("Enable on a replica", func(t *testing.T) {
 		ctrl := gomock.NewController(t)
-		logger := zerolog.Nop()
 
 		node := MakeNodeMock(ctrl, "replica1")
 
 		Dcs := NewMockDCS(ctrl)
 		Dcs.EXPECT().CreateHosts("replica1")
 
-		manager := NewController(
-			config.OptimizationConfig{},
-			&logger,
-			Dcs,
-			time.Second,
-		)
+		manager := NewController(emptyConfig, &logger, Dcs, checkInterval)
 
 		err := manager.Enable(node)
 		require.NoError(t, err)
@@ -160,7 +153,6 @@ func TestEnableNodeOptimization(t *testing.T) {
 
 	t.Run("Network error", func(t *testing.T) {
 		ctrl := gomock.NewController(t)
-		logger := zerolog.Nop()
 
 		node := MakeNodeMock(ctrl, "replica1")
 
@@ -168,12 +160,7 @@ func TestEnableNodeOptimization(t *testing.T) {
 		Dcs.EXPECT().CreateHosts("replica1").
 			Return(fmt.Errorf("network-error"))
 
-		manager := NewController(
-			config.OptimizationConfig{},
-			&logger,
-			Dcs,
-			time.Second,
-		)
+		manager := NewController(emptyConfig, &logger, Dcs, checkInterval)
 
 		err := manager.Enable(node)
 		require.EqualError(t, err, "network-error")
@@ -181,9 +168,12 @@ func TestEnableNodeOptimization(t *testing.T) {
 }
 
 func TestDisableNodeOptimization(t *testing.T) {
+	emptyConfig := config.OptimizationConfig{}
+	checkInterval := time.Second
+	logger := zerolog.Nop()
+
 	t.Run("Disable a replica", func(t *testing.T) {
 		ctrl := gomock.NewController(t)
-		logger := zerolog.Nop()
 
 		master := MakeNodeMock(ctrl, "master")
 		master.WithGetReplicationSettings()
@@ -194,12 +184,7 @@ func TestDisableNodeOptimization(t *testing.T) {
 		Dcs := NewMockDCS(ctrl)
 		Dcs.EXPECT().DeleteHosts("replica1")
 
-		manager := NewController(
-			config.OptimizationConfig{},
-			&logger,
-			Dcs,
-			time.Second,
-		)
+		manager := NewController(emptyConfig, &logger, Dcs, checkInterval)
 
 		err := manager.Disable(master, node)
 		require.NoError(t, err)
@@ -207,7 +192,6 @@ func TestDisableNodeOptimization(t *testing.T) {
 
 	t.Run("Network error on the side of DCS", func(t *testing.T) {
 		ctrl := gomock.NewController(t)
-		logger := zerolog.Nop()
 
 		master := MakeNodeMock(ctrl, "master")
 		master.WithGetReplicationSettings()
@@ -219,12 +203,7 @@ func TestDisableNodeOptimization(t *testing.T) {
 		Dcs.EXPECT().DeleteHosts("replica1").
 			Return(fmt.Errorf("network-error"))
 
-		manager := NewController(
-			config.OptimizationConfig{},
-			&logger,
-			Dcs,
-			time.Second,
-		)
+		manager := NewController(emptyConfig, &logger, Dcs, checkInterval)
 
 		err := manager.Disable(master, node)
 		require.EqualError(t, err, "network-error")
@@ -232,7 +211,6 @@ func TestDisableNodeOptimization(t *testing.T) {
 
 	t.Run("Network error on the side of MySQL", func(t *testing.T) {
 		ctrl := gomock.NewController(t)
-		logger := zerolog.Nop()
 
 		master := MakeNodeMock(ctrl, "master")
 		master.EXPECT().GetReplicationSettings().
@@ -245,12 +223,7 @@ func TestDisableNodeOptimization(t *testing.T) {
 		Dcs.EXPECT().DeleteHosts("replica1").
 			Return(fmt.Errorf("network-error"))
 
-		manager := NewController(
-			config.OptimizationConfig{},
-			&logger,
-			Dcs,
-			time.Second,
-		)
+		manager := NewController(emptyConfig, &logger, Dcs, checkInterval)
 
 		err := manager.Disable(master, node)
 		require.EqualError(t, err, "network-error")
@@ -259,9 +232,12 @@ func TestDisableNodeOptimization(t *testing.T) {
 
 //nolint:funlen
 func TestDisableAllNodeOptimization(t *testing.T) {
+	emptyConfig := config.OptimizationConfig{}
+	checkInterval := time.Second
+	logger := zerolog.Nop()
+
 	t.Run("Disable all replicas", func(t *testing.T) {
 		ctrl := gomock.NewController(t)
-		logger := zerolog.Nop()
 
 		master := MakeNodeMock(ctrl, "master")
 		master.WithGetReplicationSettings()
@@ -278,12 +254,7 @@ func TestDisableAllNodeOptimization(t *testing.T) {
 		Dcs.EXPECT().DeleteHosts("replica1")
 		Dcs.EXPECT().DeleteHosts("replica2")
 
-		manager := NewController(
-			config.OptimizationConfig{},
-			&logger,
-			Dcs,
-			time.Second,
-		)
+		manager := NewController(emptyConfig, &logger, Dcs, checkInterval)
 
 		err := manager.DisableAll(master, []Node{replica1, replica2})
 		require.NoError(t, err)
@@ -291,7 +262,6 @@ func TestDisableAllNodeOptimization(t *testing.T) {
 
 	t.Run("Disable only one replica", func(t *testing.T) {
 		ctrl := gomock.NewController(t)
-		logger := zerolog.Nop()
 
 		master := MakeNodeMock(ctrl, "master")
 		master.WithGetReplicationSettings()
@@ -304,12 +274,7 @@ func TestDisableAllNodeOptimization(t *testing.T) {
 			Return([]string{"replica1", "replica2"}, nil)
 		Dcs.EXPECT().DeleteHosts("replica1")
 
-		manager := NewController(
-			config.OptimizationConfig{},
-			&logger,
-			Dcs,
-			time.Second,
-		)
+		manager := NewController(emptyConfig, &logger, Dcs, checkInterval)
 
 		err := manager.DisableAll(master, []Node{replica1})
 		require.NoError(t, err)
@@ -317,7 +282,6 @@ func TestDisableAllNodeOptimization(t *testing.T) {
 
 	t.Run("DCS network-errors", func(t *testing.T) {
 		ctrl := gomock.NewController(t)
-		logger := zerolog.Nop()
 
 		master := MakeNodeMock(ctrl, "master")
 		master.WithGetReplicationSettings()
@@ -336,12 +300,7 @@ func TestDisableAllNodeOptimization(t *testing.T) {
 		Dcs.EXPECT().DeleteHosts("replica2").
 			Return(fmt.Errorf("network-error"))
 
-		manager := NewController(
-			config.OptimizationConfig{},
-			&logger,
-			Dcs,
-			time.Second,
-		)
+		manager := NewController(emptyConfig, &logger, Dcs, checkInterval)
 
 		err := manager.DisableAll(master, []Node{replica1, replica2})
 		require.EqualError(t, err, "got the following errors: replica1:network-error,replica2:network-error")
@@ -349,7 +308,6 @@ func TestDisableAllNodeOptimization(t *testing.T) {
 
 	t.Run("MySQL network-errors", func(t *testing.T) {
 		ctrl := gomock.NewController(t)
-		logger := zerolog.Nop()
 
 		master := MakeNodeMock(ctrl, "master")
 		master.EXPECT().GetReplicationSettings().Return(mysql.ReplicationSettings{}, fmt.Errorf("network-error"))
@@ -366,12 +324,7 @@ func TestDisableAllNodeOptimization(t *testing.T) {
 		Dcs.EXPECT().DeleteHosts("replica1")
 		Dcs.EXPECT().DeleteHosts("replica2")
 
-		manager := NewController(
-			config.OptimizationConfig{},
-			&logger,
-			Dcs,
-			time.Second,
-		)
+		manager := NewController(emptyConfig, &logger, Dcs, checkInterval)
 
 		err := manager.DisableAll(master, []Node{replica1, replica2})
 		require.NoError(t, err)
