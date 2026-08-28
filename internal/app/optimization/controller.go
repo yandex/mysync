@@ -2,6 +2,7 @@ package optimization
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"time"
 
@@ -10,6 +11,10 @@ import (
 	"github.com/yandex/mysync/internal/mysql"
 	"github.com/yandex/mysync/internal/util"
 )
+
+// ErrDeadlineExceeded is returned by Wait when the context deadline is reached before
+// the replica converges. Callers (e.g. optimizationPhase) use errors.Is to detect this.
+var ErrDeadlineExceeded = errors.New("optimization waiting deadline exceeded")
 
 func NewController(
 	config config.OptimizationConfig,
@@ -43,7 +48,7 @@ func (m *Controller) Wait(ctx context.Context, node Node) error {
 	for {
 		select {
 		case <-ctx.Done():
-			return fmt.Errorf("optimization waiting deadline exceeded")
+			return ErrDeadlineExceeded
 
 		case <-ticker.C:
 			isOptimized, err := m.isOptimizedDuringWaiting(node)
@@ -70,11 +75,13 @@ func (m *Controller) isOptimizedDuringWaiting(node Node) (bool, error) {
 	if dcsState == nil {
 		return true, nil
 	}
-	if dcsState.Status == StatusEnabled {
-		m.logger.Info().Msg("optimization: waiting; node is optimizing")
-	} else {
-		return true, nil
+	if dcsState.Status != StatusEnabled {
+		// StatusNew: Syncer has not yet applied optimization settings — keep waiting
+		m.logger.Info().Msg("optimization: waiting; optimization not yet started")
+		return false, nil
 	}
+
+	m.logger.Info().Msg("optimization: waiting; node is optimizing")
 
 	replicationStatus, err := node.GetReplicaStatus()
 	if err != nil {
@@ -82,7 +89,7 @@ func (m *Controller) isOptimizedDuringWaiting(node Node) (bool, error) {
 	}
 
 	lag := replicationStatus.GetReplicationLag()
-	if lag.Valid && lag.Float64 < float64(m.config.LowReplicationMark) {
+	if lag.Valid && lag.Float64 < m.config.LowReplicationMark.Seconds() {
 		m.logger.Info().Msgf("optimization: waiting is complete, as replication lag is converged: %v", lag.Float64)
 		return true, m.dcs.DeleteHosts(node.Host())
 	}

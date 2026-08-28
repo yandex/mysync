@@ -416,8 +416,39 @@ func (app *App) optimizationPhase(
 		return nil
 	}
 
+	// Turbo mode requires the Syncer to read replication settings from the master.
+	// If the master is unreachable, Sync() will fail and optimization will never start,
+	// causing Wait() to block until the deadline. Skip turbo mode in that case.
+	if masterUnreachable(clusterState, oldMaster) {
+		app.logger.Info().Msgf(
+			"switchover: phase 0: turbo mode is skipped: old master '%s' is not available",
+			oldMaster,
+		)
+		return nil
+	}
+
 	appropriateReplicas := filterOut(activeNodes, []string{oldMaster, switchover.From})
 	desirableReplica := switchover.To
+
+	lowMark := app.config.OptimizationConfig.LowReplicationMark.Seconds()
+	var skipReplica string
+	var skipLag float64
+	if desirableReplica != "" {
+		// When a specific target is set, check only that replica.
+		if lag, ok := replicaConverged(clusterState, desirableReplica, lowMark); ok {
+			skipReplica, skipLag = desirableReplica, lag
+		}
+	} else {
+		// When no target is set, optimization picks the replica with the smallest lag.
+		skipReplica, skipLag, _ = anyReplicaConverged(appropriateReplicas, clusterState, lowMark)
+	}
+	if skipReplica != "" {
+		app.logger.Info().Msgf(
+			"switchover: phase 0: turbo mode is skipped: replica '%s' already has low lag: %.2f s",
+			skipReplica, skipLag,
+		)
+		return nil
+	}
 
 	app.logger.Info().Msgf(
 		"switchover: phase 0: enter turbo mode; replicas: %v, oldMaster: '%s', desirable replica: '%s'",
@@ -436,7 +467,7 @@ func (app *App) optimizationPhase(
 		desirableReplica,
 		clusterAdapter,
 	)
-	if err != nil && errors.Is(err, ErrOptimizationPhaseDeadlineExceeded) {
+	if err != nil && errors.Is(err, optimization.ErrDeadlineExceeded) {
 		app.logger.Info().Msgf("switchover: phase 0: turbo mode failed: %v", err)
 		switchErr := app.FinishSwitchover(switchover, fmt.Errorf("turbo mode exceeded deadline"))
 		if switchErr != nil {
@@ -452,4 +483,39 @@ func (app *App) optimizationPhase(
 	// Other cases can be handled in subsequent steps, so no special action is needed here.
 	app.logger.Info().Msg("switchover: phase 0: turbo mode is complete")
 	return nil
+}
+
+// replicaConverged reports whether the given replica's replication lag is known and below lowMark seconds.
+// Returns (lag, true) when converged, (0, false) otherwise.
+func replicaConverged(clusterState map[string]*nodestate.NodeState, replica string, lowMark float64) (float64, bool) {
+	state := clusterState[replica]
+	if state == nil || state.SlaveState == nil || state.SlaveState.ReplicationLag == nil {
+		return 0, false
+	}
+	lag := *state.SlaveState.ReplicationLag
+	if lag < lowMark {
+		return lag, true
+	}
+	return 0, false
+}
+
+// masterUnreachable reports whether the old master is absent from clusterState or failed its ping.
+func masterUnreachable(clusterState map[string]*nodestate.NodeState, master string) bool {
+	state := clusterState[master]
+	return state == nil || !state.PingOk
+}
+
+// anyReplicaConverged returns the first replica whose replication lag is below lowMark seconds.
+// Returns (hostname, lag, true) when found, or ("", 0, false) when none qualifies.
+func anyReplicaConverged(
+	replicas []string,
+	clusterState map[string]*nodestate.NodeState,
+	lowMark float64,
+) (string, float64, bool) {
+	for _, replica := range replicas {
+		if lag, ok := replicaConverged(clusterState, replica, lowMark); ok {
+			return replica, lag, true
+		}
+	}
+	return "", 0, false
 }
