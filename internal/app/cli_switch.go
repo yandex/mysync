@@ -240,3 +240,47 @@ func (app *App) CliAbort() int {
 	fmt.Printf("switchover aborted\n")
 	return 0
 }
+
+// safeAbortSwitchover removes the current switchover only while it is still
+// before the persisted safe-abort boundary. The versioned delete prevents a
+// concurrent manager from crossing that boundary between the read and delete.
+func (app *App) safeAbortSwitchover() error {
+	switchover := new(Switchover)
+	if err := app.GetCurrentSwitchover(switchover); err != nil {
+		return err
+	}
+	if !switchover.Abortable {
+		return ErrSwitchoverNotAbortable
+	}
+	return app.appDCS.DeleteCurrentSwitchoverVersion(switchover.DCSVersion)
+}
+
+// CliSafeAbort safely cleans an abortable switchover node from DCS.
+func (app *App) CliSafeAbort() int {
+	err := app.connectDCS()
+	if err != nil {
+		app.logger.Error().Err(err).Msg("")
+		return 1
+	}
+	defer app.dcs.Close()
+	app.dcs.Initialize()
+
+	err = app.safeAbortSwitchover()
+	switch {
+	case errors.Is(err, dcs.ErrNotFound):
+		fmt.Println("no active switchover")
+		return 0
+	case errors.Is(err, ErrSwitchoverNotAbortable):
+		fmt.Println("switchover has crossed the safe-abort boundary; nothing was aborted")
+		return 1
+	case errors.Is(err, dcs.ErrVersionMismatch):
+		fmt.Println("switchover changed while safe abort was attempted; nothing was aborted")
+		return 1
+	case err != nil:
+		app.logger.Error().Err(err).Msg("")
+		return 1
+	}
+
+	fmt.Println("switchover safely aborted")
+	return 0
+}

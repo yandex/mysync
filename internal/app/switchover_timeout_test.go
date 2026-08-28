@@ -86,6 +86,24 @@ func TestNewSwitchoverAbortDeadline(t *testing.T) {
 	}
 }
 
+func TestSwitchoverTimeoutDisabledAfterAbortBoundary(t *testing.T) {
+	now := time.Date(2026, time.August, 27, 12, 30, 0, 0, time.UTC)
+	cfg := minConfig()
+	cfg.SwitchoverTimeout = 10 * time.Minute
+	app := newTestApp(t, cfg, nil)
+	switchover := &Switchover{
+		InitiatedAt: now.Add(-30 * time.Minute),
+		StartedAt:   now.Add(-20 * time.Minute),
+		RunCount:    1,
+		Abortable:   false,
+	}
+
+	deadline := app.newSwitchoverAbortDeadline(switchover)
+	require.Nil(t, deadline)
+	require.NoError(t, deadline.exceeded(now))
+	require.False(t, switchover.Abortable)
+}
+
 func TestMarkSwitchoverUnabortablePersistsBoundary(t *testing.T) {
 	for _, abortable := range []bool{true, false} {
 		t.Run(fmt.Sprintf("abortable_%t", abortable), func(t *testing.T) {

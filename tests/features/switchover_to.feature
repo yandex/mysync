@@ -389,9 +389,11 @@ Feature: manual switchover to new master
       "started_at": "REGEXP:^20[0-9]{2}-"
     }
     """
-    When I run command on host "{{.manager.hostname}}"
+    # SIGKILL is intentional: a graceful restart can let the old manager finish
+    # the timed-out switchover before supervisor starts the replacement process.
+    When I run command on host "{{.manager.hostname}}" with timeout "30" seconds
     """
-    supervisorctl restart mysync
+    supervisorctl signal KILL mysync
     """
     Then command return code should be "0"
     And zookeeper node "/test/last_rejected_switch" should match json within "30" seconds

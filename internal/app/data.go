@@ -17,10 +17,11 @@ const (
 )
 
 var (
-	ErrNoMaster          = errors.New("no alive master found")
-	ErrManyMasters       = errors.New("more than one master found")
-	ErrNoActiveNodes     = errors.New("no active nodes found")
-	ErrSwitchoverTimeout = errors.New("switchover timed out")
+	ErrNoMaster               = errors.New("no alive master found")
+	ErrManyMasters            = errors.New("more than one master found")
+	ErrNoActiveNodes          = errors.New("no active nodes found")
+	ErrSwitchoverTimeout      = errors.New("switchover timed out")
+	ErrSwitchoverNotAbortable = errors.New("switchover is not safe to abort")
 )
 
 const (

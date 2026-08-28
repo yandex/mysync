@@ -194,7 +194,7 @@ Feature: cascade replicas
         """
            ["mysql1","mysql2"]
         """
-        And mysql host "mysql3" should be replica of "mysql2"
+        And mysql host "mysql3" should become replica of "mysql2" within "45" seconds
         When I run SQL on mysql host "mysql2"
         """
             STOP REPLICA; CHANGE REPLICATION SOURCE TO SOURCE_DELAY = 10 FOR CHANNEL ''; START REPLICA
