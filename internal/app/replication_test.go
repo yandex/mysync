@@ -5,8 +5,10 @@ import (
 
 	"github.com/stretchr/testify/require"
 
+	nodestate "github.com/yandex/mysync/internal/app/node_state"
 	"github.com/yandex/mysync/internal/config"
 	"github.com/yandex/mysync/internal/mysql"
+	"github.com/yandex/mysync/internal/util"
 )
 
 type fakeExternalReplicationSourceStatus struct {
@@ -91,4 +93,75 @@ func TestExternalReplicationRepairOrderWithSingleAttempt(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, ChangeSource, algorithm)
 	require.Zero(t, count)
+}
+
+func TestAnyReplicaConverged(t *testing.T) {
+	lowMark := 5.0 // seconds
+
+	makeState := func(lag *float64) *nodestate.NodeState {
+		return &nodestate.NodeState{
+			SlaveState: &nodestate.SlaveState{
+				ReplicationLag: lag,
+			},
+		}
+	}
+
+	t.Run("returns false when replica list is empty", func(t *testing.T) {
+		_, _, ok := anyReplicaConverged(nil, nil, lowMark)
+		require.False(t, ok)
+	})
+
+	t.Run("returns false when all replicas have high lag", func(t *testing.T) {
+		state := map[string]*nodestate.NodeState{
+			"replica1": makeState(util.Ptr(100.0)),
+			"replica2": makeState(util.Ptr(50.0)),
+		}
+		_, _, ok := anyReplicaConverged([]string{"replica1", "replica2"}, state, lowMark)
+		require.False(t, ok)
+	})
+
+	t.Run("returns false when replica has no lag info", func(t *testing.T) {
+		state := map[string]*nodestate.NodeState{
+			"replica1": makeState(nil),
+		}
+		_, _, ok := anyReplicaConverged([]string{"replica1"}, state, lowMark)
+		require.False(t, ok)
+	})
+
+	t.Run("returns false when replica state is nil", func(t *testing.T) {
+		state := map[string]*nodestate.NodeState{
+			"replica1": nil,
+		}
+		_, _, ok := anyReplicaConverged([]string{"replica1"}, state, lowMark)
+		require.False(t, ok)
+	})
+
+	t.Run("returns true for replica with lag below low mark", func(t *testing.T) {
+		state := map[string]*nodestate.NodeState{
+			"replica1": makeState(util.Ptr(100.0)),
+			"replica2": makeState(util.Ptr(3.0)),
+		}
+		host, lag, ok := anyReplicaConverged([]string{"replica1", "replica2"}, state, lowMark)
+		require.True(t, ok)
+		require.Equal(t, "replica2", host)
+		require.InDelta(t, 3.0, lag, 1e-9)
+	})
+
+	t.Run("lag equal to low mark is not converged", func(t *testing.T) {
+		state := map[string]*nodestate.NodeState{
+			"replica1": makeState(util.Ptr(5.0)),
+		}
+		_, _, ok := anyReplicaConverged([]string{"replica1"}, state, lowMark)
+		require.False(t, ok)
+	})
+
+	t.Run("returns the first converged replica in order", func(t *testing.T) {
+		state := map[string]*nodestate.NodeState{
+			"replica1": makeState(util.Ptr(1.0)),
+			"replica2": makeState(util.Ptr(2.0)),
+		}
+		host, _, ok := anyReplicaConverged([]string{"replica1", "replica2"}, state, lowMark)
+		require.True(t, ok)
+		require.Equal(t, "replica1", host)
+	})
 }

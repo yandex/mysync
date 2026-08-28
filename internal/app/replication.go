@@ -419,6 +419,15 @@ func (app *App) optimizationPhase(
 	appropriateReplicas := filterOut(activeNodes, []string{oldMaster, switchover.From})
 	desirableReplica := switchover.To
 
+	lowMark := app.config.OptimizationConfig.LowReplicationMark.Seconds()
+	if replica, lag, ok := anyReplicaConverged(appropriateReplicas, clusterState, lowMark); ok {
+		app.logger.Info().Msgf(
+			"switchover: phase 0: turbo mode is skipped: replica '%s' already has low lag: %.2f s",
+			replica, lag,
+		)
+		return nil
+	}
+
 	app.logger.Info().Msgf(
 		"switchover: phase 0: enter turbo mode; replicas: %v, oldMaster: '%s', desirable replica: '%s'",
 		appropriateReplicas,
@@ -452,4 +461,23 @@ func (app *App) optimizationPhase(
 	// Other cases can be handled in subsequent steps, so no special action is needed here.
 	app.logger.Info().Msg("switchover: phase 0: turbo mode is complete")
 	return nil
+}
+
+// anyReplicaConverged returns the first replica whose replication lag is below lowMark seconds.
+// Returns (hostname, lag, true) when found, or ("", 0, false) when none qualifies.
+func anyReplicaConverged(
+	replicas []string,
+	clusterState map[string]*nodestate.NodeState,
+	lowMark float64,
+) (string, float64, bool) {
+	for _, replica := range replicas {
+		state := clusterState[replica]
+		if state == nil || state.SlaveState == nil || state.SlaveState.ReplicationLag == nil {
+			continue
+		}
+		if lag := *state.SlaveState.ReplicationLag; lag < lowMark {
+			return replica, lag, true
+		}
+	}
+	return "", 0, false
 }
