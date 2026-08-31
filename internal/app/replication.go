@@ -430,24 +430,27 @@ func (app *App) optimizationPhase(
 	appropriateReplicas := filterOut(activeNodes, []string{oldMaster, switchover.From})
 	desirableReplica := switchover.To
 
+	// Skip turbo mode if the optimization candidate already has low lag.
+	// Resolve the candidate the same way the optimizer would (priority + lag threshold).
 	lowMark := app.config.OptimizationConfig.LowReplicationMark.Seconds()
-	var skipReplica string
-	var skipLag float64
-	if desirableReplica != "" {
-		// When a specific target is set, check only that replica.
-		if lag, ok := replicaConverged(clusterState, desirableReplica, lowMark); ok {
-			skipReplica, skipLag = desirableReplica, lag
+	candidateToCheck := desirableReplica
+	if candidateToCheck == "" {
+		var err error
+		candidateToCheck, err = app.chooseReplicaToOptimize("", appropriateReplicas)
+		if err != nil {
+			// Cannot determine the candidate; proceed with turbo mode.
+			app.logger.Warn().Err(err).Msg("switchover: phase 0: cannot determine optimization candidate, entering turbo mode")
+			candidateToCheck = ""
 		}
-	} else {
-		// When no target is set, optimization picks the replica with the smallest lag.
-		skipReplica, skipLag, _ = anyReplicaConverged(appropriateReplicas, clusterState, lowMark)
 	}
-	if skipReplica != "" {
-		app.logger.Info().Msgf(
-			"switchover: phase 0: turbo mode is skipped: replica '%s' already has low lag: %.2f s",
-			skipReplica, skipLag,
-		)
-		return nil
+	if candidateToCheck != "" {
+		if lag, ok := replicaConverged(clusterState, candidateToCheck, lowMark); ok {
+			app.logger.Info().Msgf(
+				"switchover: phase 0: turbo mode is skipped: candidate replica '%s' already has low lag: %.2f s",
+				candidateToCheck, lag,
+			)
+			return nil
+		}
 	}
 
 	app.logger.Info().Msgf(
@@ -503,19 +506,4 @@ func replicaConverged(clusterState map[string]*nodestate.NodeState, replica stri
 func masterUnreachable(clusterState map[string]*nodestate.NodeState, master string) bool {
 	state := clusterState[master]
 	return state == nil || !state.PingOk
-}
-
-// anyReplicaConverged returns the first replica whose replication lag is below lowMark seconds.
-// Returns (hostname, lag, true) when found, or ("", 0, false) when none qualifies.
-func anyReplicaConverged(
-	replicas []string,
-	clusterState map[string]*nodestate.NodeState,
-	lowMark float64,
-) (string, float64, bool) {
-	for _, replica := range replicas {
-		if lag, ok := replicaConverged(clusterState, replica, lowMark); ok {
-			return replica, lag, true
-		}
-	}
-	return "", 0, false
 }

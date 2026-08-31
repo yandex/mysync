@@ -54,7 +54,9 @@ func (m *Controller) Wait(ctx context.Context, node Node) error {
 			isOptimized, err := m.isOptimizedDuringWaiting(node)
 			if err != nil {
 				m.logger.Error().Err(err).Msg("optimization: waiting")
-				consequentErrors += 1
+				consequentErrors++
+			} else {
+				consequentErrors = 0
 			}
 			if isOptimized {
 				m.logger.Info().Msg("optimization: waiting is complete")
