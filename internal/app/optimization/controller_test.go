@@ -128,6 +128,51 @@ func TestWaitOptimization(t *testing.T) {
 	})
 }
 
+func TestWaitOptimizationConsecutiveErrorsReset(t *testing.T) {
+	// Intermittent errors between successful polls must not accumulate to a premature exit.
+	// maxConsequentErrors=3: Wait() aborts only when >3 errors occur without a success between them.
+	// A single successful poll (StatusNew → no error) resets the counter to 0.
+	ctx := context.Background()
+	checkInterval := time.Nanosecond
+	logger := zerolog.Nop()
+	cfg := config.OptimizationConfig{
+		LowReplicationMark:  5 * time.Second,
+		HighReplicationMark: 120 * time.Second,
+	}
+
+	ctrl := gomock.NewController(t)
+
+	networkErr := fmt.Errorf("network-error")
+	node := MakeNodeMock(ctrl, "replica1")
+	// 3 errors in first group + 3 errors in second group = 6 total error returns
+	node.EXPECT().GetReplicaStatus().Return(nil, networkErr).Times(6)
+	node.WithGetReplicaStatus(4.0) // final tick: lag 4s < 5s → converged
+
+	Dcs := NewMockDCS(ctrl)
+	gomock.InOrder(
+		// ticks 1-3: StatusEnabled, GetReplicaStatus errors → counter reaches 3
+		Dcs.EXPECT().GetState("replica1").Return(&DCSState{Status: StatusEnabled}, nil),
+		Dcs.EXPECT().GetState("replica1").Return(&DCSState{Status: StatusEnabled}, nil),
+		Dcs.EXPECT().GetState("replica1").Return(&DCSState{Status: StatusEnabled}, nil),
+		// tick 4: StatusNew → isOptimizedDuringWaiting returns (false, nil) → counter resets to 0
+		Dcs.EXPECT().GetState("replica1").Return(&DCSState{Status: StatusNew}, nil),
+		// ticks 5-7: StatusEnabled, GetReplicaStatus errors again → counter reaches 3 (not >3)
+		Dcs.EXPECT().GetState("replica1").Return(&DCSState{Status: StatusEnabled}, nil),
+		Dcs.EXPECT().GetState("replica1").Return(&DCSState{Status: StatusEnabled}, nil),
+		Dcs.EXPECT().GetState("replica1").Return(&DCSState{Status: StatusEnabled}, nil),
+		// tick 8: StatusNew → counter resets to 0 again
+		Dcs.EXPECT().GetState("replica1").Return(&DCSState{Status: StatusNew}, nil),
+		// tick 9: StatusEnabled, lag converges → done
+		Dcs.EXPECT().GetState("replica1").Return(&DCSState{Status: StatusEnabled}, nil),
+	)
+	Dcs.EXPECT().DeleteHosts("replica1")
+
+	manager := NewController(cfg, &logger, Dcs, checkInterval)
+
+	err := manager.Wait(ctx, node)
+	require.NoError(t, err, "intermittent errors with resets must not abort Wait()")
+}
+
 func TestEnableNodeOptimization(t *testing.T) {
 	emptyConfig := config.OptimizationConfig{}
 	checkInterval := time.Second
