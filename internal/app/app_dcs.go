@@ -141,7 +141,9 @@ func (app *App) FinishSwitchover(switchover *Switchover, switchErr error) error 
 		switchover.Result.Error = switchErr.Error()
 	}
 
-	if switchErr != nil {
+	if switchErr != nil && switchover.MasterTransition == FailoverTransition {
+		app.clearTiming(timingFailover)
+	} else if switchErr != nil {
 		app.logSwitchoverFailure(switchover)
 	} else if switchover.MasterTransition != FailoverTransition {
 		app.stopTiming(timingSwitchover)
@@ -218,7 +220,11 @@ func (app *App) IssueFailover(master string) error {
 		Cause:            CauseAuto,
 		MasterTransition: FailoverTransition,
 	}
-	return app.appDCS.CreateCurrentSwitchover(&switchover)
+	if err := app.appDCS.CreateCurrentSwitchover(&switchover); err != nil {
+		return err
+	}
+	app.startTiming(timingFailover, switchover.InitiatedAt)
+	return nil
 }
 
 // SetMasterHost writes the current master hostname to ZK.

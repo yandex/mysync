@@ -531,7 +531,6 @@ func (app *App) stateManager() appState {
 			now := time.Now()
 			app.t.Set(NodeFailedAt, master, now)
 			app.startTiming(timingDowntime, now)
-			app.startTiming(timingFailover, now)
 		}
 		if lightMaintenance {
 			app.logger.Info().Msgf("failover suppressed by light maintenance mode")
@@ -552,7 +551,6 @@ func (app *App) stateManager() appState {
 	} else {
 		if !app.t.Get(NodeFailedAt, master).IsZero() {
 			app.stopTiming(timingDowntime)
-			app.stopTiming(timingFailover)
 			app.t.Clean(NodeFailedAt, master)
 		}
 	}
