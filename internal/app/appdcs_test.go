@@ -317,3 +317,28 @@ func TestGetCurrentMaster_NoMasterAnywhere(t *testing.T) {
 	_, err := app.getCurrentMaster(cs)
 	require.ErrorIs(t, err, ErrNoMaster)
 }
+
+func TestIssueFailoverStartsTiming(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	mockDCS := NewMockIAppDCS(ctrl)
+	mockDCS.EXPECT().CreateCurrentSwitchover(gomock.Any()).Return(nil)
+
+	timingDCS := &timingDCSStub{}
+	app := newTestApp(t, minConfig(), mockDCS)
+	app.dcs = timingDCS
+
+	require.NoError(t, app.IssueFailover("master"))
+	require.True(t, timingDCS.started)
+}
+
+type timingDCSStub struct {
+	dcs.DCS
+	started bool
+}
+
+func (d *timingDCSStub) Set(string, any) error {
+	d.started = true
+	return nil
+}
