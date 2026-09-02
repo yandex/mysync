@@ -558,3 +558,71 @@ Feature: optimization mode works on replicas
     """
     [{"InnodbFlushLogAtTrxCommit":1,"SyncBinlog":1}]
     """
+
+  Scenario: turbo mode is enabled when relay logs outgrow the binlog preserve threshold
+    Given cluster environment is
+    """
+    RELAY_LOG_OPTIMIZATION_ENABLED=true
+    RELAY_LOG_OPTIMIZATION_INTERVAL=2s
+    RELAY_LOG_MAX_BYTES=2097152
+    HIGH_REPLICATION_MARK=5s
+    LOW_REPLICATION_MARK=5s
+    MYSYNC_SEMISYNC=false
+    MYSYNC_ASYNC=true
+    ASYNC_ALLOWED_LAG=6000s
+    REPL_MON=true
+    OFFLINE_MODE_ENABLE_LAG=6000s
+    MYSYNC_STREAM_FROM_REASONABLE_LAG=6000s
+    """
+    Given cluster is up and running
+    And zookeeper node "/test/active_nodes" should match json_exactly within "30" seconds
+    """
+    ["mysql1","mysql2","mysql3"]
+    """
+    And mysql host "mysql1" should be master
+
+    # delay mysql2 so it fetches relay logs but does not apply them (they pile up on disk),
+    # while its lag stays well above high_replication_mark so turbo mode is kept enabled
+    When I run SQL on mysql host "mysql2"
+    """
+    STOP REPLICA FOR CHANNEL '';
+    CHANGE REPLICATION SOURCE TO SOURCE_DELAY = 6000;
+    START REPLICA FOR CHANNEL '';
+    """
+    # relay logs are still small -> mysql2 is not optimized
+    Then zookeeper node "/test/optimization_nodes/mysql2" should not exist within "15" seconds
+
+    # push ~8 MiB through the master; with delayed apply it accumulates in mysql2's relay logs
+    And I run SQL on mysql host "mysql1"
+    """
+    CREATE TABLE IF NOT EXISTS mysql.relay_filler (id INT AUTO_INCREMENT PRIMARY KEY, payload LONGBLOB)
+    """
+    And I run SQL on mysql host "mysql1"
+    """
+    INSERT INTO mysql.relay_filler (payload) VALUES (REPEAT('x', 1048576));
+    INSERT INTO mysql.relay_filler (payload) SELECT payload FROM mysql.relay_filler;
+    INSERT INTO mysql.relay_filler (payload) SELECT payload FROM mysql.relay_filler;
+    INSERT INTO mysql.relay_filler (payload) SELECT payload FROM mysql.relay_filler;
+    """
+
+    # mysql2 relay logs now exceed the 2 MiB threshold -> turbo mode is enabled automatically
+    Then zookeeper node "/test/optimization_nodes/mysql2" should exist within "60" seconds
+    And I wait for "10" seconds
+    And I run SQL on mysql host "mysql2"
+    """
+    SELECT @@GLOBAL.innodb_flush_log_at_trx_commit as InnodbFlushLogAtTrxCommit, @@GLOBAL.sync_binlog as SyncBinlog
+    """
+    Then SQL result should match json
+    """
+    [{"InnodbFlushLogAtTrxCommit":2,"SyncBinlog":1000}]
+    """
+    # mysql3 applies normally, its relay logs stay small -> never optimized
+    And zookeeper node "/test/optimization_nodes/mysql3" should not exist within "10" seconds
+    And I run SQL on mysql host "mysql3"
+    """
+    SELECT @@GLOBAL.innodb_flush_log_at_trx_commit as InnodbFlushLogAtTrxCommit, @@GLOBAL.sync_binlog as SyncBinlog
+    """
+    Then SQL result should match json
+    """
+    [{"InnodbFlushLogAtTrxCommit":1,"SyncBinlog":1}]
+    """
