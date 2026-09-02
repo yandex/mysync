@@ -166,6 +166,11 @@ func (s *Syncer) startNodes(
 		if err != nil {
 			return err
 		}
+		// Mark as actively optimizing so Wait() knows to start checking replication lag
+		err = s.dcs.SetState(host, &DCSState{Status: StatusEnabled})
+		if err != nil {
+			return err
+		}
 	}
 	return nil
 }

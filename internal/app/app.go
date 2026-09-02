@@ -164,27 +164,27 @@ func (app *App) newDBCluster() error {
 func (app *App) checkHAReplicasRunning(local *mysql.Node) (replicasRunning bool, hasUnreachReplicas bool) {
 	checker := func(host string) error {
 		node := app.cluster.Get(host)
-		status, err := node.ReplicaStatusWithTimeout(app.config.DBLostCheckTimeout, app.config.ReplicationChannel)
+		replicaStatus, err := node.ReplicaStatusWithTimeout(app.config.DBLostCheckTimeout, app.config.ReplicationChannel)
 		if err != nil {
 			return err
 		}
-		if status == nil {
+		if replicaStatus == nil {
 			return fmt.Errorf("%s is master", host)
 		}
-		if !status.ReplicationRunning() {
+		if !replicaStatus.ReplicationRunning() {
 			return fmt.Errorf("replication on host %s is not running", host)
 		}
-		if status.GetMasterHost() != local.Host() {
+		if replicaStatus.GetMasterHost() != local.Host() {
 			return fmt.Errorf("replication on host %s doesn't streaming from master %s", host, local.Host())
 		}
 		if !app.config.SemiSync {
 			return nil // count all replicas in async-only schema
 		}
-		ssstatus, err := node.SemiSyncStatus()
+		semiSyncStatus, err := node.SemiSyncStatus()
 		if err != nil {
 			return fmt.Errorf("%s %w", host, err)
 		}
-		if ssstatus.SlaveEnabled == 0 {
+		if !semiSyncStatus.SlaveEnabled() {
 			return fmt.Errorf("replica %s is not semi-sync", host)
 		}
 		return nil
@@ -212,12 +212,12 @@ func (app *App) checkHAReplicasRunning(local *mysql.Node) (replicasRunning bool,
 		availableReplicas, unreachableReplicas, len(app.cluster.HANodeHosts()))
 
 	if app.config.SemiSync {
-		status, err := local.SemiSyncStatus()
+		semiSyncStatus, err := local.SemiSyncStatus()
 		if err != nil {
 			app.logger.Error().Err(err).Msg("failed to get semisync status")
 			return false, unreachableReplicas > 0
 		}
-		return availableReplicas >= status.WaitSlaveCount, unreachableReplicas > 0
+		return availableReplicas >= semiSyncStatus.GetWaitSlaveCount(), unreachableReplicas > 0
 	} else {
 		// check connectivity to all replicas:
 		return availableReplicas >= len(app.cluster.HANodeHosts())-1, unreachableReplicas > 0
@@ -531,7 +531,6 @@ func (app *App) stateManager() appState {
 			now := time.Now()
 			app.t.Set(NodeFailedAt, master, now)
 			app.startTiming(timingDowntime, now)
-			app.startTiming(timingFailover, now)
 		}
 		if lightMaintenance {
 			app.logger.Info().Msgf("failover suppressed by light maintenance mode")
@@ -552,7 +551,6 @@ func (app *App) stateManager() appState {
 	} else {
 		if !app.t.Get(NodeFailedAt, master).IsZero() {
 			app.stopTiming(timingDowntime)
-			app.stopTiming(timingFailover)
 			app.t.Clean(NodeFailedAt, master)
 		}
 	}
@@ -972,6 +970,7 @@ If there are alive sync replicas, that are not in active list - mysync will loos
 
 So, it's better to have dead sync replica in active list, than alive sync replica outside of it.
 */
+// nolint: gocyclo
 func (app *App) updateActiveNodes(clusterState, clusterStateDcs map[string]*nodestate.NodeState, oldActiveNodes []string, master string) error {
 	masterNode := app.cluster.Get(master)
 	masterState := clusterState[master]
@@ -988,6 +987,9 @@ func (app *App) updateActiveNodes(clusterState, clusterStateDcs map[string]*node
 			app.disableSemiSyncIfNonNeeded(node, state)
 		}
 		// then update DCS
+		if !app.canShrinkActiveNodes(masterNode, oldActiveNodes, activeNodes) {
+			return nil
+		}
 		err = app.SetActiveNodes(activeNodes)
 		if err != nil {
 			app.logger.Error().Err(err).Msg("update active nodes: failed to update active nodes in dcs")
@@ -1026,8 +1028,22 @@ func (app *App) updateActiveNodes(clusterState, clusterStateDcs map[string]*node
 		return err
 	}
 
-	// first, shrink HA-group, if needed
-	if waitSlaveCount > oldWaitSlaveCount {
+	// When MasterFirstAdjustSSOrder is true (recommended):
+	//   before replicas: shrink (waitSlaveCount < oldWaitSlaveCount) — lower the ack requirement on master first
+	//   after replicas:  enlarge (waitSlaveCount > oldWaitSlaveCount) — raise it only after replicas are ready
+	// This avoids deadlocks where the master blocks waiting for acks from replicas
+	// that haven't switched to semi-sync mode yet.
+	//
+	// When MasterFirstAdjustSSOrder is false (legacy default):
+	//   before replicas: enlarge (waitSlaveCount > oldWaitSlaveCount)
+	//   after replicas:  shrink (waitSlaveCount < oldWaitSlaveCount)
+	adjustBefore := waitSlaveCount < oldWaitSlaveCount
+	adjustAfter := waitSlaveCount > oldWaitSlaveCount
+	if !app.config.MasterFirstAdjustSSOrder {
+		adjustBefore, adjustAfter = adjustAfter, adjustBefore
+	}
+
+	if adjustBefore {
 		err := app.adjustSemiSyncOnMaster(masterNode, masterState, waitSlaveCount)
 		if err != nil {
 			app.logger.Error().Err(err).Msgf("failed to adjust semi-sync on master %s to %d", masterNode.Host(), waitSlaveCount)
@@ -1040,7 +1056,6 @@ func (app *App) updateActiveNodes(clusterState, clusterStateDcs map[string]*node
 		app.logger.Warn().Msgf("cannot disable semisync on inactive hosts: %s", err)
 	}
 
-	// enlarge HA-group, if needed (and if possible)
 	for _, hostname := range becomeActive {
 		err := app.enableSemiSyncOnSlave(hostname, clusterState[hostname], masterState)
 		if err != nil {
@@ -1055,7 +1070,17 @@ func (app *App) updateActiveNodes(clusterState, clusterStateDcs map[string]*node
 			app.logger.Error().Err(err).Msgf("failed to set default replication settings %s", hostname)
 		}
 	}
-	if waitSlaveCount < oldWaitSlaveCount {
+
+	// Wait until newly-activated replicas have registered as semi-sync clients so that the source
+	// does not block on "Waiting for semi-sync ACK".
+	// We will wait only if we increase waitSlaveCount
+	if adjustAfter && app.config.MasterFirstAdjustSSOrder {
+		if waitErr := app.waitForSemiSyncClients(masterNode, waitSlaveCount, app.config.SemiSyncClientsWaitTimeout); waitErr != nil {
+			app.logger.Warn().Msgf("update_active_nodes: %v", waitErr)
+		}
+	}
+
+	if adjustAfter {
 		err := app.adjustSemiSyncOnMaster(masterNode, masterState, waitSlaveCount)
 		if err != nil {
 			app.logger.Error().Err(err).Msgf("failed to adjust semi-sync on master %s to %d", masterNode.Host(), waitSlaveCount)
@@ -1063,6 +1088,9 @@ func (app *App) updateActiveNodes(clusterState, clusterStateDcs map[string]*node
 	}
 
 	// then update DCS
+	if !app.canShrinkActiveNodes(masterNode, oldActiveNodes, activeNodes) {
+		return nil
+	}
 	err = app.SetActiveNodes(activeNodes)
 	if err != nil {
 		app.logger.Error().Err(err).Msg("update active nodes: failed to update active nodes in dcs")
@@ -1070,6 +1098,21 @@ func (app *App) updateActiveNodes(clusterState, clusterStateDcs map[string]*node
 	}
 
 	return nil
+}
+
+// Check that we can safely remove nodes from active nodes
+// Can't switch if master is dying, because we won't be able
+// to perform failovers
+func (app *App) canShrinkActiveNodes(masterNode *mysql.Node, oldActiveNodes, newActiveNodes []string) bool {
+	removed := filterOut(oldActiveNodes, newActiveNodes)
+	if len(removed) == 0 {
+		return true // no shrink - safe
+	}
+	if ok, err := masterNode.Ping(); !ok {
+		app.logger.Error().Err(err).Msgf("update active nodes: master %s is not alive, will not evict %v from active nodes", masterNode.Host(), removed)
+		return false
+	}
+	return true
 }
 
 func (app *App) adjustSemiSyncOnMaster(node *mysql.Node, state *nodestate.NodeState, waitSlaveCount int) error {
@@ -1176,6 +1219,30 @@ func (app *App) disableSemiSyncOnSlave(host string, restartIOThread bool) error 
 	}
 
 	return nil
+}
+
+// Waits until the source reports at least expectedCount connected semi-sync replicas.
+// Returns nil when the expected number of clients is reached, or an error on timeout.
+func (app *App) waitForSemiSyncClients(masterNode *mysql.Node, expectedCount int, timeout time.Duration) error {
+	if expectedCount <= 0 {
+		return nil
+	}
+	deadline := time.Now().Add(timeout)
+	for time.Now().Before(deadline) {
+		clients, err := masterNode.SemiSyncClients()
+		if err != nil {
+			app.logger.Warn().Err(err).Msgf("switchover: failed to get semi-sync clients count on %s", masterNode.Host())
+			time.Sleep(time.Second)
+			continue
+		}
+		if clients >= expectedCount {
+			app.logger.Info().Msgf("switchover: semi-sync clients ready on %s: %d/%d", masterNode.Host(), clients, expectedCount)
+			return nil
+		}
+		app.logger.Info().Msgf("switchover: waiting for semi-sync clients on %s: %d/%d", masterNode.Host(), clients, expectedCount)
+		time.Sleep(time.Second)
+	}
+	return fmt.Errorf("timed out waiting for %d semi-sync clients on %s after %s", expectedCount, masterNode.Host(), timeout)
 }
 
 func (app *App) disableSemiSyncIfNonNeeded(node *mysql.Node, state *nodestate.NodeState) {
@@ -2148,9 +2215,9 @@ func (app *App) getNodeState(host string) *nodestate.NodeState {
 			return err
 		}
 		nodeState.SemiSyncState = new(nodestate.SemiSyncState)
-		nodeState.SemiSyncState.MasterEnabled = semiSyncStatus.MasterEnabled > 0
-		nodeState.SemiSyncState.SlaveEnabled = semiSyncStatus.SlaveEnabled > 0
-		nodeState.SemiSyncState.WaitSlaveCount = semiSyncStatus.WaitSlaveCount
+		nodeState.SemiSyncState.MasterEnabled = semiSyncStatus.MasterEnabled()
+		nodeState.SemiSyncState.SlaveEnabled = semiSyncStatus.SlaveEnabled()
+		nodeState.SemiSyncState.WaitSlaveCount = semiSyncStatus.GetWaitSlaveCount()
 		return nil
 	}()
 	if err != nil {

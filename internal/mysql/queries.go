@@ -27,11 +27,19 @@ const (
 	queryStartReplicaSQLThread          = "start_replica_sql_thread"
 	queryResetSlaveAll                  = "reset_slave_all"
 	queryChangeMaster                   = "change_master"
+	querySemiSyncPlugins                = "semisync_plugins"
 	querySemiSyncStatus                 = "semisync_status"
 	querySemiSyncSetMaster              = "semisync_set_master"
 	querySemiSyncSetSlave               = "semisync_set_slave"
-	querySemiSyncDisable                = "semisync_disable"
+	querySemiSyncMasterClients          = "semisync_master_clients"
+	querySemiSyncMasterSlaveDisable     = "semisync_disable"
 	querySetSemiSyncWaitSlaveCount      = "set_semisync_wait_slave_count"
+	querySemiSyncSourceReplicaStatus    = "semisync_source_replica_status"
+	querySemiSyncSourceClients          = "semisync_source_clients"
+	querySemiSyncSetSource              = "semisync_set_source"
+	querySemiSyncSetReplica             = "semisync_set_replica"
+	querySemiSyncSourceReplicaDisable   = "semisync_source_replica_disable"
+	querySetSemiSyncWaitReplicaCount    = "set_semisync_wait_replica_count"
 	queryListReplicaSideDisabledEvents  = "list_replicaside_disabled_events"
 	queryListSlavesideDisabledEvents    = "list_slaveside_disabled_events"
 	queryEnableEvent                    = "enable_event"
@@ -104,13 +112,31 @@ var DefaultQueries = map[string]string{
 								MASTER_RETRY_COUNT = :retryCount,
 								MASTER_HEARTBEAT_PERIOD = :heartbeatPeriod
 						FOR CHANNEL :channel`,
+	querySemiSyncPlugins: `SELECT PLUGIN_NAME AS PluginName
+								FROM information_schema.PLUGINS
+								WHERE PLUGIN_STATUS = 'ACTIVE'
+								  AND PLUGIN_NAME IN (
+									'rpl_semi_sync_master',
+									'rpl_semi_sync_slave',
+									'rpl_semi_sync_source',
+									'rpl_semi_sync_replica'
+								  )`,
 	querySemiSyncStatus: `SELECT @@rpl_semi_sync_master_enabled AS MasterEnabled,
 								 @@rpl_semi_sync_slave_enabled AS SlaveEnabled,
 								 @@rpl_semi_sync_master_wait_for_slave_count as WaitSlaveCount`,
-	querySemiSyncSetMaster:         `SET GLOBAL rpl_semi_sync_master_enabled = 1, rpl_semi_sync_slave_enabled = 0`,
-	querySemiSyncSetSlave:          `SET GLOBAL rpl_semi_sync_slave_enabled = 1, rpl_semi_sync_master_enabled = 0`,
-	querySemiSyncDisable:           `SET GLOBAL rpl_semi_sync_slave_enabled = 0, rpl_semi_sync_master_enabled = 0`,
-	querySetSemiSyncWaitSlaveCount: `SET GLOBAL rpl_semi_sync_master_wait_for_slave_count = :wait_slave_count`,
+	querySemiSyncSetMaster:          `SET GLOBAL rpl_semi_sync_master_enabled = 1, rpl_semi_sync_slave_enabled = 0`,
+	querySemiSyncSetSlave:           `SET GLOBAL rpl_semi_sync_slave_enabled = 1, rpl_semi_sync_master_enabled = 0`,
+	querySemiSyncMasterSlaveDisable: `SET GLOBAL rpl_semi_sync_slave_enabled = 0, rpl_semi_sync_master_enabled = 0`,
+	querySemiSyncMasterClients:      `SELECT VARIABLE_VALUE AS Clients FROM performance_schema.global_status WHERE VARIABLE_NAME = 'Rpl_semi_sync_master_clients'`,
+	querySetSemiSyncWaitSlaveCount:  `SET GLOBAL rpl_semi_sync_master_wait_for_slave_count = :wait_slave_count`,
+	querySemiSyncSourceReplicaStatus: `SELECT @@rpl_semi_sync_source_enabled AS SourceEnabled,
+										   @@rpl_semi_sync_replica_enabled AS ReplicaEnabled,
+										   @@rpl_semi_sync_source_wait_for_replica_count as WaitReplicaCount`,
+	querySemiSyncSourceClients:        `SELECT VARIABLE_VALUE AS Clients FROM performance_schema.global_status WHERE VARIABLE_NAME = 'Rpl_semi_sync_source_clients'`,
+	querySemiSyncSetSource:            `SET GLOBAL rpl_semi_sync_source_enabled = 1, rpl_semi_sync_replica_enabled = 0`,
+	querySemiSyncSetReplica:           `SET GLOBAL rpl_semi_sync_replica_enabled = 1, rpl_semi_sync_source_enabled = 0`,
+	querySemiSyncSourceReplicaDisable: `SET GLOBAL rpl_semi_sync_replica_enabled = 0, rpl_semi_sync_source_enabled = 0`,
+	querySetSemiSyncWaitReplicaCount:  `SET GLOBAL rpl_semi_sync_source_wait_for_replica_count = :wait_slave_count`,
 	queryListSlavesideDisabledEvents: `SELECT EVENT_SCHEMA, EVENT_NAME, DEFINER
 										FROM information_schema.EVENTS
 										WHERE STATUS = 'SLAVESIDE_DISABLED' OR STATUS = 'REPLICA_SIDE_DISABLED'`,
@@ -149,7 +175,8 @@ var DefaultQueries = map[string]string{
 								SOURCE_AUTO_POSITION = 1,
 								SOURCE_CONNECT_RETRY = :connectRetry,
 								SOURCE_RETRY_COUNT = :retryCount,
-								SOURCE_HEARTBEAT_PERIOD = :heartbeatPeriod
+								SOURCE_HEARTBEAT_PERIOD = :heartbeatPeriod,
+								GET_SOURCE_PUBLIC_KEY = 1
 						FOR CHANNEL :channel`,
 	queryChangeSourceWithDelay: `CHANGE REPLICATION SOURCE TO
 						SOURCE_HOST = :host,
@@ -163,6 +190,7 @@ var DefaultQueries = map[string]string{
 						SOURCE_CONNECT_RETRY = :connectRetry,
 						SOURCE_RETRY_COUNT = :retryCount,
 						SOURCE_HEARTBEAT_PERIOD = :heartbeatPeriod,
+						GET_SOURCE_PUBLIC_KEY = 1,
 						SOURCE_DELAY = :delay
 				FOR CHANNEL :channel`,
 	queryIgnoreDB:                     `CHANGE REPLICATION FILTER REPLICATE_IGNORE_DB = (:ignoreList) FOR CHANNEl :channel`,

@@ -29,6 +29,12 @@ type ReplicationRepairState struct {
 	LastGTIDExecuted string
 }
 
+type externalReplicationSourceStatus interface {
+	GetExtSourcesStatus(string) mysql.ExternalSourceStatus
+	SetSourcesStatus(string, mysql.ExternalSourceStatus)
+	ResetSourcesStatus()
+}
+
 // separated gorutine for checking local mysql lag
 func (app *App) replicationLagChecker(ctx context.Context) {
 	// 30s
@@ -181,34 +187,53 @@ func ChangeSourceAlgorithm(app *App, node *mysql.Node, _ string, channel string)
 	if err != nil {
 		return err
 	}
-	// mark current source as error and then trying to change it
-	app.externalReplication.SetSourcesStatus(replicaStatus.GetMasterHost(), mysql.ErrorStatus)
-	for _, source := range *replicationSources {
-		value := app.externalReplication.GetExtSourcesStatus(source.SourceHost)
-		if value == mysql.ErrorStatus {
-			app.logger.Info().Msgf("repair (external): ignoring source host %s due to error status in the past", source.SourceHost)
-			continue
-		}
-		app.logger.Info().Msgf("repair (external): trying change source to %s", source.SourceHost)
-		err := app.externalReplication.Stop(node)
-		if err != nil {
-			return err
-		}
-		err = app.externalReplication.ChangeSourceHost(node, source.SourceHost)
-		if err != nil {
-			return err
-		}
-		err = app.externalReplication.Start(node)
-		if err != nil {
-			return err
-		}
-		app.logger.Info().Msgf("repair (external): source changed to %s", source.SourceHost)
+	source, ignoredSources, found := nextExternalReplicationSource(
+		replicaStatus.GetMasterHost(),
+		*replicationSources,
+		app.externalReplication,
+	)
+	for _, ignoredSource := range ignoredSources {
+		app.logger.Info().Msgf("repair (external): ignoring source host %s due to error status in the past", ignoredSource)
+	}
+	if !found {
 		return nil
 	}
-	// if there was no return from the loop above then we assume that all hosts are now marked as error
-	// so we shall reset sources status and try again on next iteration
-	app.externalReplication.ResetSourcesStatus()
+
+	app.logger.Info().Msgf("repair (external): trying change source to %s", source.SourceHost)
+	err = app.externalReplication.Stop(node)
+	if err != nil {
+		return err
+	}
+	err = app.externalReplication.ChangeSourceHost(node, source.SourceHost)
+	if err != nil {
+		return err
+	}
+	err = app.externalReplication.Start(node)
+	if err != nil {
+		return err
+	}
+	app.logger.Info().Msgf("repair (external): source changed to %s", source.SourceHost)
 	return nil
+}
+
+func nextExternalReplicationSource(
+	currentSource string,
+	replicationSources []mysql.ReplicationSource,
+	sourceStatus externalReplicationSourceStatus,
+) (mysql.ReplicationSource, []string, bool) {
+	sourceStatus.SetSourcesStatus(currentSource, mysql.ErrorStatus)
+	ignoredSources := make([]string, 0, len(replicationSources))
+	for _, source := range replicationSources {
+		if sourceStatus.GetExtSourcesStatus(source.SourceHost) == mysql.ErrorStatus {
+			ignoredSources = append(ignoredSources, source.SourceHost)
+			continue
+		}
+		return source, ignoredSources, true
+	}
+
+	// All sources have failed. Reset their status and retry on the next repair iteration.
+	sourceStatus.ResetSourcesStatus()
+	return mysql.ReplicationSource{}, ignoredSources, false
 }
 
 func (app *App) getSuitableAlgorithmType(state *ReplicationRepairState, channel string) (ReplicationRepairAlgorithmType, int, error) {
@@ -391,8 +416,42 @@ func (app *App) optimizationPhase(
 		return nil
 	}
 
+	// Turbo mode requires the Syncer to read replication settings from the master.
+	// If the master is unreachable, Sync() will fail and optimization will never start,
+	// causing Wait() to block until the deadline. Skip turbo mode in that case.
+	if masterUnreachable(clusterState, oldMaster) {
+		app.logger.Info().Msgf(
+			"switchover: phase 0: turbo mode is skipped: old master '%s' is not available",
+			oldMaster,
+		)
+		return nil
+	}
+
 	appropriateReplicas := filterOut(activeNodes, []string{oldMaster, switchover.From})
 	desirableReplica := switchover.To
+
+	// Skip turbo mode if the optimization candidate already has low lag.
+	// Resolve the candidate the same way the optimizer would (priority + lag threshold).
+	lowMark := app.config.OptimizationConfig.LowReplicationMark.Seconds()
+	candidateToCheck := desirableReplica
+	if candidateToCheck == "" {
+		var err error
+		candidateToCheck, err = app.chooseReplicaToOptimize("", appropriateReplicas)
+		if err != nil {
+			// Cannot determine the candidate; proceed with turbo mode.
+			app.logger.Warn().Err(err).Msg("switchover: phase 0: cannot determine optimization candidate, entering turbo mode")
+			candidateToCheck = ""
+		}
+	}
+	if candidateToCheck != "" {
+		if lag, ok := replicaConverged(clusterState, candidateToCheck, lowMark); ok {
+			app.logger.Info().Msgf(
+				"switchover: phase 0: turbo mode is skipped: candidate replica '%s' already has low lag: %.2f s",
+				candidateToCheck, lag,
+			)
+			return nil
+		}
+	}
 
 	app.logger.Info().Msgf(
 		"switchover: phase 0: enter turbo mode; replicas: %v, oldMaster: '%s', desirable replica: '%s'",
@@ -411,7 +470,7 @@ func (app *App) optimizationPhase(
 		desirableReplica,
 		clusterAdapter,
 	)
-	if err != nil && errors.Is(err, ErrOptimizationPhaseDeadlineExceeded) {
+	if err != nil && errors.Is(err, optimization.ErrDeadlineExceeded) {
 		app.logger.Info().Msgf("switchover: phase 0: turbo mode failed: %v", err)
 		switchErr := app.FinishSwitchover(switchover, fmt.Errorf("turbo mode exceeded deadline"))
 		if switchErr != nil {
@@ -427,4 +486,24 @@ func (app *App) optimizationPhase(
 	// Other cases can be handled in subsequent steps, so no special action is needed here.
 	app.logger.Info().Msg("switchover: phase 0: turbo mode is complete")
 	return nil
+}
+
+// replicaConverged reports whether the given replica's replication lag is known and below lowMark seconds.
+// Returns (lag, true) when converged, (0, false) otherwise.
+func replicaConverged(clusterState map[string]*nodestate.NodeState, replica string, lowMark float64) (float64, bool) {
+	state := clusterState[replica]
+	if state == nil || state.SlaveState == nil || state.SlaveState.ReplicationLag == nil {
+		return 0, false
+	}
+	lag := *state.SlaveState.ReplicationLag
+	if lag < lowMark {
+		return lag, true
+	}
+	return 0, false
+}
+
+// masterUnreachable reports whether the old master is absent from clusterState or failed its ping.
+func masterUnreachable(clusterState map[string]*nodestate.NodeState, master string) bool {
+	state := clusterState[master]
+	return state == nil || !state.PingOk
 }

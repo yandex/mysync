@@ -7,6 +7,11 @@ Feature: external replication switchover
         MYSYNC_REPLICATION_REPAIR_MAX_ATTEMPTS=1
         """
         Given cluster is up and running
+        When I run command on host "mysql1"
+        """
+            grep -Fx 'replication_repair_max_attempts: 1' /etc/mysync.yaml
+        """
+        Then command return code should be "0"
         Then mysql host "mysql1" should be master
         And mysql host "mysql2" should be replica of "mysql1"
         And mysql host "mysql3" should be replica of "mysql1"
@@ -235,12 +240,8 @@ YZQy1bHIhscLf8wjTYbzAg==
                 PRIMARY KEY (channel_name, source_host)
             ) ENGINE=INNODB
         """
-        Then I wait for "60" seconds
-        And I run SQL on mysql host "mysql2"
-        """
-            SHOW REPLICA STATUS FOR CHANNEL 'external'
-        """
-        Then SQL result should match saved json text on path "external_repl_status"
+        Then external replication source on mysql host "mysql2" should remain "test_source_2" for "60" seconds
+        And SQL result should match saved json text on path "external_repl_status"
         When I run SQL on mysql host "mysql2"
         """
             INSERT INTO mysql.replication_sources (channel_name, source_host, priority) VALUES 
@@ -248,126 +249,68 @@ YZQy1bHIhscLf8wjTYbzAg==
             ('external', 'test_source_2', 50),
             ('external', 'test_source_3', 10)
         """
-        Then I wait for "45" seconds
-        And I run SQL on mysql host "mysql2"
-        """
-            SHOW REPLICA STATUS FOR CHANNEL 'external'
-        """
-        Then SQL result should match saved json text on path "external_repl_status"
-        Then I wait for "16" seconds
-        And I run SQL on mysql host "mysql2"
-        """
-            SHOW REPLICA STATUS FOR CHANNEL 'external'
-        """
-        Then SQL result should match saved json text on path "external_repl_status" with following changes
+        Then external replication source on mysql host "mysql2" should become "test_source" within "45" seconds
+        And SQL result should match saved json text on path "external_repl_status" with following changes
         """
         {"Source_Host": "test_source"}
         """
-        Then I wait for "16" seconds
-        And I run SQL on mysql host "mysql2"
-        """
-            SHOW REPLICA STATUS FOR CHANNEL 'external'
-        """
-        Then SQL result should match saved json text on path "external_repl_status" with following changes
+        Then external replication source on mysql host "mysql2" should remain "test_source" for "16" seconds
+        And SQL result should match saved json text on path "external_repl_status" with following changes
         """
         {"Source_Host": "test_source"}
         """
-        Then I wait for "16" seconds
-        And I run SQL on mysql host "mysql2"
-        """
-            SHOW REPLICA STATUS FOR CHANNEL 'external'
-        """
-        Then SQL result should match saved json text on path "external_repl_status" with following changes
+        Then external replication source on mysql host "mysql2" should become "test_source_3" within "45" seconds
+        And SQL result should match saved json text on path "external_repl_status" with following changes
         """
         {"Source_Host": "test_source_3"}
         """
-        Then I wait for "16" seconds
-        And I run SQL on mysql host "mysql2"
-        """
-            SHOW REPLICA STATUS FOR CHANNEL 'external'
-        """
-        Then SQL result should match saved json text on path "external_repl_status" with following changes
+        Then external replication source on mysql host "mysql2" should remain "test_source_3" for "16" seconds
+        And SQL result should match saved json text on path "external_repl_status" with following changes
         """
         {"Source_Host": "test_source_3"}
         """
-        Then I wait for "45" seconds
-        And I run SQL on mysql host "mysql2"
-        """
-            SHOW REPLICA STATUS FOR CHANNEL 'external'
-        """
-        Then SQL result should match saved json text on path "external_repl_status" with following changes
+        Then external replication source on mysql host "mysql2" should become "test_source" within "80" seconds
+        And SQL result should match saved json text on path "external_repl_status" with following changes
         """
         {"Source_Host": "test_source"}
         """
-        Then I wait for "16" seconds
-        And I run SQL on mysql host "mysql2"
-        """
-            SHOW REPLICA STATUS FOR CHANNEL 'external'
-        """
-        Then SQL result should match saved json text on path "external_repl_status" with following changes
+        Then external replication source on mysql host "mysql2" should remain "test_source" for "16" seconds
+        And SQL result should match saved json text on path "external_repl_status" with following changes
         """
         {"Source_Host": "test_source"}
         """
-        Then I wait for "16" seconds
-        And I run SQL on mysql host "mysql2"
-        """
-            SHOW REPLICA STATUS FOR CHANNEL 'external'
-        """
-        Then SQL result should match saved json text on path "external_repl_status" with following changes
+        Then external replication source on mysql host "mysql2" should become "test_source_2" within "45" seconds
+        And SQL result should match saved json text on path "external_repl_status" with following changes
         """
         {"Source_Host": "test_source_2"}
         """
-        Then I wait for "16" seconds
-        And I run SQL on mysql host "mysql2"
-        """
-            SHOW REPLICA STATUS FOR CHANNEL 'external'
-        """
-        Then SQL result should match saved json text on path "external_repl_status" with following changes
+        Then external replication source on mysql host "mysql2" should remain "test_source_2" for "16" seconds
+        And SQL result should match saved json text on path "external_repl_status" with following changes
         """
         {"Source_Host": "test_source_2"}
         """
-        Then I wait for "45" seconds
-        And I run SQL on mysql host "mysql2"
-        """
-            SHOW REPLICA STATUS FOR CHANNEL 'external'
-        """
-        Then SQL result should match saved json text on path "external_repl_status" with following changes
+        Then external replication source on mysql host "mysql2" should become "test_source" within "80" seconds
+        And SQL result should match saved json text on path "external_repl_status" with following changes
         """
         {"Source_Host": "test_source"}
         """
-        Then I wait for "16" seconds
-        And I run SQL on mysql host "mysql2"
-        """
-            SHOW REPLICA STATUS FOR CHANNEL 'external'
-        """
-        Then SQL result should match saved json text on path "external_repl_status" with following changes
+        Then external replication source on mysql host "mysql2" should remain "test_source" for "16" seconds
+        And SQL result should match saved json text on path "external_repl_status" with following changes
         """
         {"Source_Host": "test_source"}
         """
-        Then I wait for "20" seconds
-        And I run SQL on mysql host "mysql2"
-        """
-            SHOW REPLICA STATUS FOR CHANNEL 'external'
-        """
-        Then SQL result should match saved json text on path "external_repl_status" with following changes
+        Then external replication source on mysql host "mysql2" should become "test_source_3" within "45" seconds
+        And SQL result should match saved json text on path "external_repl_status" with following changes
         """
         {"Source_Host": "test_source_3"}
         """
-        Then I wait for "16" seconds
-        And I run SQL on mysql host "mysql2"
-        """
-            SHOW REPLICA STATUS FOR CHANNEL 'external'
-        """
-        Then SQL result should match saved json text on path "external_repl_status" with following changes
+        Then external replication source on mysql host "mysql2" should remain "test_source_3" for "16" seconds
+        And SQL result should match saved json text on path "external_repl_status" with following changes
         """
         {"Source_Host": "test_source_3"}
         """
-        Then I wait for "45" seconds
-        And I run SQL on mysql host "mysql2"
-        """
-            SHOW REPLICA STATUS FOR CHANNEL 'external'
-        """
-        Then SQL result should match saved json text on path "external_repl_status" with following changes
+        Then external replication source on mysql host "mysql2" should become "test_source" within "80" seconds
+        And SQL result should match saved json text on path "external_repl_status" with following changes
         """
         {"Source_Host": "test_source"}
         """

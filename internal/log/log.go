@@ -53,7 +53,7 @@ func parseLevel(level string) (zerolog.Level, error) {
 	return zerolog.InfoLevel, fmt.Errorf("unknown log level %q", level)
 }
 
-func levelToUpper(i interface{}) string {
+func levelToUpper(i any) string {
 	if i == nil {
 		return ""
 	}

@@ -256,6 +256,67 @@ func TestHAClusterOptimization(t *testing.T) {
 	})
 }
 
+func TestStartNodesSetStatusEnabled(t *testing.T) {
+	t.Run("startNodes sets StatusEnabled in DCS after OptimizeReplication", func(t *testing.T) {
+		ctrl := gomock.NewController(t)
+		logger := zerolog.Nop()
+
+		config := config.OptimizationConfig{
+			LowReplicationMark:  5 * time.Second,
+			HighReplicationMark: 120 * time.Second,
+		}
+
+		master := NewMockNode(ctrl)
+		master.EXPECT().GetReplicationSettings().
+			Return(mysql.ReplicationSettings{InnodbFlushLogAtTrxCommit: 1, SyncBinlog: 1}, nil).AnyTimes()
+
+		// replica has same settings as master (not optimized yet) and high lag → DisabledHosts
+		replica1 := NewMockNode(ctrl)
+		replica1.EXPECT().GetReplicationSettings().
+			Return(mysql.ReplicationSettings{InnodbFlushLogAtTrxCommit: 1, SyncBinlog: 1}, nil).AnyTimes()
+		replica1.EXPECT().OptimizeReplication()
+
+		cluster := NewMockCluster(ctrl)
+		cluster.EXPECT().GetMaster().
+			Return("master").AnyTimes()
+		cluster.EXPECT().GetNode("master").
+			Return(master).AnyTimes()
+		cluster.EXPECT().GetState("master").
+			Return(nodestate.NodeState{
+				ReplicationSettings: &mysql.ReplicationSettings{
+					InnodbFlushLogAtTrxCommit: 1,
+					SyncBinlog:                1,
+				},
+			}).AnyTimes()
+
+		cluster.EXPECT().GetNode("replica1").
+			Return(replica1).AnyTimes()
+		cluster.EXPECT().GetState("replica1").
+			Return(nodestate.NodeState{
+				ReplicationSettings: &mysql.ReplicationSettings{
+					InnodbFlushLogAtTrxCommit: 1,
+					SyncBinlog:                1,
+				},
+				SlaveState: &nodestate.SlaveState{
+					ReplicationLag: util.Ptr(1024.0), // high lag → not near-converged → DisabledHosts
+				},
+			}).AnyTimes()
+
+		Dcs := NewMockDCS(ctrl)
+		Dcs.EXPECT().GetHosts().
+			Return([]string{"replica1"}, nil)
+		// Status="" (StatusNew) → DisabledHosts branch in getClusterHostsState
+		Dcs.EXPECT().GetState("replica1").
+			Return(&DCSState{Status: StatusNew}, nil)
+		// startNodes must set StatusEnabled after OptimizeReplication
+		Dcs.EXPECT().SetState("replica1", &DCSState{Status: StatusEnabled})
+
+		opt := NewSyncer(&logger, config, Dcs)
+		err := opt.Sync(cluster)
+		require.NoError(t, err)
+	})
+}
+
 func TestOneHostOptimizationPolicy(t *testing.T) {
 	t.Run("Optimization can be enabled on just one host", func(t *testing.T) {
 		ctrl := gomock.NewController(t)
