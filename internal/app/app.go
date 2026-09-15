@@ -244,6 +244,7 @@ func (app *App) initializeOptimizationModule() {
 	app.optSyncer = optimization.NewSyncer(
 		app.logger,
 		app.config.OptimizationConfig,
+		app.config.RelayLogMaxBytes,
 		DCSAdapter,
 	)
 
@@ -598,6 +599,9 @@ func (app *App) stateManager() appState {
 			app.logger.Error().Err(err).Msg("failed to update repl_mon timestamp")
 		}
 	}
+
+	// enable turbo mode on replicas whose relay logs are too large
+	app.optimizeReplicasByRelayLog(activeNodes, master)
 
 	clusterAdapter := app_dcs.NewOptimizationClusterAdapter(
 		app.cluster,
