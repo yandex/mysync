@@ -1172,6 +1172,13 @@ func (app *App) disableSemiSyncOnSlaves(becomeInactive, becomeDataLag []string) 
 }
 
 func (app *App) enableSemiSyncOnSlave(host string, slaveState, masterState *nodestate.NodeState) error {
+	if masterState == nil || masterState.MasterState == nil {
+		return fmt.Errorf("cannot enable semi-sync on %s: master state is unavailable", host)
+	}
+	if slaveState == nil || slaveState.SlaveState == nil {
+		return fmt.Errorf("cannot enable semi-sync on %s: replica state is unavailable", host)
+	}
+
 	node := app.cluster.Get(host)
 	err := node.SemiSyncSetSlave()
 	if err != nil {
@@ -1565,11 +1572,29 @@ func (app *App) SetDefaultReplicationSettingsForNode(node *mysql.Node) error {
 }
 
 func (app *App) getCurrentMaster(clusterState map[string]*nodestate.NodeState) (string, error) {
-	master, err := app.GetMasterHostFromDcs()
-	if master != "" && err == nil {
-		return master, err
+	dcsMaster, err := app.GetMasterHostFromDcs()
+	if err != nil {
+		return "", fmt.Errorf("failed to get current master from dcs: %w", err)
 	}
-	return app.ensureCurrentMaster(clusterState)
+	if dcsMaster != "" {
+		state, ok := clusterState[dcsMaster]
+		if ok && state != nil && state.PingOk && state.IsMaster {
+			return dcsMaster, nil
+		}
+		app.logger.Error().Msgf("current master %s from dcs is stale; live state: %v", dcsMaster, state)
+	}
+
+	master, err := app.ensureCurrentMaster(clusterState)
+	if err != nil {
+		app.logMasterTopology(dcsMaster, clusterState, err)
+	}
+	return master, err
+}
+
+// logMasterTopology records enough state to investigate a stale DCS master without
+// making an unsafe promotion decision when the cluster has no unambiguous master.
+func (app *App) logMasterTopology(dcsMaster string, clusterState map[string]*nodestate.NodeState, masterErr error) {
+	app.logger.Error().Err(masterErr).Msgf("cannot identify current master; dcs master: %q; cluster topology: %v", dcsMaster, clusterState)
 }
 
 func (app *App) ensureCurrentMaster(clusterState map[string]*nodestate.NodeState) (string, error) {
