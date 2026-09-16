@@ -347,6 +347,31 @@ func TestGetCurrentMaster_StaleDCSMasterIsRepaired(t *testing.T) {
 	require.Equal(t, "new-master", host)
 }
 
+func TestGetCurrentMaster_UnreachableDCSMasterIsRetained(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	mockDCS := NewMockIAppDCS(ctrl)
+	mockDCS.EXPECT().GetMasterHostFromDcs().Return("master", nil)
+
+	app := newTestApp(t, minConfig(), mockDCS)
+
+	cs := map[string]*nodestate.NodeState{
+		"master": {
+			PingOk:   false,
+			IsMaster: false,
+		},
+		"replica1": {
+			PingOk:   true,
+			IsMaster: false,
+		},
+	}
+
+	host, err := app.getCurrentMaster(cs)
+	require.NoError(t, err)
+	require.Equal(t, "master", host)
+}
+
 func TestGetCurrentMaster_StaleDCSMasterWithOnlyReplicasReturnsNoMaster(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()

@@ -1578,7 +1578,12 @@ func (app *App) getCurrentMaster(clusterState map[string]*nodestate.NodeState) (
 	}
 	if dcsMaster != "" {
 		state, ok := clusterState[dcsMaster]
-		if ok && state != nil && state.PingOk && state.IsMaster {
+		// A manager can temporarily be unable to observe the master while it is
+		// being stopped or restarted.  This is not evidence that the DCS value is
+		// stale: trusting it lets the regular failover/quorum flow handle that
+		// situation.  Repair DCS only after observing a reachable node that is no
+		// longer a master (for example, after an interrupted switchover).
+		if ok && state != nil && (!state.PingOk || state.IsMaster) {
 			return dcsMaster, nil
 		}
 		app.logger.Error().Msgf("current master %s from dcs is stale; live state: %v", dcsMaster, state)
