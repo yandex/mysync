@@ -317,6 +317,113 @@ func TestGetCurrentMaster_NoMasterAnywhere(t *testing.T) {
 	_, err := app.getCurrentMaster(cs)
 	require.ErrorIs(t, err, ErrNoMaster)
 }
+func TestGetCurrentMaster_StaleDCSMasterIsRepaired(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	mockDCS := NewMockIAppDCS(ctrl)
+	mockDCS.EXPECT().GetMasterHostFromDcs().Return("old-master", nil)
+	mockDCS.EXPECT().SetMasterHost("new-master").Return("new-master", nil)
+
+	app := newTestApp(t, minConfig(), mockDCS)
+	cs := map[string]*nodestate.NodeState{
+		"old-master": {
+			PingOk:   true,
+			IsMaster: false,
+			SlaveState: &nodestate.SlaveState{
+				MasterHost:      "new-master",
+				ExecutedGtidSet: "uuid:1-10",
+			},
+		},
+		"new-master": {
+			PingOk:      true,
+			IsMaster:    true,
+			MasterState: &nodestate.MasterState{ExecutedGtidSet: "uuid:1-11"},
+		},
+	}
+
+	host, err := app.getCurrentMaster(cs)
+	require.NoError(t, err)
+	require.Equal(t, "new-master", host)
+}
+
+func TestGetCurrentMaster_UnreachableDCSMasterIsRetained(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	mockDCS := NewMockIAppDCS(ctrl)
+	mockDCS.EXPECT().GetMasterHostFromDcs().Return("master", nil)
+
+	app := newTestApp(t, minConfig(), mockDCS)
+
+	cs := map[string]*nodestate.NodeState{
+		"master": {
+			PingOk:   false,
+			IsMaster: false,
+		},
+		"replica1": {
+			PingOk:   true,
+			IsMaster: false,
+		},
+	}
+
+	host, err := app.getCurrentMaster(cs)
+	require.NoError(t, err)
+	require.Equal(t, "master", host)
+}
+
+func TestGetCurrentMaster_StaleDCSMasterWithOnlyReplicasReturnsNoMaster(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	mockDCS := NewMockIAppDCS(ctrl)
+	mockDCS.EXPECT().GetMasterHostFromDcs().Return("old-master", nil)
+
+	app := newTestApp(t, minConfig(), mockDCS)
+	cs := map[string]*nodestate.NodeState{
+		"old-master": aliveReplica(),
+		"new-master": aliveReplica(),
+	}
+
+	_, err := app.getCurrentMaster(cs)
+	require.ErrorIs(t, err, ErrNoMaster)
+}
+
+func TestGetCurrentMaster_StaleDCSMasterWithManyMastersReturnsError(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	mockDCS := NewMockIAppDCS(ctrl)
+	mockDCS.EXPECT().GetMasterHostFromDcs().Return("old-master", nil)
+
+	app := newTestApp(t, minConfig(), mockDCS)
+	cs := map[string]*nodestate.NodeState{
+		"old-master": aliveReplica(),
+		"master-1":   {PingOk: true, IsMaster: true},
+		"master-2":   {PingOk: true, IsMaster: true},
+	}
+
+	_, err := app.getCurrentMaster(cs)
+	require.ErrorIs(t, err, ErrManyMasters)
+}
+
+func TestEnableSemiSyncOnSlave_RejectsIncompleteStateBeforeTouchingMySQL(t *testing.T) {
+	app := newTestApp(t, minConfig(), nil)
+	validReplicaState := &nodestate.NodeState{SlaveState: &nodestate.SlaveState{}}
+	validMasterState := &nodestate.NodeState{MasterState: &nodestate.MasterState{}}
+
+	err := app.enableSemiSyncOnSlave("replica", validReplicaState, nil)
+	require.ErrorContains(t, err, "master state is unavailable")
+
+	err = app.enableSemiSyncOnSlave("replica", validReplicaState, &nodestate.NodeState{})
+	require.ErrorContains(t, err, "master state is unavailable")
+
+	err = app.enableSemiSyncOnSlave("replica", nil, validMasterState)
+	require.ErrorContains(t, err, "replica state is unavailable")
+
+	err = app.enableSemiSyncOnSlave("replica", &nodestate.NodeState{}, validMasterState)
+	require.ErrorContains(t, err, "replica state is unavailable")
+}
 
 func TestIssueFailoverStartsTiming(t *testing.T) {
 	ctrl := gomock.NewController(t)
