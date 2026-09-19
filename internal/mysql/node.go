@@ -35,6 +35,7 @@ type Node struct {
 	logger               *log.Logger
 	db                   *sqlx.DB
 	version              *Version
+	perfSchemaCache      *bool
 	host                 string
 	uuid                 uuid.UUID
 	semiSyncDialectCache *semiSyncDialect
@@ -354,7 +355,7 @@ func (n *Node) getRunningQueryIDs(excludeUsers []string, timeout time.Duration) 
 	ctx, cancel := context.WithTimeout(context.Background(), timeout)
 	defer cancel()
 
-	query := DefaultQueries[queryGetProcessIDs]
+	query := DefaultQueries[n.getProcesslistQueryName(queryGetProcessIDs, queryGetProcessIDsPerfSchema)]
 
 	bquery, args, err := sqlx.In(query, excludeUsers)
 	if err != nil {
@@ -661,6 +662,46 @@ func (n *Node) GetVersion() (*Version, error) {
 	}
 	n.version = v
 	return n.version, nil
+}
+
+// getProcesslistQueryName returns the performance_schema variant of the query if it is usable
+func (n *Node) getProcesslistQueryName(infoSchemaQuery, perfSchemaQuery string) string {
+	if _, ok := n.config.Queries[infoSchemaQuery]; ok {
+		return infoSchemaQuery
+	}
+	usePerfSchema, err := n.getPerfSchemaProcesslist()
+	if err != nil {
+		n.logger.Warn().Err(err).Msgf("failed to check performance_schema on host %s, using information_schema.PROCESSLIST", n.host)
+		return infoSchemaQuery
+	}
+	if usePerfSchema {
+		return perfSchemaQuery
+	}
+	return infoSchemaQuery
+}
+
+func (n *Node) getPerfSchemaProcesslist() (bool, error) {
+	if n.perfSchemaCache != nil {
+		return *n.perfSchemaCache, nil
+	}
+	version, err := n.GetVersion()
+	if err != nil {
+		return false, err
+	}
+	use := false
+	if version.CheckIfPerfSchemaProcesslistSupported() {
+		// With performance_schema disabled the table exists but is empty.
+		var status struct {
+			PerformanceSchema bool `db:"PerformanceSchema"`
+		}
+		err = n.queryRow(queryGetPerfSchema, nil, &status)
+		if err != nil {
+			return false, err
+		}
+		use = status.PerformanceSchema
+	}
+	n.perfSchemaCache = &use
+	return use, nil
 }
 
 // ReplicationLag returns slave replication lag in seconds
@@ -1108,7 +1149,7 @@ func (n *Node) IsWaitingSemiSyncAck() (bool, error) {
 		IsWaiting bool `db:"IsWaiting"`
 	}
 	var status waitingSemiSyncStatus
-	err := n.queryRow(queryHasWaitingSemiSyncAck, nil, &status)
+	err := n.queryRow(n.getProcesslistQueryName(queryHasWaitingSemiSyncAck, queryHasWaitingAckPerfSchema), nil, &status)
 	return status.IsWaiting, err
 }
 

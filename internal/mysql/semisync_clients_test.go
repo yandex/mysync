@@ -27,6 +27,8 @@ type semiSyncClientsTestConnector struct {
 	pluginResponseIndex int
 	legacyClients       string
 	sourceClients       string
+	version             Version
+	perfSchemaEnabled   bool
 }
 
 func (c *semiSyncClientsTestConnector) Connect(context.Context) (driver.Conn, error) {
@@ -134,6 +136,22 @@ func (c *semiSyncClientsTestConn) QueryContext(_ context.Context, query string, 
 			rows.values = [][]driver.Value{{c.connector.sourceClients}}
 		}
 		return rows, nil
+	case DefaultQueries[queryGetVersion]:
+		v := c.connector.version
+		return &semiSyncClientsTestRows{
+			columns: []string{"MajorVersion", "MinorVersion", "PatchVersion"},
+			values:  [][]driver.Value{{v.MajorVersion, v.MinorVersion, v.PatchVersion}},
+		}, nil
+	case DefaultQueries[queryGetPerfSchema]:
+		return &semiSyncClientsTestRows{
+			columns: []string{"PerformanceSchema"},
+			values:  [][]driver.Value{{c.connector.perfSchemaEnabled}},
+		}, nil
+	case DefaultQueries[queryHasWaitingSemiSyncAck], DefaultQueries[queryHasWaitingAckPerfSchema], customWaitingAckQuery:
+		return &semiSyncClientsTestRows{
+			columns: []string{"IsWaiting"},
+			values:  [][]driver.Value{{true}},
+		}, nil
 	default:
 		return nil, errors.New("unexpected query")
 	}
@@ -468,4 +486,119 @@ func TestSemiSyncMutationsRedetectDialect(t *testing.T) {
 			}
 		})
 	}
+}
+
+const customWaitingAckQuery = "SELECT 1 AS IsWaiting"
+
+func TestIsWaitingSemiSyncAckChoosesProcesslistTable(t *testing.T) {
+	versionQuery := DefaultQueries[queryGetVersion]
+	perfSchemaQuery := DefaultQueries[queryGetPerfSchema]
+	infoSchemaAckQuery := DefaultQueries[queryHasWaitingSemiSyncAck]
+	perfSchemaAckQuery := DefaultQueries[queryHasWaitingAckPerfSchema]
+
+	testCases := []struct {
+		name              string
+		version           Version
+		perfSchemaEnabled bool
+		expectedQueries   []string
+	}{
+		{
+			name:              "5.7",
+			version:           Version{MajorVersion: 5, MinorVersion: 7, PatchVersion: 44},
+			perfSchemaEnabled: true,
+			expectedQueries:   []string{versionQuery, infoSchemaAckQuery},
+		},
+		{
+			name:              "8.0.21",
+			version:           Version{MajorVersion: 8, MinorVersion: 0, PatchVersion: 21},
+			perfSchemaEnabled: true,
+			expectedQueries:   []string{versionQuery, infoSchemaAckQuery},
+		},
+		{
+			name:              "8.0.22",
+			version:           Version{MajorVersion: 8, MinorVersion: 0, PatchVersion: 22},
+			perfSchemaEnabled: true,
+			expectedQueries:   []string{versionQuery, perfSchemaQuery, perfSchemaAckQuery},
+		},
+		{
+			name:              "8.0.22 with performance_schema disabled",
+			version:           Version{MajorVersion: 8, MinorVersion: 0, PatchVersion: 22},
+			perfSchemaEnabled: false,
+			expectedQueries:   []string{versionQuery, perfSchemaQuery, infoSchemaAckQuery},
+		},
+		{
+			name:              "8.4",
+			version:           Version{MajorVersion: 8, MinorVersion: 4, PatchVersion: 0},
+			perfSchemaEnabled: true,
+			expectedQueries:   []string{versionQuery, perfSchemaQuery, perfSchemaAckQuery},
+		},
+		{
+			name:              "9.7",
+			version:           Version{MajorVersion: 9, MinorVersion: 7, PatchVersion: 0},
+			perfSchemaEnabled: true,
+			expectedQueries:   []string{versionQuery, perfSchemaQuery, perfSchemaAckQuery},
+		},
+	}
+
+	for _, testCase := range testCases {
+		t.Run(testCase.name, func(t *testing.T) {
+			connector := &semiSyncClientsTestConnector{
+				version:           testCase.version,
+				perfSchemaEnabled: testCase.perfSchemaEnabled,
+			}
+			node := newSemiSyncTestNode(t, connector, semiSyncDialectMasterSlave)
+
+			waiting, err := node.IsWaitingSemiSyncAck()
+			require.NoError(t, err)
+			require.True(t, waiting)
+			require.Equal(t, testCase.expectedQueries, connector.queries)
+
+			// cached: only the processlist query runs
+			connector.queries = nil
+			_, err = node.IsWaitingSemiSyncAck()
+			require.NoError(t, err)
+			require.Equal(t, testCase.expectedQueries[len(testCase.expectedQueries)-1:], connector.queries)
+		})
+	}
+}
+
+func TestIsWaitingSemiSyncAckFallsBackOnPerfSchemaCheckError(t *testing.T) {
+	connector := &semiSyncClientsTestConnector{
+		queryErrors: map[string][]error{
+			DefaultQueries[queryGetPerfSchema]: {errors.New("connection reset")},
+		},
+		version:           Version{MajorVersion: 8, MinorVersion: 4, PatchVersion: 0},
+		perfSchemaEnabled: true,
+	}
+	node := newSemiSyncTestNode(t, connector, semiSyncDialectMasterSlave)
+
+	_, err := node.IsWaitingSemiSyncAck()
+	require.NoError(t, err)
+	require.Equal(t, []string{
+		DefaultQueries[queryGetVersion],
+		DefaultQueries[queryGetPerfSchema],
+		DefaultQueries[queryHasWaitingSemiSyncAck],
+	}, connector.queries)
+
+	// failed check is not cached
+	connector.queries = nil
+	_, err = node.IsWaitingSemiSyncAck()
+	require.NoError(t, err)
+	require.Equal(t, []string{
+		DefaultQueries[queryGetPerfSchema],
+		DefaultQueries[queryHasWaitingAckPerfSchema],
+	}, connector.queries)
+}
+
+func TestIsWaitingSemiSyncAckKeepsQueryOverride(t *testing.T) {
+	connector := &semiSyncClientsTestConnector{
+		version:           Version{MajorVersion: 8, MinorVersion: 4, PatchVersion: 0},
+		perfSchemaEnabled: true,
+	}
+	node := newSemiSyncTestNode(t, connector, semiSyncDialectMasterSlave)
+	node.config.Queries[queryHasWaitingSemiSyncAck] = customWaitingAckQuery
+
+	_, err := node.IsWaitingSemiSyncAck()
+	require.NoError(t, err)
+	require.Equal(t, []string{customWaitingAckQuery}, connector.queries)
 }

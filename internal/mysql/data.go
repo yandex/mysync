@@ -425,6 +425,7 @@ const (
 	Version8Major               = 8
 	Version80Minor              = 0
 	Version80PatchReplicaStatus = 22
+	Version80PatchProcesslist   = 22
 	Version57Major              = 5
 )
 
@@ -446,6 +447,20 @@ func (v *Version) CheckIfExternalReplicationSupported() bool {
 	switch v.MajorVersion {
 	case Version8Major:
 		if v.MinorVersion > Version80Minor || v.PatchVersion >= Version80PatchReplicaStatus {
+			return true
+		}
+		return false
+	case Version57Major:
+		return false
+	default:
+		return true
+	}
+}
+
+func (v *Version) CheckIfPerfSchemaProcesslistSupported() bool {
+	switch v.MajorVersion {
+	case Version8Major:
+		if v.MinorVersion > Version80Minor || v.PatchVersion >= Version80PatchProcesslist {
 			return true
 		}
 		return false

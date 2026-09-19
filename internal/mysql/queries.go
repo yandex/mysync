@@ -46,10 +46,13 @@ const (
 	querySetLockTimeout                 = "set_lock_timeout"
 	queryKillQuery                      = "kill_query"
 	queryGetProcessIDs                  = "get_process_ids"
+	queryGetProcessIDsPerfSchema        = "get_process_ids_perf_schema"
 	queryEnableOfflineMode              = "enable_offline_mode"
 	queryDisableOfflineMode             = "disable_offline_mode"
 	queryGetOfflineMode                 = "get_offline_mode"
 	queryHasWaitingSemiSyncAck          = "has_waiting_semi_sync_ack"
+	queryHasWaitingAckPerfSchema        = "has_waiting_semi_sync_ack_perf_schema"
+	queryGetPerfSchema                  = "get_perf_schema"
 	queryGetLastStartupTime             = "get_last_startup_time"
 	queryGetExternalReplicationSettings = "get_external_replication_settings"
 	queryChangeSource                   = "change_source"
@@ -220,4 +223,8 @@ var DefaultQueries = map[string]string{
 	queryChangeSourceHost: `CHANGE REPLICATION SOURCE TO
 								SOURCE_HOST = :host
 						FOR CHANNEL :channel`,
+
+	queryGetProcessIDsPerfSchema: `SELECT ID FROM performance_schema.processlist p WHERE USER NOT IN (?) AND COMMAND != 'Killed'`,
+	queryHasWaitingAckPerfSchema: `SELECT count(*) <> 0 AS IsWaiting FROM performance_schema.processlist WHERE state like 'Waiting for semi-sync ACK from%'`,
+	queryGetPerfSchema:           `SELECT @@GLOBAL.performance_schema AS PerformanceSchema`,
 }
