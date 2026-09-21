@@ -18,7 +18,13 @@ type DCS interface {
 
 type DCSState struct {
 	Status Status `json:"status"`
+	// An empty reason preserves the lag-based behavior of existing requests.
+	Reason Reason `json:"reason,omitempty"`
 }
+
+type Reason string
+
+const ReasonRelayLog Reason = "relay_log"
 
 type Status string
 
