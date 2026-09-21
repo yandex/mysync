@@ -582,41 +582,63 @@ Feature: optimization mode works on replicas
     ["mysql1","mysql2","mysql3"]
     """
 
-    # Keep each relay file smaller than the optimization threshold.
+    # Keep relay files and individual transactions below the optimization threshold.
     When I run SQL on mysql host "mysql3"
     """
-    SET GLOBAL max_relay_log_size = 1048576;
+    SET GLOBAL max_relay_log_size = 262144;
     """
     And I run SQL on mysql host "mysql2"
     """
-    SET GLOBAL max_relay_log_size = 1048576;
+    SET GLOBAL max_relay_log_size = 262144;
     STOP REPLICA FOR CHANNEL '';
     CHANGE REPLICATION SOURCE TO SOURCE_DELAY = 6000;
     START REPLICA FOR CHANNEL '';
     """
     Then zookeeper node "/test/optimization_nodes/mysql2" should not exist within "15" seconds
+    And zookeeper node "/test/health/mysql2" should match json within "30" seconds
+    """
+    {"slave_state":{"replication_lag":1}}
+    """
 
     When I run SQL on mysql host "mysql1"
     """
     CREATE TABLE mysql.relay_filler (id INT AUTO_INCREMENT PRIMARY KEY, payload LONGBLOB);
-    INSERT INTO mysql.relay_filler (payload) VALUES (REPEAT('x', 1048576));
-    INSERT INTO mysql.relay_filler (payload) SELECT payload FROM mysql.relay_filler;
-    INSERT INTO mysql.relay_filler (payload) SELECT payload FROM mysql.relay_filler;
-    INSERT INTO mysql.relay_filler (payload) SELECT payload FROM mysql.relay_filler;
+    INSERT INTO mysql.relay_filler (payload) VALUES (REPEAT('x', 524288));
+    INSERT INTO mysql.relay_filler (payload) VALUES (REPEAT('x', 524288));
+    INSERT INTO mysql.relay_filler (payload) VALUES (REPEAT('x', 524288));
+    INSERT INTO mysql.relay_filler (payload) VALUES (REPEAT('x', 524288));
+    INSERT INTO mysql.relay_filler (payload) VALUES (REPEAT('x', 524288));
+    INSERT INTO mysql.relay_filler (payload) VALUES (REPEAT('x', 524288));
+    INSERT INTO mysql.relay_filler (payload) VALUES (REPEAT('x', 524288));
+    INSERT INTO mysql.relay_filler (payload) VALUES (REPEAT('x', 524288));
     """
-    Then zookeeper node "/test/optimization_nodes/mysql2" should match json within "60" seconds
+    # Let the healthy replica purge processed logs and release the single turbo slot.
+    And I run command on host "mysql3" until result match regexp "^8\s*$" with timeout "60" seconds
     """
-    {"reason":"relay_log"}
+    mysql -N -B -e 'SELECT COUNT(*) FROM mysql.relay_filler'
+    """
+    And I run SQL on mysql host "mysql3"
+    """
+    FLUSH RELAY LOGS FOR CHANNEL '';
+    """
+    Then zookeeper node "/test/optimization_nodes/mysql3" should not exist within "60" seconds
+    And zookeeper node "/test/optimization_nodes/mysql2" should match json within "60" seconds
+    """
+    {"status":"enabled","reason":"relay_log"}
     """
     And mysql host "mysql2" should have variable "innodb_flush_log_at_trx_commit" set to "2" within "30" seconds
     And mysql host "mysql2" should have variable "sync_binlog" set to "1000" within "30" seconds
 
     When I run SQL on mysql host "mysql2"
     """
-    STOP REPLICA FOR CHANNEL '';
+    STOP REPLICA SQL_THREAD FOR CHANNEL '';
     CHANGE REPLICATION SOURCE TO SOURCE_DELAY = 0;
-    START REPLICA FOR CHANNEL '';
+    START REPLICA SQL_THREAD FOR CHANNEL '';
     """
     Then zookeeper node "/test/optimization_nodes/mysql2" should not exist within "60" seconds
     And mysql host "mysql2" should have variable "innodb_flush_log_at_trx_commit" set to "1" within "30" seconds
     And mysql host "mysql2" should have variable "sync_binlog" set to "1" within "30" seconds
+    And I run command on host "mysql2" until result match regexp "^8\s*$" with timeout "60" seconds
+    """
+    mysql -N -B -e 'SELECT COUNT(*) FROM mysql.relay_filler'
+    """
