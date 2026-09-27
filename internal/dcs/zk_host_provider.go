@@ -189,6 +189,11 @@ func (rhp *RandomHostProvider) Next() (server string, retryStart bool) {
 			} else {
 				ret = selected
 			}
+		} else if needRetry {
+			// Every host was tried with an empty resolved list (e.g. DNS
+			// broke after Init). Hand back the configured name so Dial can
+			// resolve again instead of spinning forever.
+			ret = selected
 		}
 	}
 
