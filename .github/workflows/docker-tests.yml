@@ -65,6 +65,7 @@ jobs:
           - 'GODOG_FEATURE=repl_mon.feature make test'
           - 'GODOG_FEATURE=statefile.feature make test'
           - 'GODOG_FEATURE=switchover_from.feature make test'
+          - 'GODOG_FEATURE=switchover_recovery.feature make test'
           - 'GODOG_FEATURE=switchover_to.feature make test'
           - 'GODOG_FEATURE=zk_failure.feature make test'
           - 'GODOG_FEATURE=zk_maintenance.feature make test'
