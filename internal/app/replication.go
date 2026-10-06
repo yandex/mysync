@@ -411,6 +411,10 @@ func (app *App) optimizationPhase(
 	oldMaster string,
 	clusterState map[string]*nodestate.NodeState,
 ) error {
+	if app.switchoverStarted(switchover) {
+		app.logger.Info().Msg("switchover: phase 0: turbo mode is skipped: transition already started")
+		return nil
+	}
 	if !app.switchHelper.IsOptimizationPhaseAllowed() {
 		app.logger.Info().Msg("switchover: phase 0: turbo mode is skipped")
 		return nil

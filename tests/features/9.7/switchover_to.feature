@@ -276,7 +276,12 @@ Feature: manual switchover to new master
     And mysql replication on host "mysql1" should run fine within "3" seconds
     And mysql host "mysql1" should be read only
 
-  Scenario: switchover to does not work with dead master
+  Scenario: switchover to waits for dead master to recover
+    Given cluster environment is
+      """
+      MYSYNC_SWITCHOVER_MAX_ATTEMPTS=1
+      MYSYNC_SWITCHOVER_TIMEOUT=10s
+      """
     Given cluster is up and running
     Then zookeeper node "/test/active_nodes" should match json_exactly within "30" seconds
       """
@@ -308,7 +313,7 @@ Feature: manual switchover to new master
         "master_transition": "switchover"
       }
       """
-    Then zookeeper node "/test/last_rejected_switch" should match json within "30" seconds
+    Then zookeeper node "/test/switch" should match json within "30" seconds
       """
       {
         "from": "",
@@ -320,6 +325,41 @@ Feature: manual switchover to new master
         }
       }
       """
+    # Freeze has started: exhausting the limits must keep the request pending.
+    When I wait for "15" seconds
+    Then zookeeper node "/test/last_rejected_switch" should not exist
+    And zookeeper node "/test/switch" should match json
+      """
+      {"to": "mysql2", "result": {"ok": false}}
+      """
+    And zookeeper node "/test/master" should match json_exactly
+      """
+      "mysql1"
+      """
+    And mysql host "mysql1" should become unavailable within "10" seconds
+    And mysql host "mysql2" should be replica of "mysql1"
+    And mysql host "mysql2" should be read only
+    And mysql host "mysql3" should be replica of "mysql1"
+    And mysql host "mysql3" should be read only
+    When host "mysql1" is started
+    Then mysql host "mysql1" should become available within "20" seconds
+    And zookeeper node "/test/last_switch" should match json within "30" seconds
+      """
+      {"to": "mysql2", "master_transition": "switchover", "result": {"ok": true}}
+      """
+    And zookeeper node "/test/switch" should not exist
+    And zookeeper node "/test/master" should match json_exactly
+      """
+      "mysql2"
+      """
+    And mysql host "mysql2" should be master
+    And mysql host "mysql2" should be writable
+    And mysql host "mysql1" should be replica of "mysql2"
+    And mysql replication on host "mysql1" should run fine within "10" seconds
+    And mysql host "mysql1" should be read only
+    And mysql host "mysql3" should be replica of "mysql2"
+    And mysql replication on host "mysql3" should run fine within "10" seconds
+    And mysql host "mysql3" should be read only
 
   Scenario: switchover on lagging replica fails
     Given cluster environment is

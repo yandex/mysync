@@ -49,6 +49,7 @@ type App struct {
 	externalReplication mysql.IExternalReplication
 	switchHelper        mysql.ISwitchHelper
 	lostQuorumTime      time.Time
+	switchoverProgress  *switchoverProgress
 
 	optSyncer         OptimizationSyncer
 	optController     OptimizationController
@@ -398,8 +399,19 @@ func (app *App) stateManager() appState {
 		}
 	}
 
-	// master is master host that should be on cluster
-	master, err := app.getCurrentMaster(clusterState)
+	// A pending transition must be handled before resolving a stale DCS master.
+	// During the transition all hosts can legitimately be replicas.
+	switchover, switchErr := app.GetCurrentSwitchover()
+	if switchErr != nil && !errors.Is(switchErr, dcs.ErrNotFound) {
+		app.logger.Error().Err(switchErr).Msg("failed to read current switchover")
+		return stateManager
+	}
+	if errors.Is(switchErr, dcs.ErrNotFound) {
+		app.switchoverProgress = nil
+	}
+
+	// master is the original source while a transition is in progress.
+	master, err := app.getMasterForSwitchover(clusterState, switchover)
 	if err != nil {
 		app.logger.Error().Err(err).Msg("failed to get or identify master")
 		if errors.Is(err, ErrManyMasters) {
@@ -467,16 +479,20 @@ func (app *App) stateManager() appState {
 	}
 
 	// check if switchover required or in progress
-	switchover := new(Switchover)
-	if err := app.GetCurrentSwitchover(switchover); err == nil {
+	if switchover != nil {
 		// failover via DCS is suppressed during light maintenance (only manual switchover is allowed)
 		if lightMaintenance && switchover.MasterTransition == FailoverTransition {
 			app.logger.Info().Msgf("failover suppressed by light maintenance mode")
+			// A pending operation may already have changed replication sources.
+			// Do not repair that intermediate topology while it is suspended.
+			if app.switchoverStarted(switchover) {
+				return stateManager
+			}
 		} else {
-			if !switchover.InitiatedAt.IsZero() && time.Since(switchover.InitiatedAt) > app.config.SwitchoverTimeout {
+			if app.switchoverTimedOut(switchover, time.Now()) {
 				app.logger.Error().Msgf("switchover %s => %s timed out after %s", switchover.From, switchover.To, time.Since(switchover.InitiatedAt))
 				app.logSwitchoverFailure(switchover)
-				err = app.FailSwitchover(switchover, fmt.Errorf("switchover timed out after %s", time.Since(switchover.InitiatedAt)))
+				err = app.FinishSwitchover(switchover, fmt.Errorf("switchover timed out after %s", time.Since(switchover.InitiatedAt)))
 				if err != nil {
 					app.logger.Error().Err(err).Msg("failed to report switchover timeout")
 				}
@@ -498,11 +514,11 @@ func (app *App) stateManager() appState {
 				return stateManager
 			}
 			err = app.performSwitchover(clusterState, activeNodes, switchover, master)
-			if errors.Is(app.GetCurrentSwitchover(new(Switchover)), dcs.ErrNotFound) {
+			if _, switchErr := app.GetCurrentSwitchover(); errors.Is(switchErr, dcs.ErrNotFound) {
 				app.logger.Error().Msgf("switchover was aborted")
 			} else {
 				if err != nil {
-					err = app.FailSwitchover(switchover, err)
+					err = app.RecordSwitchoverAttemptFailure(switchover, err)
 					if err != nil {
 						app.logger.Error().Err(err).Msg("failed to report switchover failure")
 					}
@@ -518,9 +534,6 @@ func (app *App) stateManager() appState {
 			}
 			return stateManager
 		}
-	} else if !errors.Is(err, dcs.ErrNotFound) {
-		app.logger.Error().Err(err).Msg("")
-		return stateManager
 	}
 
 	// perform failover if needed
@@ -806,6 +819,11 @@ func (app *App) emulateError(pos string) bool {
 }
 
 func (app *App) approveSwitchover(switchover *Switchover, activeNodes []string, clusterState map[string]*nodestate.NodeState) error {
+	if app.switchoverStarted(switchover) {
+		// Once MySQL has been changed, finishing the transition takes precedence
+		// over the retry limit. Quorum is checked again during the freeze phase.
+		return nil
+	}
 	// Limit amount of switchover retries
 	if switchover.MasterTransition != FailoverTransition &&
 		app.config.SwitchoverMaxAttempts > 0 && switchover.RunCount >= app.config.SwitchoverMaxAttempts {
@@ -899,6 +917,9 @@ func (app *App) calcActiveNodesChanges(clusterState map[string]*nodestate.NodeSt
 	var deadReplicas []string
 
 	for host, state := range clusterState {
+		if host == master {
+			continue
+		}
 		if state.SemiSyncState != nil && state.SemiSyncState.SlaveEnabled {
 			syncReplicas = append(syncReplicas, host)
 		}
@@ -906,7 +927,7 @@ func (app *App) calcActiveNodesChanges(clusterState map[string]*nodestate.NodeSt
 			deadReplicas = append(deadReplicas, host)
 		}
 	}
-	becomeActive = filterOut(filterOut(activeNodes, syncReplicas), deadReplicas)
+	becomeActive = filterOut(filterOut(filterOut(activeNodes, []string{master}), syncReplicas), deadReplicas)
 	becomeInactive = filterOut(syncReplicas, activeNodes)
 
 	if len(oldActiveNodes) == 1 && oldActiveNodes[0] == master && len(becomeActive) == 0 {
@@ -971,6 +992,9 @@ So, it's better to have dead sync replica in active list, than alive sync replic
 func (app *App) updateActiveNodes(clusterState, clusterStateDcs map[string]*nodestate.NodeState, oldActiveNodes []string, master string) error {
 	masterNode := app.cluster.Get(master)
 	masterState := clusterState[master]
+	if masterState == nil || !masterState.IsMaster || masterState.MasterState == nil {
+		return fmt.Errorf("update active nodes: master %s has no live master state", master)
+	}
 	activeNodes, err := app.calcActiveNodes(clusterState, clusterStateDcs, oldActiveNodes, master)
 	if err != nil {
 		app.logger.Error().Err(err).Msg("update active nodes: failed to calc new active nodes")
@@ -1262,301 +1286,434 @@ func (app *App) disableSemiSyncIfNonNeeded(node *mysql.Node, state *nodestate.No
 
 // nolint: gocyclo, funlen
 func (app *App) performSwitchover(clusterState map[string]*nodestate.NodeState, activeNodes []string, switchover *Switchover, oldMaster string) error {
+	if app.switchoverProgress.matches(switchover) {
+		if app.switchoverProgress.phase == switchoverComplete {
+			return nil
+		}
+		activeNodes = app.switchoverProgress.activeNodesWithOldMaster
+		app.logger.Info().Msgf("switchover: resuming %s, old master %s, new master %s",
+			app.switchoverProgress.phase, app.switchoverProgress.oldMaster, app.switchoverProgress.newMaster)
+	}
 	if switchover.To != "" {
 		if !slices.Contains(activeNodes, switchover.To) {
 			return errors.New("switchover: failed: replica is not active, can't switch to it")
 		}
 	}
 	// do not perform switchover if we have connection problems with some hosts
-	if dubious := getDubiousHAHosts(clusterState); len(dubious) > 0 {
-		return fmt.Errorf("switchover: failed to ping hosts: %v with dubious errors", dubious)
+	if !app.switchoverProgress.matches(switchover) || app.switchoverProgress.phase <= switchoverPromote {
+		if dubious := getDubiousHAHosts(clusterState); len(dubious) > 0 {
+			return fmt.Errorf("switchover: failed to ping hosts: %v with dubious errors", dubious)
+		}
 	}
 	app.logger.Info().Msgf("switchover: %+v", switchover.MasterTransition)
 
-	activeNodesWithOldMaster := activeNodes
+	p := app.switchoverProgress
+	if !p.matches(switchover) {
+		p = &switchoverProgress{
+			request:                  *switchover,
+			oldMaster:                oldMaster,
+			activeNodesWithOldMaster: slices.Clone(activeNodes),
+		}
+		// An existing retried request may predate this manager's local progress.
+		// Conservatively assume that it has already started changing MySQL.
+		if switchover.RunCount > 0 {
+			p.phase = switchoverFreeze
+		}
+		app.switchoverProgress = p
+	}
+	oldMaster = p.oldMaster
+	activeNodesWithOldMaster := p.activeNodesWithOldMaster
+	activeNodes = slices.Clone(activeNodesWithOldMaster)
 
 	// filter out old master as may hang and timeout in different ways
 	if switchover.Cause == CauseAuto && switchover.From == oldMaster {
 		activeNodes = filterOut(activeNodes, []string{oldMaster})
 	}
-
-	err := app.stopActiveNodeOptimization(oldMaster, activeNodes)
-	if err != nil {
-		return err
-	}
-	if switchover.MasterTransition == SwitchoverTransition {
-		err = app.optimizationPhase(activeNodes, switchover, oldMaster, clusterState)
-		if err != nil {
+	if p.phase >= switchoverCatchUp && p.phase <= switchoverPromote {
+		// The original freeze established the quorum. Recheck its reachable
+		// participants on every retry without repeating topology changes.
+		alive := 0
+		for _, host := range p.frozenActiveNodes {
+			if state := clusterState[host]; state != nil && state.PingOk {
+				alive++
+			}
+		}
+		if err := app.switchHelper.CheckFailoverQuorum(activeNodesWithOldMaster, alive); err != nil {
 			return err
 		}
 	}
 
-	if switchover.MasterTransition != FailoverTransition {
-		app.startTiming(timingDowntime, time.Time{})
-	}
-
-	// set read only everywhere (all HA-nodes) and stop replication
-	app.logger.Info().Msg("switchover: phase 1: enter read only")
-	errs := util.RunParallel(func(host string) error {
-		if !clusterState[host].PingOk {
-			return fmt.Errorf("switchover: failed to ping host %s", host)
+	var err error
+	if err := p.run(switchoverOptimization, func() error {
+		err := app.stopActiveNodeOptimization(oldMaster, activeNodes)
+		if err != nil {
+			return err
 		}
-		node := app.cluster.Get(host)
-		// in case node is a master
-
-		if app.config.ForceSwitchover {
-			err := node.SetOfflineForce()
+		if switchover.MasterTransition == SwitchoverTransition {
+			err = app.optimizationPhase(activeNodes, switchover, oldMaster, clusterState)
 			if err != nil {
-				return fmt.Errorf("failed to set node %s force offline: %w", host, err)
-			}
-
-			defer func() {
-				err := node.SetOnline()
-				if err != nil {
-					app.logger.Error().Err(err).Msgf("failed to set node %s online after setting force offline", host)
-				}
-			}()
-		}
-
-		err := node.SetReadOnly(true)
-		if err != nil || app.emulateError("freeze_ro") {
-			app.logger.Info().Msgf("switchover: failed to set node %s read-only, trying kill bad queries: %v", host, err)
-			if err := node.SetReadOnlyWithForce(app.config.ExcludeUsers, true); err != nil {
-				return fmt.Errorf("failed to set node %s read-only: %w", host, err)
+				return err
 			}
 		}
-		app.logger.Info().Msgf("switchover: host %s set read-only", host)
+
+		if switchover.MasterTransition != FailoverTransition {
+			app.startTiming(timingDowntime, time.Time{})
+		}
+
 		return nil
-	}, activeNodes)
-
-	// if master was not among activeNodes - there will be no key in errs
-	// MasterTransition may not be set if issued from worker
-	if err, ok := errs[oldMaster]; ok && err != nil && switchover.MasterTransition != FailoverTransition {
-		err = fmt.Errorf("switchover: failed to set old master %s read-only %w", oldMaster, err)
-		app.logger.Info().Msg(err.Error())
-		switchErr := app.FinishSwitchover(switchover, err)
-		if switchErr != nil {
-			return fmt.Errorf("switchover: failed to reject switchover %w", switchErr)
-		}
-		app.logger.Info().Msg("switchover: rejected")
+	}); err != nil {
 		return err
 	}
-
-	app.logger.Info().Msg("switchover: phase 2: stop replication")
 
 	oldMasterNode := app.cluster.Get(oldMaster)
-	if clusterState[oldMaster].PingOk {
-		err := app.externalReplication.Stop(oldMasterNode)
-		if err != nil {
-			return fmt.Errorf("got error: %w while stopping external replication on old master: %s", err, oldMaster)
-		}
-	}
 
-	errs2 := util.RunParallel(func(host string) error {
-		if !clusterState[host].PingOk {
-			errMessage := fmt.Sprintf("switchover: failed to ping host %s", host)
-			app.logger.Warn().Msg(errMessage)
-			return fmt.Errorf("%s", errMessage)
+	if err := p.run(switchoverFreeze, func() error {
+		// set read only everywhere (all HA-nodes) and stop replication
+		app.logger.Info().Msg("switchover: phase 1: enter read only")
+		errs := util.RunParallel(func(host string) error {
+			if !clusterState[host].PingOk {
+				return fmt.Errorf("switchover: failed to ping host %s", host)
+			}
+			node := app.cluster.Get(host)
+			// in case node is a master
+
+			if app.config.ForceSwitchover {
+				err := node.SetOfflineForce()
+				if err != nil {
+					return fmt.Errorf("failed to set node %s force offline: %w", host, err)
+				}
+
+				defer func() {
+					err := node.SetOnline()
+					if err != nil {
+						app.logger.Error().Err(err).Msgf("failed to set node %s online after setting force offline", host)
+					}
+				}()
+			}
+
+			err := node.SetReadOnly(true)
+			if err != nil || app.emulateError("freeze_ro") {
+				app.logger.Info().Msgf("switchover: failed to set node %s read-only, trying kill bad queries: %v", host, err)
+				if err := node.SetReadOnlyWithForce(app.config.ExcludeUsers, true); err != nil {
+					return fmt.Errorf("failed to set node %s read-only: %w", host, err)
+				}
+			}
+			app.logger.Info().Msgf("switchover: host %s set read-only", host)
+			return nil
+		}, activeNodes)
+
+		// if master was not among activeNodes - there will be no key in errs
+		// MasterTransition may not be set if issued from worker
+		if err, ok := errs[oldMaster]; ok && err != nil && switchover.MasterTransition != FailoverTransition {
+			err = fmt.Errorf("switchover: failed to set old master %s read-only %w", oldMaster, err)
+			app.logger.Info().Msg(err.Error())
+			return err
 		}
-		node := app.cluster.Get(host)
-		// in case node is a replica
-		err := node.StopSlaveIOThread()
-		if err != nil || app.emulateError("freeze_stop_slave_io") {
-			errMessage := fmt.Sprintf("failed to stop slave on host %s: %s", host, err)
-			app.logger.Warn().Msg(errMessage)
-			return fmt.Errorf("%s", errMessage)
+
+		app.logger.Info().Msg("switchover: phase 2: stop replication")
+
+		if clusterState[oldMaster].PingOk {
+			err := app.externalReplication.Stop(oldMasterNode)
+			if err != nil {
+				return fmt.Errorf("got error: %w while stopping external replication on old master: %s", err, oldMaster)
+			}
 		}
-		app.logger.Info().Msgf("switchover: host %s replication IO thread stopped", host)
-		ns := app.getNodeState(host)
-		if broken, _ := ns.IsReplicationPermanentlyBroken(); broken {
-			return fmt.Errorf("switchover: host %s replication is permanently broken", host)
+
+		errs2 := util.RunParallel(func(host string) error {
+			if !clusterState[host].PingOk {
+				errMessage := fmt.Sprintf("switchover: failed to ping host %s", host)
+				app.logger.Warn().Msg(errMessage)
+				return fmt.Errorf("%s", errMessage)
+			}
+			node := app.cluster.Get(host)
+			// in case node is a replica
+			err := node.StopSlaveIOThread()
+			if err != nil || app.emulateError("freeze_stop_slave_io") {
+				errMessage := fmt.Sprintf("failed to stop slave on host %s: %s", host, err)
+				app.logger.Warn().Msg(errMessage)
+				return fmt.Errorf("%s", errMessage)
+			}
+			app.logger.Info().Msgf("switchover: host %s replication IO thread stopped", host)
+			ns := app.getNodeState(host)
+			if broken, _ := ns.IsReplicationPermanentlyBroken(); broken {
+				return fmt.Errorf("switchover: host %s replication is permanently broken", host)
+			}
+			return nil
+		}, filterOut(activeNodes, []string{oldMaster}))
+
+		// count successfully stopped active nodes and check one more time that we have a quorum
+		var frozenActiveNodes []string
+		for _, host := range activeNodes {
+			if errs[host] == nil && errs2[host] == nil {
+				frozenActiveNodes = append(frozenActiveNodes, host)
+			}
 		}
+		err := app.switchHelper.CheckFailoverQuorum(activeNodesWithOldMaster, len(frozenActiveNodes))
+		if err != nil {
+			return err
+		}
+
+		// setting server read-only may take a while so we need to ensure we are still a manager
+		if !app.AcquireLock(pathManagerLock) || app.emulateError("set_read_only_lost_lock") {
+			// Ownership may return before the next tick without a state transition.
+			app.switchoverProgress = nil
+			return errors.New("manger lock lost during switchover, new manager should finish the process, leaving")
+		}
+
+		// collect active host positions
+		app.logger.Info().Msg("switchover: phase 3: find most up-to-date host")
+		positions, err := app.getNodePositions(frozenActiveNodes)
+		if err != nil {
+			return err
+		}
+		if len(positions) != len(frozenActiveNodes) {
+			return errors.New("switchover: failed to collect positions")
+		}
+		if len(positions) == 1 && switchover.From == positions[0].host {
+			return fmt.Errorf("switchover: no suitable nodes to switchover from  %s, delaying", switchover.From)
+		}
+
+		// find most recent host
+		mostRecent, mostRecentGtidSet, splitbrain := findMostRecentNodeAndDetectSplitbrain(positions)
+		if splitbrain {
+			app.writeEmergeFile("splitbrain detected")
+			app.logger.Error().Msgf("SPLITBRAIN")
+			for _, pos := range positions {
+				app.logger.Error().Msgf("splitbrain: %s: %s", pos.host, pos.gtidset)
+			}
+			return fmt.Errorf("splitbrain detected")
+		}
+		app.logger.Info().Msgf("switchover: most up-to-date node is %s with gtidset %s", mostRecent, mostRecentGtidSet)
+
+		// choose new master
+		var newMaster string
+		if switchover.To != "" {
+			newMaster = switchover.To
+		} else if switchover.From != "" {
+			positions2 := filterOutNodeFromPositions(positions, switchover.From)
+			// we ignore splitbrain flag as it should be handled during searching most recent host
+			newMaster, err = getMostDesirableNode(app.logger, positions2, app.switchHelper.GetPriorityChoiceMaxLag())
+			if err != nil {
+				return fmt.Errorf("switchover: error while looking for highest priority node: %s", switchover.From)
+			}
+		} else {
+			newMaster = mostRecent
+		}
+		app.logger.Info().Msgf("switchover: newMaster is %s", newMaster)
+		if !slices.Contains(frozenActiveNodes, newMaster) {
+			return fmt.Errorf("switchover: new master %s was not successfully frozen", newMaster)
+		}
+
+		p.newMaster = newMaster
+		p.mostRecent = mostRecent
+		p.mostRecentGTIDSet = mostRecentGtidSet
+		p.frozenActiveNodes = slices.Clone(frozenActiveNodes)
+
 		return nil
-	}, filterOut(activeNodes, []string{oldMaster}))
-
-	// count successfully stopped active nodes and check one more time that we have a quorum
-	var frozenActiveNodes []string
-	for _, host := range activeNodes {
-		if errs[host] == nil && errs2[host] == nil {
-			frozenActiveNodes = append(frozenActiveNodes, host)
-		}
-	}
-	err = app.switchHelper.CheckFailoverQuorum(activeNodesWithOldMaster, len(frozenActiveNodes))
-	if err != nil {
+	}); err != nil {
 		return err
 	}
 
-	// setting server read-only may take a while so we need to ensure we are still a manager
-	if !app.AcquireLock(pathManagerLock) || app.emulateError("set_read_only_lost_lock") {
-		return errors.New("manger lock lost during switchover, new manager should finish the process, leaving")
-	}
-
-	// collect active host positions
-	app.logger.Info().Msg("switchover: phase 3: find most up-to-date host")
-	positions, err := app.getNodePositions(frozenActiveNodes)
-	if err != nil {
-		return err
-	}
-	if len(positions) != len(frozenActiveNodes) {
-		return errors.New("switchover: failed to collect positions")
-	}
-	if len(positions) == 1 && switchover.From == positions[0].host {
-		return fmt.Errorf("switchover: no suitable nodes to switchover from  %s, delaying", switchover.From)
-	}
-
-	// find most recent host
-	mostRecent, mostRecentGtidSet, splitbrain := findMostRecentNodeAndDetectSplitbrain(positions)
-	if splitbrain {
-		app.writeEmergeFile("splitbrain detected")
-		app.logger.Error().Msgf("SPLITBRAIN")
-		for _, pos := range positions {
-			app.logger.Error().Msgf("splitbrain: %s: %s", pos.host, pos.gtidset)
-		}
-		return fmt.Errorf("splitbrain detected")
-	}
-	app.logger.Info().Msgf("switchover: most up-to-date node is %s with gtidset %s", mostRecent, mostRecentGtidSet)
-
-	// choose new master
-	var newMaster string
-	if switchover.To != "" {
-		newMaster = switchover.To
-	} else if switchover.From != "" {
-		positions2 := filterOutNodeFromPositions(positions, switchover.From)
-		// we ignore splitbrain flag as it should be handled during searching most recent host
-		newMaster, err = getMostDesirableNode(app.logger, positions2, app.switchHelper.GetPriorityChoiceMaxLag())
-		if err != nil {
-			return fmt.Errorf("switchover: error while looking for highest priority node: %s", switchover.From)
-		}
-	} else {
-		newMaster = mostRecent
-	}
-	app.logger.Info().Msgf("switchover: newMaster is %s", newMaster)
-
+	newMaster := p.newMaster
+	mostRecent := p.mostRecent
+	mostRecentGtidSet := p.mostRecentGTIDSet
 	newMasterNode := app.cluster.Get(newMaster)
 
-	// catch up
-	app.logger.Info().Msg("switchover: phase 4: catch up if needed")
-	if newMaster != mostRecent {
-		app.logger.Info().Msgf("switchover: new master %s differs from most recent host %s, need to catch up", newMaster, mostRecent)
-		err := app.cluster.Get(mostRecent).SetOnline()
-		if err != nil || app.emulateError("catchup_set_most_recent_online") {
-			return err
+	if err := p.run(switchoverCatchUp, func() error {
+		// catch up
+		app.logger.Info().Msg("switchover: phase 4: catch up if needed")
+		gtidExecuted, err := newMasterNode.GTIDExecutedParsed()
+		if err != nil {
+			return fmt.Errorf("failed to get gtid executed from %s: %w", newMaster, err)
 		}
-		err = app.performChangeMaster(newMaster, mostRecent)
-		if err != nil || app.emulateError("catchup_change_master") {
-			return err
+		caught := gtidExecuted.Contain(mostRecentGtidSet)
+		if !caught {
+			if newMaster != mostRecent {
+				app.logger.Info().Msgf("switchover: new master %s differs from most recent host %s, need to catch up", newMaster, mostRecent)
+				err := app.cluster.Get(mostRecent).SetOnline()
+				if err != nil {
+					return err
+				}
+				if app.emulateError("catchup_set_most_recent_online") {
+					return errors.New("emulated catchup_set_most_recent_online error")
+				}
+				err = app.performChangeMaster(newMaster, mostRecent)
+				if err != nil {
+					return err
+				}
+				if app.emulateError("catchup_change_master") {
+					return errors.New("emulated catchup_change_master error")
+				}
+			} else {
+				app.logger.Info().Msgf("switchover: new master %s is the most recent host, waiting for all binlogs to be applied", newMaster)
+			}
+			caught, err = app.waitForCatchUp(newMasterNode, mostRecentGtidSet, app.config.SlaveCatchUpTimeout, time.Second)
 		}
-	} else {
-		app.logger.Info().Msgf("switchover: new master %s is the most recent host, waiting for all binlogs to be applied", newMaster)
-	}
-	caught, err := app.waitForCatchUp(newMasterNode, mostRecentGtidSet, app.config.SlaveCatchUpTimeout, time.Second)
-	if err != nil || app.emulateError("catchup_master_status") {
-		return fmt.Errorf("failed to get gtid executed from %s: %w", newMaster, err)
-	}
-	if !caught || app.emulateError("catchup_failed") {
-		return fmt.Errorf("new master %s failed to catch up %s within %s",
-			newMaster, mostRecent, app.config.SlaveCatchUpTimeout)
-	}
-	// catching up may take a while so we need to ensure we are still a manager
-	if !app.AcquireLock(pathManagerLock) || app.emulateError("catchup_lost_lock") {
-		return errors.New("manger lock lost during switchover, new manager should finish the process, leaving")
-	}
-	app.logger.Info().Msgf("switchover: new master %s caught up", newMaster)
+		if err != nil || app.emulateError("catchup_master_status") {
+			return fmt.Errorf("failed to get gtid executed from %s: %w", newMaster, err)
+		}
+		if !caught || app.emulateError("catchup_failed") {
+			return fmt.Errorf("new master %s failed to catch up %s within %s",
+				newMaster, mostRecent, app.config.SlaveCatchUpTimeout)
+		}
+		// catching up may take a while so we need to ensure we are still a manager
+		if !app.AcquireLock(pathManagerLock) || app.emulateError("catchup_lost_lock") {
+			app.switchoverProgress = nil
+			return errors.New("manger lock lost during switchover, new manager should finish the process, leaving")
+		}
+		app.logger.Info().Msgf("switchover: new master %s caught up", newMaster)
 
-	// update lost servers list, it may change during catchup
-	clusterState = app.getClusterStateFromDB()
-	if !clusterState[newMaster].PingOk {
-		return fmt.Errorf("new master %s suddenly became not available during switchover", newMaster)
-	}
-	if dubious := getDubiousHAHosts(clusterState); len(dubious) > 0 {
-		return fmt.Errorf("switchover: failed to ping hosts: %v with dubious errors", dubious)
-	}
-
-	// turn slaves to the new master
-	app.logger.Info().Msg("switchover: phase 5: turn to the new master")
-	err = app.cluster.Get(newMaster).SetOnline()
-	if err != nil {
-		return fmt.Errorf("got error on setting new master %s online %w", newMaster, err)
-	}
-	errs = util.RunParallel(func(host string) error {
-		if host == newMaster || !clusterState[host].PingOk {
-			return nil
-		}
-		err := app.performChangeMaster(host, newMaster)
-		if err != nil || app.emulateError("change_master_failed") {
-			return err
-		}
 		return nil
-	}, activeNodes)
-
-	err = util.CombineErrors(errs)
-	if err != nil {
+	}); err != nil {
 		return err
 	}
 
-	// check if need recover old master
-	oldMasterSlaveStatus, err := oldMasterNode.GetReplicaStatus()
-	app.logger.Info().Msgf("switchover: old master slave status: %#v", oldMasterSlaveStatus)
-	if err != nil || oldMasterSlaveStatus == nil || isSlavePermanentlyLost(oldMasterSlaveStatus, mostRecentGtidSet) {
-		err = app.SetRecovery(oldMaster)
-		if err != nil {
-			return fmt.Errorf("failed to set old master %s to recovery: %w", oldMaster, err)
+	if err := p.run(switchoverTurnReplicas, func() error {
+		// update lost servers list, it may change during catchup
+		clusterState = app.getClusterStateFromDB()
+		if !clusterState[newMaster].PingOk {
+			return fmt.Errorf("new master %s suddenly became not available during switchover", newMaster)
 		}
-	} else {
-		app.logger.Info().Msgf("switchover: old master %s does not need recovery", oldMaster)
-		err = app.externalReplication.Reset(oldMasterNode)
-		if err != nil {
-			return fmt.Errorf("got error: %w while resetting external replication on old master: %s", err, oldMaster)
+		if dubious := getDubiousHAHosts(clusterState); len(dubious) > 0 {
+			return fmt.Errorf("switchover: failed to ping hosts: %v with dubious errors", dubious)
 		}
+
+		// turn slaves to the new master
+		app.logger.Info().Msg("switchover: phase 5: turn to the new master")
+		err = app.cluster.Get(newMaster).SetOnline()
+		if err != nil {
+			return fmt.Errorf("got error on setting new master %s online %w", newMaster, err)
+		}
+		errs := util.RunParallel(func(host string) error {
+			if host == newMaster || !clusterState[host].PingOk {
+				return nil
+			}
+			err := app.performChangeMaster(host, newMaster)
+			if err != nil {
+				return err
+			}
+			if app.emulateError("change_master_failed") {
+				return errors.New("emulated change_master_failed error")
+			}
+			return nil
+		}, activeNodes)
+
+		err = util.CombineErrors(errs)
+		if err != nil {
+			return err
+		}
+
+		// check if need recover old master
+		oldMasterSlaveStatus, err := oldMasterNode.GetReplicaStatus()
+		app.logger.Info().Msgf("switchover: old master slave status: %#v", oldMasterSlaveStatus)
+		if err != nil || oldMasterSlaveStatus == nil || isSlavePermanentlyLost(oldMasterSlaveStatus, mostRecentGtidSet) {
+			err = app.SetRecovery(oldMaster)
+			if err != nil {
+				return fmt.Errorf("failed to set old master %s to recovery: %w", oldMaster, err)
+			}
+		} else {
+			app.logger.Info().Msgf("switchover: old master %s does not need recovery", oldMaster)
+			err = app.externalReplication.Reset(oldMasterNode)
+			if err != nil {
+				return fmt.Errorf("got error: %w while resetting external replication on old master: %s", err, oldMaster)
+			}
+		}
+
+		return nil
+	}); err != nil {
+		return err
 	}
 
-	// promote new master
-	app.logger.Info().Msg("switchover: phase 6: promote new master")
-	err = newMasterNode.StopSlave()
-	if err != nil || app.emulateError("promote_stop_slave") {
-		return fmt.Errorf("failed to stop slave on new master %s: %w", newMaster, err)
-	}
-	err = newMasterNode.ResetSlaveAll()
-	if err != nil || app.emulateError("promote_reset_slave") {
-		return fmt.Errorf("failed to promote new master %s: %w", newMaster, err)
-	}
-	app.logger.Info().Msgf("switchover: new master %s promoted", newMaster)
+	if err := p.run(switchoverPromote, func() error {
+		// promote new master
+		app.logger.Info().Msg("switchover: phase 6: promote new master")
+		state := app.getNodeState(newMaster)
+		if !state.PingOk {
+			return fmt.Errorf("new master %s is unavailable during promotion", newMaster)
+		}
+		if state.IsMaster {
+			return nil
+		}
+		err = newMasterNode.StopSlave()
+		if err != nil || app.emulateError("promote_stop_slave") {
+			return fmt.Errorf("failed to stop slave on new master %s: %w", newMaster, err)
+		}
+		err = newMasterNode.ResetSlaveAll()
+		if err != nil || app.emulateError("promote_reset_slave") {
+			return fmt.Errorf("failed to promote new master %s: %w", newMaster, err)
+		}
+		app.logger.Info().Msgf("switchover: new master %s promoted", newMaster)
 
-	// adjust semi-sync before finishing switchover
-	clusterState = app.getClusterStateFromDB()
-	err = app.updateActiveNodes(clusterState, clusterState, activeNodesWithOldMaster, newMaster)
-	if err != nil || app.emulateError("update_active_nodes") {
-		app.logger.Warn().Msgf("switchover: failed to update active nodes after switchover: %v", err)
-	}
-
-	// set new master writable
-	err = newMasterNode.SetWritable()
-	if err != nil || app.emulateError("promote_set_writable") {
-		return fmt.Errorf("failed to set new master %s writable: %w", newMaster, err)
-	}
-	app.logger.Info().Msgf("switchover: new master %s set writable", newMaster)
-
-	app.stopTiming(timingDowntime)
-
-	// reenable events
-	events, err := newMasterNode.ReenableEventsRetry()
-	if err != nil || app.emulateError("promote_reenable_events") {
-		return fmt.Errorf("failed to reenable slaveside disabled events on %s: %w", newMaster, err)
-	}
-	if len(events) > 0 {
-		app.logger.Info().Msgf("switchover: events reenabled on %s: %v", newMaster, events)
+		return nil
+	}); err != nil {
+		return err
 	}
 
-	// enable external replication
-	err = app.externalReplication.Set(newMasterNode)
-	if err != nil {
-		app.logger.Error().Msgf("failed to set external replication on new master")
+	if err := p.run(switchoverAdjustSemiSync, func() error {
+		// adjust semi-sync before finishing switchover
+		clusterState = app.getClusterStateFromDB()
+		err = app.updateActiveNodes(clusterState, clusterState, activeNodesWithOldMaster, newMaster)
+		if err != nil || app.emulateError("update_active_nodes") {
+			return fmt.Errorf("switchover: failed to update active nodes after switchover: %w", err)
+		}
+
+		return nil
+	}); err != nil {
+		return err
 	}
 
-	// set new master in dcs
-	_, err = app.SetMasterHost(newMaster)
-	if err != nil || app.emulateError("promote_set_to_dcs") {
-		return fmt.Errorf("failed to set new master to dcs: %w", err)
+	if err := p.run(switchoverMakeWritable, func() error {
+		// set new master writable
+		err = newMasterNode.SetWritable()
+		if err != nil || app.emulateError("promote_set_writable") {
+			return fmt.Errorf("failed to set new master %s writable: %w", newMaster, err)
+		}
+		app.logger.Info().Msgf("switchover: new master %s set writable", newMaster)
+
+		app.stopTiming(timingDowntime)
+
+		return nil
+	}); err != nil {
+		return err
+	}
+
+	if err := p.run(switchoverReenableEvents, func() error {
+		// reenable events
+		events, err := newMasterNode.ReenableEventsRetry()
+		if err != nil || app.emulateError("promote_reenable_events") {
+			return fmt.Errorf("failed to reenable slaveside disabled events on %s: %w", newMaster, err)
+		}
+		if len(events) > 0 {
+			app.logger.Info().Msgf("switchover: events reenabled on %s: %v", newMaster, events)
+		}
+
+		return nil
+	}); err != nil {
+		return err
+	}
+
+	if err := p.run(switchoverSetExternalReplication, func() error {
+		// enable external replication
+		err = app.externalReplication.Set(newMasterNode)
+		if err != nil {
+			app.logger.Error().Msgf("failed to set external replication on new master")
+		}
+
+		return nil
+	}); err != nil {
+		return err
+	}
+
+	if err := p.run(switchoverSetMasterInDCS, func() error {
+		// set new master in dcs
+		_, err = app.SetMasterHost(newMaster)
+		if err != nil || app.emulateError("promote_set_to_dcs") {
+			return fmt.Errorf("failed to set new master to dcs: %w", err)
+		}
+
+		return nil
+	}); err != nil {
+		return err
 	}
 
 	return nil
@@ -2361,9 +2518,12 @@ func (app *App) waitForCatchUp(node *mysql.Node, gtidset gtids.GTIDSet, timeout 
 		if gtidExecuted.Contain(gtidset) {
 			return true, nil
 		}
-		switchover := new(Switchover)
-		if errors.Is(app.GetCurrentSwitchover(switchover), dcs.ErrNotFound) {
+		switchover, err := app.GetCurrentSwitchover()
+		if errors.Is(err, dcs.ErrNotFound) {
 			return false, nil
+		}
+		if err != nil {
+			return false, err
 		}
 		if app.CheckAsyncSwitchAllowed(node, switchover) {
 			return true, nil
@@ -2476,6 +2636,14 @@ func (app *App) CloseLogger() {
 	app.loggerCloser.Close()
 }
 
+// setState invalidates manager-local progress across state transitions.
+func (app *App) setState(state appState) {
+	if state != app.state {
+		app.switchoverProgress = nil
+	}
+	app.state = state
+}
+
 // Run enters the main application loop
 // When Run exits mysync process is over
 func (app *App) Run() int {
@@ -2541,7 +2709,7 @@ func (app *App) Run() int {
 					break
 				}
 				// TODO: update state file ?
-				app.state = nextState
+				app.setState(nextState)
 			}
 		case <-ctx.Done():
 			return 0

@@ -196,8 +196,12 @@ func (a *appDCS) GetLastSwitchover(switchover *Switchover) error {
 
 // GetCurrentSwitchover reads the current in-progress switchover from ZK.
 // Returns dcs.ErrNotFound if no switchover is in progress.
-func (a *appDCS) GetCurrentSwitchover(switchover *Switchover) error {
-	return a.dcs.Get(pathCurrentSwitch, switchover)
+func (a *appDCS) GetCurrentSwitchover() (*Switchover, error) {
+	switchover := new(Switchover)
+	if err := a.dcs.Get(pathCurrentSwitch, switchover); err != nil {
+		return nil, err
+	}
+	return switchover, nil
 }
 
 // CreateCurrentSwitchover creates a new switchover record in ZK (fails if one already exists).

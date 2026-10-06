@@ -1,6 +1,7 @@
 package app
 
 import (
+	"fmt"
 	"time"
 
 	nodestate "github.com/yandex/mysync/internal/app/node_state"
@@ -123,6 +124,9 @@ func (app *App) GetOrCreateLastShutdownNodeTime() (time.Time, error) {
 // FinishSwitchover finishes the current switchover and writes the result.
 // Kept on *App because it calls timing methods (stopTiming, logSwitchoverFailure).
 func (app *App) FinishSwitchover(switchover *Switchover, switchErr error) error {
+	if switchErr != nil && app.switchoverStarted(switchover) {
+		return fmt.Errorf("cannot reject switchover after MySQL changes have started: %w", switchErr)
+	}
 	result := true
 	action := "finished"
 	path := pathLastSwitch
@@ -155,15 +159,17 @@ func (app *App) FinishSwitchover(switchover *Switchover, switchErr error) error 
 	if err != nil {
 		return err
 	}
+	app.switchoverProgress = nil
 	if path == pathLastSwitch {
 		return app.appDCS.SetLastSwitchover(switchover)
 	}
 	return app.appDCS.SetLastRejectedSwitchover(switchover)
 }
 
-// FailSwitchover marks the current switchover as failed (will be retried next cycle).
+// RecordSwitchoverAttemptFailure records a failed attempt and keeps the current
+// switchover pending for retry on the next cycle.
 // Kept on *App for symmetry with FinishSwitchover and StartSwitchover.
-func (app *App) FailSwitchover(switchover *Switchover, err error) error {
+func (app *App) RecordSwitchoverAttemptFailure(switchover *Switchover, err error) error {
 	app.logger.Error().Err(err).Msgf("switchover: %s => %s failed", switchover.From, switchover.To)
 	switchover.RunCount++
 	switchover.Result = new(SwitchoverResult)
@@ -187,8 +193,8 @@ func (app *App) StartSwitchover(switchover *Switchover) error {
 
 // GetCurrentSwitchover reads the current in-progress switchover from ZK.
 // Returns dcs.ErrNotFound if no switchover is in progress.
-func (app *App) GetCurrentSwitchover(switchover *Switchover) error {
-	return app.appDCS.GetCurrentSwitchover(switchover)
+func (app *App) GetCurrentSwitchover() (*Switchover, error) {
+	return app.appDCS.GetCurrentSwitchover()
 }
 
 // CreateCurrentSwitchover creates a new switchover record in ZK (fails if one already exists).
