@@ -481,7 +481,7 @@ func (app *App) stateManager() appState {
 	// check if switchover required or in progress
 	if switchover != nil {
 		// failover via DCS is suppressed during light maintenance (only manual switchover is allowed)
-		if lightMaintenance && switchover.MasterTransition == FailoverTransition {
+		if lightMaintenance && switchover.IsFailover() {
 			app.logger.Info().Msgf("failover suppressed by light maintenance mode")
 			// A pending operation may already have changed replication sources.
 			// Do not repair that intermediate topology while it is suspended.
@@ -825,7 +825,7 @@ func (app *App) approveSwitchover(switchover *Switchover, activeNodes []string, 
 		return nil
 	}
 	// Limit amount of switchover retries
-	if switchover.MasterTransition != FailoverTransition &&
+	if !switchover.IsFailover() &&
 		app.config.SwitchoverMaxAttempts > 0 && switchover.RunCount >= app.config.SwitchoverMaxAttempts {
 		return fmt.Errorf("switchover failed %d times, giving up after reaching switchover_max_attempts (%d)",
 			switchover.RunCount, app.config.SwitchoverMaxAttempts)
@@ -1294,21 +1294,10 @@ func (app *App) performSwitchover(clusterState map[string]*nodestate.NodeState, 
 		app.logger.Info().Msgf("switchover: resuming %s, old master %s, new master %s",
 			app.switchoverProgress.phase, app.switchoverProgress.oldMaster, app.switchoverProgress.newMaster)
 	}
-	if switchover.To != "" {
-		if !slices.Contains(activeNodes, switchover.To) {
-			return errors.New("switchover: failed: replica is not active, can't switch to it")
-		}
-	}
-	// do not perform switchover if we have connection problems with some hosts
-	if !app.switchoverProgress.matches(switchover) || app.switchoverProgress.phase <= switchoverPromote {
-		if dubious := getDubiousHAHosts(clusterState); len(dubious) > 0 {
-			return fmt.Errorf("switchover: failed to ping hosts: %v with dubious errors", dubious)
-		}
-	}
-	app.logger.Info().Msgf("switchover: %+v", switchover.MasterTransition)
-
 	p := app.switchoverProgress
 	if !p.matches(switchover) {
+		// Track the attempt before prechecks: a failure here must not make
+		// RunCount look like evidence that MySQL changes have started.
 		p = &switchoverProgress{
 			request:                  *switchover,
 			oldMaster:                oldMaster,
@@ -1321,6 +1310,19 @@ func (app *App) performSwitchover(clusterState map[string]*nodestate.NodeState, 
 		}
 		app.switchoverProgress = p
 	}
+	if switchover.To != "" {
+		if !slices.Contains(activeNodes, switchover.To) {
+			return errors.New("switchover: failed: replica is not active, can't switch to it")
+		}
+	}
+	// do not perform switchover if we have connection problems with some hosts
+	if p.phase <= switchoverPromote {
+		if dubious := getDubiousHAHosts(clusterState); len(dubious) > 0 {
+			return fmt.Errorf("switchover: failed to ping hosts: %v with dubious errors", dubious)
+		}
+	}
+	app.logger.Info().Msgf("switchover: %+v", switchover.MasterTransition)
+
 	oldMaster = p.oldMaster
 	activeNodesWithOldMaster := p.activeNodesWithOldMaster
 	activeNodes = slices.Clone(activeNodesWithOldMaster)
@@ -1342,6 +1344,13 @@ func (app *App) performSwitchover(clusterState map[string]*nodestate.NodeState, 
 			return err
 		}
 	}
+	if switchover.IsFailover() && switchover.To == "" && p.phase == switchoverCatchUp {
+		// No other host has been turned to the candidate yet. Repeat freeze and
+		// selection so a failover without an explicit destination can replace the candidate.
+		// Once turn-replicas starts, even a failed attempt may change the topology.
+		app.logger.Info().Msg("switchover: retrying failover from freeze")
+		p.phase = switchoverFreeze
+	}
 
 	var err error
 	if err := p.run(switchoverOptimization, func() error {
@@ -1356,7 +1365,7 @@ func (app *App) performSwitchover(clusterState map[string]*nodestate.NodeState, 
 			}
 		}
 
-		if switchover.MasterTransition != FailoverTransition {
+		if !switchover.IsFailover() {
 			app.startTiming(timingDowntime, time.Time{})
 		}
 
@@ -1404,7 +1413,7 @@ func (app *App) performSwitchover(clusterState map[string]*nodestate.NodeState, 
 
 		// if master was not among activeNodes - there will be no key in errs
 		// MasterTransition may not be set if issued from worker
-		if err, ok := errs[oldMaster]; ok && err != nil && switchover.MasterTransition != FailoverTransition {
+		if err, ok := errs[oldMaster]; ok && err != nil && !switchover.IsFailover() {
 			err = fmt.Errorf("switchover: failed to set old master %s read-only %w", oldMaster, err)
 			app.logger.Info().Msg(err.Error())
 			return err
@@ -1484,6 +1493,11 @@ func (app *App) performSwitchover(clusterState map[string]*nodestate.NodeState, 
 			return fmt.Errorf("splitbrain detected")
 		}
 		app.logger.Info().Msgf("switchover: most up-to-date node is %s with gtidset %s", mostRecent, mostRecentGtidSet)
+		if p.mostRecentGTIDSet != nil && !mostRecentGtidSet.Contain(p.mostRecentGTIDSet) {
+			// Reselecting must not discard transactions observed before the candidate failed.
+			return fmt.Errorf("switchover: most recent host %s does not contain previously frozen GTID set %s",
+				mostRecent, p.mostRecentGTIDSet)
+		}
 
 		// choose new master
 		var newMaster string

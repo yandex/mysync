@@ -52,6 +52,10 @@ type Switchover struct {
 	RunCount         int               `json:"run_count,omitempty"`
 }
 
+func (sw *Switchover) IsFailover() bool {
+	return sw.MasterTransition == FailoverTransition
+}
+
 func (sw *Switchover) String() string {
 	var state string
 	if sw.Result != nil {

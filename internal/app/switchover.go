@@ -24,11 +24,33 @@ const (
 	switchoverComplete
 )
 
+const (
+	switchoverOptimizationName           = "optimization"
+	switchoverFreezeName                 = "freeze"
+	switchoverCatchUpName                = "catch up"
+	switchoverTurnReplicasName           = "turn replicas"
+	switchoverPromoteName                = "promote"
+	switchoverAdjustSemiSyncName         = "adjust semi-sync"
+	switchoverMakeWritableName           = "make writable"
+	switchoverReenableEventsName         = "reenable events"
+	switchoverSetExternalReplicationName = "set external replication"
+	switchoverSetMasterInDCSName         = "set master in DCS"
+	switchoverCompleteName               = "complete"
+)
+
 func (phase switchoverPhase) String() string {
 	names := [...]string{
-		"optimization", "freeze", "catch up", "turn replicas", "promote",
-		"adjust semi-sync", "make writable", "reenable events",
-		"set external replication", "set master in DCS", "complete",
+		switchoverOptimization:           switchoverOptimizationName,
+		switchoverFreeze:                 switchoverFreezeName,
+		switchoverCatchUp:                switchoverCatchUpName,
+		switchoverTurnReplicas:           switchoverTurnReplicasName,
+		switchoverPromote:                switchoverPromoteName,
+		switchoverAdjustSemiSync:         switchoverAdjustSemiSyncName,
+		switchoverMakeWritable:           switchoverMakeWritableName,
+		switchoverReenableEvents:         switchoverReenableEventsName,
+		switchoverSetExternalReplication: switchoverSetExternalReplicationName,
+		switchoverSetMasterInDCS:         switchoverSetMasterInDCSName,
+		switchoverComplete:               switchoverCompleteName,
 	}
 	if phase < 0 || phase >= switchoverPhase(len(names)) {
 		return fmt.Sprintf("unknown (%d)", phase)
@@ -83,8 +105,7 @@ func (app *App) getMasterForSwitchover(clusterState map[string]*nodestate.NodeSt
 	return app.getCurrentMaster(clusterState)
 }
 
-// run advances only on success. Retrying a partially applied phase is required,
-// but phases that completed must not be replayed
+// run advances only on success and skips actions before the current checkpoint.
 func (p *switchoverProgress) run(phase switchoverPhase, action func() error) error {
 	if p.phase > phase {
 		return nil

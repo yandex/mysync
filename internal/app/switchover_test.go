@@ -204,6 +204,107 @@ func TestFinishSwitchoverCannotRejectStartedRequest(t *testing.T) {
 	require.ErrorContains(t, err, "cannot reject switchover")
 }
 
+func TestSwitchoverPrecheckFailureKeepsLimitsEnabled(t *testing.T) {
+	for _, tc := range []struct {
+		name      string
+		dubious   bool
+		wantError string
+	}{
+		{name: "dubious host", dubious: true, wantError: "dubious errors"},
+		{name: "inactive destination", wantError: "replica is not active"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			// Arrange: the initial quorum check succeeds, but a later precheck will fail.
+			ctrl := gomock.NewController(t)
+			mockDCS := NewMockIAppDCS(ctrl)
+			cfg := minConfig()
+			cfg.SemiSync = true
+			cfg.RplSemiSyncMasterWaitForSlaveCount = 2
+			cfg.SwitchoverMaxAttempts = 1
+			cfg.SwitchoverTimeout = time.Minute
+			app := newTestApp(t, cfg, mockDCS)
+			app.dcs = switchoverTimingDCS{}
+			// No MySQL cluster is configured: reaching SQL mutations would panic.
+			hosts := []string{"A", "B", "C", "D", "E"}
+			cs := clusterState("A", "B", "C", "D", "E")
+			if tc.dubious {
+				cs["E"].PingOk, cs["E"].PingDubious = false, true
+			} else {
+				hosts = []string{"A", "C", "D", "E"}
+			}
+			sw := testSwitchover()
+			sw.To, sw.Cause = "B", CauseManual
+			var rejected *Switchover
+			gomock.InOrder(
+				mockDCS.EXPECT().SetCurrentSwitchover(&sw).Return(nil),
+				mockDCS.EXPECT().DeleteCurrentSwitchover().Return(nil),
+				mockDCS.EXPECT().SetLastRejectedSwitchover(gomock.Any()).DoAndReturn(func(result *Switchover) error {
+					rejected = result
+					return nil
+				}),
+			)
+
+			// Act: run the first attempt until its precheck fails.
+			approvalErr := app.approveSwitchover(&sw, hosts, cs)
+			err := app.performSwitchover(cs, hosts, &sw, "A")
+
+			// Assert: progress records that freeze has not started.
+			require.NoError(t, approvalErr)
+			require.ErrorContains(t, err, tc.wantError)
+			require.NotNil(t, app.switchoverProgress)
+			require.Equal(t, switchoverOptimization, app.switchoverProgress.phase)
+
+			// Act: record the failed attempt and evaluate the next cycle's limits.
+			recordErr := app.RecordSwitchoverAttemptFailure(&sw, err)
+			started := app.switchoverStarted(&sw)
+			timedOut := app.switchoverTimedOut(&sw, sw.InitiatedAt.Add(time.Hour))
+			approvalErr = app.approveSwitchover(&sw, hosts, cs)
+
+			// Assert: incrementing RunCount does not disable either limit.
+			require.NoError(t, recordErr)
+			require.Equal(t, 1, sw.RunCount)
+			require.False(t, started)
+			require.True(t, timedOut)
+			require.ErrorContains(t, approvalErr, "switchover_max_attempts")
+
+			// Act: reject the request after exhausting the attempt limit.
+			finishErr := app.FinishSwitchover(&sw, approvalErr)
+
+			// Assert: the pending request is removed and its rejection is recorded.
+			require.NoError(t, finishErr)
+			require.Nil(t, app.switchoverProgress)
+			require.NotNil(t, rejected)
+			require.False(t, rejected.Result.Ok)
+			require.Equal(t, approvalErr.Error(), rejected.Result.Error)
+		})
+	}
+}
+
+func TestSwitchoverPrecheckKeepsUnknownRetryConservative(t *testing.T) {
+	// Arrange: a retried request arrives without this manager's local history.
+	ctrl := gomock.NewController(t)
+	cfg := minConfig()
+	cfg.SwitchoverMaxAttempts = 1
+	app := newTestApp(t, cfg, NewMockIAppDCS(ctrl))
+	sw := testSwitchover()
+	sw.RunCount = 1
+	cs := clusterState("old", "new", "uncertain")
+	cs["uncertain"].PingOk, cs["uncertain"].PingDubious = false, true
+	hosts := []string{"old", "new", "uncertain"}
+
+	// Act: fail the precheck, then evaluate whether this request can be rejected.
+	err := app.performSwitchover(cs, hosts, &sw, "old")
+	started := app.switchoverStarted(&sw)
+	approvalErr := app.approveSwitchover(&sw, hosts, cs)
+
+	// Assert: unknown earlier MySQL changes must still be treated conservatively.
+	require.ErrorContains(t, err, "dubious errors")
+	require.NotNil(t, app.switchoverProgress)
+	require.Equal(t, switchoverFreeze, app.switchoverProgress.phase)
+	require.True(t, started)
+	require.NoError(t, approvalErr)
+}
+
 func TestGetMasterForPendingSwitchover(t *testing.T) {
 	for _, phase := range []switchoverPhase{switchoverTurnReplicas, switchoverSetMasterInDCS} {
 		t.Run(phase.String(), func(t *testing.T) {
