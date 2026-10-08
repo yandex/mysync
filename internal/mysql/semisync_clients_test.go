@@ -476,10 +476,10 @@ func TestSemiSyncMutationsRedetectDialect(t *testing.T) {
 					require.NotNil(t, node.semiSyncDialectCache)
 					require.Equal(t, direction.expected, *node.semiSyncDialectCache)
 					require.Equal(t, []string{
-						DefaultQueries[querySetLockTimeout],
+						"SET SESSION lock_wait_timeout = 1",
 						wrongQuery,
 						DefaultQueries[querySemiSyncPlugins],
-						DefaultQueries[querySetLockTimeout],
+						"SET SESSION lock_wait_timeout = 1",
 						expectedQuery,
 					}, connector.queries)
 				})
