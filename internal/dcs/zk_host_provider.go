@@ -49,6 +49,8 @@ func NewRandomHostProvider(ctx context.Context, config *RandomHostProviderConfig
 }
 
 func (rhp *RandomHostProvider) Init(servers []string) error {
+	rhp.hostsKeys = nil
+	rhp.hosts = sync.Map{}
 	var allResolvedServers []string
 
 	for _, host := range servers {
@@ -86,7 +88,8 @@ func (rhp *RandomHostProvider) checkZKConnectivity(servers []string) error {
 	}
 
 	for _, server := range servers {
-		conn, err := net.DialTimeout("tcp", server, rhp.connectivityCheckTimeout)
+		dialer := net.Dialer{Timeout: rhp.connectivityCheckTimeout}
+		conn, err := dialer.DialContext(rhp.ctx, "tcp", server)
 		if err == nil {
 			conn.Close()
 			rhp.logger.Info().Msgf("zk connectivity check succeeded for %s", server)
@@ -100,6 +103,7 @@ func (rhp *RandomHostProvider) checkZKConnectivity(servers []string) error {
 
 func (rhp *RandomHostProvider) resolveHosts() {
 	ticker := time.NewTicker(rhp.lookupTickInterval)
+	defer ticker.Stop()
 	for {
 		select {
 		case <-ticker.C:
@@ -149,11 +153,26 @@ func (rhp *RandomHostProvider) Len() int {
 }
 
 func (rhp *RandomHostProvider) Next() (server string, retryStart bool) {
+	if rhp.ctx.Err() != nil {
+		rhp.isRetry = false
+		return rhp.hostsKeys[0], true
+	}
 	if rhp.isRetry {
 		v := time.Duration(rand.Float64() * float64(rhp.retryJitter))
 		rhp.logger.Info().Msgf("Triggering connection retry jitter: %v", v)
-		time.Sleep(v)
+		timer := time.NewTimer(v)
+		select {
+		case <-timer.C:
+		case <-rhp.ctx.Done():
+			timer.Stop()
+			rhp.isRetry = false
+			return rhp.hostsKeys[0], true
+		}
 		rhp.isRetry = false
+	}
+	if rhp.ctx.Err() != nil {
+		rhp.isRetry = false
+		return rhp.hostsKeys[0], true
 	}
 	needRetry := false
 
