@@ -50,6 +50,7 @@ type App struct {
 	switchHelper        mysql.ISwitchHelper
 	lostQuorumTime      time.Time
 	switchoverProgress  *switchoverProgress
+	failoverProgress    *failoverProgress
 
 	optSyncer         OptimizationSyncer
 	optController     OptimizationController
@@ -562,6 +563,7 @@ func (app *App) stateManager() appState {
 			return stateManager
 		}
 	} else {
+		app.failoverProgress = nil
 		if !app.t.Get(NodeFailedAt, master).IsZero() {
 			app.stopTiming(timingDowntime)
 			app.t.Clean(NodeFailedAt, master)
@@ -741,13 +743,14 @@ func (app *App) approveFailover(clusterState, clusterStateDcs map[string]*nodest
 	}
 	afterCrashRecovery := clusterStateDcs[master].DaemonState != nil && clusterStateDcs[master].DaemonState.CrashRecovery && app.config.ResetupCrashedHosts
 	if afterCrashRecovery {
+		app.failoverProgress = nil
 		app.logger.Info().Msgf("approve failover: after crash recovery, skip replication and delay checks")
 	} else if clusterStateDcs[master].IsFileSystemReadonly {
+		app.failoverProgress = nil
 		app.logger.Info().Msgf("approve failover: filesystem is readonly, skip replication and delay checks")
 	} else {
-		runningHASlaves := countRunningHASlaves(clusterState)
-		if runningHASlaves > 0 && runningHASlaves == countHANodes(clusterState)-1 {
-			return fmt.Errorf("%d replicas are alive and running replication, seems zk problems", runningHASlaves)
+		if err := app.checkFailoverReplication(clusterState, clusterStateDcs, master, time.Now()); err != nil {
+			return err
 		}
 		if app.config.FailoverDelay > 0 {
 			failingTime := time.Since(app.t.Get(NodeFailedAt, master))
@@ -2654,6 +2657,7 @@ func (app *App) CloseLogger() {
 func (app *App) setState(state appState) {
 	if state != app.state {
 		app.switchoverProgress = nil
+		app.failoverProgress = nil
 	}
 	app.state = state
 }

@@ -121,6 +121,13 @@ show_only_gtid_diff: False
 force_switchover: False
 ```
 
+When the master fails, replicas still reporting running replication are checked for
+GTID progress (both received and executed transactions). Failover waits until the
+GTIDs remain unchanged for `failover_delay`, with a minimum of one `tick_interval`.
+If all replicas are running, this requires a failed local health check from the
+master and a failed manager connection; a missing ZooKeeper health record alone
+does not establish that an idle master has failed.
+
 ### Usage
 
 ```
