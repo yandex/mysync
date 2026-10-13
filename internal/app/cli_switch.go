@@ -132,10 +132,9 @@ func (app *App) CliSwitch(switchFrom, switchTo string, waitTimeout time.Duration
 		}
 	}
 
-	var switchover Switchover
-	err = app.GetCurrentSwitchover(&switchover)
+	currentSwitchover, err := app.GetCurrentSwitchover()
 	if err == nil {
-		app.logger.Error().Msgf("Another switchover in progress %v", switchover)
+		app.logger.Error().Msgf("Another switchover in progress %v", *currentSwitchover)
 		return 2
 	}
 	if !errors.Is(err, dcs.ErrNotFound) {
@@ -143,6 +142,7 @@ func (app *App) CliSwitch(switchFrom, switchTo string, waitTimeout time.Duration
 		return 2
 	}
 
+	var switchover Switchover
 	switchover.From = fromHost
 	switchover.To = toHost
 	switchover.InitiatedBy = util.GuessWhoRunning() + "@" + app.config.Hostname
@@ -207,7 +207,7 @@ func (app *App) CliAbort() int {
 	defer app.dcs.Close()
 	app.dcs.Initialize()
 
-	err = app.GetCurrentSwitchover(new(Switchover))
+	_, err = app.GetCurrentSwitchover()
 	if errors.Is(err, dcs.ErrNotFound) {
 		fmt.Println("no active switchover")
 		return 0

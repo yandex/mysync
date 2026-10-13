@@ -85,10 +85,10 @@ Feature: manual switchover from old master
       | true              |
       | false             |
 
-  Scenario: switchover gives up and releases the master after reaching max attempts
+  Scenario: started switchover keeps retrying after reaching max attempts
     Given cluster environment is
       """
-      MYSYNC_SWITCHOVER_MAX_ATTEMPTS=60
+      MYSYNC_SWITCHOVER_MAX_ATTEMPTS=1
       """
     And cluster is up and running
     Then mysql host "mysql1" should be master
@@ -98,8 +98,8 @@ Feature: manual switchover from old master
       """
     When mysql on host "mysql3" is killed
     And mysql on host "mysql2" is killed
-    # pre-set run_count so the switchover is already approved and enters the retry loop;
-    # with both replicas dead it can never reach quorum and keeps failing
+    # A retried request without local progress is conservatively treated as started.
+    # Its existing run_count already reaches the limit, but it must not be rejected.
     And I set zookeeper node "/test/switch" to
       """
       {
@@ -111,22 +111,38 @@ Feature: manual switchover from old master
           "master_transition": "switchover"
       }
       """
-    # after switchover_max_attempts unsuccessful attempts mysync stops retrying and rejects the switchover
-    Then zookeeper node "/test/last_rejected_switch" should match json within "250" seconds
+    Then zookeeper node "/test/switch" should match json within "20" seconds
       """
       {
           "from": "mysql1",
           "master_transition": "switchover",
           "result": {
               "ok": false,
-              "error": "REGEXP:.*giving up after reaching switchover_max_attempts.*"
+              "error": "REGEXP:.*no quorum.*"
           }
       }
       """
-    And zookeeper node "/test/switch" should not exist
-    # the old master must be released from read-only instead of being held there forever
+    When I wait for "15" seconds
+    Then zookeeper node "/test/last_rejected_switch" should not exist
+    And zookeeper node "/test/switch" should match json
+      """
+      {"from": "mysql1", "result": {"ok": false}}
+      """
     And mysql host "mysql1" should be master
-    And mysql host "mysql1" should become writable within "30" seconds
+    And mysql host "mysql1" should be read only
+    When mysql on host "mysql3" is started
+    And mysql on host "mysql2" is started
+    Then zookeeper node "/test/last_switch" should match json within "30" seconds
+      """
+      {"from": "mysql1", "master_transition": "switchover", "result": {"ok": true}}
+      """
+    And zookeeper node "/test/switch" should not exist
+    When I get zookeeper node "/test/master"
+    And I save zookeeper query result as "new_master"
+    Then mysql host "{{.new_master}}" should be master
+    And mysql host "{{.new_master}}" should be writable
+    And mysql host "mysql1" should be replica of "{{.new_master}}"
+    And mysql replication on host "mysql1" should run fine within "10" seconds
 
   Scenario Outline: switchover from works on healthy cluster
     Given cluster environment is
@@ -332,7 +348,12 @@ Feature: manual switchover from old master
     And mysql replication on host "mysql1" should run fine within "10" seconds
     And mysql host "mysql1" should be read only
 
-  Scenario: switchover from does not work with dead master
+  Scenario: switchover from waits for dead master to recover
+    Given cluster environment is
+      """
+      MYSYNC_SWITCHOVER_MAX_ATTEMPTS=1
+      MYSYNC_SWITCHOVER_TIMEOUT=10s
+      """
     Given cluster is up and running
     Then zookeeper node "/test/active_nodes" should match json_exactly within "20" seconds
       """
@@ -363,7 +384,7 @@ Feature: manual switchover from old master
         "master_transition": "switchover"
       }
       """
-    Then zookeeper node "/test/last_rejected_switch" should match json within "30" seconds
+    Then zookeeper node "/test/switch" should match json within "30" seconds
       """
       {
         "from": "mysql1",
@@ -375,6 +396,33 @@ Feature: manual switchover from old master
       }
 
       """
+    # Freeze has started: exhausting the limits must keep the request pending.
+    When I wait for "15" seconds
+    Then zookeeper node "/test/last_rejected_switch" should not exist
+    And zookeeper node "/test/switch" should match json
+      """
+      {"from": "mysql1", "result": {"ok": false}}
+      """
+    And zookeeper node "/test/master" should match json_exactly
+      """
+      "mysql1"
+      """
+    And mysql host "mysql1" should become unavailable within "10" seconds
+    And mysql host "mysql2" should be replica of "mysql1"
+    And mysql host "mysql2" should be read only
+    And mysql host "mysql3" should be replica of "mysql1"
+    And mysql host "mysql3" should be read only
+    When host "mysql1" is started
+    Then mysql host "mysql1" should become available within "20" seconds
+    And zookeeper node "/test/last_switch" should match json within "30" seconds
+      """
+      {"from": "mysql1", "master_transition": "switchover", "result": {"ok": true}}
+      """
+    And zookeeper node "/test/switch" should not exist
     When I get zookeeper node "/test/master"
     And I save zookeeper query result as "new_master"
-    Then mysql host "{{.new_master}}" should become unavailable within "10" seconds
+    Then mysql host "{{.new_master}}" should be master
+    And mysql host "{{.new_master}}" should be writable
+    And mysql host "mysql1" should be replica of "{{.new_master}}"
+    And mysql replication on host "mysql1" should run fine within "10" seconds
+    And mysql host "mysql1" should be read only

@@ -1292,6 +1292,15 @@ func (tctx *testContext) stepMysqlHostShouldBeMaster(host string) error {
 	return nil
 }
 
+func (tctx *testContext) stepMysqlHostShouldBeMasterWithin(host string, timeout int) error {
+	var err error
+	testutil.Retry(func() bool {
+		err = tctx.stepMysqlHostShouldBeMaster(host)
+		return err == nil
+	}, time.Duration(timeout)*time.Second, time.Second)
+	return err
+}
+
 func sqlValueString(value any) (string, error) {
 	switch value := value.(type) {
 	case string:
@@ -1866,6 +1875,7 @@ func InitializeScenario(s *godog.ScenarioContext) {
 
 	// mysql checking
 	s.Step(`^mysql host "([^"]*)" should be master$`, tctx.stepMysqlHostShouldBeMaster)
+	s.Step(`^mysql host "([^"]*)" should be master within "(\d+)" seconds$`, tctx.stepMysqlHostShouldBeMasterWithin)
 	s.Step(`^mysql host "([^"]*)" should be replica of "([^"]*)"$`, tctx.stepMysqlHostShouldBeReplicaOf)
 	s.Step(`^mysql host "([^"]*)" should become replica of "([^"]*)" within "(\d+)" seconds$`, tctx.stepMysqlHostShouldBecomeReplicaOfWithin)
 	s.Step(`^mysql replication on host "([^"]*)" should run fine$`, tctx.stepMysqlReplicationOnHostShouldRunFine)

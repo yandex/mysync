@@ -332,12 +332,14 @@ func (n *Node) execWithTimeout(queryName string, arg map[string]any, timeout tim
 	ctx, cancel := context.WithTimeout(context.Background(), timeout)
 	defer cancel()
 	// avoid connection leak on long lock timeouts
-	lockTimeout := int64(math.Floor(0.8 * float64(timeout/time.Second)))
+	lockTimeout := max(int64(1), int64(math.Floor(0.8*float64(timeout/time.Second))))
 	db, err := n.GetDB()
 	if err != nil {
 		return err
 	}
-	if _, err := db.ExecContext(ctx, n.getQuery(querySetLockTimeout), lockTimeout); err != nil {
+	// The timeout is an integer, so it can be inlined without preparing a statement.
+	lockTimeoutQuery := strings.Replace(n.getQuery(querySetLockTimeout), "?", strconv.FormatInt(lockTimeout, 10), 1)
+	if _, err := db.ExecContext(ctx, lockTimeoutQuery); err != nil {
 		n.traceQuery(query, arg, nil, err)
 		return err
 	}

@@ -68,6 +68,7 @@ jobs:
           - 'VERSION=8.0 GODOG_FEATURE=repl_mon.feature make test'
           - 'VERSION=8.0 GODOG_FEATURE=statefile.feature make test'
           - 'VERSION=8.0 GODOG_FEATURE=switchover_from.feature make test'
+          - 'VERSION=8.0 GODOG_FEATURE=switchover_recovery.feature make test'
           - 'VERSION=8.0 GODOG_FEATURE=switchover_to.feature make test'
           - 'VERSION=8.0 GODOG_FEATURE=zk_failure.feature make test'
           - 'VERSION=8.0 GODOG_FEATURE=zk_maintenance.feature make test'

@@ -73,6 +73,7 @@ jobs:
           - 'VERSION=9.7 GODOG_FEATURE=9.7/semisync_source_replica.feature make test'
           - 'VERSION=9.7 GODOG_FEATURE=statefile.feature make test'
           - 'VERSION=9.7 GODOG_FEATURE=9.7/switchover_from.feature make test'
+          - 'VERSION=9.7 GODOG_FEATURE=switchover_recovery.84.feature make test'
           - 'VERSION=9.7 GODOG_FEATURE=9.7/switchover_to.feature make test'
           - 'VERSION=9.7 GODOG_FEATURE=9.7/zk_failure.feature make test'
           - 'VERSION=9.7 GODOG_FEATURE=zk_maintenance.feature make test'

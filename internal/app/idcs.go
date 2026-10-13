@@ -10,7 +10,7 @@ import (
 
 // IAppDCS is a high-level interface for mysync ZooKeeper operations.
 // It encapsulates all ZK paths and serialization, hiding the low-level dcs.DCS.
-// Note: FinishSwitchover, StartSwitchover, FailSwitchover are NOT part of this
+// Note: FinishSwitchover, StartSwitchover, RecordSwitchoverAttemptFailure are NOT part of this
 // interface because they call timing methods (startTiming/stopTiming/logSwitchoverFailure)
 // defined on *App. They remain as *App methods that delegate to appDCS for pure ZK ops.
 type IAppDCS interface {
@@ -43,7 +43,7 @@ type IAppDCS interface {
 	SetResetupStatus(host string, status *mysql.ResetupStatus) error
 
 	// Switchover state (pure ZK ops, no timing side-effects)
-	GetCurrentSwitchover(switchover *Switchover) error
+	GetCurrentSwitchover() (*Switchover, error)
 	CreateCurrentSwitchover(switchover *Switchover) error
 	GetLastSwitchover(switchover *Switchover) error
 	SetCurrentSwitchover(switchover *Switchover) error
