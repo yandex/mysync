@@ -48,9 +48,11 @@ func TestFailoverWaitsForGTIDInactivity(t *testing.T) {
 			now := time.Now()
 			check := func(seconds int, wait bool) {
 				t.Helper()
-				err := app.checkFailoverReplication(cs, health, "master", now.Add(time.Duration(seconds)*time.Second))
+				checkedAt := now.Add(time.Duration(seconds) * time.Second)
+				health["master"].CheckAt = checkedAt
+				err := app.checkFailoverReplication(cs, health, "master", checkedAt)
 				if wait {
-					require.ErrorContains(t, err, "waiting for GTID progress to stop")
+					require.ErrorContains(t, err, "waiting for received GTIDs")
 				} else {
 					require.NoError(t, err)
 				}
@@ -65,11 +67,9 @@ func TestFailoverWaitsForGTIDInactivity(t *testing.T) {
 			check(60, true)
 			check(61, false)
 
-			// Applying transactions also counts, including on an errored replica.
+			// Applying buffered transactions must not delay failover.
 			cs["replica2"].SlaveState.ExecutedGtidSet = failoverTestUUID + ":1-11"
-			check(62, true)
-			check(91, true)
-			check(92, false)
+			check(62, false)
 
 			// A new failure must not reuse the previous failure's quiet window.
 			app.t.Set(NodeFailedAt, "master", now.Add(93*time.Second))
@@ -85,55 +85,59 @@ func TestFailoverWaitsForGTIDInactivity(t *testing.T) {
 
 func TestFailoverKeepsZooKeeperProtection(t *testing.T) {
 	for _, tc := range []struct {
-		name   string
-		change func(map[string]*nodestate.NodeState, map[string]*nodestate.NodeState)
+		name      string
+		change    func(map[string]*nodestate.NodeState, map[string]*nodestate.NodeState)
+		wantError string
 	}{
-		{"master reachable by manager", func(cs, _ map[string]*nodestate.NodeState) { cs["master"].PingOk = true }},
-		{"master reports healthy", func(_, health map[string]*nodestate.NodeState) { health["master"].PingOk = true }},
-		{"missing health record", func(_, health map[string]*nodestate.NodeState) { health["master"] = &nodestate.NodeState{} }},
-		{"health check is not local", func(_, health map[string]*nodestate.NodeState) { health["master"].CheckBy = "replica1" }},
+		{"master reachable by manager", func(cs, _ map[string]*nodestate.NodeState) { cs["master"].PingOk = true }, "still reachable"},
+		{"reachable master with some running replicas", func(cs, _ map[string]*nodestate.NodeState) {
+			cs["master"].PingOk = true
+			cs["replica2"].SlaveState.ReplicationState = mysql.ReplicationError
+		}, "still reachable"},
+		{"master reports healthy", func(_, health map[string]*nodestate.NodeState) { health["master"].PingOk = true }, "fresh local failure report"},
+		{"missing health record", func(_, health map[string]*nodestate.NodeState) { health["master"] = &nodestate.NodeState{} }, "fresh local failure report"},
+		{"health check is not local", func(_, health map[string]*nodestate.NodeState) { health["master"].CheckBy = "replica1" }, "fresh local failure report"},
+		{"stale health check", func(_, health map[string]*nodestate.NodeState) { health["master"].CheckAt = time.Now().Add(-time.Hour) }, "fresh local failure report"},
+		{"future health check", func(_, health map[string]*nodestate.NodeState) {
+			health["master"].CheckAt = time.Now().Add(2 * time.Hour)
+		}, "fresh local failure report"},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			app := newTestApp(t, minConfig(), nil)
+			app.config.HealthCheckInterval = 5 * time.Second
+			app.config.DBTimeout = 5 * time.Second
 			cs, health := stalledFailoverCluster()
 			tc.change(cs, health)
 			for _, now := range []time.Time{time.Now(), time.Now().Add(time.Hour)} {
-				require.ErrorContains(t, app.checkFailoverReplication(cs, health, "master", now), "seems zk problems")
+				require.ErrorContains(t, app.checkFailoverReplication(cs, health, "master", now), tc.wantError)
 				require.Nil(t, app.failoverProgress)
 			}
 		})
 	}
 }
 
-func TestFailoverProgressUsesGTIDSetsAndIgnoresCascades(t *testing.T) {
+func TestFailoverProgressOnlyTracksReceivedGTIDsFromMaster(t *testing.T) {
 	app := newTestApp(t, minConfig(), nil)
 	app.config.TickInterval = 5 * time.Second
+	app.config.HealthCheckInterval = time.Minute
 	cs, health := stalledFailoverCluster()
 	cs["cascade"] = aliveReplica()
 	cs["cascade"].IsCascade = true
+	cs["cascade"].SlaveState.MasterHost = "master"
+	cs["unrelated"] = aliveReplica()
+	cs["unrelated"].SlaveState.MasterHost = "other"
 	now := time.Now()
 	require.Error(t, app.checkFailoverReplication(cs, health, "master", now))
 	// Equivalent GTID formatting is not progress.
-	cs["replica1"].SlaveState.ExecutedGtidSet = failoverTestUUID + ":1-5:6-10"
-	cs["cascade"].SlaveState.ExecutedGtidSet = failoverTestUUID + ":1-100"
+	cs["replica1"].SlaveState.RetrievedGtidSet = failoverTestUUID + ":1-5:6-11"
+	cs["cascade"].SlaveState.RetrievedGtidSet = failoverTestUUID + ":1-100"
+	cs["unrelated"].SlaveState.RetrievedGtidSet = failoverTestUUID + ":1-100"
 	require.Error(t, app.checkFailoverReplication(cs, health, "master", now.Add(4*time.Second)))
 	require.NoError(t, app.checkFailoverReplication(cs, health, "master", now.Add(5*time.Second)))
 
 	// Reconnecting to a different source starts a new observation window.
 	cs["replica1"].SlaveState.MasterHost = "other"
 	require.Error(t, app.checkFailoverReplication(cs, health, "master", now.Add(6*time.Second)))
-}
-
-func TestFailoverObservesReachableMasterGTID(t *testing.T) {
-	app := newTestApp(t, minConfig(), nil)
-	cs, health := stalledFailoverCluster()
-	cs["replica2"].SlaveState.ReplicationState = mysql.ReplicationError
-	cs["master"].PingOk = true
-	cs["master"].MasterState = &nodestate.MasterState{ExecutedGtidSet: failoverTestUUID + ":1-11"}
-	now := time.Now()
-	require.Error(t, app.checkFailoverReplication(cs, health, "master", now))
-	cs["master"].MasterState.ExecutedGtidSet = failoverTestUUID + ":1-12"
-	require.Error(t, app.checkFailoverReplication(cs, health, "master", now.Add(time.Hour)))
 }
 
 func TestApproveFailoverWithStalledReplicas(t *testing.T) {
@@ -154,6 +158,8 @@ func TestApproveFailoverWithStalledReplicas(t *testing.T) {
 			cfg.SemiSync = true
 			cfg.RplSemiSyncMasterWaitForSlaveCount = 1
 			cfg.FailoverDelay = 30 * time.Second
+			cfg.HealthCheckInterval = 5 * time.Second
+			cfg.DBTimeout = 5 * time.Second
 			app := newTestApp(t, cfg, mockDCS)
 			app.t.Set(NodeFailedAt, "master", time.Now().Add(-time.Minute))
 			cs, health := stalledFailoverCluster()
@@ -161,7 +167,7 @@ func TestApproveFailoverWithStalledReplicas(t *testing.T) {
 			if tc.noQuorum {
 				active = []string{"master", "unreachable1", "unreachable2"}
 			}
-			require.ErrorContains(t, app.approveFailover(cs, health, active, "master"), "waiting for GTID progress to stop")
+			require.ErrorContains(t, app.approveFailover(cs, health, active, "master"), "waiting for received GTIDs")
 			app.failoverProgress.changedAt = time.Now().Add(-time.Minute)
 			if !tc.noQuorum {
 				mockDCS.EXPECT().GetLastSwitchover(gomock.Any()).DoAndReturn(func(sw *Switchover) error {
