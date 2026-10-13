@@ -64,6 +64,84 @@ Feature: failover
       And mysql host "mysql1" should be read only
       And zookeeper node "/test/recovery/mysql1" should not exist within "10" seconds
 
+    Scenario: failover works when the master hangs but replicas still report running
+      Given cluster environment is
+        """
+        MYSYNC_FAILOVER=true
+        MYSYNC_FAILOVER_DELAY=30s
+        """
+      Given cluster is up and running
+      Then mysql host "mysql1" should be master
+
+      # Keep the IO threads running much longer than the failover deadline.
+      When I run SQL on mysql host "mysql2"
+        """
+        STOP SLAVE IO_THREAD;
+        SET GLOBAL slave_net_timeout = 600;
+        START SLAVE IO_THREAD;
+        """
+      And I run SQL on mysql host "mysql3"
+        """
+        STOP SLAVE IO_THREAD;
+        SET GLOBAL slave_net_timeout = 600;
+        START SLAVE IO_THREAD;
+        """
+      Then mysql replication on host "mysql2" should run fine within "10" seconds
+      And mysql replication on host "mysql3" should run fine within "10" seconds
+      And zookeeper node "/test/active_nodes" should match json_exactly within "20" seconds
+        """
+        ["mysql1","mysql2","mysql3"]
+        """
+      When I get zookeeper node "/test/manager"
+      And I save zookeeper query result as "manager"
+
+      # Freeze MySQL only: MySync must keep publishing its local failure report.
+      When I run command on host "mysql1"
+        """
+        supervisorctl signal STOP mysqld
+        """
+      Then command return code should be "0"
+      And zookeeper node "/test/health/mysql1" should match json within "20" seconds
+        """
+        {
+          "ping_ok": false,
+          "check_by": "mysql1"
+        }
+        """
+      And mysql replication on host "mysql2" should run fine
+      And mysql replication on host "mysql3" should run fine
+      And mysql host "mysql2" should be replica of "mysql1"
+      And mysql host "mysql3" should be replica of "mysql1"
+
+      Then zookeeper node "/test/last_switch" should match json within "60" seconds
+        """
+        {
+          "cause": "auto",
+          "from": "mysql1",
+          "master_transition": "failover",
+          "result": {
+            "ok": true
+          }
+        }
+        """
+      When I get zookeeper node "/test/master"
+      And I save zookeeper query result as "new_master"
+      Then mysql host "{{.new_master}}" should be master
+      And mysql host "{{.new_master}}" should be writable
+
+      # Prove that stalled GTIDs allowed failover before the IO threads timed out.
+      When I run command on host "{{.manager.hostname}}"
+        """
+        grep -F "approve failover: 2 replicas report running, but received GTIDs have not changed" /var/log/mysync.log
+        """
+      Then command return code should be "0"
+
+      When I run command on host "mysql1"
+        """
+        supervisorctl signal CONT mysqld
+        """
+      Then command return code should be "0"
+
     Scenario: failover does not work in absence of quorum
       Given cluster environment is
         """
