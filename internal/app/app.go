@@ -635,6 +635,10 @@ func (app *App) checkMasterVisible(clusterStateFromDB, clusterStateDcs map[strin
 		app.logger.Error().Err(err).Msg("checkMasterVisible: can't get master host, error")
 		return false, err
 	}
+	// An empty hostname would ping localhost and delay the failover checks.
+	if masterHost == "" {
+		return false, nil
+	}
 	state, ok := clusterStateFromDB[masterHost]
 	app.logger.Debug().Msgf("master(%s) state pingOk == %s", masterHost, state)
 	if ok && state.PingOk {

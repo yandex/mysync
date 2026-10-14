@@ -31,6 +31,15 @@ func stalledFailoverCluster() (map[string]*nodestate.NodeState, map[string]*node
 	return cs, health
 }
 
+func TestCheckMasterVisibleWithoutHealthyMaster(t *testing.T) {
+	app := newTestApp(t, minConfig(), nil)
+	cs, health := stalledFailoverCluster()
+	// No database connection is needed when DCS has no healthy master to ping.
+	visible, err := app.checkMasterVisible(cs, health)
+	require.NoError(t, err)
+	require.False(t, visible)
+}
+
 func TestFailoverWaitsForGTIDInactivity(t *testing.T) {
 	for _, partial := range []bool{false, true} {
 		name := "all replicas report running"
