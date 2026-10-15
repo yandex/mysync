@@ -113,7 +113,9 @@ Feature: failover
       And mysql host "mysql2" should be replica of "mysql1"
       And mysql host "mysql3" should be replica of "mysql1"
 
-      Then zookeeper node "/test/last_switch" should match json within "60" seconds
+      # Include the 30s GTID observation and DB timeouts while promoting a replica.
+      # This must remain well below the 600s replication IO timeout.
+      Then zookeeper node "/test/last_switch" should match json within "120" seconds
         """
         {
           "cause": "auto",
