@@ -16,6 +16,9 @@ const (
 	// structure: pathHealthPrefix/hostname -> NodeState
 	pathHealthPrefix = "health"
 
+	// Last reported NodeState per host, retained after its ZK session expires.
+	pathLastHealthPrefix = "last_health"
+
 	// structure: single Switchover
 	pathCurrentSwitch = "switch"
 

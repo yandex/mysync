@@ -52,9 +52,12 @@ func (a *appDCS) DeleteActiveNodes() error {
 	return a.dcs.Delete(pathActiveNodes)
 }
 
-// SetHealthState writes the ephemeral per-host health state to ZK.
+// SetHealthState writes the live health state and a persistent last-known snapshot.
 func (a *appDCS) SetHealthState(host string, state *nodestate.NodeState) error {
-	return a.dcs.SetEphemeral(dcs.JoinPath(pathHealthPrefix, host), state)
+	return errors.Join(
+		a.dcs.SetEphemeral(dcs.JoinPath(pathHealthPrefix, host), state),
+		a.dcs.Set(dcs.JoinPath(pathLastHealthPrefix, host), state),
+	)
 }
 
 // GetHealthState reads the per-host health state from ZK.

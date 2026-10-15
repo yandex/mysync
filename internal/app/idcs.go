@@ -23,7 +23,7 @@ type IAppDCS interface {
 	GetMasterHostFromDcs() (string, error)
 	SetMasterHost(master string) (string, error)
 
-	// Health state (ephemeral per-host node state written by healthChecker)
+	// Health state (ephemeral per-host state with a persistent last-known snapshot)
 	SetHealthState(host string, state *nodestate.NodeState) error
 	GetHealthState(host string, state *nodestate.NodeState) error
 

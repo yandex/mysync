@@ -1,6 +1,7 @@
 package app
 
 import (
+	"errors"
 	"testing"
 	"time"
 
@@ -448,4 +449,54 @@ type timingDCSStub struct {
 func (d *timingDCSStub) Set(string, any) error {
 	d.started = true
 	return nil
+}
+
+func TestSetHealthStatePersistsSnapshot(t *testing.T) {
+	writeErr := errors.New("write failed")
+	for _, tt := range []struct {
+		name          string
+		ephemeralErr  error
+		persistentErr error
+	}{
+		{"success", nil, nil},
+		{"ephemeral write fails", writeErr, nil},
+		{"persistent write fails", nil, writeErr},
+		{"both writes fail", writeErr, writeErr},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			store := &healthDCSStub{ephemeralErr: tt.ephemeralErr, persistentErr: tt.persistentErr}
+			state := aliveReplica()
+			state.CheckAt = time.Date(2026, time.October, 15, 12, 0, 0, 0, time.UTC)
+			appDCS := NewAppDCS(store, nil, nil)
+
+			err := appDCS.SetHealthState("replica", state)
+			if tt.ephemeralErr != nil || tt.persistentErr != nil {
+				require.ErrorIs(t, err, writeErr)
+			} else {
+				require.NoError(t, err)
+			}
+			// Both writes must be attempted even when one fails.
+			require.Equal(t, "health/replica", store.ephemeralPath)
+			require.Equal(t, state, store.ephemeralState)
+			require.Equal(t, "last_health/replica", store.persistentPath)
+			require.Equal(t, state, store.persistentState)
+		})
+	}
+}
+
+type healthDCSStub struct {
+	dcs.DCS
+	ephemeralPath, persistentPath   string
+	ephemeralState, persistentState any
+	ephemeralErr, persistentErr     error
+}
+
+func (d *healthDCSStub) SetEphemeral(path string, value any) error {
+	d.ephemeralPath, d.ephemeralState = path, value
+	return d.ephemeralErr
+}
+
+func (d *healthDCSStub) Set(path string, value any) error {
+	d.persistentPath, d.persistentState = path, value
+	return d.persistentErr
 }

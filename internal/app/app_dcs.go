@@ -28,7 +28,7 @@ func (app *App) DeleteActiveNodes() error {
 	return app.appDCS.DeleteActiveNodes()
 }
 
-// SetHealthState writes the ephemeral per-host health state to ZK.
+// SetHealthState writes the live health state and a persistent last-known snapshot.
 func (app *App) SetHealthState(host string, state *nodestate.NodeState) error {
 	return app.appDCS.SetHealthState(host, state)
 }
