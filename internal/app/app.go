@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"log/syslog"
+	"maps"
 	"os"
 	"os/signal"
 	"slices"
@@ -50,6 +51,7 @@ type App struct {
 	switchHelper        mysql.ISwitchHelper
 	lostQuorumTime      time.Time
 	switchoverProgress  *switchoverProgress
+	failoverProgress    *failoverProgress
 
 	optSyncer         OptimizationSyncer
 	optController     OptimizationController
@@ -562,6 +564,7 @@ func (app *App) stateManager() appState {
 			return stateManager
 		}
 	} else {
+		app.failoverProgress = nil
 		if !app.t.Get(NodeFailedAt, master).IsZero() {
 			app.stopTiming(timingDowntime)
 			app.t.Clean(NodeFailedAt, master)
@@ -631,6 +634,10 @@ func (app *App) checkMasterVisible(clusterStateFromDB, clusterStateDcs map[strin
 	if err != nil {
 		app.logger.Error().Err(err).Msg("checkMasterVisible: can't get master host, error")
 		return false, err
+	}
+	// An empty hostname would ping localhost and delay the failover checks.
+	if masterHost == "" {
+		return false, nil
 	}
 	state, ok := clusterStateFromDB[masterHost]
 	app.logger.Debug().Msgf("master(%s) state pingOk == %s", masterHost, state)
@@ -735,19 +742,77 @@ func (app *App) AcquireLock(path string) bool {
 	return false
 }
 
+type failoverProgress struct {
+	master    string
+	changedAt time.Time
+	received  map[string]string
+}
+
+// checkFailoverReplication distinguishes running threads from transaction progress.
+// It is only used after the master has been reported unavailable in DCS.
+func (app *App) checkFailoverReplication(clusterState, clusterStateDcs map[string]*nodestate.NodeState, master string, now time.Time) error {
+	running := countRunningHASlaves(clusterState)
+	if running == 0 {
+		app.failoverProgress = nil
+		return nil
+	}
+	if clusterState[master].PingOk {
+		app.failoverProgress = nil
+		return fmt.Errorf("master %s is still reachable", master)
+	}
+
+	// An idle master can keep serving while disconnected from ZooKeeper. Only
+	// override the all-replicas-running guard when its local health check has
+	// recently reported a MySQL failure. Allow one health-check interval plus
+	// the time needed for its failed MySQL query.
+	masterHealth := clusterStateDcs[master]
+	healthAge := now.Sub(masterHealth.CheckAt)
+	if running == countHANodes(clusterState)-1 &&
+		(masterHealth.PingOk || masterHealth.CheckBy != master || masterHealth.CheckAt.IsZero() ||
+			healthAge < 0 || healthAge > app.config.HealthCheckInterval+app.config.DBTimeout) {
+		app.failoverProgress = nil
+		return fmt.Errorf("%d replicas report running, but master %s has no fresh local failure report", running, master)
+	}
+
+	// Applying relay logs is not evidence that the master is alive. Catch-up
+	// of already received transactions is handled during the switchover.
+	received := make(map[string]string)
+	for host, state := range clusterState {
+		if !state.PingOk || state.IsCascade || state.SlaveState == nil || state.SlaveState.MasterHost != master {
+			continue
+		}
+		received[host] = gtids.ParseGtidSet(state.SlaveState.RetrievedGtidSet).String()
+	}
+
+	p := app.failoverProgress
+	changed := p == nil || p.master != master || p.changedAt.Before(app.t.Get(NodeFailedAt, master)) || !maps.Equal(p.received, received)
+	if changed {
+		p = &failoverProgress{master: master, changedAt: now, received: received}
+		app.failoverProgress = p
+	}
+	// Even with failover_delay=0, require another observation of the GTIDs.
+	timeout := max(app.config.FailoverDelay, app.config.TickInterval)
+	if changed || now.Sub(p.changedAt) < timeout {
+		return fmt.Errorf("waiting for received GTIDs from master %s to stop changing: remaining %v", master, max(0, timeout-now.Sub(p.changedAt)))
+	}
+	app.logger.Info().Msgf("approve failover: %d replicas report running, but received GTIDs have not changed for %v", running, now.Sub(p.changedAt))
+	return nil
+}
+
 func (app *App) approveFailover(clusterState, clusterStateDcs map[string]*nodestate.NodeState, activeNodes []string, master string) error {
 	if !app.config.Failover {
 		return fmt.Errorf("auto_failover is disabled in config")
 	}
 	afterCrashRecovery := clusterStateDcs[master].DaemonState != nil && clusterStateDcs[master].DaemonState.CrashRecovery && app.config.ResetupCrashedHosts
 	if afterCrashRecovery {
+		app.failoverProgress = nil
 		app.logger.Info().Msgf("approve failover: after crash recovery, skip replication and delay checks")
 	} else if clusterStateDcs[master].IsFileSystemReadonly {
+		app.failoverProgress = nil
 		app.logger.Info().Msgf("approve failover: filesystem is readonly, skip replication and delay checks")
 	} else {
-		runningHASlaves := countRunningHASlaves(clusterState)
-		if runningHASlaves > 0 && runningHASlaves == countHANodes(clusterState)-1 {
-			return fmt.Errorf("%d replicas are alive and running replication, seems zk problems", runningHASlaves)
+		if err := app.checkFailoverReplication(clusterState, clusterStateDcs, master, time.Now()); err != nil {
+			return err
 		}
 		if app.config.FailoverDelay > 0 {
 			failingTime := time.Since(app.t.Get(NodeFailedAt, master))
@@ -2654,6 +2719,7 @@ func (app *App) CloseLogger() {
 func (app *App) setState(state appState) {
 	if state != app.state {
 		app.switchoverProgress = nil
+		app.failoverProgress = nil
 	}
 	app.state = state
 }
