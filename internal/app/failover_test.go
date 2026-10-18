@@ -1,6 +1,7 @@
 package app
 
 import (
+	"errors"
 	"testing"
 	"time"
 
@@ -40,6 +41,39 @@ func TestCheckMasterVisibleWithoutHealthyMaster(t *testing.T) {
 	require.False(t, visible)
 }
 
+func TestNodeStateCheckAtAfterPing(t *testing.T) {
+	for _, tc := range []struct {
+		name      string
+		wantPings int
+	}{
+		{"initial ping", 1},
+		{"retry after status query failure", 2},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			app, nodes := newFailoverRetryApp(t, failoverTestUUID+":1-11", nil)
+			var pingFinishedAt time.Time
+			pings := 0
+			nodes["C"].queryHook = func(query string) error {
+				if query == mysql.DefaultQueries["ping"] {
+					pings++
+					pingFinishedAt = time.Now()
+					if pings == tc.wantPings {
+						return errors.New("ping failed")
+					}
+				} else if query == mysql.DefaultQueries["is_readonly"] {
+					return errors.New("status query failed")
+				}
+				return nil
+			}
+			state := app.getNodeState("C")
+			require.Equal(t, tc.wantPings, pings)
+			require.False(t, state.PingOk)
+			require.Equal(t, "ping failed", state.Error)
+			require.False(t, state.CheckAt.Before(pingFinishedAt), "health timestamp must follow the completed ping")
+		})
+	}
+}
+
 func TestFailoverWaitsForGTIDInactivity(t *testing.T) {
 	for _, partial := range []bool{false, true} {
 		name := "all replicas report running"
@@ -59,7 +93,8 @@ func TestFailoverWaitsForGTIDInactivity(t *testing.T) {
 				t.Helper()
 				checkedAt := now.Add(time.Duration(seconds) * time.Second)
 				health["master"].CheckAt = checkedAt
-				err := app.checkFailoverReplication(cs, health, "master", checkedAt)
+				var err error
+				app.failoverProgress, err = app.checkFailoverReplication(cs, health, "master", app.failoverProgress, checkedAt)
 				if wait {
 					require.ErrorContains(t, err, "waiting for received GTIDs")
 				} else {
@@ -80,8 +115,13 @@ func TestFailoverWaitsForGTIDInactivity(t *testing.T) {
 			cs["replica2"].SlaveState.ExecutedGtidSet = failoverTestUUID + ":1-11"
 			check(62, false)
 
-			// A new failure must not reuse the previous failure's quiet window.
-			app.t.Set(NodeFailedAt, "master", now.Add(93*time.Second))
+			// A reachable master clears progress before its next failure.
+			cs["master"].PingOk = true
+			var err error
+			app.failoverProgress, err = app.checkFailoverReplication(cs, health, "master", app.failoverProgress, now.Add(63*time.Second))
+			require.ErrorContains(t, err, "still reachable")
+			require.Nil(t, app.failoverProgress)
+			cs["master"].PingOk = false
 			check(93, true)
 			check(123, false)
 			app.state = stateManager
@@ -116,9 +156,14 @@ func TestFailoverKeepsZooKeeperProtection(t *testing.T) {
 			app.config.HealthCheckInterval = 5 * time.Second
 			app.config.DBTimeout = 5 * time.Second
 			cs, health := stalledFailoverCluster()
+			var err error
+			app.failoverProgress, err = app.checkFailoverReplication(cs, health, "master", nil, time.Now())
+			require.ErrorContains(t, err, "waiting for received GTIDs")
+			require.NotNil(t, app.failoverProgress)
 			tc.change(cs, health)
 			for _, now := range []time.Time{time.Now(), time.Now().Add(time.Hour)} {
-				require.ErrorContains(t, app.checkFailoverReplication(cs, health, "master", now), tc.wantError)
+				app.failoverProgress, err = app.checkFailoverReplication(cs, health, "master", app.failoverProgress, now)
+				require.ErrorContains(t, err, tc.wantError)
 				require.Nil(t, app.failoverProgress)
 			}
 		})
@@ -136,17 +181,119 @@ func TestFailoverProgressOnlyTracksReceivedGTIDsFromMaster(t *testing.T) {
 	cs["unrelated"] = aliveReplica()
 	cs["unrelated"].SlaveState.MasterHost = "other"
 	now := time.Now()
-	require.Error(t, app.checkFailoverReplication(cs, health, "master", now))
+	progress, err := app.checkFailoverReplication(cs, health, "master", nil, now)
+	require.Error(t, err)
 	// Equivalent GTID formatting is not progress.
 	cs["replica1"].SlaveState.RetrievedGtidSet = failoverTestUUID + ":1-5:6-11"
 	cs["cascade"].SlaveState.RetrievedGtidSet = failoverTestUUID + ":1-100"
 	cs["unrelated"].SlaveState.RetrievedGtidSet = failoverTestUUID + ":1-100"
-	require.Error(t, app.checkFailoverReplication(cs, health, "master", now.Add(4*time.Second)))
-	require.NoError(t, app.checkFailoverReplication(cs, health, "master", now.Add(5*time.Second)))
+	progress, err = app.checkFailoverReplication(cs, health, "master", progress, now.Add(4*time.Second))
+	require.Error(t, err)
+	progress, err = app.checkFailoverReplication(cs, health, "master", progress, now.Add(5*time.Second))
+	require.NoError(t, err)
 
-	// Reconnecting to a different source starts a new observation window.
+	// A replica switching to a different source is not progress from this master.
 	cs["replica1"].SlaveState.MasterHost = "other"
-	require.Error(t, app.checkFailoverReplication(cs, health, "master", now.Add(6*time.Second)))
+	progress, err = app.checkFailoverReplication(cs, health, "master", progress, now.Add(6*time.Second))
+	require.NoError(t, err)
+
+	// A different failed master starts a new observation window.
+	cs["replica1"].PingOk = false
+	cs["replica2"].SlaveState.MasterHost = "replica1"
+	health["replica1"] = &nodestate.NodeState{}
+	_, err = app.checkFailoverReplication(cs, health, "replica1", progress, now.Add(7*time.Second))
+	require.ErrorContains(t, err, "waiting for received GTIDs")
+}
+
+func TestFailoverProgressSurvivesFlakyReplica(t *testing.T) {
+	for _, tc := range []struct {
+		name    string
+		disrupt func(map[string]*nodestate.NodeState)
+	}{
+		{"failed ping", func(cs map[string]*nodestate.NodeState) { cs["replica2"].PingOk = false }},
+		{"missing replica status", func(cs map[string]*nodestate.NodeState) { cs["replica2"].SlaveState = nil }},
+		{"missing replica", func(cs map[string]*nodestate.NodeState) { delete(cs, "replica2") }},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			cfg := minConfig()
+			cfg.FailoverDelay = 30 * time.Second
+			app := newTestApp(t, cfg, nil)
+			cs, health := stalledFailoverCluster()
+			replica := *cs["replica2"]
+			now := time.Now()
+			var progress *failoverProgress
+			check := func(seconds int, wait bool) {
+				t.Helper()
+				checkedAt := now.Add(time.Duration(seconds) * time.Second)
+				health["master"].CheckAt = checkedAt
+				var err error
+				progress, err = app.checkFailoverReplication(cs, health, "master", progress, checkedAt)
+				if wait {
+					require.ErrorContains(t, err, "waiting for received GTIDs")
+				} else {
+					require.NoError(t, err)
+				}
+			}
+			check(0, true)
+			tc.disrupt(cs)
+			check(29, true)
+			check(30, false)
+			cs["replica2"] = &replica
+			check(31, false)
+
+			// Transactions received while unreachable still restart the window.
+			restored := replica
+			tc.disrupt(cs)
+			check(32, false)
+			restored.SlaveState.RetrievedGtidSet = failoverTestUUID + ":1-12"
+			cs["replica2"] = &restored
+			check(33, true)
+			check(62, true)
+			check(63, false)
+		})
+	}
+}
+
+func TestApproveFailoverClearsProgress(t *testing.T) {
+	for _, tc := range []struct {
+		name      string
+		change    func(*App, map[string]*nodestate.NodeState, map[string]*nodestate.NodeState)
+		wantError string
+	}{
+		{"failover disabled", func(app *App, _, _ map[string]*nodestate.NodeState) { app.config.Failover = false }, "auto_failover is disabled"},
+		{"no running replicas", func(_ *App, cs, _ map[string]*nodestate.NodeState) {
+			cs["replica1"].SlaveState.ReplicationState = mysql.ReplicationStopped
+			cs["replica2"].SlaveState.ReplicationState = mysql.ReplicationStopped
+		}, ""},
+		{"crash recovery", func(app *App, _, health map[string]*nodestate.NodeState) {
+			app.config.ResetupCrashedHosts = true
+			health["master"].DaemonState = &nodestate.DaemonState{CrashRecovery: true}
+		}, ""},
+		{"readonly filesystem", func(_ *App, _, health map[string]*nodestate.NodeState) {
+			health["master"].IsFileSystemReadonly = true
+		}, ""},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			mockDCS := NewMockIAppDCS(gomock.NewController(t))
+			if tc.wantError == "" {
+				mockDCS.EXPECT().GetLastSwitchover(gomock.Any()).Return(dcs.ErrNotFound)
+			}
+			app := newTestApp(t, minConfig(), mockDCS)
+			cs, health := stalledFailoverCluster()
+			app.config.HealthCheckInterval = time.Minute
+			active := []string{"master", "replica1", "replica2"}
+			require.ErrorContains(t, app.approveFailover(cs, health, active, "master"), "waiting for received GTIDs")
+			require.NotNil(t, app.failoverProgress)
+			tc.change(app, cs, health)
+			err := app.approveFailover(cs, health, active, "master")
+			if tc.wantError != "" {
+				require.ErrorContains(t, err, tc.wantError)
+			} else {
+				require.NoError(t, err)
+			}
+			require.Nil(t, app.failoverProgress)
+		})
+	}
 }
 
 func TestApproveFailoverWithStalledReplicas(t *testing.T) {

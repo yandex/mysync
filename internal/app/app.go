@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"io"
 	"log/syslog"
-	"maps"
 	"os"
 	"os/signal"
 	"slices"
@@ -740,111 +739,6 @@ func (app *App) AcquireLock(path string) bool {
 	}
 
 	return false
-}
-
-type failoverProgress struct {
-	master    string
-	changedAt time.Time
-	received  map[string]string
-}
-
-// checkFailoverReplication distinguishes running threads from transaction progress.
-// It is only used after the master has been reported unavailable in DCS.
-func (app *App) checkFailoverReplication(clusterState, clusterStateDcs map[string]*nodestate.NodeState, master string, now time.Time) error {
-	running := countRunningHASlaves(clusterState)
-	if running == 0 {
-		app.failoverProgress = nil
-		return nil
-	}
-	if clusterState[master].PingOk {
-		app.failoverProgress = nil
-		return fmt.Errorf("master %s is still reachable", master)
-	}
-
-	// An idle master can keep serving while disconnected from ZooKeeper. Only
-	// override the all-replicas-running guard when its local health check has
-	// recently reported a MySQL failure. Allow one health-check interval plus
-	// the time needed for its failed MySQL query.
-	masterHealth := clusterStateDcs[master]
-	healthAge := now.Sub(masterHealth.CheckAt)
-	if running == countHANodes(clusterState)-1 &&
-		(masterHealth.PingOk || masterHealth.CheckBy != master || masterHealth.CheckAt.IsZero() ||
-			healthAge < 0 || healthAge > app.config.HealthCheckInterval+app.config.DBTimeout) {
-		app.failoverProgress = nil
-		return fmt.Errorf("%d replicas report running, but master %s has no fresh local failure report", running, master)
-	}
-
-	// Applying relay logs is not evidence that the master is alive. Catch-up
-	// of already received transactions is handled during the switchover.
-	received := make(map[string]string)
-	for host, state := range clusterState {
-		if !state.PingOk || state.IsCascade || state.SlaveState == nil || state.SlaveState.MasterHost != master {
-			continue
-		}
-		received[host] = gtids.ParseGtidSet(state.SlaveState.RetrievedGtidSet).String()
-	}
-
-	p := app.failoverProgress
-	changed := p == nil || p.master != master || p.changedAt.Before(app.t.Get(NodeFailedAt, master)) || !maps.Equal(p.received, received)
-	if changed {
-		p = &failoverProgress{master: master, changedAt: now, received: received}
-		app.failoverProgress = p
-	}
-	// Even with failover_delay=0, require another observation of the GTIDs.
-	timeout := max(app.config.FailoverDelay, app.config.TickInterval)
-	if changed || now.Sub(p.changedAt) < timeout {
-		return fmt.Errorf("waiting for received GTIDs from master %s to stop changing: remaining %v", master, max(0, timeout-now.Sub(p.changedAt)))
-	}
-	app.logger.Info().Msgf("approve failover: %d replicas report running, but received GTIDs have not changed for %v", running, now.Sub(p.changedAt))
-	return nil
-}
-
-func (app *App) approveFailover(clusterState, clusterStateDcs map[string]*nodestate.NodeState, activeNodes []string, master string) error {
-	if !app.config.Failover {
-		return fmt.Errorf("auto_failover is disabled in config")
-	}
-	afterCrashRecovery := clusterStateDcs[master].DaemonState != nil && clusterStateDcs[master].DaemonState.CrashRecovery && app.config.ResetupCrashedHosts
-	if afterCrashRecovery {
-		app.failoverProgress = nil
-		app.logger.Info().Msgf("approve failover: after crash recovery, skip replication and delay checks")
-	} else if clusterStateDcs[master].IsFileSystemReadonly {
-		app.failoverProgress = nil
-		app.logger.Info().Msgf("approve failover: filesystem is readonly, skip replication and delay checks")
-	} else {
-		if err := app.checkFailoverReplication(clusterState, clusterStateDcs, master, time.Now()); err != nil {
-			return err
-		}
-		if app.config.FailoverDelay > 0 {
-			failingTime := time.Since(app.t.Get(NodeFailedAt, master))
-			if failingTime < app.config.FailoverDelay {
-				return fmt.Errorf("failover delay is not yet elapsed: remaining %v", app.config.FailoverDelay-failingTime)
-			}
-		}
-	}
-
-	app.logger.Info().Msgf("approve failover: active nodes are %v", activeNodes)
-	// number of active slaves that we can use to perform switchover
-	permissibleSlaves := countAliveHASlavesWithinNodes(activeNodes, clusterState)
-	err := app.switchHelper.CheckFailoverQuorum(activeNodes, permissibleSlaves)
-	if err != nil {
-		return err
-	}
-
-	lastSwitchover := new(Switchover)
-	err = app.appDCS.GetLastSwitchover(lastSwitchover)
-	if !errors.Is(err, dcs.ErrNotFound) {
-		if err != nil {
-			return err
-		}
-		if lastSwitchover.Result == nil {
-			return fmt.Errorf("another switchover in progress. this should never happen")
-		}
-		timeAfterLastSwitchover := time.Since(lastSwitchover.Result.FinishedAt)
-		if timeAfterLastSwitchover < app.config.FailoverCooldown && lastSwitchover.Cause == CauseAuto {
-			return fmt.Errorf("not enough time from last failover %s (cooldown %s)", lastSwitchover.Result.FinishedAt, app.config.FailoverCooldown)
-		}
-	}
-	return nil
 }
 
 func (app *App) stateCandidate() appState {
@@ -2427,9 +2321,9 @@ func (app *App) getNodeState(host string) *nodestate.NodeState {
 	nodeState := new(nodestate.NodeState)
 	nodeState.ShowOnlyGTIDDiff = app.config.ShowOnlyGTIDDiff
 	err := func() error {
-		nodeState.CheckAt = time.Now()
 		nodeState.CheckBy = app.config.Hostname
 		pingOk, err := node.Ping()
+		nodeState.CheckAt = time.Now()
 		nodeState.PingOk = pingOk
 		if err != nil {
 			nodeState.PingDubious = mysql.IsErrorDubious(err)
@@ -2488,7 +2382,9 @@ func (app *App) getNodeState(host string) *nodestate.NodeState {
 		nodeState.Error = err.Error()
 		// in case ping was ok but later we encountered error
 		if nodeState.PingOk {
-			if nodeState.PingOk, err = node.Ping(); err != nil {
+			nodeState.PingOk, err = node.Ping()
+			nodeState.CheckAt = time.Now()
+			if err != nil {
 				nodeState.PingDubious = mysql.IsErrorDubious(err)
 				nodeState.Error = err.Error()
 			}
