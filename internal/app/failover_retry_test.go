@@ -197,6 +197,7 @@ type failoverRetrySQLNode struct {
 	freezes     int
 	stops       int
 	stopTurning error
+	queryHook   func(string) error
 }
 
 type failoverRetrySQLConnector struct {
@@ -214,6 +215,11 @@ type failoverRetrySQLConn struct {
 }
 
 func (c *failoverRetrySQLConn) QueryContext(_ context.Context, query string, _ []driver.NamedValue) (driver.Rows, error) {
+	if c.node.queryHook != nil {
+		if err := c.node.queryHook(query); err != nil {
+			return nil, err
+		}
+	}
 	if !c.node.available {
 		return nil, fmt.Errorf("%s unavailable", c.node.host)
 	}
