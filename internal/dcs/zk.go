@@ -23,13 +23,13 @@ type zkDCS struct {
 	config             *ZookeeperConfig
 	conn               *zk.Conn
 	eventsChan         <-chan zk.Event
-	lockHeld           sync.Map
 	disconnectCallback func() error
-	isConnected        bool
-	connectedChans     []chan struct{}
-	connectedLock      sync.Mutex
 	closeTimer         *time.Timer
+	lockHeld           sync.Map
+	connectedChans     []chan struct{}
 	acl                []zk.ACL
+	connectedLock      sync.Mutex
+	isConnected        bool
 }
 
 type zkLoggerProxy struct{ *log.Logger }
