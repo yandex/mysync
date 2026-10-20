@@ -54,13 +54,14 @@ func TestNodeStateCheckAtAfterPing(t *testing.T) {
 			var pingFinishedAt time.Time
 			pings := 0
 			nodes["C"].queryHook = func(query string) error {
-				if query == mysql.DefaultQueries["ping"] {
+				switch query {
+				case mysql.DefaultQueries["ping"]:
 					pings++
 					pingFinishedAt = time.Now()
 					if pings == tc.wantPings {
 						return errors.New("ping failed")
 					}
-				} else if query == mysql.DefaultQueries["is_readonly"] {
+				case mysql.DefaultQueries["is_readonly"]:
 					return errors.New("status query failed")
 				}
 				return nil
