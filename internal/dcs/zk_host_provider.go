@@ -12,23 +12,29 @@ import (
 )
 
 type zkhost struct {
-	resolved   []string
 	lastLookup time.Time
+	resolved   []string
+}
+
+type zkaddr struct {
+	host string
+	addr string
 }
 
 type RandomHostProvider struct {
 	ctx                      context.Context
-	hosts                    sync.Map
-	useAddrs                 bool
-	hostsKeys                []string
+	resolver                 *net.Resolver
 	tried                    map[string]struct{}
 	logger                   *log.Logger
-	lookupTTL                time.Duration
-	connectivityCheckTimeout time.Duration
+	hosts                    sync.Map
+	preferred                zkaddr
+	hostsKeys                []string
 	retryJitter              time.Duration
+	connectivityCheckTimeout time.Duration
+	lookupTTL                time.Duration
 	lookupTimeout            time.Duration
 	lookupTickInterval       time.Duration
-	resolver                 *net.Resolver
+	useAddrs                 bool
 	isRetry                  bool
 }
 
@@ -51,7 +57,8 @@ func NewRandomHostProvider(ctx context.Context, config *RandomHostProviderConfig
 func (rhp *RandomHostProvider) Init(servers []string) error {
 	rhp.hostsKeys = nil
 	rhp.hosts = sync.Map{}
-	var allResolvedServers []string
+	rhp.preferred = zkaddr{}
+	var allResolvedServers []zkaddr
 
 	for _, host := range servers {
 		resolved, err := rhp.resolveHost(host)
@@ -60,7 +67,9 @@ func (rhp *RandomHostProvider) Init(servers []string) error {
 			continue
 		}
 
-		allResolvedServers = append(allResolvedServers, resolved...)
+		for _, addr := range resolved {
+			allResolvedServers = append(allResolvedServers, zkaddr{host: host, addr: addr})
+		}
 
 		rhp.hosts.Store(host, zkhost{
 			resolved:   resolved,
@@ -73,32 +82,51 @@ func (rhp *RandomHostProvider) Init(servers []string) error {
 		return fmt.Errorf("unable to resolve any host from %v", servers)
 	}
 
-	if err := rhp.checkZKConnectivity(allResolvedServers); err != nil {
+	preferred, err := rhp.checkZKConnectivity(allResolvedServers)
+	if err != nil {
 		return err
 	}
+	rhp.preferred = preferred
 
 	go rhp.resolveHosts()
 
 	return nil
 }
 
-func (rhp *RandomHostProvider) checkZKConnectivity(servers []string) error {
+func (rhp *RandomHostProvider) checkZKConnectivity(servers []zkaddr) (zkaddr, error) {
 	if len(servers) == 0 {
-		return fmt.Errorf("no servers available for connectivity check")
+		return zkaddr{}, fmt.Errorf("no servers available for connectivity check")
 	}
 
+	ctx, cancel := context.WithTimeout(rhp.ctx, rhp.connectivityCheckTimeout)
+	defer cancel()
+
+	type checkResult struct {
+		err    error
+		server zkaddr
+	}
+	results := make(chan checkResult, len(servers))
 	for _, server := range servers {
-		dialer := net.Dialer{Timeout: rhp.connectivityCheckTimeout}
-		conn, err := dialer.DialContext(rhp.ctx, "tcp", server)
-		if err == nil {
-			conn.Close()
-			rhp.logger.Info().Msgf("zk connectivity check succeeded for %s", server)
-			return nil
-		}
-		rhp.logger.Error().Err(err).Msgf("connectivity check failed for %s", server)
+		go func() {
+			var dialer net.Dialer
+			conn, err := dialer.DialContext(ctx, "tcp", server.addr)
+			if err == nil {
+				conn.Close()
+			}
+			results <- checkResult{server: server, err: err}
+		}()
 	}
 
-	return fmt.Errorf("failed to connect to any zk server: all attempts timed out or refused")
+	for range servers {
+		res := <-results
+		if res.err == nil {
+			rhp.logger.Info().Str("server", res.server.addr).Msg("zk connectivity check succeeded")
+			return res.server, nil
+		}
+		rhp.logger.Error().Str("server", res.server.addr).Err(res.err).Msg("connectivity check failed")
+	}
+
+	return zkaddr{}, fmt.Errorf("failed to connect to any zk server: all attempts timed out or refused")
 }
 
 func (rhp *RandomHostProvider) resolveHosts() {
@@ -174,6 +202,17 @@ func (rhp *RandomHostProvider) Next() (server string, retryStart bool) {
 		rhp.isRetry = false
 		return rhp.hostsKeys[0], true
 	}
+
+	if rhp.preferred.host != "" {
+		preferred := rhp.preferred
+		rhp.preferred = zkaddr{}
+		rhp.tried[preferred.host] = struct{}{}
+		if rhp.useAddrs {
+			return preferred.addr, false
+		}
+		return preferred.host, false
+	}
+
 	needRetry := false
 
 	var ret string

@@ -10,24 +10,24 @@ import (
 // ZookeeperConfig contains Zookeeper connection info
 type ZookeeperConfig struct {
 	Hostname              string                   `config:"hostname" yaml:"hostname"`
-	SessionTimeout        time.Duration            `config:"session_timeout" yaml:"session_timeout"`
-	LockHeldTTL           time.Duration            `config:"lock_held_ttl" yaml:"lock_held_ttl"`
-	Namespace             string                   `config:"namespace,required" yaml:"namespace"`
-	Hosts                 []string                 `config:"hosts,required" yaml:"hosts"`
-	BackoffInterval       time.Duration            `config:"backoff_interval" yaml:"backoff_interval"`
-	BackoffRandFactor     float64                  `config:"backoff_rand_factor" yaml:"backoff_rand_factor"`
-	BackoffMultiplier     float64                  `config:"backoff_multiplier" yaml:"backoff_multiplier"`
-	BackoffMaxInterval    time.Duration            `config:"backoff_max_interval" yaml:"backoff_max_interval"`
-	BackoffMaxElapsedTime time.Duration            `config:"backoff_max_elapsed_time" yaml:"backoff_max_elapsed_time"`
-	BackoffMaxRetries     uint64                   `config:"backoff_max_retries" yaml:"backoff_max_retries"`
-	RandomHostProvider    RandomHostProviderConfig `config:"random_host_provider" yaml:"random_host_provider"`
-	Auth                  bool                     `config:"auth" yaml:"auth"`
-	Username              string                   `config:"username" yaml:"username"`
-	Password              string                   `config:"password" yaml:"password"`
-	UseSSL                bool                     `config:"use_ssl" yaml:"use_ssl"`
-	KeyFile               string                   `config:"keyfile" yaml:"keyfile"`
-	CertFile              string                   `config:"certfile" yaml:"certfile"`
 	CACert                string                   `config:"ca_cert" yaml:"ca_cert"`
+	CertFile              string                   `config:"certfile" yaml:"certfile"`
+	Namespace             string                   `config:"namespace,required" yaml:"namespace"`
+	KeyFile               string                   `config:"keyfile" yaml:"keyfile"`
+	Password              string                   `config:"password" yaml:"password"`
+	Username              string                   `config:"username" yaml:"username"`
+	Hosts                 []string                 `config:"hosts,required" yaml:"hosts"`
+	RandomHostProvider    RandomHostProviderConfig `config:"random_host_provider" yaml:"random_host_provider"`
+	BackoffMaxRetries     uint64                   `config:"backoff_max_retries" yaml:"backoff_max_retries"`
+	BackoffMaxElapsedTime time.Duration            `config:"backoff_max_elapsed_time" yaml:"backoff_max_elapsed_time"`
+	BackoffMaxInterval    time.Duration            `config:"backoff_max_interval" yaml:"backoff_max_interval"`
+	BackoffMultiplier     float64                  `config:"backoff_multiplier" yaml:"backoff_multiplier"`
+	BackoffRandFactor     float64                  `config:"backoff_rand_factor" yaml:"backoff_rand_factor"`
+	BackoffInterval       time.Duration            `config:"backoff_interval" yaml:"backoff_interval"`
+	LockHeldTTL           time.Duration            `config:"lock_held_ttl" yaml:"lock_held_ttl"`
+	SessionTimeout        time.Duration            `config:"session_timeout" yaml:"session_timeout"`
+	Auth                  bool                     `config:"auth" yaml:"auth"`
+	UseSSL                bool                     `config:"use_ssl" yaml:"use_ssl"`
 	VerifyCerts           bool                     `config:"verify_certs" yaml:"verify_certs"`
 }
 
