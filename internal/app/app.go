@@ -50,6 +50,7 @@ type App struct {
 	switchHelper        mysql.ISwitchHelper
 	lostQuorumTime      time.Time
 	switchoverProgress  *switchoverProgress
+	failoverProgress    *failoverProgress
 
 	optSyncer         OptimizationSyncer
 	optController     OptimizationController
@@ -562,6 +563,7 @@ func (app *App) stateManager() appState {
 			return stateManager
 		}
 	} else {
+		app.failoverProgress = nil
 		if !app.t.Get(NodeFailedAt, master).IsZero() {
 			app.stopTiming(timingDowntime)
 			app.t.Clean(NodeFailedAt, master)
@@ -631,6 +633,10 @@ func (app *App) checkMasterVisible(clusterStateFromDB, clusterStateDcs map[strin
 	if err != nil {
 		app.logger.Error().Err(err).Msg("checkMasterVisible: can't get master host, error")
 		return false, err
+	}
+	// An empty hostname would ping localhost and delay the failover checks.
+	if masterHost == "" {
+		return false, nil
 	}
 	state, ok := clusterStateFromDB[masterHost]
 	app.logger.Debug().Msgf("master(%s) state pingOk == %s", masterHost, state)
@@ -733,53 +739,6 @@ func (app *App) AcquireLock(path string) bool {
 	}
 
 	return false
-}
-
-func (app *App) approveFailover(clusterState, clusterStateDcs map[string]*nodestate.NodeState, activeNodes []string, master string) error {
-	if !app.config.Failover {
-		return fmt.Errorf("auto_failover is disabled in config")
-	}
-	afterCrashRecovery := clusterStateDcs[master].DaemonState != nil && clusterStateDcs[master].DaemonState.CrashRecovery && app.config.ResetupCrashedHosts
-	if afterCrashRecovery {
-		app.logger.Info().Msgf("approve failover: after crash recovery, skip replication and delay checks")
-	} else if clusterStateDcs[master].IsFileSystemReadonly {
-		app.logger.Info().Msgf("approve failover: filesystem is readonly, skip replication and delay checks")
-	} else {
-		runningHASlaves := countRunningHASlaves(clusterState)
-		if runningHASlaves > 0 && runningHASlaves == countHANodes(clusterState)-1 {
-			return fmt.Errorf("%d replicas are alive and running replication, seems zk problems", runningHASlaves)
-		}
-		if app.config.FailoverDelay > 0 {
-			failingTime := time.Since(app.t.Get(NodeFailedAt, master))
-			if failingTime < app.config.FailoverDelay {
-				return fmt.Errorf("failover delay is not yet elapsed: remaining %v", app.config.FailoverDelay-failingTime)
-			}
-		}
-	}
-
-	app.logger.Info().Msgf("approve failover: active nodes are %v", activeNodes)
-	// number of active slaves that we can use to perform switchover
-	permissibleSlaves := countAliveHASlavesWithinNodes(activeNodes, clusterState)
-	err := app.switchHelper.CheckFailoverQuorum(activeNodes, permissibleSlaves)
-	if err != nil {
-		return err
-	}
-
-	lastSwitchover := new(Switchover)
-	err = app.appDCS.GetLastSwitchover(lastSwitchover)
-	if !errors.Is(err, dcs.ErrNotFound) {
-		if err != nil {
-			return err
-		}
-		if lastSwitchover.Result == nil {
-			return fmt.Errorf("another switchover in progress. this should never happen")
-		}
-		timeAfterLastSwitchover := time.Since(lastSwitchover.Result.FinishedAt)
-		if timeAfterLastSwitchover < app.config.FailoverCooldown && lastSwitchover.Cause == CauseAuto {
-			return fmt.Errorf("not enough time from last failover %s (cooldown %s)", lastSwitchover.Result.FinishedAt, app.config.FailoverCooldown)
-		}
-	}
-	return nil
 }
 
 func (app *App) stateCandidate() appState {
@@ -2362,9 +2321,9 @@ func (app *App) getNodeState(host string) *nodestate.NodeState {
 	nodeState := new(nodestate.NodeState)
 	nodeState.ShowOnlyGTIDDiff = app.config.ShowOnlyGTIDDiff
 	err := func() error {
-		nodeState.CheckAt = time.Now()
 		nodeState.CheckBy = app.config.Hostname
 		pingOk, err := node.Ping()
+		nodeState.CheckAt = time.Now()
 		nodeState.PingOk = pingOk
 		if err != nil {
 			nodeState.PingDubious = mysql.IsErrorDubious(err)
@@ -2423,7 +2382,9 @@ func (app *App) getNodeState(host string) *nodestate.NodeState {
 		nodeState.Error = err.Error()
 		// in case ping was ok but later we encountered error
 		if nodeState.PingOk {
-			if nodeState.PingOk, err = node.Ping(); err != nil {
+			nodeState.PingOk, err = node.Ping()
+			nodeState.CheckAt = time.Now()
+			if err != nil {
 				nodeState.PingDubious = mysql.IsErrorDubious(err)
 				nodeState.Error = err.Error()
 			}
@@ -2654,6 +2615,7 @@ func (app *App) CloseLogger() {
 func (app *App) setState(state appState) {
 	if state != app.state {
 		app.switchoverProgress = nil
+		app.failoverProgress = nil
 	}
 	app.state = state
 }

@@ -121,6 +121,13 @@ show_only_gtid_diff: False
 force_switchover: False
 ```
 
+When the master is unreachable and HA replicas still report running replication,
+failover waits until received GTIDs from that master remain unchanged for
+`max(failover_delay, tick_interval)`. Applying already received transactions does
+not extend this wait. If all HA replicas report running, the master's local health
+check must also report failure and be no older than `healthcheck_interval + db_timeout`.
+A missing or stale ZooKeeper health record alone does not establish master failure.
+
 ### Usage
 
 ```
