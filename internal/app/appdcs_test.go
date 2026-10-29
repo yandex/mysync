@@ -1,6 +1,7 @@
 package app
 
 import (
+	"fmt"
 	"testing"
 	"time"
 
@@ -95,31 +96,43 @@ func TestApproveFailover_NoQuorum(t *testing.T) {
 }
 
 func TestApproveFailover_CooldownNotElapsed(t *testing.T) {
-	ctrl := gomock.NewController(t)
-	defer ctrl.Finish()
-
-	cfg := minConfig()
-	cfg.FailoverCooldown = 60 * time.Second
-
-	mockDCS := NewMockIAppDCS(ctrl)
-	// Last auto-failover finished 10 seconds ago — within cooldown
-	lastSwitch := Switchover{
-		Cause: CauseAuto,
-		Result: &SwitchoverResult{
-			Ok:         true,
-			FinishedAt: time.Now().Add(-10 * time.Second),
-		},
+	for _, tc := range []struct {
+		name     string
+		fraction string
+		allow    bool
+	}{
+		{"all replicas recovered", ".501", true},
+		{"previous master heartbeat has not advanced", ".500", false},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			app, nodes := newFailoverRetryApp(t, "", nil)
+			app.config.FailoverCooldown = time.Hour
+			app.config.ReplMonSchemeName, app.config.ReplMonTableName = "monitoring", "heartbeat"
+			finished := time.Now().Add(-10 * time.Second).Truncate(time.Second).Add(500 * time.Millisecond)
+			app.appDCS.(*MockIAppDCS).EXPECT().GetLastSwitchover(gomock.Any()).DoAndReturn(func(sw *Switchover) error {
+				*sw = Switchover{Cause: CauseAuto, Result: &SwitchoverResult{Ok: true, FinishedAt: finished}}
+				return nil
+			})
+			states := clusterState("A", "B", "C", "D", "E")
+			states["A"].PingOk = false
+			for _, host := range []string{"B", "C", "D", "E"} {
+				nodes[host].available = true
+				nodes[host].heartbeat = fmt.Sprintf("%d.501", finished.Unix())
+				states[host].IsReadOnly = true
+				states[host].SlaveState.MasterHost = "A"
+			}
+			// B is the previous master, still outside active_nodes. Cascade health is irrelevant.
+			nodes["B"].heartbeat = fmt.Sprintf("%d%s", finished.Unix(), tc.fraction)
+			states["cascade"] = &nodestate.NodeState{IsCascade: true}
+			err := app.approveFailover(states, states, []string{"A", "C", "D", "E"}, "A")
+			if tc.allow {
+				require.NoError(t, err)
+			} else {
+				require.ErrorContains(t, err, "not enough time from last failover")
+				require.ErrorContains(t, err, "heartbeat on B is not newer")
+			}
+		})
 	}
-	mockDCS.EXPECT().GetLastSwitchover(gomock.Any()).DoAndReturn(func(s *Switchover) error {
-		*s = lastSwitch
-		return nil
-	})
-
-	app := newTestApp(t, cfg, mockDCS)
-
-	cs := clusterState("master", "replica1")
-	err := app.approveFailover(cs, cs, []string{"replica1"}, "master")
-	require.ErrorContains(t, err, "not enough time from last failover")
 }
 
 func TestApproveFailover_CooldownElapsed(t *testing.T) {
