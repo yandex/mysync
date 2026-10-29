@@ -185,6 +185,7 @@ func (*failoverRetryDCS) GetChildren(path string) ([]string, error) {
 type failoverRetrySQLNode struct {
 	host        string
 	executed    string
+	heartbeat   string
 	available   bool
 	freezes     int
 	stops       int
@@ -210,6 +211,8 @@ func (c *failoverRetrySQLConn) QueryContext(_ context.Context, query string, _ [
 		return nil, fmt.Errorf("%s unavailable", c.node.host)
 	}
 	switch query {
+	case "SELECT UNIX_TIMESTAMP(ts) AS ts FROM `monitoring`.`heartbeat`":
+		return failoverRetryRow([]string{"ts"}, c.node.heartbeat), nil
 	case mysql.DefaultQueries["ping"]:
 		return failoverRetryRow([]string{"Ok"}, int64(1)), nil
 	case mysql.DefaultQueries["get_version"]:
