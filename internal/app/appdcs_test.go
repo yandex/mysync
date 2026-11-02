@@ -97,12 +97,51 @@ func TestApproveFailover_NoQuorum(t *testing.T) {
 
 func TestApproveFailover_CooldownNotElapsed(t *testing.T) {
 	for _, tc := range []struct {
-		name     string
-		fraction string
-		allow    bool
+		name             string
+		heartbeatReplica string
+		fraction         string
+		prepareE         func(*nodestate.NodeState, *failoverRetrySQLNode)
+		wantError        string
 	}{
-		{"all replicas recovered", ".501", true},
-		{"previous master heartbeat has not advanced", ".500", false},
+		{
+			name: "all replicas recovered", heartbeatReplica: "B", fraction: ".501",
+		},
+		{
+			name: "previous master has not recovered", heartbeatReplica: "B", fraction: ".500",
+			wantError: "heartbeat on B is not newer",
+		},
+		{
+			name: "last replica has not recovered", heartbeatReplica: "E", fraction: ".499",
+			wantError: "heartbeat on E is not newer",
+		},
+		{
+			name: "last replica is writable",
+			prepareE: func(state *nodestate.NodeState, _ *failoverRetrySQLNode) {
+				state.IsReadOnly = false
+			},
+			wantError: "HA host E is not a read-only replica of A",
+		},
+		{
+			name: "last replica follows another master",
+			prepareE: func(state *nodestate.NodeState, _ *failoverRetrySQLNode) {
+				state.SlaveState.MasterHost = "other-master"
+			},
+			wantError: "HA host E is not a read-only replica of A",
+		},
+		{
+			name: "last replica has incomplete state",
+			prepareE: func(state *nodestate.NodeState, _ *failoverRetrySQLNode) {
+				state.Error = "failed to read replication settings"
+			},
+			wantError: "HA host E is unavailable or has incomplete state",
+		},
+		{
+			name: "last replica heartbeat cannot be read",
+			prepareE: func(_ *nodestate.NodeState, node *failoverRetrySQLNode) {
+				node.available = false
+			},
+			wantError: "failed to read heartbeat on E",
+		},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			app, nodes := newFailoverRetryApp(t, "", nil)
@@ -121,15 +160,20 @@ func TestApproveFailover_CooldownNotElapsed(t *testing.T) {
 				states[host].IsReadOnly = true
 				states[host].SlaveState.MasterHost = "A"
 			}
+			if tc.heartbeatReplica != "" {
+				nodes[tc.heartbeatReplica].heartbeat = fmt.Sprintf("%d%s", finished.Unix(), tc.fraction)
+			}
+			if tc.prepareE != nil {
+				tc.prepareE(states["E"], nodes["E"])
+			}
 			// B is the previous master, still outside active_nodes. Cascade health is irrelevant.
-			nodes["B"].heartbeat = fmt.Sprintf("%d%s", finished.Unix(), tc.fraction)
 			states["cascade"] = &nodestate.NodeState{IsCascade: true}
 			err := app.approveFailover(states, states, []string{"A", "C", "D", "E"}, "A")
-			if tc.allow {
+			if tc.wantError == "" {
 				require.NoError(t, err)
 			} else {
 				require.ErrorContains(t, err, "not enough time from last failover")
-				require.ErrorContains(t, err, "heartbeat on B is not newer")
+				require.ErrorContains(t, err, tc.wantError)
 			}
 		})
 	}
