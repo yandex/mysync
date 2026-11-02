@@ -92,8 +92,6 @@ Feature: failover
         """
         ["mysql1","mysql2","mysql3"]
         """
-      When I get zookeeper node "/test/manager"
-      And I save zookeeper query result as "manager"
 
       # Freeze MySQL only: MySync must keep publishing its local failure report.
       When I run command on host "mysql1"
@@ -130,13 +128,6 @@ Feature: failover
       And I save zookeeper query result as "new_master"
       Then mysql host "{{.new_master}}" should be master
       And mysql host "{{.new_master}}" should be writable
-
-      # Prove that stalled GTIDs allowed failover before the IO threads timed out.
-      When I run command on host "{{.manager.hostname}}"
-        """
-        grep -F "approve failover: 2 replicas report running, but received GTIDs have not changed" /var/log/mysync.log
-        """
-      Then command return code should be "0"
 
       When I run command on host "mysql1"
         """

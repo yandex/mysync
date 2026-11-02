@@ -549,7 +549,7 @@ func (app *App) stateManager() appState {
 		if lightMaintenance {
 			app.logger.Info().Msgf("failover suppressed by light maintenance mode")
 		} else {
-			err = app.approveFailover(clusterState, clusterStateDcs, activeNodes, master)
+			err = app.approveFailover(clusterState, clusterStateDcs, activeNodes, master, time.Now())
 			if err == nil {
 				app.logger.Info().Msgf("failover approved")
 				err = app.IssueFailover(master)
@@ -587,7 +587,7 @@ func (app *App) stateManager() appState {
 		if lightMaintenance {
 			app.logger.Info().Msgf("after-crash failover suppressed by light maintenance mode")
 		} else {
-			err = app.approveFailover(clusterState, clusterStateDcs, activeNodes, master)
+			err = app.approveFailover(clusterState, clusterStateDcs, activeNodes, master, time.Now())
 			if err == nil {
 				app.logger.Info().Msgf("failover approved")
 				err = app.IssueFailover(master)

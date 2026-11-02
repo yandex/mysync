@@ -27,7 +27,7 @@ func stalledFailoverCluster() (map[string]*nodestate.NodeState, map[string]*node
 		}
 	}
 	health := map[string]*nodestate.NodeState{
-		"master": {CheckBy: "master", CheckAt: time.Now(), PingOk: false},
+		"master": {CheckBy: "master", CheckAt: time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC), PingOk: false},
 	}
 	return cs, health
 }
@@ -89,7 +89,7 @@ func TestFailoverWaitsForGTIDInactivity(t *testing.T) {
 			if partial {
 				cs["replica2"].SlaveState.ReplicationState = mysql.ReplicationError
 			}
-			now := time.Now()
+			now := health["master"].CheckAt
 			check := func(seconds int, wait bool) {
 				t.Helper()
 				checkedAt := now.Add(time.Duration(seconds) * time.Second)
@@ -147,9 +147,11 @@ func TestFailoverKeepsZooKeeperProtection(t *testing.T) {
 		{"master reports healthy", func(_, health map[string]*nodestate.NodeState) { health["master"].PingOk = true }, "fresh local failure report"},
 		{"missing health record", func(_, health map[string]*nodestate.NodeState) { health["master"] = &nodestate.NodeState{} }, "fresh local failure report"},
 		{"health check is not local", func(_, health map[string]*nodestate.NodeState) { health["master"].CheckBy = "replica1" }, "fresh local failure report"},
-		{"stale health check", func(_, health map[string]*nodestate.NodeState) { health["master"].CheckAt = time.Now().Add(-time.Hour) }, "fresh local failure report"},
+		{"stale health check", func(_, health map[string]*nodestate.NodeState) {
+			health["master"].CheckAt = health["master"].CheckAt.Add(-time.Hour)
+		}, "fresh local failure report"},
 		{"future health check", func(_, health map[string]*nodestate.NodeState) {
-			health["master"].CheckAt = time.Now().Add(2 * time.Hour)
+			health["master"].CheckAt = health["master"].CheckAt.Add(2 * time.Hour)
 		}, "fresh local failure report"},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
@@ -157,12 +159,13 @@ func TestFailoverKeepsZooKeeperProtection(t *testing.T) {
 			app.config.HealthCheckInterval = 5 * time.Second
 			app.config.DBTimeout = 5 * time.Second
 			cs, health := stalledFailoverCluster()
+			now := health["master"].CheckAt
 			var err error
-			app.failoverProgress, err = app.checkFailoverReplication(cs, health, "master", nil, time.Now())
+			app.failoverProgress, err = app.checkFailoverReplication(cs, health, "master", nil, now)
 			require.ErrorContains(t, err, "waiting for received GTIDs")
 			require.NotNil(t, app.failoverProgress)
 			tc.change(cs, health)
-			for _, now := range []time.Time{time.Now(), time.Now().Add(time.Hour)} {
+			for _, now := range []time.Time{now, now.Add(time.Hour)} {
 				app.failoverProgress, err = app.checkFailoverReplication(cs, health, "master", app.failoverProgress, now)
 				require.ErrorContains(t, err, tc.wantError)
 				require.Nil(t, app.failoverProgress)
@@ -172,37 +175,43 @@ func TestFailoverKeepsZooKeeperProtection(t *testing.T) {
 }
 
 func TestFailoverProgressOnlyTracksReceivedGTIDsFromMaster(t *testing.T) {
-	app := newTestApp(t, minConfig(), nil)
-	app.config.TickInterval = 5 * time.Second
-	app.config.HealthCheckInterval = time.Minute
+	mockDCS := NewMockIAppDCS(gomock.NewController(t))
+	mockDCS.EXPECT().GetLastSwitchover(gomock.Any()).Return(dcs.ErrNotFound).Times(2)
+	cfg := minConfig()
+	cfg.FailoverDelay = 0
+	cfg.TickInterval = 5 * time.Second
+	cfg.HealthCheckInterval = 5 * time.Second
+	app := newTestApp(t, cfg, mockDCS)
 	cs, health := stalledFailoverCluster()
+	active := []string{"master", "replica1", "replica2"}
 	cs["cascade"] = aliveReplica()
 	cs["cascade"].IsCascade = true
 	cs["cascade"].SlaveState.MasterHost = "master"
 	cs["unrelated"] = aliveReplica()
 	cs["unrelated"].SlaveState.MasterHost = "other"
-	now := time.Now()
-	progress, err := app.checkFailoverReplication(cs, health, "master", nil, now)
-	require.Error(t, err)
+	t0 := health["master"].CheckAt
+	checkAt := func(elapsed time.Duration) error {
+		now := t0.Add(elapsed)
+		health["master"].CheckAt = now
+		return app.approveFailover(cs, health, active, "master", now)
+	}
+	require.Error(t, checkAt(0))
 	// Equivalent GTID formatting is not progress.
 	cs["replica1"].SlaveState.RetrievedGtidSet = failoverTestUUID + ":1-5:6-11"
 	cs["cascade"].SlaveState.RetrievedGtidSet = failoverTestUUID + ":1-100"
 	cs["unrelated"].SlaveState.RetrievedGtidSet = failoverTestUUID + ":1-100"
-	progress, err = app.checkFailoverReplication(cs, health, "master", progress, now.Add(4*time.Second))
-	require.Error(t, err)
-	progress, err = app.checkFailoverReplication(cs, health, "master", progress, now.Add(5*time.Second))
-	require.NoError(t, err)
+	require.Error(t, checkAt(4*time.Second))
+	require.NoError(t, checkAt(5*time.Second))
 
 	// A replica switching to a different source is not progress from this master.
 	cs["replica1"].SlaveState.MasterHost = "other"
-	progress, err = app.checkFailoverReplication(cs, health, "master", progress, now.Add(6*time.Second))
-	require.NoError(t, err)
+	require.NoError(t, checkAt(6*time.Second))
 
 	// A different failed master starts a new observation window.
 	cs["replica1"].PingOk = false
 	cs["replica2"].SlaveState.MasterHost = "replica1"
 	health["replica1"] = &nodestate.NodeState{}
-	_, err = app.checkFailoverReplication(cs, health, "replica1", progress, now.Add(7*time.Second))
+	err := app.approveFailover(cs, health, active, "replica1", t0.Add(7*time.Second))
 	require.ErrorContains(t, err, "waiting for received GTIDs")
 }
 
@@ -221,7 +230,7 @@ func TestFailoverProgressSurvivesFlakyReplica(t *testing.T) {
 			app := newTestApp(t, cfg, nil)
 			cs, health := stalledFailoverCluster()
 			replica := *cs["replica2"]
-			now := time.Now()
+			now := health["master"].CheckAt
 			var progress *failoverProgress
 			check := func(seconds int, wait bool) {
 				t.Helper()
@@ -281,12 +290,13 @@ func TestApproveFailoverClearsProgress(t *testing.T) {
 			}
 			app := newTestApp(t, minConfig(), mockDCS)
 			cs, health := stalledFailoverCluster()
+			now := health["master"].CheckAt
 			app.config.HealthCheckInterval = time.Minute
 			active := []string{"master", "replica1", "replica2"}
-			require.ErrorContains(t, app.approveFailover(cs, health, active, "master"), "waiting for received GTIDs")
+			require.ErrorContains(t, app.approveFailover(cs, health, active, "master", now), "waiting for received GTIDs")
 			require.NotNil(t, app.failoverProgress)
 			tc.change(app, cs, health)
-			err := app.approveFailover(cs, health, active, "master")
+			err := app.approveFailover(cs, health, active, "master", now)
 			if tc.wantError != "" {
 				require.ErrorContains(t, err, tc.wantError)
 			} else {
@@ -295,6 +305,47 @@ func TestApproveFailoverClearsProgress(t *testing.T) {
 			require.Nil(t, app.failoverProgress)
 		})
 	}
+}
+
+func TestFailoverProgressResetsWhenMasterRecoversInDCS(t *testing.T) {
+	app, _ := newFailoverRetryApp(t, failoverTestUUID+":1-11", nil)
+	app.config.TickInterval = 5 * time.Second
+	cs := app.getClusterStateFromDB()
+	cs["C"].SlaveState.ReplicationState = mysql.ReplicationRunning
+	active := app.cluster.HANodeHosts()
+	t0 := time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)
+	health := map[string]*nodestate.NodeState{
+		"A": {CheckBy: "A", CheckAt: t0, PingOk: false},
+	}
+	checkAt := func(elapsed time.Duration) error {
+		now := t0.Add(elapsed)
+		health["A"].CheckAt = now
+		return app.approveFailover(cs, health, active, "A", now)
+	}
+	require.ErrorContains(t, checkAt(0), "waiting for received GTIDs")
+
+	// Only DCS sees recovery; the manager still cannot ping the master.
+	health["A"].PingOk = true
+	mockDCS := app.appDCS.(*MockIAppDCS)
+	mockDCS.EXPECT().GetHealthState(gomock.Any(), gomock.Any()).DoAndReturn(func(host string, state *nodestate.NodeState) error {
+		if host == "A" {
+			*state = *health["A"]
+		}
+		return nil
+	}).Times(len(active))
+	mockDCS.EXPECT().GetCurrentSwitchover().Return(nil, dcs.ErrNotFound)
+	mockDCS.EXPECT().GetMasterHostFromDcs().Return("A", nil)
+	mockDCS.EXPECT().GetActiveNodes().Return(active, nil)
+	mockDCS.EXPECT().GetMaintenance().Return(nil, dcs.ErrNotFound)
+	require.Equal(t, appState(stateManager), app.stateManager())
+	require.Nil(t, app.failoverProgress)
+
+	// Another failure must wait for a full new observation window.
+	health["A"].PingOk = false
+	require.ErrorContains(t, checkAt(time.Minute), "waiting for received GTIDs")
+	require.ErrorContains(t, checkAt(time.Minute+4*time.Second), "waiting for received GTIDs")
+	mockDCS.EXPECT().GetLastSwitchover(gomock.Any()).Return(dcs.ErrNotFound)
+	require.NoError(t, checkAt(time.Minute+5*time.Second))
 }
 
 func TestApproveFailoverWithStalledReplicas(t *testing.T) {
@@ -318,8 +369,9 @@ func TestApproveFailoverWithStalledReplicas(t *testing.T) {
 			cfg.HealthCheckInterval = 5 * time.Second
 			cfg.DBTimeout = 5 * time.Second
 			app := newTestApp(t, cfg, mockDCS)
-			app.t.Set(NodeFailedAt, "master", time.Now().Add(-time.Minute))
 			cs, health := stalledFailoverCluster()
+			now := health["master"].CheckAt
+			app.t.Set(NodeFailedAt, "master", now)
 			active := []string{"master", "replica1", "replica2"}
 			if tc.noQuorum {
 				active = []string{"master", "unreachable1", "unreachable2"}
@@ -330,18 +382,19 @@ func TestApproveFailoverWithStalledReplicas(t *testing.T) {
 				require.NoError(t, err)
 				t.Cleanup(app.cluster.Close)
 			}
-			require.ErrorContains(t, app.approveFailover(cs, health, active, "master"), "waiting for received GTIDs")
-			app.failoverProgress.changedAt = time.Now().Add(-time.Minute)
+			require.ErrorContains(t, app.approveFailover(cs, health, active, "master", now), "waiting for received GTIDs")
+			now = now.Add(cfg.FailoverDelay)
+			health["master"].CheckAt = now
 			if !tc.noQuorum {
 				mockDCS.EXPECT().GetLastSwitchover(gomock.Any()).DoAndReturn(func(sw *Switchover) error {
 					if tc.cooldown {
-						*sw = Switchover{Cause: CauseAuto, Result: &SwitchoverResult{FinishedAt: time.Now()}}
+						*sw = Switchover{Cause: CauseAuto, Result: &SwitchoverResult{FinishedAt: now}}
 						return nil
 					}
 					return dcs.ErrNotFound
 				})
 			}
-			err := app.approveFailover(cs, health, active, "master")
+			err := app.approveFailover(cs, health, active, "master", now)
 			if tc.wantError != "" {
 				require.ErrorContains(t, err, tc.wantError)
 			} else {

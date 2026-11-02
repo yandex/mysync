@@ -71,7 +71,7 @@ func (app *App) checkFailoverReplication(clusterState, clusterStateDcs map[strin
 	return p, nil
 }
 
-func (app *App) approveFailover(clusterState, clusterStateDcs map[string]*nodestate.NodeState, activeNodes []string, master string) error {
+func (app *App) approveFailover(clusterState, clusterStateDcs map[string]*nodestate.NodeState, activeNodes []string, master string, now time.Time) error {
 	previous := app.failoverProgress
 	app.failoverProgress = nil
 
@@ -85,12 +85,12 @@ func (app *App) approveFailover(clusterState, clusterStateDcs map[string]*nodest
 		app.logger.Info().Msgf("approve failover: filesystem is readonly, skip replication and delay checks")
 	} else {
 		var err error
-		app.failoverProgress, err = app.checkFailoverReplication(clusterState, clusterStateDcs, master, previous, time.Now())
+		app.failoverProgress, err = app.checkFailoverReplication(clusterState, clusterStateDcs, master, previous, now)
 		if err != nil {
 			return err
 		}
 		if app.config.FailoverDelay > 0 {
-			failingTime := time.Since(app.t.Get(NodeFailedAt, master))
+			failingTime := now.Sub(app.t.Get(NodeFailedAt, master))
 			if failingTime < app.config.FailoverDelay {
 				return fmt.Errorf("failover delay is not yet elapsed: remaining %v", app.config.FailoverDelay-failingTime)
 			}
@@ -114,7 +114,7 @@ func (app *App) approveFailover(clusterState, clusterStateDcs map[string]*nodest
 		if lastSwitchover.Result == nil {
 			return fmt.Errorf("another switchover in progress. this should never happen")
 		}
-		timeAfterLastSwitchover := time.Since(lastSwitchover.Result.FinishedAt)
+		timeAfterLastSwitchover := now.Sub(lastSwitchover.Result.FinishedAt)
 		if timeAfterLastSwitchover < app.config.FailoverCooldown && lastSwitchover.Cause == CauseAuto {
 			if err := app.checkFailoverRecovery(clusterState, master, lastSwitchover.Result.FinishedAt); err != nil {
 				return fmt.Errorf("not enough time from last failover %s (cooldown %s): %w", lastSwitchover.Result.FinishedAt, app.config.FailoverCooldown, err)

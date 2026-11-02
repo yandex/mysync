@@ -75,7 +75,7 @@ func TestApproveFailover_DisabledInConfig(t *testing.T) {
 	app := newTestApp(t, cfg, NewMockIAppDCS(ctrl))
 
 	cs := clusterState("master", "replica1")
-	err := app.approveFailover(cs, cs, []string{"replica1"}, "master")
+	err := app.approveFailover(cs, cs, []string{"replica1"}, "master", time.Now())
 	require.ErrorContains(t, err, "auto_failover is disabled")
 }
 
@@ -92,7 +92,7 @@ func TestApproveFailover_NoQuorum(t *testing.T) {
 	app := newTestApp(t, cfg, mockDCS)
 
 	cs := clusterState("master") // no replicas → no quorum
-	err := app.approveFailover(cs, cs, []string{}, "master")
+	err := app.approveFailover(cs, cs, []string{}, "master", time.Now())
 	require.ErrorContains(t, err, "no quorum")
 }
 
@@ -188,7 +188,7 @@ func TestApproveFailover_CooldownNotElapsed(t *testing.T) {
 			}
 			// B is the previous master, still outside active_nodes. Cascade health is irrelevant.
 			states["cascade"] = &nodestate.NodeState{IsCascade: true}
-			err := app.approveFailover(states, states, []string{"A", "C", "D", "E"}, "A")
+			err := app.approveFailover(states, states, []string{"A", "C", "D", "E"}, "A", time.Now())
 			if tc.wantError == "" {
 				require.NoError(t, err)
 			} else {
@@ -223,7 +223,7 @@ func TestApproveFailover_CooldownElapsed(t *testing.T) {
 	app := newTestApp(t, cfg, mockDCS)
 
 	cs := clusterState("master", "replica1")
-	err := app.approveFailover(cs, cs, []string{"replica1"}, "master")
+	err := app.approveFailover(cs, cs, []string{"replica1"}, "master", time.Now())
 	require.NoError(t, err)
 }
 
@@ -251,7 +251,7 @@ func TestApproveFailover_ManualSwitchoverDoesNotTriggerCooldown(t *testing.T) {
 	app := newTestApp(t, cfg, mockDCS)
 
 	cs := clusterState("master", "replica1")
-	err := app.approveFailover(cs, cs, []string{"replica1"}, "master")
+	err := app.approveFailover(cs, cs, []string{"replica1"}, "master", time.Now())
 	require.NoError(t, err)
 }
 
@@ -268,7 +268,7 @@ func TestApproveFailover_NoLastSwitchover(t *testing.T) {
 	app := newTestApp(t, cfg, mockDCS)
 
 	cs := clusterState("master", "replica1")
-	err := app.approveFailover(cs, cs, []string{"replica1"}, "master")
+	err := app.approveFailover(cs, cs, []string{"replica1"}, "master", time.Now())
 	require.NoError(t, err)
 }
 
@@ -297,7 +297,7 @@ func TestApproveFailover_AfterCrashRecovery_SkipsDelayCheck(t *testing.T) {
 		"replica1": {PingOk: true},
 	}
 
-	err := app.approveFailover(cs, dcsState, []string{"replica1"}, "master")
+	err := app.approveFailover(cs, dcsState, []string{"replica1"}, "master", time.Now())
 	require.NoError(t, err)
 }
 

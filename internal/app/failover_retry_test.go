@@ -182,6 +182,8 @@ type failoverRetryDCS struct {
 	haHostsErr error
 }
 
+func (*failoverRetryDCS) IsConnected() bool { return true }
+
 func (d *failoverRetryDCS) GetChildren(path string) ([]string, error) {
 	if path == dcs.PathHANodesPrefix {
 		return d.haHosts, d.haHostsErr
