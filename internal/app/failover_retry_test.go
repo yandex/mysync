@@ -153,7 +153,10 @@ func newFailoverRetryApp(t *testing.T, executed string, stopTurning error) (*App
 		return mysql.NodeConfiguration{Priority: priority}, nil
 	}).AnyTimes()
 	app := newTestApp(t, cfg, mockDCS)
-	app.dcs = &failoverRetryDCS{catchUpDCS: catchUpDCS{locked: true}}
+	app.dcs = &failoverRetryDCS{
+		catchUpDCS: catchUpDCS{locked: true},
+		haHosts:    []string{"A", "B", "C", "D", "E"},
+	}
 	var err error
 	app.cluster, err = mysql.NewCluster(cfg, app.logger, app.dcs)
 	require.NoError(t, err)
@@ -173,11 +176,15 @@ func newFailoverRetryApp(t *testing.T, executed string, stopTurning error) (*App
 	return app, nodes
 }
 
-type failoverRetryDCS struct{ catchUpDCS }
+type failoverRetryDCS struct {
+	catchUpDCS
+	haHosts    []string
+	haHostsErr error
+}
 
-func (*failoverRetryDCS) GetChildren(path string) ([]string, error) {
+func (d *failoverRetryDCS) GetChildren(path string) ([]string, error) {
 	if path == dcs.PathHANodesPrefix {
-		return []string{"A", "B", "C", "D", "E"}, nil
+		return d.haHosts, d.haHostsErr
 	}
 	return nil, nil
 }
@@ -211,7 +218,7 @@ func (c *failoverRetrySQLConn) QueryContext(_ context.Context, query string, _ [
 		return nil, fmt.Errorf("%s unavailable", c.node.host)
 	}
 	switch query {
-	case "SELECT UNIX_TIMESTAMP(ts) AS ts FROM `monitoring`.`heartbeat`":
+	case strings.NewReplacer(":replMonSchemeName", "`monitoring`", ":replMonTable", "`heartbeat`").Replace(mysql.DefaultQueries["get_repl_mon_ts"]):
 		return failoverRetryRow([]string{"ts"}, c.node.heartbeat), nil
 	case mysql.DefaultQueries["ping"]:
 		return failoverRetryRow([]string{"Ok"}, int64(1)), nil

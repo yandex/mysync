@@ -1,6 +1,7 @@
 package app
 
 import (
+	"errors"
 	"fmt"
 	"testing"
 	"time"
@@ -101,10 +102,25 @@ func TestApproveFailover_CooldownNotElapsed(t *testing.T) {
 		heartbeatReplica string
 		fraction         string
 		prepareE         func(*nodestate.NodeState, *failoverRetrySQLNode)
+		prepareDCS       func(*failoverRetryDCS)
 		wantError        string
 	}{
 		{
 			name: "all replicas recovered", heartbeatReplica: "B", fraction: ".501",
+		},
+		{
+			name: "new HA replica in DCS has unknown recovery status",
+			prepareDCS: func(dc *failoverRetryDCS) {
+				dc.haHosts = append(dc.haHosts, "F")
+			},
+			wantError: "HA host F is unavailable or has incomplete state",
+		},
+		{
+			name: "failed to read HA hosts from DCS",
+			prepareDCS: func(dc *failoverRetryDCS) {
+				dc.haHostsErr = errors.New("DCS unavailable")
+			},
+			wantError: "failed to read HA hosts: DCS unavailable",
 		},
 		{
 			name: "previous master has not recovered", heartbeatReplica: "B", fraction: ".500",
@@ -165,6 +181,10 @@ func TestApproveFailover_CooldownNotElapsed(t *testing.T) {
 			}
 			if tc.prepareE != nil {
 				tc.prepareE(states["E"], nodes["E"])
+			}
+			if tc.prepareDCS != nil {
+				// Change DCS after the local HA inventory has been cached.
+				tc.prepareDCS(app.dcs.(*failoverRetryDCS))
 			}
 			// B is the previous master, still outside active_nodes. Cascade health is irrelevant.
 			states["cascade"] = &nodestate.NodeState{IsCascade: true}
