@@ -1,6 +1,8 @@
 package app
 
 import (
+	"errors"
+	"fmt"
 	"testing"
 	"time"
 
@@ -95,31 +97,106 @@ func TestApproveFailover_NoQuorum(t *testing.T) {
 }
 
 func TestApproveFailover_CooldownNotElapsed(t *testing.T) {
-	ctrl := gomock.NewController(t)
-	defer ctrl.Finish()
-
-	cfg := minConfig()
-	cfg.FailoverCooldown = 60 * time.Second
-
-	mockDCS := NewMockIAppDCS(ctrl)
-	// Last auto-failover finished 10 seconds ago — within cooldown
-	lastSwitch := Switchover{
-		Cause: CauseAuto,
-		Result: &SwitchoverResult{
-			Ok:         true,
-			FinishedAt: time.Now().Add(-10 * time.Second),
+	for _, tc := range []struct {
+		name             string
+		heartbeatReplica string
+		fraction         string
+		prepareE         func(*nodestate.NodeState, *failoverRetrySQLNode)
+		prepareDCS       func(*failoverRetryDCS)
+		wantError        string
+	}{
+		{
+			name: "all replicas recovered", heartbeatReplica: "B", fraction: ".501",
 		},
+		{
+			name: "new HA replica in DCS has unknown recovery status",
+			prepareDCS: func(dc *failoverRetryDCS) {
+				dc.haHosts = append(dc.haHosts, "F")
+			},
+			wantError: "HA host F is unavailable or has incomplete state",
+		},
+		{
+			name: "failed to read HA hosts from DCS",
+			prepareDCS: func(dc *failoverRetryDCS) {
+				dc.haHostsErr = errors.New("DCS unavailable")
+			},
+			wantError: "failed to read HA hosts: DCS unavailable",
+		},
+		{
+			name: "previous master has not recovered", heartbeatReplica: "B", fraction: ".500",
+			wantError: "heartbeat on B is not newer",
+		},
+		{
+			name: "last replica has not recovered", heartbeatReplica: "E", fraction: ".499",
+			wantError: "heartbeat on E is not newer",
+		},
+		{
+			name: "last replica is writable",
+			prepareE: func(state *nodestate.NodeState, _ *failoverRetrySQLNode) {
+				state.IsReadOnly = false
+			},
+			wantError: "HA host E is not a read-only replica of A",
+		},
+		{
+			name: "last replica follows another master",
+			prepareE: func(state *nodestate.NodeState, _ *failoverRetrySQLNode) {
+				state.SlaveState.MasterHost = "other-master"
+			},
+			wantError: "HA host E is not a read-only replica of A",
+		},
+		{
+			name: "last replica has incomplete state",
+			prepareE: func(state *nodestate.NodeState, _ *failoverRetrySQLNode) {
+				state.Error = "failed to read replication settings"
+			},
+			wantError: "HA host E is unavailable or has incomplete state",
+		},
+		{
+			name: "last replica heartbeat cannot be read",
+			prepareE: func(_ *nodestate.NodeState, node *failoverRetrySQLNode) {
+				node.available = false
+			},
+			wantError: "failed to read heartbeat on E",
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			app, nodes := newFailoverRetryApp(t, "", nil)
+			app.config.FailoverCooldown = time.Hour
+			app.config.ReplMonSchemeName, app.config.ReplMonTableName = "monitoring", "heartbeat"
+			finished := time.Now().Add(-10 * time.Second).Truncate(time.Second).Add(500 * time.Millisecond)
+			app.appDCS.(*MockIAppDCS).EXPECT().GetLastSwitchover(gomock.Any()).DoAndReturn(func(sw *Switchover) error {
+				*sw = Switchover{Cause: CauseAuto, Result: &SwitchoverResult{Ok: true, FinishedAt: finished}}
+				return nil
+			})
+			states := clusterState("A", "B", "C", "D", "E")
+			states["A"].PingOk = false
+			for _, host := range []string{"B", "C", "D", "E"} {
+				nodes[host].available = true
+				nodes[host].heartbeat = fmt.Sprintf("%d.501", finished.Unix())
+				states[host].IsReadOnly = true
+				states[host].SlaveState.MasterHost = "A"
+			}
+			if tc.heartbeatReplica != "" {
+				nodes[tc.heartbeatReplica].heartbeat = fmt.Sprintf("%d%s", finished.Unix(), tc.fraction)
+			}
+			if tc.prepareE != nil {
+				tc.prepareE(states["E"], nodes["E"])
+			}
+			if tc.prepareDCS != nil {
+				// Change DCS after the local HA inventory has been cached.
+				tc.prepareDCS(app.dcs.(*failoverRetryDCS))
+			}
+			// B is the previous master, still outside active_nodes. Cascade health is irrelevant.
+			states["cascade"] = &nodestate.NodeState{IsCascade: true}
+			err := app.approveFailover(states, states, []string{"A", "C", "D", "E"}, "A")
+			if tc.wantError == "" {
+				require.NoError(t, err)
+			} else {
+				require.ErrorContains(t, err, "not enough time from last failover")
+				require.ErrorContains(t, err, tc.wantError)
+			}
+		})
 	}
-	mockDCS.EXPECT().GetLastSwitchover(gomock.Any()).DoAndReturn(func(s *Switchover) error {
-		*s = lastSwitch
-		return nil
-	})
-
-	app := newTestApp(t, cfg, mockDCS)
-
-	cs := clusterState("master", "replica1")
-	err := app.approveFailover(cs, cs, []string{"replica1"}, "master")
-	require.ErrorContains(t, err, "not enough time from last failover")
 }
 
 func TestApproveFailover_CooldownElapsed(t *testing.T) {
