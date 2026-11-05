@@ -182,6 +182,8 @@ type failoverRetryDCS struct {
 	haHostsErr error
 }
 
+func (*failoverRetryDCS) IsConnected() bool { return true }
+
 func (d *failoverRetryDCS) GetChildren(path string) ([]string, error) {
 	if path == dcs.PathHANodesPrefix {
 		return d.haHosts, d.haHostsErr
@@ -197,6 +199,7 @@ type failoverRetrySQLNode struct {
 	freezes     int
 	stops       int
 	stopTurning error
+	queryHook   func(string) error
 }
 
 type failoverRetrySQLConnector struct {
@@ -214,6 +217,11 @@ type failoverRetrySQLConn struct {
 }
 
 func (c *failoverRetrySQLConn) QueryContext(_ context.Context, query string, _ []driver.NamedValue) (driver.Rows, error) {
+	if c.node.queryHook != nil {
+		if err := c.node.queryHook(query); err != nil {
+			return nil, err
+		}
+	}
 	if !c.node.available {
 		return nil, fmt.Errorf("%s unavailable", c.node.host)
 	}
