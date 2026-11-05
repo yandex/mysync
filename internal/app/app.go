@@ -776,7 +776,55 @@ func (app *App) approveFailover(clusterState, clusterStateDcs map[string]*nodest
 		}
 		timeAfterLastSwitchover := time.Since(lastSwitchover.Result.FinishedAt)
 		if timeAfterLastSwitchover < app.config.FailoverCooldown && lastSwitchover.Cause == CauseAuto {
-			return fmt.Errorf("not enough time from last failover %s (cooldown %s)", lastSwitchover.Result.FinishedAt, app.config.FailoverCooldown)
+			if err := app.checkFailoverRecovery(clusterState, master, lastSwitchover.Result.FinishedAt); err != nil {
+				return fmt.Errorf("not enough time from last failover %s (cooldown %s): %w", lastSwitchover.Result.FinishedAt, app.config.FailoverCooldown, err)
+			}
+			app.logger.Info().Msgf("approve failover: all HA replicas recovered since %s, bypassing cooldown", lastSwitchover.Result.FinishedAt)
+		}
+	}
+	return nil
+}
+
+func (app *App) checkFailoverRecovery(clusterState map[string]*nodestate.NodeState, master string, finishedAt time.Time) error {
+	// active_nodes can omit the previous master before it has recovered.
+	// Read the current HA inventory: the manager may have failed to refresh its cache.
+	hosts, err := app.cluster.GetClusterHAFqdnsFromDcs()
+	if err != nil {
+		return fmt.Errorf("failed to read HA hosts: %w", err)
+	}
+	if len(hosts) < 2 || !slices.Contains(hosts, master) {
+		return fmt.Errorf("incomplete HA inventory for master %s", master)
+	}
+	for _, host := range hosts {
+		if host == master {
+			continue
+		}
+		state := clusterState[host]
+		if state == nil || !state.PingOk || state.PingDubious || state.Error != "" {
+			return fmt.Errorf("HA host %s is unavailable or has incomplete state", host)
+		}
+		if state.IsMaster || state.IsCascade || !state.IsReadOnly || state.SlaveState == nil || state.SlaveState.MasterHost != master {
+			return fmt.Errorf("HA host %s is not a read-only replica of %s", host, master)
+		}
+		node := app.cluster.Get(host)
+		if node == nil {
+			return fmt.Errorf("HA host %s is missing from local inventory", host)
+		}
+		ts, err := node.GetReplMonTS(app.config.ReplMonSchemeName, app.config.ReplMonTableName)
+		if err != nil {
+			return fmt.Errorf("failed to read heartbeat on %s: %w", host, err)
+		}
+		// UNIX_TIMESTAMP returns decimal seconds. Keep the fractional part without
+		// floating-point rounding, and reject strings containing duration units.
+		if strings.Trim(ts, "0123456789.") != "" {
+			return fmt.Errorf("invalid heartbeat %q on %s", ts, host)
+		}
+		sinceEpoch, err := time.ParseDuration(ts + "s")
+		if err != nil {
+			return fmt.Errorf("invalid heartbeat on %s: %w", host, err)
+		}
+		if !time.Unix(0, int64(sinceEpoch)).After(finishedAt) {
+			return fmt.Errorf("heartbeat on %s is not newer than last failover %s", host, finishedAt)
 		}
 	}
 	return nil
