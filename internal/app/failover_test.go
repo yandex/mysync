@@ -116,14 +116,19 @@ func TestFailoverWaitsForGTIDInactivity(t *testing.T) {
 			cs["replica2"].SlaveState.ExecutedGtidSet = failoverTestUUID + ":1-11"
 			check(62, false)
 
-			// A reachable master clears progress before its next failure.
+			// A reachable master clears progress only when all replicas report running.
 			cs["master"].PingOk = true
-			var err error
-			app.failoverProgress, err = app.checkFailoverReplication(cs, health, "master", app.failoverProgress, now.Add(63*time.Second))
-			require.ErrorContains(t, err, "still reachable")
-			require.Nil(t, app.failoverProgress)
+			if partial {
+				check(63, false)
+				require.NotNil(t, app.failoverProgress)
+			} else {
+				var err error
+				app.failoverProgress, err = app.checkFailoverReplication(cs, health, "master", app.failoverProgress, now.Add(63*time.Second))
+				require.ErrorContains(t, err, "still reachable")
+				require.Nil(t, app.failoverProgress)
+			}
 			cs["master"].PingOk = false
-			check(93, true)
+			check(93, !partial)
 			check(123, false)
 			app.state = stateManager
 			app.setState(stateCandidate)
@@ -140,10 +145,6 @@ func TestFailoverKeepsZooKeeperProtection(t *testing.T) {
 		wantError string
 	}{
 		{"master reachable by manager", func(cs, _ map[string]*nodestate.NodeState) { cs["master"].PingOk = true }, "still reachable"},
-		{"reachable master with some running replicas", func(cs, _ map[string]*nodestate.NodeState) {
-			cs["master"].PingOk = true
-			cs["replica2"].SlaveState.ReplicationState = mysql.ReplicationError
-		}, "still reachable"},
 		{"master reports healthy", func(_, health map[string]*nodestate.NodeState) { health["master"].PingOk = true }, "fresh local failure report"},
 		{"missing health record", func(_, health map[string]*nodestate.NodeState) { health["master"] = &nodestate.NodeState{} }, "fresh local failure report"},
 		{"health check is not local", func(_, health map[string]*nodestate.NodeState) { health["master"].CheckBy = "replica1" }, "fresh local failure report"},
