@@ -206,6 +206,7 @@ func (a *appDCS) GetCurrentSwitchover() (*Switchover, error) {
 
 // CreateCurrentSwitchover creates a new switchover record in ZK (fails if one already exists).
 func (a *appDCS) CreateCurrentSwitchover(switchover *Switchover) error {
+	switchover.TopologyStarted = new(bool)
 	return a.dcs.Create(pathCurrentSwitch, switchover)
 }
 

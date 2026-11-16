@@ -50,6 +50,9 @@ type Switchover struct {
 	StartedAt        time.Time         `json:"started_at"`
 	Result           *SwitchoverResult `json:"result"`
 	RunCount         int               `json:"run_count,omitempty"`
+	// Nil identifies requests written before durable recovery was introduced.
+	TopologyStarted *bool  `json:"topology_started,omitempty"`
+	RecoveryTarget  string `json:"recovery_target,omitempty"`
 }
 
 func (sw *Switchover) IsFailover() bool {
