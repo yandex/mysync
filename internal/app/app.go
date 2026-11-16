@@ -509,6 +509,7 @@ func (app *App) stateManager() appState {
 				return stateManager
 			}
 
+			app.initSwitchoverProgress(switchover, master, activeNodes)
 			err = app.StartSwitchover(switchover)
 			if err != nil {
 				app.logger.Error().Err(err).Msg("failed to start switchover")
@@ -1290,32 +1291,6 @@ func (app *App) disableSemiSyncIfNonNeeded(node *mysql.Node, state *nodestate.No
 
 // nolint: gocyclo, funlen
 func (app *App) performSwitchover(clusterState map[string]*nodestate.NodeState, activeNodes []string, switchover *Switchover, oldMaster string) error {
-	target := switchover.RecoveryTarget
-	if target == "" {
-		target = switchover.To
-	} else if switchover.To != "" && target != switchover.To {
-		return fmt.Errorf("switchover: recovery target %s conflicts with requested target %s", target, switchover.To)
-	}
-	if !app.switchoverProgress.matches(switchover) && app.switchoverStarted(switchover) {
-		if switchover.TopologyStarted == nil && target == "" {
-			return errors.New("switchover: interrupted legacy request has no known target; operator intervention required")
-		}
-		// DCS is updated only after promotion and the remaining MySQL actions.
-		// A restart before FinishSwitchover must not freeze that master again.
-		if target != "" && target == oldMaster {
-			state := clusterState[target]
-			if state == nil || !state.PingOk || !state.IsMaster || state.IsReadOnly || state.IsSuperReadOnly || state.IsOffline {
-				return fmt.Errorf("switchover: committed target %s is not an online writable master", target)
-			}
-			if _, err := app.getMasterHost(clusterState); err != nil {
-				return err
-			}
-			app.switchoverProgress = &switchoverProgress{
-				request: *switchover, phase: switchoverComplete, oldMaster: oldMaster, newMaster: target,
-			}
-			return nil
-		}
-	}
 	if app.switchoverProgress.matches(switchover) {
 		if app.switchoverProgress.phase == switchoverComplete {
 			return nil
@@ -1324,24 +1299,9 @@ func (app *App) performSwitchover(clusterState map[string]*nodestate.NodeState, 
 		app.logger.Info().Msgf("switchover: resuming %s, old master %s, new master %s",
 			app.switchoverProgress.phase, app.switchoverProgress.oldMaster, app.switchoverProgress.newMaster)
 	}
-	p := app.switchoverProgress
-	if !p.matches(switchover) {
-		// Track the attempt before prechecks: a failure here must not make
-		// RunCount look like evidence that MySQL changes have started.
-		p = &switchoverProgress{
-			request:                  *switchover,
-			oldMaster:                oldMaster,
-			activeNodesWithOldMaster: slices.Clone(activeNodes),
-		}
-		// An existing retried request may predate this manager's local progress.
-		// Conservatively assume that it has already started changing MySQL.
-		if app.switchoverStarted(switchover) {
-			p.phase = switchoverFreeze
-		}
-		app.switchoverProgress = p
-	}
-	if target != "" {
-		if !slices.Contains(activeNodes, target) {
+	p := app.initSwitchoverProgress(switchover, oldMaster, activeNodes)
+	if switchover.To != "" {
+		if !slices.Contains(activeNodes, switchover.To) {
 			return errors.New("switchover: failed: replica is not active, can't switch to it")
 		}
 	}
@@ -1374,7 +1334,7 @@ func (app *App) performSwitchover(clusterState map[string]*nodestate.NodeState, 
 			return err
 		}
 	}
-	if switchover.IsFailover() && switchover.To == "" && switchover.RecoveryTarget == "" && p.phase == switchoverCatchUp {
+	if switchover.IsFailover() && switchover.To == "" && p.phase == switchoverCatchUp {
 		// No other host has been turned to the candidate yet. Repeat freeze and
 		// selection so a failover without an explicit destination can replace the candidate.
 		// Once turn-replicas starts, even a failed attempt may change the topology.
@@ -1407,9 +1367,6 @@ func (app *App) performSwitchover(clusterState map[string]*nodestate.NodeState, 
 	oldMasterNode := app.cluster.Get(oldMaster)
 
 	if err := p.run(switchoverFreeze, func() error {
-		if err := app.saveSwitchoverRecovery(switchover, ""); err != nil {
-			return err
-		}
 		// set read only everywhere (all HA-nodes) and stop replication
 		app.logger.Info().Msg("switchover: phase 1: enter read only")
 		errs := util.RunParallel(func(host string) error {
@@ -1534,8 +1491,8 @@ func (app *App) performSwitchover(clusterState map[string]*nodestate.NodeState, 
 
 		// choose new master
 		var newMaster string
-		if target != "" {
-			newMaster = target
+		if switchover.To != "" {
+			newMaster = switchover.To
 		} else if switchover.From != "" {
 			positions2 := filterOutNodeFromPositions(positions, switchover.From)
 			// we ignore splitbrain flag as it should be handled during searching most recent host
@@ -1616,9 +1573,6 @@ func (app *App) performSwitchover(clusterState map[string]*nodestate.NodeState, 
 	}
 
 	if err := p.run(switchoverTurnReplicas, func() error {
-		if err := app.saveSwitchoverRecovery(switchover, newMaster); err != nil {
-			return err
-		}
 		// update lost servers list, it may change during catchup
 		clusterState = app.getClusterStateFromDB()
 		if !clusterState[newMaster].PingOk {

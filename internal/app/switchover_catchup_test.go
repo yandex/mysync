@@ -89,12 +89,6 @@ func TestSwitchoverCatchUpWithUnavailableDonor(t *testing.T) {
 
 			sw := testSwitchover()
 			sw.RunCount = 1
-			if tc.wantPhase == switchoverTurnReplicas {
-				mockDCS.EXPECT().SetCurrentSwitchover(gomock.Any()).DoAndReturn(func(saved *Switchover) error {
-					require.Equal(t, "new", saved.RecoveryTarget)
-					return nil
-				})
-			}
 			hosts := []string{"old", "new", "donor"}
 			app.switchoverProgress = &switchoverProgress{
 				request: sw, phase: switchoverCatchUp,

@@ -523,138 +523,48 @@ func TestSwitchoverResumeStillRequiresQuorum(t *testing.T) {
 }
 
 func TestSwitchoverRestartOnFirstAttempt(t *testing.T) {
-	for _, legacy := range []bool{false, true} {
-		t.Run(map[bool]string{false: "durable", true: "legacy"}[legacy], func(t *testing.T) {
-			mockDCS := NewMockIAppDCS(gomock.NewController(t))
-			cfg := minConfig()
-			cfg.SwitchoverTimeout = time.Minute
-			app := newTestApp(t, cfg, mockDCS)
-			sw := testSwitchover()
-			sw.StartedAt = sw.InitiatedAt
-			if !legacy {
-				sw.TopologyStarted = util.Ptr(true)
-			}
-			cs := map[string]*nodestate.NodeState{"old": aliveReplica(), "new": aliveReplica()}
-			mockDCS.EXPECT().GetMasterHostFromDcs().Return("old", nil)
-			master, err := app.getMasterForSwitchover(cs, &sw)
-			require.NoError(t, err)
-			require.Equal(t, "old", master)
-			require.Zero(t, sw.RunCount)
-			require.False(t, app.switchoverTimedOut(&sw, sw.InitiatedAt.Add(time.Hour)))
-			require.NoError(t, app.approveSwitchover(&sw, []string{"old", "new"}, cs))
-
-			// Stop at a real precheck; recovery must already skip optimization.
-			cs["new"].PingOk, cs["new"].PingDubious = false, true
-			err = app.performSwitchover(cs, []string{"old", "new"}, &sw, master)
-			require.ErrorContains(t, err, "dubious errors")
-			require.Equal(t, switchoverFreeze, app.switchoverProgress.phase)
-		})
-	}
-}
-
-func TestSwitchoverRecoveryWriteFailureStopsSQL(t *testing.T) {
-	for _, phase := range []switchoverPhase{switchoverFreeze, switchoverTurnReplicas} {
-		t.Run(phase.String(), func(t *testing.T) {
-			mockDCS := NewMockIAppDCS(gomock.NewController(t))
-			app := newTestApp(t, minConfig(), mockDCS)
-			app.cluster = &mysql.Cluster{} // Any SQL access would panic.
-			sw := testSwitchover()
-			sw.TopologyStarted = util.Ptr(phase == switchoverTurnReplicas)
-			hosts := []string{"old", "new"}
-			app.switchoverProgress = &switchoverProgress{
-				request: sw, phase: phase, oldMaster: "old", newMaster: "new",
-				activeNodesWithOldMaster: hosts, frozenActiveNodes: hosts,
-			}
-			injected := errors.New("DCS write failed")
-			mockDCS.EXPECT().SetCurrentSwitchover(gomock.Any()).DoAndReturn(func(saved *Switchover) error {
-				require.True(t, *saved.TopologyStarted)
-				if phase == switchoverTurnReplicas {
-					require.Equal(t, "new", saved.RecoveryTarget)
-				}
-				return injected
-			}).Times(2)
-			for range 2 {
-				err := app.performSwitchover(clusterState("old", "new"), hosts, &sw, "old")
-				require.ErrorIs(t, err, injected)
-				require.Empty(t, sw.RecoveryTarget)
-				require.Equal(t, phase == switchoverTurnReplicas, *sw.TopologyStarted)
-				require.Equal(t, phase == switchoverTurnReplicas, app.switchoverStarted(&sw))
-				require.Equal(t, phase, app.switchoverProgress.phase)
-			}
-		})
-	}
-}
-
-func TestSwitchoverRestartKeepsPinnedTarget(t *testing.T) {
-	injected := errors.New("stop before turning replicas")
-	app, _ := newFailoverRetryApp(t, "908fa82e-1529-11ef-8446-a0362c3daca9:1-10", injected)
+	mockDCS := NewMockIAppDCS(gomock.NewController(t))
+	cfg := minConfig()
+	cfg.SwitchoverTimeout = time.Minute
+	app := newTestApp(t, cfg, mockDCS)
 	sw := testSwitchover()
-	sw.From, sw.To = "A", ""
-	sw.Cause, sw.MasterTransition = CauseAuto, FailoverTransition
-	sw.TopologyStarted, sw.RecoveryTarget = util.Ptr(true), "D"
-	// C has higher priority, but D was pinned before the previous manager died.
-	err := app.performSwitchover(app.getClusterStateFromDB(), app.cluster.HANodeHosts(), &sw, "A")
-	require.ErrorIs(t, err, injected)
-	require.Equal(t, "D", app.switchoverProgress.newMaster)
-	require.Equal(t, switchoverTurnReplicas, app.switchoverProgress.phase)
-	require.Empty(t, sw.To)
+	sw.StartedAt = sw.InitiatedAt
+	cs := map[string]*nodestate.NodeState{"old": aliveReplica(), "new": aliveReplica()}
+	mockDCS.EXPECT().GetMasterHostFromDcs().Return("old", nil)
+	master, err := app.getMasterForSwitchover(cs, &sw)
+	require.NoError(t, err)
+	require.Equal(t, "old", master)
+	require.Zero(t, sw.RunCount)
+	require.False(t, app.switchoverTimedOut(&sw, sw.InitiatedAt.Add(time.Hour)))
+	require.NoError(t, app.approveSwitchover(&sw, []string{"old", "new"}, cs))
+
+	// Stop at a real precheck; recovery must already skip optimization.
+	cs["new"].PingOk, cs["new"].PingDubious = false, true
+	err = app.performSwitchover(cs, []string{"old", "new"}, &sw, master)
+	require.ErrorContains(t, err, "dubious errors")
+	require.Equal(t, switchoverFreeze, app.switchoverProgress.phase)
 }
 
-func TestSwitchoverRestartAfterCommit(t *testing.T) {
-	for _, inconsistent := range []bool{false, true} {
-		t.Run(map[bool]string{false: "committed", true: "readonly target"}[inconsistent], func(t *testing.T) {
-			mockDCS := NewMockIAppDCS(gomock.NewController(t))
-			app := newTestApp(t, minConfig(), mockDCS)
-			app.dcs = switchoverTimingDCS{}
-			// No SQL cluster: restarting freeze or promotion would panic.
-			sw := testSwitchover()
-			sw.TopologyStarted, sw.RecoveryTarget = util.Ptr(true), "new"
-			cs := clusterState("new", "old")
-			cs["new"].IsReadOnly = inconsistent
-			err := app.performSwitchover(cs, []string{"old", "new"}, &sw, "new")
-			if inconsistent {
-				require.ErrorContains(t, err, "not an online writable master")
-				require.Nil(t, app.switchoverProgress)
-				return
-			}
-			require.NoError(t, err)
-			require.Equal(t, switchoverComplete, app.switchoverProgress.phase)
-			mockDCS.EXPECT().DeleteCurrentSwitchover().Return(nil)
-			mockDCS.EXPECT().SetLastSwitchover(gomock.Any()).DoAndReturn(func(saved *Switchover) error {
-				require.True(t, saved.Result.Ok)
-				return nil
-			})
-			require.NoError(t, app.FinishSwitchover(&sw, nil))
-		})
-	}
-}
-
-func TestSwitchoverLegacyUnknownTargetRequiresOperator(t *testing.T) {
-	app := newTestApp(t, minConfig(), nil)
+func TestManagerKeepsNewSwitchoverBeforeFreeze(t *testing.T) {
+	app, _ := newFailoverRetryApp(t, "908fa82e-1529-11ef-8446-a0362c3daca9:1-10", nil)
+	mockDCS := app.appDCS.(*MockIAppDCS)
 	sw := testSwitchover()
-	sw.To, sw.StartedAt = "", sw.InitiatedAt
-	err := app.performSwitchover(nil, nil, &sw, "old")
-	require.ErrorContains(t, err, "operator intervention required")
-	require.Nil(t, app.switchoverProgress)
-}
+	sw.InitiatedAt = time.Now()
+	app.config.SwitchoverTimeout = time.Hour
+	sw.MasterTransition, sw.To = FailoverTransition, "inactive"
+	hosts := app.cluster.HANodeHosts()
+	mockDCS.EXPECT().GetHealthState(gomock.Any(), gomock.Any()).Return(nil).Times(len(hosts))
+	mockDCS.EXPECT().GetCurrentSwitchover().Return(&sw, nil).Times(2)
+	mockDCS.EXPECT().GetMasterHostFromDcs().Return("A", nil)
+	mockDCS.EXPECT().GetActiveNodes().Return(hosts, nil)
+	mockDCS.EXPECT().GetMaintenance().Return(nil, dcs.ErrNotFound)
+	mockDCS.EXPECT().SetCurrentSwitchover(gomock.Any()).Return(nil).Times(2)
 
-func TestStartSwitchoverPreservesRecoveryFormat(t *testing.T) {
-	for _, kind := range []string{"new", "legacy", "precheck retry"} {
-		t.Run(kind, func(t *testing.T) {
-			mockDCS := NewMockIAppDCS(gomock.NewController(t))
-			app := newTestApp(t, minConfig(), mockDCS)
-			sw := testSwitchover()
-			sw.MasterTransition = FailoverTransition
-			if kind != "new" {
-				sw.StartedAt = sw.InitiatedAt
-			}
-			if kind == "precheck retry" {
-				sw.TopologyStarted, sw.RunCount = util.Ptr(false), 1
-			}
-			mockDCS.EXPECT().SetCurrentSwitchover(gomock.Any()).Return(nil)
-			require.NoError(t, app.StartSwitchover(&sw))
-			require.Equal(t, kind == "legacy", sw.TopologyStarted == nil)
-			require.Equal(t, kind == "legacy", app.switchoverStarted(&sw))
-		})
-	}
+	// StartSwitchover sets StartedAt, then the inactive destination fails prechecks.
+	// This is still a new attempt: do not mistake its timestamp for crash recovery.
+	require.Equal(t, appState(stateManager), app.stateManager())
+	require.False(t, sw.StartedAt.IsZero())
+	require.Equal(t, 1, sw.RunCount)
+	require.Equal(t, switchoverOptimization, app.switchoverProgress.phase)
+	require.False(t, app.switchoverStarted(&sw))
 }

@@ -2,11 +2,11 @@ package app
 
 import (
 	"fmt"
+	"slices"
 	"time"
 
 	nodestate "github.com/yandex/mysync/internal/app/node_state"
 	"github.com/yandex/mysync/internal/mysql/gtids"
-	"github.com/yandex/mysync/internal/util"
 )
 
 type switchoverPhase int
@@ -60,7 +60,7 @@ func (phase switchoverPhase) String() string {
 }
 
 // switchoverProgress belongs to the manager process only. It is deliberately
-// separate from Switchover: only the start marker and pinned target survive it.
+// separate from Switchover: no phase or topology is persisted in DCS.
 type switchoverProgress struct {
 	request                  Switchover
 	phase                    switchoverPhase
@@ -81,39 +81,28 @@ func (p *switchoverProgress) matches(sw *Switchover) bool {
 }
 
 func (app *App) switchoverStarted(sw *Switchover) bool {
-	if sw == nil {
-		return false
-	}
-	if sw.TopologyStarted != nil {
-		return *sw.TopologyStarted
-	}
 	if app.switchoverProgress.matches(sw) {
 		return app.switchoverProgress.phase >= switchoverFreeze
 	}
 	// An older request has no local phase. Do not reject it when its previous
 	// attempt could already have changed MySQL.
-	return sw.RunCount > 0 || !sw.StartedAt.IsZero()
+	return sw != nil && (sw.RunCount > 0 || !sw.StartedAt.IsZero())
 }
 
-// Save before changing MySQL. A failed write must not make the next attempt
-// believe that the marker or target has already been persisted.
-func (app *App) saveSwitchoverRecovery(sw *Switchover, target string) error {
-	if target != "" && sw.RecoveryTarget != "" && target != sw.RecoveryTarget {
-		return fmt.Errorf("switchover: cannot change recovery target from %s to %s", sw.RecoveryTarget, target)
+// Initialize before StartSwitchover overwrites StartedAt, so a new request
+// still runs optimization. Retries keep their existing local checkpoint.
+func (app *App) initSwitchoverProgress(sw *Switchover, oldMaster string, activeNodes []string) *switchoverProgress {
+	if !app.switchoverProgress.matches(sw) {
+		phase := switchoverOptimization
+		if app.switchoverStarted(sw) {
+			phase = switchoverFreeze
+		}
+		app.switchoverProgress = &switchoverProgress{
+			request: *sw, phase: phase, oldMaster: oldMaster,
+			activeNodesWithOldMaster: slices.Clone(activeNodes),
+		}
 	}
-	if sw.TopologyStarted != nil && *sw.TopologyStarted && (target == "" || target == sw.RecoveryTarget) {
-		return nil
-	}
-	updated := *sw
-	updated.TopologyStarted = util.Ptr(true)
-	if target != "" {
-		updated.RecoveryTarget = target
-	}
-	if err := app.appDCS.SetCurrentSwitchover(&updated); err != nil {
-		return fmt.Errorf("switchover: failed to save recovery state: %w", err)
-	}
-	*sw = updated
-	return nil
+	return app.switchoverProgress
 }
 
 func (app *App) getMasterForSwitchover(clusterState map[string]*nodestate.NodeState, sw *Switchover) (string, error) {

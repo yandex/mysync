@@ -18,7 +18,6 @@ import (
 	"github.com/yandex/mysync/internal/dcs"
 	"github.com/yandex/mysync/internal/mysql"
 	"github.com/yandex/mysync/internal/mysql/gtids"
-	"github.com/yandex/mysync/internal/util"
 )
 
 func TestFailoverRetryReselectsOnlyBeforeTurningReplicas(t *testing.T) {
@@ -97,16 +96,6 @@ func TestFailoverRetryReselectsOnlyBeforeTurningReplicas(t *testing.T) {
 				sw.MasterTransition = SwitchoverTransition
 			}
 			sw.RunCount = 1
-			sw.TopologyStarted = util.Ptr(true)
-			if tc.phase >= switchoverTurnReplicas {
-				sw.RecoveryTarget = "B"
-			}
-			if tc.wantCandidate == "C" {
-				app.appDCS.(*MockIAppDCS).EXPECT().SetCurrentSwitchover(gomock.Any()).DoAndReturn(func(saved *Switchover) error {
-					require.Equal(t, "C", saved.RecoveryTarget)
-					return nil
-				})
-			}
 			target := gtids.ParseGtidSet(uuid + ":1-2")
 			progress := &switchoverProgress{
 				request: sw, phase: tc.phase, oldMaster: "A", newMaster: "B", mostRecent: "C",

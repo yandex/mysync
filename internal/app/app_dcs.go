@@ -183,22 +183,12 @@ func (app *App) RecordSwitchoverAttemptFailure(switchover *Switchover, err error
 // Kept on *App because it calls startTiming.
 func (app *App) StartSwitchover(switchover *Switchover) error {
 	app.logger.Info().Msgf("switchover: %s => %s starting...", switchover.From, switchover.To)
-	updated := *switchover
-	// Classify old/external requests before overwriting their attempt metadata.
-	// Keep started legacy requests distinguishable until their target is known.
-	if updated.TopologyStarted == nil && !app.switchoverStarted(switchover) {
-		updated.TopologyStarted = new(bool)
-	}
-	updated.StartedAt = time.Now()
-	updated.StartedBy = app.config.Hostname
+	switchover.StartedAt = time.Now()
+	switchover.StartedBy = app.config.Hostname
 	if !switchover.IsFailover() {
 		app.startTiming(timingSwitchover, switchover.InitiatedAt)
 	}
-	if err := app.appDCS.SetCurrentSwitchover(&updated); err != nil {
-		return err
-	}
-	*switchover = updated
-	return nil
+	return app.appDCS.SetCurrentSwitchover(switchover)
 }
 
 // GetCurrentSwitchover reads the current in-progress switchover from ZK.
