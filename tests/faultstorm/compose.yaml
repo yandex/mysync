@@ -1,0 +1,41 @@
+services:
+  zoo1:
+    container_name: mysync-faultstorm-zoo1
+    labels: {faultstorm.dc: dc1}
+    environment: {ZK_SERVER_HEAP: "${FAULTSTORM_ZK_HEAP:-128}", ZK_CLIENT_HEAP: "64"}
+    healthcheck:
+      start_period: 180s
+  zoo2:
+    container_name: mysync-faultstorm-zoo2
+    labels: {faultstorm.dc: dc2}
+    environment: {ZK_SERVER_HEAP: "${FAULTSTORM_ZK_HEAP:-128}", ZK_CLIENT_HEAP: "64"}
+  zoo3:
+    container_name: mysync-faultstorm-zoo3
+    labels: {faultstorm.dc: dc3}
+    environment: {ZK_SERVER_HEAP: "${FAULTSTORM_ZK_HEAP:-128}", ZK_CLIENT_HEAP: "64"}
+  mysql1:
+    container_name: mysync-faultstorm-mysql1
+    labels: {faultstorm.dc: dc1}
+    healthcheck:
+      start_period: 180s
+    environment:
+      MYSYNC_FAILOVER: "true"
+  mysql2:
+    container_name: mysync-faultstorm-mysql2
+    labels: {faultstorm.dc: dc2}
+    environment:
+      MYSYNC_FAILOVER: "true"
+  mysql3:
+    container_name: mysync-faultstorm-mysql3
+    labels: {faultstorm.dc: dc3}
+    environment:
+      MYSYNC_FAILOVER: "true"
+  faultstorm:
+    build: ../faultstorm
+    container_name: mysync-faultstorm
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+      - ../logs/faultstorm:/logs
+    networks:
+      mysync_net:
+        ipv4_address: ${MYSYNC_NET_PREFIX:-192.168.233}.16
