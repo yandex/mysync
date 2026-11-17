@@ -2,6 +2,7 @@
 set -euo pipefail
 
 resetup() {
+    supervisorctl stop mysqld >/dev/null 2>&1 || true
     master=$(mysync info --short | awk '$1 == "master:" {print $2}')
     if [ -z "$master" ] || [ "$master" = "$(hostname)" ]; then
         echo "resetup deferred: no separate master"
@@ -9,7 +10,6 @@ resetup() {
     fi
     mysqladmin -h "$master" --user=admin --password=admin_pwd ping >/dev/null
     echo "resetup from $master started"
-    supervisorctl stop mysqld || true
     find /var/lib/mysql -mindepth 1 -maxdepth 1 ! -name auto.cnf -exec rm -rf -- {} +
     ssh -o StrictHostKeyChecking=no root@"$master" \
         'xtrabackup --backup --stream=xbstream' | sudo -u mysql xbstream --extract --directory=/var/lib/mysql

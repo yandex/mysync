@@ -1,9 +1,9 @@
 import logging
 import random
-import time
 
 from faultstorm.cluster import ClusterManager
 from faultstorm.faults.actions import FaultAction
+from faultstorm.network_latency import freeze_drop_restore_for_ips
 
 
 def _master(node):
@@ -61,21 +61,24 @@ class MaintenanceAction(FaultAction):
 
 class ResetupAction(SwitchoverAction):
     name = "resetup"
+    host_targetable = True
     destructive = True
 
     def execute(self, stop_event=None):
-        master = _master(self.db_nodes[0])
         if self.node is None:
-            self.node = random.choice([node for node in self.db_nodes if node != master])
-        if self.node == master:
-            raise ValueError("resetup target is master")
-        ClusterManager.exec_on_node(self.node, ["touch", "/tmp/mysync.resetup"])
+            self.node = random.choice(self.db_nodes)
+        other_ips = {ClusterManager.get_node_ip(node) for node in self.db_nodes if node != self.node}
+
+        def wipe():
+            ClusterManager.exec_on_node(self.node, [
+                "sh", "-c",
+                "supervisorctl stop mysqld || true; "
+                "find /var/lib/mysql -mindepth 1 -maxdepth 1 ! -name auto.cnf -exec rm -rf -- {} + && "
+                "touch /tmp/mysync.resetup",
+            ], timeout=60)
+
+        if other_ips:
+            freeze_drop_restore_for_ips(self.node, other_ips, pre_kill_sleep=5, kill_callback=wipe)
+        else:
+            wipe()
         logging.info("Resetup requested on %s", self.node)
-        deadline = time.monotonic() + 180
-        while time.monotonic() < deadline:
-            if ClusterManager.exec_on_node(self.node,
-                                           ["sh", "-c", "test ! -e /tmp/mysync.resetup || echo pending"]).strip() != "pending":
-                logging.info("Resetup completed on %s", self.node)
-                return
-            time.sleep(2)
-        raise TimeoutError(f"resetup on {self.node} did not complete")

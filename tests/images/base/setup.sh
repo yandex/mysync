@@ -48,6 +48,7 @@ apt-get install \
   faketime \
   rsync \
   vim \
+  iproute2 \
   iptables
 rm -rf /var/run
 ln -s /dev/shm /var/run
