@@ -40,6 +40,8 @@ services:
   faultstorm:
     build: ../faultstorm
     container_name: mysync-faultstorm
+    environment:
+      VERSION: ${VERSION}
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock
       - ../logs/faultstorm:/logs

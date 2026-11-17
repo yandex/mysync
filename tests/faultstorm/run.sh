@@ -5,7 +5,7 @@ cd "$(dirname "$0")/../.."
 export MYSYNC_NET_PREFIX=${MYSYNC_NET_PREFIX:-192.168.234}
 compose="docker compose -p mysync-faultstorm -f tests/images/docker-compose.yaml -f tests/faultstorm/compose.yaml"
 mkdir -p tests/logs/faultstorm
-docker build --platform=linux/amd64 -t mysync-test-base8.0 tests/images/base --build-arg MYSQL_VERSION=8.0
+docker build --platform=linux/amd64 -t "mysync-test-base${VERSION}" tests/images/base --build-arg "MYSQL_VERSION=$VERSION"
 GOOS=linux GOARCH=amd64 go build -o tests/images/mysql/mysync ./cmd/mysync
 trap '$compose logs --no-color >tests/logs/faultstorm/containers.log 2>&1 || true; $compose down --remove-orphans' EXIT
 $compose up -d --build --wait

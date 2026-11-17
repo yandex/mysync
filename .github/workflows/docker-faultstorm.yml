@@ -10,7 +10,13 @@ on:
 jobs:
   faultstorm:
     runs-on: ubuntu-22.04
-    timeout-minutes: 60
+    timeout-minutes: 90
+    strategy:
+      fail-fast: false
+      matrix:
+        version: ['5.7', '8.0', '8.4', '9.7']
+    env:
+      VERSION: ${{ matrix.version }}
     steps:
       - uses: actions/checkout@v7
       - uses: actions/setup-go@v7
@@ -18,10 +24,10 @@ jobs:
           go-version: '1.25.6'
       - run: make faultstorm
         if: github.event_name != 'schedule'
-      - run: VERSION=8.0 sh tests/faultstorm/run.sh --write-duration 1800 --read-duration 300
+      - run: sh tests/faultstorm/run.sh --write-duration 1800 --read-duration 300
         if: github.event_name == 'schedule'
       - uses: actions/upload-artifact@v7
         if: failure()
         with:
-          name: faultstorm-logs
+          name: faultstorm-${{ matrix.version }}-logs
           path: tests/logs/faultstorm
