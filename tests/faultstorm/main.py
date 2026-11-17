@@ -10,6 +10,7 @@ from faultstorm.config import TestConfig
 from faultstorm.faults.actions import create_default_registry
 from faultstorm.runner import TestRunner
 
+from actions import MaintenanceAction, ResetupAction, SwitchoverAction
 from mysql_client import MySQLClient
 
 
@@ -31,7 +32,8 @@ def main():
         read_phase_duration=args.read_duration,
         fault_active_duration=30,
         fault_pause_duration=10,
-        fault_types=["partition_random_node", "partition_random_halves", "partition_random_dc"],
+        fault_types=["partition_random_node", "partition_random_halves", "partition_random_dc",
+                     "switchover", "maintenance", "resetup"],
         parallel_faults_count=1,
         complex_faults_enabled=False,
         add_interval=0.1,
@@ -70,7 +72,9 @@ def main():
     dc_map = ClusterManager.build_dc_map(config.all_nodes)
     if len(dc_map) != 3:
         raise RuntimeError(f"incomplete DC map: {dc_map}")
-    result = TestRunner(config, client, create_default_registry(), dc_map).run()
+    registry = create_default_registry()
+    registry.register(SwitchoverAction).register(MaintenanceAction).register(ResetupAction)
+    result = TestRunner(config, client, registry, dc_map).run()
     logging.info("valid=%s successful_adds=%d attempts=%d", result.valid,
                  result.successful_adds, result.total_attempts)
     if not result.valid or result.successful_adds == 0:

@@ -8,5 +8,5 @@ RUN apk add --no-cache git python3 py3-pip && \
 
 ENV PATH="/venv/bin:$PATH"
 WORKDIR /app
-COPY main.py mysql_client.py ./
+COPY main.py mysql_client.py actions.py ./
 CMD ["sleep", "infinity"]
