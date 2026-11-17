@@ -1,6 +1,5 @@
 import argparse
 import logging
-import os
 import sys
 import time
 
@@ -25,10 +24,6 @@ def main():
     logging.basicConfig(level=logging.INFO)
     ClusterManager.container_template = "mysync-faultstorm-{node}"
     client = MySQLClient()
-    fault_types = ["partition_random_node", "partition_random_halves", "partition_random_dc",
-                   "switchover", "maintenance"]
-    if os.environ.get("VERSION") != "9.7":
-        fault_types.append("resetup")
     config = TestConfig(
         db_nodes=client.nodes,
         extra_nodes=["zoo1", "zoo2", "zoo3"],
@@ -37,7 +32,8 @@ def main():
         read_phase_duration=args.read_duration,
         fault_active_duration=30,
         fault_pause_duration=10,
-        fault_types=fault_types,
+        fault_types=["partition_random_node", "partition_random_halves", "partition_random_dc",
+                     "switchover", "maintenance", "resetup"],
         parallel_faults_count=1,
         complex_faults_enabled=False,
         add_interval=0.1,

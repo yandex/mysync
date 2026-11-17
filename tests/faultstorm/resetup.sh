@@ -21,7 +21,7 @@ resetup() {
     done
     mysql -e 'SELECT 1' >/dev/null
     gtid=$(awk '{print $3}' /var/lib/mysql/xtrabackup_binlog_info)
-    if [ "$VERSION" = "8.4" ]; then
+    if [ "$VERSION" = "8.4" ] || [ "$VERSION" = "9.7" ]; then
         mysql -e "RESET BINARY LOGS AND GTIDS; SET @@GLOBAL.GTID_PURGED='$gtid'"
     else
         mysql -e "RESET MASTER; SET @@GLOBAL.GTID_PURGED='$gtid'"
