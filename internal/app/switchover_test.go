@@ -521,3 +521,80 @@ func TestSwitchoverResumeStillRequiresQuorum(t *testing.T) {
 	require.ErrorContains(t, err, "no quorum")
 	require.Equal(t, switchoverTurnReplicas, app.switchoverProgress.phase)
 }
+
+func TestSwitchoverRestartOnFirstAttempt(t *testing.T) {
+	mockDCS := NewMockIAppDCS(gomock.NewController(t))
+	cfg := minConfig()
+	cfg.SwitchoverTimeout = time.Minute
+	app := newTestApp(t, cfg, mockDCS)
+	sw := testSwitchover()
+	sw.StartedAt = sw.InitiatedAt
+	cs := map[string]*nodestate.NodeState{"old": aliveReplica(), "new": aliveReplica()}
+	mockDCS.EXPECT().GetMasterHostFromDcs().Return("old", nil)
+	master, err := app.getMasterForSwitchover(cs, &sw)
+	require.NoError(t, err)
+	require.Equal(t, "old", master)
+	require.Zero(t, sw.RunCount)
+	require.False(t, app.switchoverTimedOut(&sw, sw.InitiatedAt.Add(time.Hour)))
+	require.NoError(t, app.approveSwitchover(&sw, []string{"old", "new"}, cs))
+
+	// Stop at a real precheck; recovery must already skip optimization.
+	cs["new"].PingOk, cs["new"].PingDubious = false, true
+	err = app.performSwitchover(cs, []string{"old", "new"}, &sw, master)
+	require.ErrorContains(t, err, "dubious errors")
+	require.Equal(t, switchoverFreeze, app.switchoverProgress.phase)
+}
+
+func TestManagerKeepsNewSwitchoverBeforeFreeze(t *testing.T) {
+	app, _ := newFailoverRetryApp(t, "908fa82e-1529-11ef-8446-a0362c3daca9:1-10", nil)
+	mockDCS := app.appDCS.(*MockIAppDCS)
+	sw := testSwitchover()
+	sw.InitiatedAt = time.Now()
+	app.config.SwitchoverTimeout = time.Hour
+	sw.MasterTransition, sw.To = FailoverTransition, "inactive"
+	hosts := app.cluster.HANodeHosts()
+	mockDCS.EXPECT().GetHealthState(gomock.Any(), gomock.Any()).Return(nil).Times(len(hosts))
+	mockDCS.EXPECT().GetCurrentSwitchover().Return(&sw, nil).Times(2)
+	mockDCS.EXPECT().GetMasterHostFromDcs().Return("A", nil)
+	mockDCS.EXPECT().GetActiveNodes().Return(hosts, nil)
+	mockDCS.EXPECT().GetMaintenance().Return(nil, dcs.ErrNotFound)
+	mockDCS.EXPECT().SetCurrentSwitchover(gomock.Any()).Return(nil).Times(2)
+
+	// StartSwitchover sets StartedAt, then the inactive destination fails prechecks.
+	// This is still a new attempt: do not mistake its timestamp for crash recovery.
+	require.Equal(t, appState(stateManager), app.stateManager())
+	require.False(t, sw.StartedAt.IsZero())
+	require.Equal(t, 1, sw.RunCount)
+	require.Equal(t, switchoverOptimization, app.switchoverProgress.phase)
+	require.False(t, app.switchoverStarted(&sw))
+}
+
+type freezeOptimizationController struct {
+	OptimizationController
+	err   error
+	calls int
+}
+
+func (c *freezeOptimizationController) DisableAll(optimization.Node, []optimization.Node) error {
+	c.calls++
+	return c.err
+}
+
+func TestSwitchoverResumeDisablesOptimizationBeforeFreeze(t *testing.T) {
+	app, nodes := newFailoverRetryApp(t, "908fa82e-1529-11ef-8446-a0362c3daca9:1-10", nil)
+	injected := errors.New("cannot restore replication settings")
+	controller := &freezeOptimizationController{err: injected}
+	app.optController = controller
+	sw := testSwitchover()
+	sw.From, sw.To, sw.Cause = "A", "C", CauseAuto
+	sw.MasterTransition, sw.StartedAt = FailoverTransition, sw.InitiatedAt
+
+	err := app.performSwitchover(app.getClusterStateFromDB(), app.cluster.HANodeHosts(), &sw, "A")
+	require.ErrorIs(t, err, injected)
+	require.Equal(t, 1, controller.calls)
+	require.Equal(t, switchoverFreeze, app.switchoverProgress.phase)
+	for _, node := range nodes {
+		require.Zero(t, node.freezes)
+		require.Zero(t, node.stops)
+	}
+}
