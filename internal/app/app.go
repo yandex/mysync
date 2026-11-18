@@ -1367,6 +1367,10 @@ func (app *App) performSwitchover(clusterState map[string]*nodestate.NodeState, 
 	oldMasterNode := app.cluster.Get(oldMaster)
 
 	if err := p.run(switchoverFreeze, func() error {
+		// Recovery skips optimization, but must still restore safe settings.
+		if err := app.stopActiveNodeOptimization(oldMaster, activeNodes); err != nil {
+			return err
+		}
 		// set read only everywhere (all HA-nodes) and stop replication
 		app.logger.Info().Msg("switchover: phase 1: enter read only")
 		errs := util.RunParallel(func(host string) error {

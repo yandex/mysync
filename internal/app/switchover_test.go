@@ -568,3 +568,33 @@ func TestManagerKeepsNewSwitchoverBeforeFreeze(t *testing.T) {
 	require.Equal(t, switchoverOptimization, app.switchoverProgress.phase)
 	require.False(t, app.switchoverStarted(&sw))
 }
+
+type freezeOptimizationController struct {
+	OptimizationController
+	err   error
+	calls int
+}
+
+func (c *freezeOptimizationController) DisableAll(optimization.Node, []optimization.Node) error {
+	c.calls++
+	return c.err
+}
+
+func TestSwitchoverResumeDisablesOptimizationBeforeFreeze(t *testing.T) {
+	app, nodes := newFailoverRetryApp(t, "908fa82e-1529-11ef-8446-a0362c3daca9:1-10", nil)
+	injected := errors.New("cannot restore replication settings")
+	controller := &freezeOptimizationController{err: injected}
+	app.optController = controller
+	sw := testSwitchover()
+	sw.From, sw.To, sw.Cause = "A", "C", CauseAuto
+	sw.MasterTransition, sw.StartedAt = FailoverTransition, sw.InitiatedAt
+
+	err := app.performSwitchover(app.getClusterStateFromDB(), app.cluster.HANodeHosts(), &sw, "A")
+	require.ErrorIs(t, err, injected)
+	require.Equal(t, 1, controller.calls)
+	require.Equal(t, switchoverFreeze, app.switchoverProgress.phase)
+	for _, node := range nodes {
+		require.Zero(t, node.freezes)
+		require.Zero(t, node.stops)
+	}
+}
