@@ -2,6 +2,7 @@ package app
 
 import (
 	"fmt"
+	"slices"
 	"time"
 
 	nodestate "github.com/yandex/mysync/internal/app/node_state"
@@ -85,7 +86,23 @@ func (app *App) switchoverStarted(sw *Switchover) bool {
 	}
 	// An older request has no local phase. Do not reject it when its previous
 	// attempt could already have changed MySQL.
-	return sw != nil && sw.RunCount > 0
+	return sw != nil && (sw.RunCount > 0 || !sw.StartedAt.IsZero())
+}
+
+// Initialize before StartSwitchover overwrites StartedAt, so a new request
+// still runs optimization. Retries keep their existing local checkpoint.
+func (app *App) initSwitchoverProgress(sw *Switchover, oldMaster string, activeNodes []string) *switchoverProgress {
+	if !app.switchoverProgress.matches(sw) {
+		phase := switchoverOptimization
+		if app.switchoverStarted(sw) {
+			phase = switchoverFreeze
+		}
+		app.switchoverProgress = &switchoverProgress{
+			request: *sw, phase: phase, oldMaster: oldMaster,
+			activeNodesWithOldMaster: slices.Clone(activeNodes),
+		}
+	}
+	return app.switchoverProgress
 }
 
 func (app *App) getMasterForSwitchover(clusterState map[string]*nodestate.NodeState, sw *Switchover) (string, error) {

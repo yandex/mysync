@@ -509,6 +509,7 @@ func (app *App) stateManager() appState {
 				return stateManager
 			}
 
+			app.initSwitchoverProgress(switchover, master, activeNodes)
 			err = app.StartSwitchover(switchover)
 			if err != nil {
 				app.logger.Error().Err(err).Msg("failed to start switchover")
@@ -1298,22 +1299,7 @@ func (app *App) performSwitchover(clusterState map[string]*nodestate.NodeState, 
 		app.logger.Info().Msgf("switchover: resuming %s, old master %s, new master %s",
 			app.switchoverProgress.phase, app.switchoverProgress.oldMaster, app.switchoverProgress.newMaster)
 	}
-	p := app.switchoverProgress
-	if !p.matches(switchover) {
-		// Track the attempt before prechecks: a failure here must not make
-		// RunCount look like evidence that MySQL changes have started.
-		p = &switchoverProgress{
-			request:                  *switchover,
-			oldMaster:                oldMaster,
-			activeNodesWithOldMaster: slices.Clone(activeNodes),
-		}
-		// An existing retried request may predate this manager's local progress.
-		// Conservatively assume that it has already started changing MySQL.
-		if switchover.RunCount > 0 {
-			p.phase = switchoverFreeze
-		}
-		app.switchoverProgress = p
-	}
+	p := app.initSwitchoverProgress(switchover, oldMaster, activeNodes)
 	if switchover.To != "" {
 		if !slices.Contains(activeNodes, switchover.To) {
 			return errors.New("switchover: failed: replica is not active, can't switch to it")
@@ -1381,6 +1367,10 @@ func (app *App) performSwitchover(clusterState map[string]*nodestate.NodeState, 
 	oldMasterNode := app.cluster.Get(oldMaster)
 
 	if err := p.run(switchoverFreeze, func() error {
+		// Recovery skips optimization, but must still restore safe settings.
+		if err := app.stopActiveNodeOptimization(oldMaster, activeNodes); err != nil {
+			return err
+		}
 		// set read only everywhere (all HA-nodes) and stop replication
 		app.logger.Info().Msg("switchover: phase 1: enter read only")
 		errs := util.RunParallel(func(host string) error {

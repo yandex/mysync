@@ -153,6 +153,7 @@ func newFailoverRetryApp(t *testing.T, executed string, stopTurning error) (*App
 		return mysql.NodeConfiguration{Priority: priority}, nil
 	}).AnyTimes()
 	app := newTestApp(t, cfg, mockDCS)
+	app.optController = &freezeOptimizationController{}
 	app.dcs = &failoverRetryDCS{
 		catchUpDCS: catchUpDCS{locked: true},
 		haHosts:    []string{"A", "B", "C", "D", "E"},
