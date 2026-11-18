@@ -50,7 +50,8 @@ apt-get install \
   rsync \
   vim \
   iproute2 \
-  iptables
+  iptables \
+  procps
 rm -rf /var/run
 ln -s /dev/shm /var/run
 
