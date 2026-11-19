@@ -16,25 +16,30 @@ type failoverProgress struct {
 	received  map[string]string
 }
 
+func masterUnavailableInDCS(clusterStateDcs map[string]*nodestate.NodeState, master string) bool {
+	state := clusterStateDcs[master]
+	return !state.PingOk || state.IsFileSystemReadonly
+}
+
 // checkFailoverReplication distinguishes running threads from transaction progress.
-// It is only used after the master has been reported unavailable in DCS.
+// It is used when the manager or DCS reports the master unavailable.
 func (app *App) checkFailoverReplication(clusterState, clusterStateDcs map[string]*nodestate.NodeState, master string, previous *failoverProgress, now time.Time) (*failoverProgress, error) {
 	running := countRunningHASlaves(clusterState)
 	if running == 0 {
+		// TODO: Decide whether MASTER SUSPICIOUS must still wait for GTID inactivity
+		// here: IO threads can keep receiving GTIDs while SQL threads are stopped.
 		return nil, nil
 	}
-	// An idle master can keep serving while disconnected from ZooKeeper. Only
-	// override the all-replicas-running guard when its local health check has
-	// recently reported a MySQL failure. Allow one health-check interval plus
-	// the time needed for the next failed MySQL query.
+	// With all HA replicas running, a DCS failure needs fresh local confirmation.
+	// For MASTER SUSPICIOUS, received GTID inactivity is sufficient.
 	if running == countHANodes(clusterState)-1 {
 		if clusterState[master].PingOk {
 			return nil, fmt.Errorf("master %s is still reachable", master)
 		}
 		masterHealth := clusterStateDcs[master]
 		healthAge := now.Sub(masterHealth.CheckAt)
-		if masterHealth.PingOk || masterHealth.CheckBy != master || masterHealth.CheckAt.IsZero() ||
-			healthAge < 0 || healthAge > app.config.HealthCheckInterval+app.config.DBTimeout {
+		if !masterHealth.PingOk && (masterHealth.CheckBy != master || masterHealth.CheckAt.IsZero() ||
+			healthAge < 0 || healthAge > app.config.HealthCheckInterval+app.config.DBTimeout) {
 			return nil, fmt.Errorf("%d replicas report running, but master %s has no fresh local failure report", running, master)
 		}
 	}

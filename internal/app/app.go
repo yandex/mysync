@@ -540,8 +540,12 @@ func (app *App) stateManager() appState {
 
 	// perform failover if needed
 
-	if !clusterStateDcs[master].PingOk || clusterStateDcs[master].IsFileSystemReadonly {
-		app.logger.Error().Msgf("MASTER FAILURE")
+	if !clusterState[master].PingOk || masterUnavailableInDCS(clusterStateDcs, master) {
+		if masterUnavailableInDCS(clusterStateDcs, master) {
+			app.logger.Error().Msgf("MASTER FAILURE")
+		} else {
+			app.logger.Error().Msgf("MASTER SUSPICIOUS, checking replication progress before failover")
+		}
 		if app.t.Get(NodeFailedAt, master).IsZero() {
 			now := time.Now()
 			app.t.Set(NodeFailedAt, master, now)
