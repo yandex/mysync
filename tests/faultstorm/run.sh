@@ -32,9 +32,6 @@ for node in zoo1 zoo2 zoo3 mysql1 mysql2 mysql3; do
   docker cp "$scripts_dir/process_freezer.sh" "mysync-faultstorm-$node:/usr/local/bin/process_freezer.sh"
   docker cp "$scripts_dir/process_freezer.conf" "mysync-faultstorm-$node:/etc/supervisor/conf.d/process_freezer.conf"
   $compose exec -T "$node" chmod +x /usr/local/bin/process_freezer.sh
-  if [ "${node#mysql}" != "$node" ]; then
-    $compose exec -T "$node" sed -i 's/autorestart=false/autorestart=true/' /etc/supervisor/conf.d/supervisor_mysql.conf
-  fi
   $compose exec -T "$node" supervisorctl reread
   $compose exec -T "$node" supervisorctl update
   $compose exec -T faultstorm docker exec "mysync-faultstorm-$node" iptables -N FSTORM_PROBE

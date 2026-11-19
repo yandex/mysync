@@ -19,6 +19,8 @@ services:
     environment: {ZK_SERVER_HEAP: "${FAULTSTORM_ZK_HEAP:-128}", ZK_CLIENT_HEAP: "64"}
   mysql1:
     container_name: mysync-faultstorm-mysql1
+    build:
+      args: {FAULTSTORM: "true"}
     volumes: *resetup
     labels: {faultstorm.dc: dc1}
     healthcheck:
@@ -27,12 +29,16 @@ services:
       MYSYNC_FAILOVER: "true"
   mysql2:
     container_name: mysync-faultstorm-mysql2
+    build:
+      args: {FAULTSTORM: "true"}
     volumes: *resetup
     labels: {faultstorm.dc: dc2}
     environment:
       MYSYNC_FAILOVER: "true"
   mysql3:
     container_name: mysync-faultstorm-mysql3
+    build:
+      args: {FAULTSTORM: "true"}
     volumes: *resetup
     labels: {faultstorm.dc: dc3}
     environment:
