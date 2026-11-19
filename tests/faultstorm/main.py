@@ -21,7 +21,8 @@ def main():
     parser.add_argument("--replay-scenario")
     args = parser.parse_args()
 
-    logging.basicConfig(level=logging.INFO)
+    logging.basicConfig(level=logging.INFO, handlers=[
+        logging.StreamHandler(), logging.FileHandler("/logs/runner.log")])
     ClusterManager.container_template = "mysync-faultstorm-{node}"
     client = MySQLClient()
     config = TestConfig(
@@ -52,29 +53,32 @@ def main():
 
     # The replica containers start after mysql1; wait for all three databases.
     for node in client.nodes:
+        last_error = None
         for _ in range(60):
             try:
                 with client.connect(node) as db, db.cursor() as cursor:
                     cursor.execute("SELECT 1")
                 break
-            except pymysql.Error:
+            except pymysql.Error as error:
+                last_error = error
                 time.sleep(2)
         else:
-            raise RuntimeError(f"{node} did not start")
+            raise RuntimeError(f"{node} did not start: {last_error!r}")
 
+    errors = {}
     for _ in range(60):
         for node in client.nodes:
             try:
                 client.setup(node)
                 break
-            except pymysql.Error:
-                pass
+            except pymysql.Error as error:
+                errors[node] = repr(error)
         else:
             time.sleep(2)
             continue
         break
     else:
-        raise RuntimeError("no writable MySQL node")
+        raise RuntimeError(f"no writable MySQL node: {errors}")
 
     dc_map = ClusterManager.build_dc_map(config.all_nodes)
     if len(dc_map) != 3:
@@ -89,4 +93,8 @@ def main():
 
 
 if __name__ == "__main__":
-    main()
+    try:
+        main()
+    except Exception:
+        logging.exception("faultstorm failed")
+        sys.exit(1)

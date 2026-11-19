@@ -8,7 +8,22 @@ mkdir -p tests/logs/faultstorm
 docker build --platform=linux/amd64 -t "mysync-test-base${VERSION}" tests/images/base --build-arg "MYSQL_VERSION=$VERSION"
 GOOS=linux GOARCH=amd64 go build -o tests/images/mysql/mysync ./cmd/mysync
 scripts_dir=$(mktemp -d)
-trap '$compose logs --no-color >tests/logs/faultstorm/containers.log 2>&1 || true; $compose down --remove-orphans; rm -rf "$scripts_dir"' EXIT
+save_logs() {
+  $compose logs --no-color >tests/logs/faultstorm/containers.log 2>&1 || true
+  for node in mysql1 mysql2 mysql3; do
+    mkdir -p "tests/logs/faultstorm/$node"
+    for log in /var/log/mysync.log /var/log/mysql/error.log /var/log/supervisor.log; do
+      docker cp "mysync-faultstorm-$node:$log" "tests/logs/faultstorm/$node/${log##*/}" 2>/dev/null || true
+    done
+  done
+  for node in zoo1 zoo2 zoo3; do
+    mkdir -p "tests/logs/faultstorm/$node"
+    docker cp "mysync-faultstorm-$node:/var/log/zookeeper/zookeeper.log" "tests/logs/faultstorm/$node/zookeeper.log" 2>/dev/null || true
+  done
+  $compose down --remove-orphans
+  rm -rf "$scripts_dir"
+}
+trap save_logs EXIT
 $compose up -d --build --wait
 freezer=$($compose exec -T faultstorm python -c 'from faultstorm.scripts import get_script_path; print(get_script_path("process_freezer.sh"))')
 docker cp "mysync-faultstorm:$freezer" "$scripts_dir/process_freezer.sh"
