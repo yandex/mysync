@@ -145,7 +145,6 @@ func TestFailoverKeepsZooKeeperProtection(t *testing.T) {
 		wantError string
 	}{
 		{"master reachable by manager", func(cs, _ map[string]*nodestate.NodeState) { cs["master"].PingOk = true }, "still reachable"},
-		{"master reports healthy", func(_, health map[string]*nodestate.NodeState) { health["master"].PingOk = true }, "fresh local failure report"},
 		{"missing health record", func(_, health map[string]*nodestate.NodeState) { health["master"] = &nodestate.NodeState{} }, "fresh local failure report"},
 		{"health check is not local", func(_, health map[string]*nodestate.NodeState) { health["master"].CheckBy = "replica1" }, "fresh local failure report"},
 		{"stale health check", func(_, health map[string]*nodestate.NodeState) {
@@ -308,13 +307,13 @@ func TestApproveFailoverClearsProgress(t *testing.T) {
 	}
 }
 
-func TestFailoverProgressResetsWhenMasterRecoversInDCS(t *testing.T) {
-	app, _ := newFailoverRetryApp(t, failoverTestUUID+":1-11", nil)
-	app.config.TickInterval = 5 * time.Second
+func TestFailoverProgressSurvivesMasterRecoveryInDCS(t *testing.T) {
+	app, nodes := newFailoverRetryApp(t, failoverTestUUID+":1-11", nil)
+	app.config.FailoverDelay = 0
+	nodes["C"].running = true
 	cs := app.getClusterStateFromDB()
-	cs["C"].SlaveState.ReplicationState = mysql.ReplicationRunning
 	active := app.cluster.HANodeHosts()
-	t0 := time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)
+	t0 := time.Now()
 	health := map[string]*nodestate.NodeState{
 		"A": {CheckBy: "A", CheckAt: t0, PingOk: false},
 	}
@@ -324,6 +323,7 @@ func TestFailoverProgressResetsWhenMasterRecoversInDCS(t *testing.T) {
 		return app.approveFailover(cs, health, active, "A", now)
 	}
 	require.ErrorContains(t, checkAt(0), "waiting for received GTIDs")
+	progress := app.failoverProgress
 
 	// Only DCS sees recovery; the manager still cannot ping the master.
 	health["A"].PingOk = true
@@ -339,14 +339,88 @@ func TestFailoverProgressResetsWhenMasterRecoversInDCS(t *testing.T) {
 	mockDCS.EXPECT().GetActiveNodes().Return(active, nil)
 	mockDCS.EXPECT().GetMaintenance().Return(nil, dcs.ErrNotFound)
 	require.Equal(t, appState(stateManager), app.stateManager())
-	require.Nil(t, app.failoverProgress)
+	require.Same(t, progress, app.failoverProgress)
+	require.Equal(t, t0, app.failoverProgress.changedAt)
 
-	// Another failure must wait for a full new observation window.
+	// Switching back to MASTER FAILURE must retain the same observation window.
 	health["A"].PingOk = false
-	require.ErrorContains(t, checkAt(time.Minute), "waiting for received GTIDs")
-	require.ErrorContains(t, checkAt(time.Minute+4*time.Second), "waiting for received GTIDs")
+	require.ErrorContains(t, checkAt(4*time.Second), "waiting for received GTIDs")
 	mockDCS.EXPECT().GetLastSwitchover(gomock.Any()).Return(dcs.ErrNotFound)
-	require.NoError(t, checkAt(time.Minute+5*time.Second))
+	require.NoError(t, checkAt(5*time.Second))
+}
+
+func TestManagerFailoverWhenMasterSuspicious(t *testing.T) {
+	for _, tc := range []struct {
+		name             string
+		partial          bool
+		disabled         bool
+		lightMaintenance bool
+		noQuorum         bool
+	}{
+		{name: "all replicas report running"},
+		{name: "only some replicas report running", partial: true},
+		{name: "failover disabled", disabled: true},
+		{name: "light maintenance", lightMaintenance: true},
+		{name: "quorum still required", noQuorum: true},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			app, nodes := newFailoverRetryApp(t, failoverTestUUID+":1-10", nil)
+			app.config.Failover = !tc.disabled
+			for _, host := range []string{"B", "C", "D", "E"} {
+				nodes[host].available = true
+				nodes[host].running = !tc.partial || host == "C"
+				nodes[host].retrieved = failoverTestUUID + ":1-11"
+			}
+			active := app.cluster.HANodeHosts()
+			if tc.noQuorum {
+				active = []string{"A", "unreachable1", "unreachable2"}
+			}
+			var maintenance *Maintenance
+			if tc.lightMaintenance {
+				maintenance = &Maintenance{Mode: LightMode, MySyncPaused: true}
+			}
+			mockDCS := app.appDCS.(*MockIAppDCS)
+			mockDCS.EXPECT().GetHealthState(gomock.Any(), gomock.Any()).SetArg(1, nodestate.NodeState{PingOk: true}).Return(nil).AnyTimes()
+			mockDCS.EXPECT().GetCurrentSwitchover().Return(nil, dcs.ErrNotFound).AnyTimes()
+			mockDCS.EXPECT().GetMasterHostFromDcs().Return("A", nil).AnyTimes()
+			mockDCS.EXPECT().GetActiveNodes().Return(active, nil).AnyTimes()
+			mockDCS.EXPECT().GetMaintenance().Return(maintenance, nil).AnyTimes()
+			tick := func() {
+				t.Helper()
+				require.Equal(t, appState(stateManager), app.stateManager())
+			}
+			tick()
+			failedAt := app.t.Get(NodeFailedAt, "A")
+			require.False(t, failedAt.IsZero())
+			if tc.disabled || tc.lightMaintenance {
+				require.Nil(t, app.failoverProgress)
+				tick()
+				return
+			}
+			require.NotNil(t, app.failoverProgress)
+			require.Len(t, app.failoverProgress.received, 4)
+			expiredAt := failedAt.Add(-max(app.config.FailoverDelay, app.config.TickInterval))
+			app.t.Set(NodeFailedAt, "A", expiredAt)
+			app.failoverProgress.changedAt = expiredAt
+
+			// New GTIDs restart the observation even after the original wait elapsed.
+			nodes["C"].retrieved = failoverTestUUID + ":1-12"
+			tick()
+			require.False(t, app.failoverProgress.changedAt.Before(failedAt))
+			tick()
+
+			app.failoverProgress.changedAt = expiredAt
+			if !tc.noQuorum {
+				mockDCS.EXPECT().GetLastSwitchover(gomock.Any()).Return(dcs.ErrNotFound)
+				mockDCS.EXPECT().CreateCurrentSwitchover(gomock.Any()).DoAndReturn(func(sw *Switchover) error {
+					require.Equal(t, "A", sw.From)
+					require.True(t, sw.IsFailover())
+					return nil
+				})
+			}
+			tick()
+		})
+	}
 }
 
 func TestApproveFailoverWithStalledReplicas(t *testing.T) {

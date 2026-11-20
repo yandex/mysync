@@ -141,6 +141,8 @@ func newFailoverRetryApp(t *testing.T, executed string, stopTurning error) (*App
 	t.Helper()
 	cfg := minConfig()
 	cfg.Hostname = "manager"
+	cfg.FailoverDelay = 30 * time.Second
+	cfg.TickInterval = 5 * time.Second
 	cfg.DBTimeout, cfg.DBSetRoTimeout = time.Second, time.Second
 	cfg.SemiSync = true
 	cfg.RplSemiSyncMasterWaitForSlaveCount = 2
@@ -185,6 +187,8 @@ type failoverRetryDCS struct {
 
 func (*failoverRetryDCS) IsConnected() bool { return true }
 
+func (*failoverRetryDCS) Set(string, interface{}) error { return nil }
+
 func (d *failoverRetryDCS) GetChildren(path string) ([]string, error) {
 	if path == dcs.PathHANodesPrefix {
 		return d.haHosts, d.haHostsErr
@@ -195,6 +199,8 @@ func (d *failoverRetryDCS) GetChildren(path string) ([]string, error) {
 type failoverRetrySQLNode struct {
 	host        string
 	executed    string
+	retrieved   string
+	running     bool
 	heartbeat   string
 	available   bool
 	freezes     int
@@ -244,9 +250,13 @@ func (c *failoverRetrySQLConn) QueryContext(_ context.Context, query string, _ [
 	case mysql.DefaultQueries["gtid_executed"]:
 		return failoverRetryRow([]string{"Executed_Gtid_Set"}, c.node.executed), nil
 	case strings.Replace(mysql.DefaultQueries["slave_status"], ":channel", "''", 1):
+		ioRunning := "No"
+		if c.node.running {
+			ioRunning = "Yes"
+		}
 		return failoverRetryRow(
-			[]string{"Master_Host", "Executed_Gtid_Set", "Slave_IO_Running", "Slave_SQL_Running", "Seconds_Behind_Master"},
-			"A", c.node.executed, "No", "Yes", float64(0),
+			[]string{"Master_Host", "Executed_Gtid_Set", "Retrieved_Gtid_Set", "Slave_IO_Running", "Slave_SQL_Running", "Seconds_Behind_Master"},
+			"A", c.node.executed, c.node.retrieved, ioRunning, "Yes", float64(0),
 		), nil
 	default:
 		return nil, fmt.Errorf("unexpected query: %s", query)
