@@ -24,7 +24,7 @@ services:
       retries: 3
     networks:
       mysync_net:
-        ipv4_address: 192.168.233.10
+        ipv4_address: ${MYSYNC_NET_PREFIX:-192.168.233}.10
 
   zoo2:
     build:
@@ -43,7 +43,7 @@ services:
       ZK_MYID: 2
     networks:
       mysync_net:
-        ipv4_address: 192.168.233.11
+        ipv4_address: ${MYSYNC_NET_PREFIX:-192.168.233}.11
 
   zoo3:
     build:
@@ -62,7 +62,7 @@ services:
       ZK_MYID: 3
     networks:
       mysync_net:
-        ipv4_address: 192.168.233.12
+        ipv4_address: ${MYSYNC_NET_PREFIX:-192.168.233}.12
 
   mysql1:
     build:
@@ -124,7 +124,7 @@ services:
         condition: service_healthy
     networks:
       mysync_net:
-        ipv4_address: 192.168.233.13
+        ipv4_address: ${MYSYNC_NET_PREFIX:-192.168.233}.13
 
   mysql2:
     build:
@@ -180,7 +180,7 @@ services:
         condition: service_healthy
     networks:
       mysync_net:
-        ipv4_address: 192.168.233.14
+        ipv4_address: ${MYSYNC_NET_PREFIX:-192.168.233}.14
 
   mysql3:
     build:
@@ -236,7 +236,7 @@ services:
         condition: service_healthy
     networks:
       mysync_net:
-        ipv4_address: 192.168.233.15
+        ipv4_address: ${MYSYNC_NET_PREFIX:-192.168.233}.15
 
 
 networks:
@@ -245,5 +245,5 @@ networks:
     ipam:
       driver: default
       config:
-       - subnet: 192.168.233.0/24
-         gateway: 192.168.233.1
+       - subnet: ${MYSYNC_NET_PREFIX:-192.168.233}.0/24
+         gateway: ${MYSYNC_NET_PREFIX:-192.168.233}.1

@@ -5,6 +5,7 @@
 *.vsix
 *.swp
 *.swo
+__pycache__/
 
 
 # ext code
