@@ -42,6 +42,9 @@ test:
 	mkdir ./tests/logs
 	(cd tests; go test -timeout 150m)
 
+faultstorm:
+	VERSION=$${VERSION:-8.0} sh tests/faultstorm/run.sh
+
 jepsen_test:
 	GOOS=linux go build -tags netgo,osusergo -o ./cmd/mysync/mysync ./cmd/mysync/...
 	go build ./tests/...
