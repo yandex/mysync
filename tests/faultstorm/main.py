@@ -38,7 +38,7 @@ def main():
                      "kill", "freeze_processes", "freeze_processes_group",
                      "switchover", "maintenance", "resetup"],
         action_params={
-            "kill": {"processes": ["mysqld", "/usr/bin/mysync"]},
+            "kill": {"processes": ["mysqld", "mysync"]},
             "freeze_processes": {"processes": ["mysqld", "/usr/bin/mysync", "zookeeper"]},
             "freeze_processes_group": {"processes": ["mysqld", "/usr/bin/mysync", "zookeeper"]},
         },
