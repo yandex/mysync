@@ -18,3 +18,15 @@ tests/images/mysql_jepsen/mysync
 
 # tests
 tests/logs/
+
+# added automatically by ya tool
+.aisuite/managed_artifacts.json
+.aisuite/setup.lock
+.aisuite/setup_log.jsonl
+.aisuite/setup_state.json
+.opencode
+opencode.json
+opencode.jsonc
+.claude
+.codex
+.agents/

@@ -141,6 +141,8 @@ func newFailoverRetryApp(t *testing.T, executed string, stopTurning error) (*App
 	t.Helper()
 	cfg := minConfig()
 	cfg.Hostname = "manager"
+	cfg.FailoverDelay = 30 * time.Second
+	cfg.TickInterval = 5 * time.Second
 	cfg.DBTimeout, cfg.DBSetRoTimeout = time.Second, time.Second
 	cfg.SemiSync = true
 	cfg.RplSemiSyncMasterWaitForSlaveCount = 2

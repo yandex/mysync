@@ -309,7 +309,7 @@ func TestApproveFailoverClearsProgress(t *testing.T) {
 
 func TestFailoverProgressSurvivesMasterRecoveryInDCS(t *testing.T) {
 	app, nodes := newFailoverRetryApp(t, failoverTestUUID+":1-11", nil)
-	app.config.TickInterval = 5 * time.Second
+	app.config.FailoverDelay = 0
 	nodes["C"].running = true
 	cs := app.getClusterStateFromDB()
 	active := app.cluster.HANodeHosts()
@@ -353,14 +353,12 @@ func TestManagerFailoverWhenMasterSuspicious(t *testing.T) {
 	for _, tc := range []struct {
 		name             string
 		partial          bool
-		progress         bool
 		disabled         bool
 		lightMaintenance bool
 		noQuorum         bool
 	}{
 		{name: "all replicas report running"},
 		{name: "only some replicas report running", partial: true},
-		{name: "received GTID progress restarts observation", progress: true},
 		{name: "failover disabled", disabled: true},
 		{name: "light maintenance", lightMaintenance: true},
 		{name: "quorum still required", noQuorum: true},
@@ -368,8 +366,6 @@ func TestManagerFailoverWhenMasterSuspicious(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			app, nodes := newFailoverRetryApp(t, failoverTestUUID+":1-10", nil)
 			app.config.Failover = !tc.disabled
-			app.config.FailoverDelay = 30 * time.Second
-			app.config.TickInterval = 5 * time.Second
 			for _, host := range []string{"B", "C", "D", "E"} {
 				nodes[host].available = true
 				nodes[host].running = !tc.partial || host == "C"
@@ -384,10 +380,7 @@ func TestManagerFailoverWhenMasterSuspicious(t *testing.T) {
 				maintenance = &Maintenance{Mode: LightMode, MySyncPaused: true}
 			}
 			mockDCS := app.appDCS.(*MockIAppDCS)
-			mockDCS.EXPECT().GetHealthState(gomock.Any(), gomock.Any()).DoAndReturn(func(_ string, state *nodestate.NodeState) error {
-				state.PingOk = true
-				return nil
-			}).AnyTimes()
+			mockDCS.EXPECT().GetHealthState(gomock.Any(), gomock.Any()).SetArg(1, nodestate.NodeState{PingOk: true}).Return(nil).AnyTimes()
 			mockDCS.EXPECT().GetCurrentSwitchover().Return(nil, dcs.ErrNotFound).AnyTimes()
 			mockDCS.EXPECT().GetMasterHostFromDcs().Return("A", nil).AnyTimes()
 			mockDCS.EXPECT().GetActiveNodes().Return(active, nil).AnyTimes()
@@ -406,15 +399,17 @@ func TestManagerFailoverWhenMasterSuspicious(t *testing.T) {
 			}
 			require.NotNil(t, app.failoverProgress)
 			require.Len(t, app.failoverProgress.received, 4)
-			app.t.Set(NodeFailedAt, "A", failedAt.Add(-time.Minute))
-			app.failoverProgress.changedAt = failedAt.Add(-time.Minute)
-			if tc.progress {
-				nodes["C"].retrieved = failoverTestUUID + ":1-12"
-				tick()
-				require.False(t, app.failoverProgress.changedAt.Before(failedAt))
-				tick()
-				app.failoverProgress.changedAt = failedAt.Add(-time.Minute)
-			}
+			expiredAt := failedAt.Add(-max(app.config.FailoverDelay, app.config.TickInterval))
+			app.t.Set(NodeFailedAt, "A", expiredAt)
+			app.failoverProgress.changedAt = expiredAt
+
+			// New GTIDs restart the observation even after the original wait elapsed.
+			nodes["C"].retrieved = failoverTestUUID + ":1-12"
+			tick()
+			require.False(t, app.failoverProgress.changedAt.Before(failedAt))
+			tick()
+
+			app.failoverProgress.changedAt = expiredAt
 			if !tc.noQuorum {
 				mockDCS.EXPECT().GetLastSwitchover(gomock.Any()).Return(dcs.ErrNotFound)
 				mockDCS.EXPECT().CreateCurrentSwitchover(gomock.Any()).DoAndReturn(func(sw *Switchover) error {
