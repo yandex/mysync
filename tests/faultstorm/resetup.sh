@@ -3,6 +3,17 @@ set -euo pipefail
 
 resetup() {
     supervisorctl stop mysqld >/dev/null 2>&1 || true
+    state=$(supervisorctl status mysqld 2>/dev/null || true)
+    [ "$(echo "$state" | awk '$1 == "mysqld" {print $2}')" = STOPPED ] || {
+        echo "resetup deferred: mysqld not stopped ($state)"
+        return 1
+    }
+    process_status=0
+    pgrep -x mysqld >/dev/null 2>&1 || process_status=$?
+    [ "$process_status" -eq 1 ] || {
+        echo "resetup deferred: mysqld process still running or state unknown"
+        return 1
+    }
     master=$(mysync info --short | awk '$1 == "master:" {print $2}') || return 1
     if [ -z "$master" ] || [ "$master" = "$(hostname)" ]; then
         echo "resetup deferred: no separate master"

@@ -72,9 +72,9 @@ class ResetupAction(SwitchoverAction):
         def wipe():
             ClusterManager.exec_on_node(self.node, [
                 "sh", "-c",
-                "supervisorctl stop mysqld || true; "
                 "find /var/lib/mysql -mindepth 1 -maxdepth 1 ! -name auto.cnf -exec rm -rf -- {} + && "
-                "touch /tmp/mysync.resetup",
+                "touch /tmp/mysync.resetup && "
+                "(supervisorctl stop mysqld || true)",
             ], timeout=60)
 
         if other_ips:
