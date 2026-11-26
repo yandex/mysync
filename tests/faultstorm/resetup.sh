@@ -34,7 +34,7 @@ resetup() {
         sleep 1
     done
     mysql -e 'SELECT 1' >/dev/null || return 1
-    gtid=$(awk '{print $3}' /var/lib/mysql/xtrabackup_binlog_info) || return 1
+    gtid=$(tr -d '\n' < /var/lib/mysql/xtrabackup_binlog_info | awk '{print $3}') || return 1
     if [ "$VERSION" = "8.4" ] || [ "$VERSION" = "9.7" ]; then
         mysql -e "RESET BINARY LOGS AND GTIDS; SET @@GLOBAL.GTID_PURGED='$gtid'" || return 1
     else
