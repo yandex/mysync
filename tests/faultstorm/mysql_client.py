@@ -106,8 +106,16 @@ class MySQLClient(DatabaseClient):
                                 )
                             except Exception:
                                 pending_resetup.append(node)
-                        status.update({"caught_up": caught_up, "pending_resetup": pending_resetup})
-                        if all(caught_up.values()) and not pending_resetup:
+                        dcs_info = ClusterManager.exec_on_node(
+                            self.nodes[0], ["mysync", "info", "--short"], timeout=10
+                        ).splitlines()
+                        pending_switch = any(line.startswith("switch:") for line in dcs_info)
+                        dcs_master = next((line.partition(":")[2].strip() for line in dcs_info
+                                           if line.startswith("master:")), None)
+                        status.update({"caught_up": caught_up, "pending_resetup": pending_resetup,
+                                       "pending_switch": pending_switch, "dcs_master": dcs_master})
+                        if (all(caught_up.values()) and not pending_resetup and not pending_switch and
+                                dcs_master == master):
                             logging.info("Cluster recovered: master=%s, GTID=%s", master, target[1])
                             return
                     except Exception as error:
