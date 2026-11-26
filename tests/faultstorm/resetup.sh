@@ -25,6 +25,9 @@ resetup() {
     ssh -o StrictHostKeyChecking=no root@"$master" \
         'xtrabackup --backup --stream=xbstream' | sudo -u mysql xbstream --extract --directory=/var/lib/mysql || return 1
     sudo -u mysql xtrabackup --prepare --target-dir=/var/lib/mysql || return 1
+    supervisorctl stop mysync >/dev/null 2>&1 || true
+    state=$(supervisorctl status mysync 2>/dev/null || true)
+    [ "$(echo "$state" | awk '$1 == "mysync" {print $2}')" = STOPPED ] || return 1
     supervisorctl start mysqld || return 1
     for i in $(seq 1 120); do
         mysql -e 'SELECT 1' >/dev/null 2>&1 && break
@@ -37,6 +40,7 @@ resetup() {
     else
         mysql -e "RESET MASTER; SET @@GLOBAL.GTID_PURGED='$gtid'" || return 1
     fi
+    supervisorctl start mysync || return 1
     rm /tmp/mysync.resetup || return 1
     echo "resetup from $master completed"
 }
