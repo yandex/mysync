@@ -27,6 +27,7 @@ services:
       start_period: 180s
     environment:
       MYSYNC_FAILOVER: "true"
+      MYSYNC_FAILOVER_COOLDOWN: "10s"
   mysql2:
     container_name: mysync-faultstorm-mysql2
     build:
@@ -35,6 +36,7 @@ services:
     labels: {faultstorm.dc: dc2}
     environment:
       MYSYNC_FAILOVER: "true"
+      MYSYNC_FAILOVER_COOLDOWN: "10s"
   mysql3:
     container_name: mysync-faultstorm-mysql3
     build:
@@ -43,6 +45,7 @@ services:
     labels: {faultstorm.dc: dc3}
     environment:
       MYSYNC_FAILOVER: "true"
+      MYSYNC_FAILOVER_COOLDOWN: "10s"
   faultstorm:
     build: ../faultstorm
     container_name: mysync-faultstorm

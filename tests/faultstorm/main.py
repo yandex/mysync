@@ -43,7 +43,7 @@ def main():
             "freeze_processes_group": {"processes": ["mysqld", "/usr/bin/mysync", "zookeeper"]},
         },
         parallel_faults_count=1,
-        complex_faults_enabled=False,
+        complex_faults_enabled=True,
         add_interval=0.1,
         writers_per_node=1,
         operations_log="/logs/operations.log",
@@ -80,12 +80,15 @@ def main():
     else:
         raise RuntimeError(f"no writable MySQL node: {errors}")
 
+    client.wait_for_recovery()
+
     dc_map = ClusterManager.build_dc_map(config.all_nodes)
     if len(dc_map) != 3:
         raise RuntimeError(f"incomplete DC map: {dc_map}")
     registry = create_default_registry()
     registry.register(SwitchoverAction).register(MaintenanceAction).register(ResetupAction)
-    result = TestRunner(config, client, registry, dc_map).run()
+    result = TestRunner(config, client, registry, dc_map,
+                        before_read_phase=client.wait_for_recovery).run()
     logging.info("valid=%s successful_adds=%d attempts=%d", result.valid,
                  result.successful_adds, result.total_attempts)
     if not result.valid or result.successful_adds == 0:

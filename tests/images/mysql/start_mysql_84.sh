@@ -71,4 +71,7 @@ chown -R mysql:mysql /var/lib/mysql
 find /var/lib/mysql -type f -exec touch {} +
 
 echo "==STARTING=="
-exec /usr/sbin/mysqld --defaults-file=/etc/mysql/my.cnf --datadir=/var/lib/mysql --init-file=/etc/mysql/slave.sql --server-id=$MYSQL_SERVER_ID --report-host=`hostname`
+if [ -e /tmp/mysync.resetup ]; then
+    set -- --skip-replica-start
+fi
+exec /usr/sbin/mysqld --defaults-file=/etc/mysql/my.cnf --datadir=/var/lib/mysql --init-file=/etc/mysql/slave.sql --server-id=$MYSQL_SERVER_ID --report-host=`hostname` "$@"

@@ -12,6 +12,15 @@ def _master(node):
                 if line.startswith("master:"))
 
 
+def _has_active_replica(info, master):
+    for line in info.partition("active_nodes:\n")[2].splitlines():
+        if not line.startswith("- "):
+            break
+        if line[2:] != master:
+            return True
+    return False
+
+
 class SwitchoverAction(FaultAction):
     name = "switchover"
 
@@ -68,17 +77,27 @@ class ResetupAction(SwitchoverAction):
         if self.node is None:
             self.node = random.choice(self.db_nodes)
         other_ips = {ClusterManager.get_node_ip(node) for node in self.db_nodes if node != self.node}
+        requested = False
 
         def wipe():
+            nonlocal requested
+            info = ClusterManager.exec_on_node(self.node, ["mysync", "info", "--short"])
+            master = next(line.split(":", 1)[1].strip() for line in info.splitlines()
+                          if line.startswith("master:"))
+            if self.node == master and not _has_active_replica(info, master):
+                logging.info("Resetup skipped on %s: no active replica", master)
+                return
             ClusterManager.exec_on_node(self.node, [
                 "sh", "-c",
                 "find /var/lib/mysql -mindepth 1 -maxdepth 1 ! -name auto.cnf -exec rm -rf -- {} + && "
                 "touch /tmp/mysync.resetup && "
                 "(supervisorctl stop mysqld || true)",
             ], timeout=60)
+            requested = True
 
         if other_ips:
             freeze_drop_restore_for_ips(self.node, other_ips, pre_kill_sleep=5, kill_callback=wipe)
         else:
             wipe()
-        logging.info("Resetup requested on %s", self.node)
+        if requested:
+            logging.info("Resetup requested on %s", self.node)
