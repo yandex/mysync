@@ -14,9 +14,9 @@ def _master(node):
 
 def _has_active_replica(info, master):
     for line in info.partition("active_nodes:\n")[2].splitlines():
-        if not line.startswith(" "):
+        if not line.startswith("- "):
             break
-        if line.strip().startswith("- ") and line.strip()[2:] != master:
+        if line[2:] != master:
             return True
     return False
 

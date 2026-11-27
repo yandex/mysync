@@ -111,10 +111,9 @@ class MySQLClient(DatabaseClient):
                         ).splitlines()
                         active = []
                         for line in dcs_info[dcs_info.index("active_nodes:") + 1:]:
-                            if not line.startswith(" "):
+                            if not line.startswith("- "):
                                 break
-                            if line.strip().startswith("- "):
-                                active.append(line.strip()[2:])
+                            active.append(line[2:])
                         pending_switch = any(line.startswith("switch:") for line in dcs_info)
                         dcs_master = next((line.partition(":")[2].strip() for line in dcs_info
                                            if line.startswith("master:")), None)
