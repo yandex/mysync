@@ -80,6 +80,8 @@ def main():
     else:
         raise RuntimeError(f"no writable MySQL node: {errors}")
 
+    client.wait_for_recovery()
+
     dc_map = ClusterManager.build_dc_map(config.all_nodes)
     if len(dc_map) != 3:
         raise RuntimeError(f"incomplete DC map: {dc_map}")

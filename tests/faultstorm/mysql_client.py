@@ -109,13 +109,20 @@ class MySQLClient(DatabaseClient):
                         dcs_info = ClusterManager.exec_on_node(
                             self.nodes[0], ["mysync", "info", "--short"], timeout=10
                         ).splitlines()
+                        active = []
+                        for line in dcs_info[dcs_info.index("active_nodes:") + 1:]:
+                            if not line.startswith(" "):
+                                break
+                            if line.strip().startswith("- "):
+                                active.append(line.strip()[2:])
                         pending_switch = any(line.startswith("switch:") for line in dcs_info)
                         dcs_master = next((line.partition(":")[2].strip() for line in dcs_info
                                            if line.startswith("master:")), None)
                         status.update({"caught_up": caught_up, "pending_resetup": pending_resetup,
-                                       "pending_switch": pending_switch, "dcs_master": dcs_master})
+                                       "pending_switch": pending_switch, "dcs_master": dcs_master,
+                                       "active_nodes": active})
                         if (all(caught_up.values()) and not pending_resetup and not pending_switch and
-                                dcs_master == master):
+                                dcs_master == master and set(active) == set(self.nodes)):
                             logging.info("Cluster recovered: master=%s, GTID=%s", master, target[1])
                             return
                     except Exception as error:
@@ -127,7 +134,7 @@ class MySQLClient(DatabaseClient):
                 logging.info("Waiting for cluster recovery: %s", status)
                 last_status = status
             time.sleep(min(2, max(0, deadline - time.monotonic())))
-        raise RuntimeError(f"cluster did not recover before reading within {timeout}s; last state: {last_status}")
+        raise RuntimeError(f"cluster did not recover within {timeout}s; last state: {last_status}")
 
     def is_definite_failure(self, exc):
         return isinstance(exc, pymysql.err.OperationalError) and exc.args[0] in (1290, 1792)
